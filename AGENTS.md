@@ -306,6 +306,7 @@ The Flask + HTMX web interface (future phase).
 | uv | Python package management | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | just | Task runner | `cargo install just` |
 | pnpm | Node package manager | `npm install -g pnpm` |
+| prek | Git hooks (Rust-based) | `uv tool install prek` |
 | Playwright | Browser automation | `playwright install chromium` |
 
 ---
