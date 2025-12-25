@@ -2,11 +2,22 @@
 
 import logging
 import subprocess
+import tempfile
 from pathlib import Path
 
+from guitar_tone_shootout.audio import (
+    AudioProcessingError,
+    load_audio,
+    process_chain,
+    save_audio,
+)
 from guitar_tone_shootout.config import Comparison, DITrack, SignalChain
 
 logger = logging.getLogger(__name__)
+
+
+class PipelineError(Exception):
+    """Error during pipeline processing."""
 
 
 def process_comparison(comparison: Comparison) -> Path:
@@ -88,34 +99,64 @@ def process_comparison(comparison: Comparison) -> Path:
     return master_video
 
 
-def trim_silence(audio_path: Path) -> Path:
+def trim_silence(audio_path: Path, threshold_db: float = -50.0) -> Path:
     """
     Trim leading and trailing silence from an audio file using FFmpeg.
 
     Args:
         audio_path: Path to input audio file
+        threshold_db: Silence threshold in dB (default -50dB)
 
     Returns:
         Path to trimmed audio file (temp file)
     """
-    # TODO: Implement FFmpeg silenceremove filter
+    if not audio_path.exists():
+        raise PipelineError(f"Audio file not found: {audio_path}")
+
     logger.debug(f"Trimming silence from: {audio_path}")
 
-    # For now, return original path (no-op)
-    # Real implementation:
-    # ffmpeg -i input.wav -af silenceremove=start_periods=1:start_silence=0.1:start_threshold=-50dB,
-    #        areverse,silenceremove=start_periods=1:start_silence=0.1:start_threshold=-50dB,areverse
-    #        output.wav
-    return audio_path
+    # Create temp file for output
+    suffix = audio_path.suffix
+    _temp_fd, temp_path = tempfile.mkstemp(suffix=suffix)
+
+    try:
+        # FFmpeg silenceremove filter:
+        # - Remove silence from start (start_periods=1)
+        # - Reverse, remove silence from start again (removes end silence)
+        # - Reverse back to original direction
+        filter_complex = (
+            f"silenceremove=start_periods=1:start_silence=0.05"
+            f":start_threshold={threshold_db}dB,"
+            f"areverse,"
+            f"silenceremove=start_periods=1:start_silence=0.05"
+            f":start_threshold={threshold_db}dB,"
+            f"areverse"
+        )
+
+        _run_ffmpeg(
+            [
+                "-i",
+                str(audio_path),
+                "-af",
+                filter_complex,
+                str(temp_path),
+            ]
+        )
+
+        return Path(temp_path)
+
+    except subprocess.CalledProcessError as e:
+        Path(temp_path).unlink(missing_ok=True)
+        raise PipelineError(f"Failed to trim silence: {e.stderr}") from e
 
 
 def process_signal_chain(
     di_track: Path,
-    signal_chain: SignalChain,  # noqa: ARG001
+    signal_chain: SignalChain,
     output_path: Path,
 ) -> Path:
     """
-    Process DI track through a signal chain using Pedalboard/NAM.
+    Process DI track through a signal chain using NAM/Pedalboard.
 
     Args:
         di_track: Path to DI audio file
@@ -125,26 +166,34 @@ def process_signal_chain(
     Returns:
         Path to processed audio file
     """
-    # TODO: Implement signal chain processing
-    # For each effect in signal_chain.chain:
-    #   - nam: Load NAM model and process
-    #   - ir: Apply convolution with IR file
-    #   - eq/reverb/delay/gain: Apply Pedalboard built-in effects
-    logger.debug(f"Processing signal chain: {di_track.name}")
+    logger.debug(f"Processing signal chain '{signal_chain.name}' on: {di_track.name}")
 
-    # Placeholder - creates empty file for now
-    output_path.touch()
-    return output_path
+    try:
+        # Load audio
+        audio, sample_rate = load_audio(di_track)
+
+        # Process through chain
+        processed = process_chain(audio, sample_rate, signal_chain.chain)
+
+        # Save output
+        save_audio(processed, output_path, sample_rate)
+
+        return output_path
+
+    except AudioProcessingError as e:
+        raise PipelineError(f"Audio processing failed: {e}") from e
 
 
 def generate_image(
-    comparison: Comparison,  # noqa: ARG001
-    di_track: DITrack,  # noqa: ARG001
-    signal_chain: SignalChain,  # noqa: ARG001
+    comparison: Comparison,
+    di_track: DITrack,
+    signal_chain: SignalChain,
     output_path: Path,
 ) -> Path:
     """
     Generate comparison image showing signal chain info.
+
+    Uses Playwright to render HTML template to PNG.
 
     Args:
         comparison: Comparison configuration
@@ -155,25 +204,208 @@ def generate_image(
     Returns:
         Path to generated image
     """
-    # TODO: Implement HTML/CSS -> image rendering
-    # Template will show:
-    # - Comparison name
-    # - DI track info (guitar, pickup, notes)
-    # - Signal chain (name, description, effects visualization)
+    from jinja2 import Environment, FileSystemLoader
+
     logger.debug(f"Generating image: {output_path}")
 
-    # Placeholder implementation
-    output_path.touch()
-    return output_path
+    # Template directory
+    template_dir = Path("templates")
+    if not template_dir.exists():
+        template_dir.mkdir(parents=True)
+        # Create default template if none exists
+        _create_default_template(template_dir)
+
+    # Render HTML from template
+    env = Environment(loader=FileSystemLoader(str(template_dir)))
+
+    try:
+        template = env.get_template("comparison.html")
+    except Exception:
+        _create_default_template(template_dir)
+        template = env.get_template("comparison.html")
+
+    html_content = template.render(
+        comparison=comparison,
+        di_track=di_track,
+        signal_chain=signal_chain,
+    )
+
+    # Write HTML to temp file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as temp_html:
+        temp_html.write(html_content)
+        temp_html_path = Path(temp_html.name)
+
+    try:
+        # Use Playwright to screenshot HTML
+        _render_html_to_png(temp_html_path, output_path)
+        return output_path
+    finally:
+        temp_html_path.unlink(missing_ok=True)
+
+
+def _create_default_template(template_dir: Path) -> None:
+    """Create default HTML template for comparison images."""
+    template_content = """<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px;
+        }
+        .container {
+            width: 100%;
+            max-width: 1600px;
+        }
+        h1 {
+            font-size: 64px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            text-align: center;
+            color: #e94560;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        .info-box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .info-box h2 {
+            font-size: 28px;
+            color: #0f3460;
+            background: #e94560;
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info-box p {
+            font-size: 24px;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.9);
+        }
+        .chain-box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .chain-box h2 {
+            font-size: 36px;
+            color: #e94560;
+            margin-bottom: 30px;
+        }
+        .chain-effects {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .effect {
+            background: linear-gradient(135deg, #e94560 0%, #0f3460 100%);
+            padding: 20px 30px;
+            border-radius: 12px;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .effect-type {
+            text-transform: uppercase;
+            font-size: 14px;
+            opacity: 0.8;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .author {
+            text-align: center;
+            margin-top: 40px;
+            font-size: 20px;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ comparison.meta.name }}</h1>
+
+        <div class="info-grid">
+            <div class="info-box">
+                <h2>Guitar</h2>
+                <p>{{ di_track.guitar }}</p>
+                <p style="margin-top: 10px; opacity: 0.7;">{{ di_track.pickup }}</p>
+            </div>
+            <div class="info-box">
+                <h2>Signal Chain</h2>
+                <p>{{ signal_chain.name }}</p>
+                {% if signal_chain.description %}
+                <p style="margin-top: 10px; opacity: 0.7;">{{ signal_chain.description }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="chain-box">
+            <h2>Effects Chain</h2>
+            <div class="chain-effects">
+                {% for effect in signal_chain.chain %}
+                <div class="effect">
+                    <span class="effect-type">{{ effect.effect_type }}</span>
+                    {{ effect.value | replace('/', ' / ') }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <p class="author">By {{ comparison.meta.author }}</p>
+    </div>
+</body>
+</html>"""
+
+    template_path = template_dir / "comparison.html"
+    template_path.write_text(template_content)
+    logger.info(f"Created default template: {template_path}")
+
+
+def _render_html_to_png(html_path: Path, output_path: Path) -> None:
+    """Render HTML file to PNG using Playwright."""
+    from playwright.sync_api import sync_playwright
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": 1920, "height": 1080})
+        page.goto(f"file://{html_path.absolute()}")
+        page.screenshot(path=str(output_path), full_page=False)
+        browser.close()
 
 
 def create_clip(
-    image: Path,  # noqa: ARG001
-    audio: Path,  # noqa: ARG001
+    image: Path,
+    audio: Path,
     output_path: Path,
 ) -> Path:
     """
     Create video clip from static image and audio using FFmpeg.
+
+    Output: H.264 video, AAC audio at 384kbps, 48kHz, 30fps.
 
     Args:
         image: Path to image file
@@ -183,15 +415,47 @@ def create_clip(
     Returns:
         Path to video clip
     """
-    # TODO: Implement FFmpeg video creation
+    if not image.exists():
+        raise PipelineError(f"Image not found: {image}")
+    if not audio.exists():
+        raise PipelineError(f"Audio not found: {audio}")
+
     logger.debug(f"Creating clip: {output_path}")
 
-    # Real implementation:
-    # ffmpeg -loop 1 -i image.png -i audio.flac -c:v libx264 -tune stillimage
-    #        -c:a aac -b:a 384k -ar 48000 -shortest -pix_fmt yuv420p output.mp4
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    output_path.touch()
-    return output_path
+    try:
+        _run_ffmpeg(
+            [
+                "-loop",
+                "1",
+                "-i",
+                str(image),
+                "-i",
+                str(audio),
+                "-c:v",
+                "libx264",
+                "-tune",
+                "stillimage",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "384k",
+                "-ar",
+                "48000",
+                "-shortest",
+                "-pix_fmt",
+                "yuv420p",
+                "-r",
+                "30",
+                str(output_path),
+            ]
+        )
+
+        return output_path
+
+    except subprocess.CalledProcessError as e:
+        raise PipelineError(f"Failed to create clip: {e.stderr}") from e
 
 
 def concatenate_clips(
@@ -208,15 +472,46 @@ def concatenate_clips(
     Returns:
         Path to concatenated video
     """
-    # TODO: Implement FFmpeg concatenation
+    if not clips:
+        raise PipelineError("No clips to concatenate")
+
+    for clip in clips:
+        if not clip.exists():
+            raise PipelineError(f"Clip not found: {clip}")
+
     logger.debug(f"Concatenating {len(clips)} clips -> {output_path}")
 
-    # Real implementation:
-    # Create concat file list, then:
-    # ffmpeg -f concat -safe 0 -i concat_list.txt -c copy output.mp4
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    output_path.touch()
-    return output_path
+    # Create concat file list
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as concat_file:
+        for clip in clips:
+            # Escape single quotes in paths
+            escaped_path = str(clip.absolute()).replace("'", "'\\''")
+            concat_file.write(f"file '{escaped_path}'\n")
+        concat_path = Path(concat_file.name)
+
+    try:
+        _run_ffmpeg(
+            [
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_path),
+                "-c",
+                "copy",
+                str(output_path),
+            ]
+        )
+
+        return output_path
+
+    except subprocess.CalledProcessError as e:
+        raise PipelineError(f"Failed to concatenate clips: {e.stderr}") from e
+    finally:
+        concat_path.unlink(missing_ok=True)
 
 
 def concatenate_audio(
@@ -233,11 +528,45 @@ def concatenate_audio(
     Returns:
         Path to concatenated audio
     """
-    # TODO: Implement FFmpeg audio concatenation
+    if not audio_files:
+        raise PipelineError("No audio files to concatenate")
+
+    for audio in audio_files:
+        if not audio.exists():
+            raise PipelineError(f"Audio file not found: {audio}")
+
     logger.debug(f"Concatenating {len(audio_files)} audio files -> {output_path}")
 
-    output_path.touch()
-    return output_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create concat file list
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as concat_file:
+        for audio in audio_files:
+            escaped_path = str(audio.absolute()).replace("'", "'\\''")
+            concat_file.write(f"file '{escaped_path}'\n")
+        concat_path = Path(concat_file.name)
+
+    try:
+        _run_ffmpeg(
+            [
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(concat_path),
+                "-c:a",
+                "flac",
+                str(output_path),
+            ]
+        )
+
+        return output_path
+
+    except subprocess.CalledProcessError as e:
+        raise PipelineError(f"Failed to concatenate audio: {e.stderr}") from e
+    finally:
+        concat_path.unlink(missing_ok=True)
 
 
 def _sanitize_filename(name: str) -> str:

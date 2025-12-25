@@ -91,10 +91,11 @@ web/static/dist/*.css
 web/static/dist/*.js
 !web/static/dist/.gitkeep
 
-# Node (if accidentally used)
+# Node
 node_modules/
 package-lock.json
 yarn.lock
+# Note: pnpm-lock.yaml IS committed for reproducible builds
 
 # Logs
 *.log

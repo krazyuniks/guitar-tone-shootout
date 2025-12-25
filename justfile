@@ -9,14 +9,14 @@ default:
 # ============================================
 
 # Setup all subprojects
-setup: setup-pipeline setup-web
+setup: setup-pipeline setup-web install-hooks
     @echo "✓ All subprojects setup complete"
 
 # Setup pipeline subproject
 setup-pipeline:
     cd pipeline && just setup
 
-# Setup web subproject  
+# Setup web subproject
 setup-web:
     cd web && just setup
 
@@ -110,8 +110,8 @@ install-hooks:
     uv run pre-commit install
     @echo "✓ Pre-commit hooks installed"
 
-# Run pre-commit on all files
-pre-commit:
+# Run pre-commit hooks on all files
+run-hooks:
     uv run pre-commit run --all-files
 
 # ============================================
@@ -122,7 +122,60 @@ pre-commit:
 clean-all: clean-outputs
     rm -rf pipeline/.venv pipeline/.pytest_cache pipeline/.mypy_cache pipeline/.ruff_cache
     rm -rf web/.venv web/.pytest_cache web/.mypy_cache web/.ruff_cache
-    rm -rf web/static/dist/*.css web/static/dist/*.js
+    rm -rf web/static/dist/*.css web/static/dist/*.js web/node_modules
     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
     find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
     @echo "✓ All generated files cleaned"
+
+# ============================================
+# GitHub Workflow
+# ============================================
+
+# Create a new feature issue
+new-issue:
+    @echo "Creating new issue..."
+    @echo "Use: gh issue create --title 'feat: <description>'"
+    @echo "Or go to: https://github.com/krazyuniks/guitar-tone-shootout/issues/new/choose"
+    gh issue list --limit 5
+
+# Create a feature branch from issue number
+branch issue:
+    git checkout main
+    git pull origin main
+    git checkout -b {{issue}}-feature
+    @echo "✓ Created branch {{issue}}-feature"
+    @echo "Remember to create dev doc: touch dev/active/{{issue}}-feature.md"
+
+# Create a PR for current branch
+pr:
+    @echo "Creating PR..."
+    gh pr create --fill
+
+# View current PR status
+pr-status:
+    gh pr status
+
+# List open issues
+issues:
+    gh issue list
+
+# View issue details
+issue num:
+    gh issue view {{num}}
+
+# ============================================
+# Development Workflow
+# ============================================
+
+# Quick check before commit
+pre-commit: check
+    @echo "✓ Ready to commit"
+
+# Full workflow: check, commit, push, PR
+ship message:
+    just check
+    git add -A
+    git commit -m "{{message}}"
+    git push -u origin $(git branch --show-current)
+    gh pr create --fill
+    @echo "✓ PR created!"

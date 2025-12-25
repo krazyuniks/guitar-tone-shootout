@@ -27,17 +27,132 @@ These terms are used consistently throughout the project:
 
 ### Prerequisites
 
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv) - `curl -LsSf https://astral.sh/uv/install.sh | sh`
-- [just](https://github.com/casey/just) - `cargo install just`
-- [FFmpeg](https://ffmpeg.org/) - `brew install ffmpeg` or download from ffmpeg.org
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Python | 3.12+ | Core language |
+| uv | Latest | Python package manager |
+| just | Latest | Task runner |
+| FFmpeg | 6.0+ | Audio/video processing |
+| Node.js | 20+ | Web frontend build tools (optional for MVP) |
+| pnpm | 9+ | Node package manager (optional for MVP) |
+
+### Installation by Platform
+
+<details>
+<summary><strong>macOS</strong></summary>
+
+```bash
+# Install Homebrew if not present
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install dependencies
+brew install python@3.12 ffmpeg just
+
+# Install uv (Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install Node.js and pnpm (for web frontend - optional for MVP)
+brew install node
+npm install -g pnpm
+```
+</details>
+
+<details>
+<summary><strong>Linux (Ubuntu/Debian)</strong></summary>
+
+```bash
+# Update package list
+sudo apt update
+
+# Install Python 3.12
+sudo apt install python3.12 python3.12-venv
+
+# Install FFmpeg
+sudo apt install ffmpeg
+
+# Install just
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
+
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install Node.js 20+ and pnpm (for web frontend - optional for MVP)
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install nodejs
+npm install -g pnpm
+
+# Add ~/.local/bin to PATH (add to ~/.bashrc or ~/.zshrc)
+export PATH="$HOME/.local/bin:$PATH"
+```
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+**Option 1: Using winget (Windows 11 / Windows 10 21H2+)**
+```powershell
+# Install dependencies
+winget install Python.Python.3.12
+winget install Gyan.FFmpeg
+winget install Casey.Just
+winget install OpenJS.NodeJS.LTS
+
+# Install uv (run in PowerShell as Administrator)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Install pnpm
+npm install -g pnpm
+```
+
+**Option 2: Using Scoop**
+```powershell
+# Install Scoop if not present
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+irm get.scoop.sh | iex
+
+# Install dependencies
+scoop install python ffmpeg just nodejs
+
+# Install uv
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Install pnpm
+npm install -g pnpm
+```
+
+**Option 3: Manual installation**
+- Python 3.12+: https://www.python.org/downloads/
+- FFmpeg: https://ffmpeg.org/download.html (add to PATH)
+- just: https://github.com/casey/just/releases
+- Node.js 20+: https://nodejs.org/
+- uv: `pip install uv` (after Python is installed)
+- pnpm: `npm install -g pnpm` (after Node.js is installed)
+</details>
+
+### Verify Installation
+
+```bash
+python3 --version    # Should be 3.12+
+uv --version         # Should show version
+just --version       # Should show version
+ffmpeg -version      # Should show version 6+
+node --version       # Should be 20+ (optional for MVP)
+pnpm --version       # Should be 9+ (optional for MVP)
+```
 
 ### Setup
 
 ```bash
-git clone https://github.com/yourusername/guitar-tone-shootout.git
+git clone https://github.com/krazyuniks/guitar-tone-shootout.git
 cd guitar-tone-shootout
 just setup
+```
+
+### Install Playwright Browser (Required for Image Generation)
+
+```bash
+cd pipeline
+uv run playwright install chromium
 ```
 
 ### Usage
@@ -161,4 +276,46 @@ MIT
 
 ## Contributing
 
-Contributions welcome! Please run `just check` before submitting PRs.
+We welcome contributions! This project uses an issue-driven development workflow.
+
+### Development Workflow
+
+1. **Create an issue** for your feature/fix:
+   ```bash
+   gh issue create --title "feat: your feature description"
+   ```
+   Or use the [issue templates](https://github.com/krazyuniks/guitar-tone-shootout/issues/new/choose)
+
+2. **Create a branch** from the issue:
+   ```bash
+   just branch 42   # Creates branch 42-feature
+   ```
+
+3. **Develop** following the patterns in `AGENTS.md`
+
+4. **Run quality checks** before committing:
+   ```bash
+   just check       # Runs lint, format, typecheck, test
+   ```
+
+5. **Create a PR**:
+   ```bash
+   just pr          # Creates PR with template
+   ```
+
+### Quick Commands
+
+```bash
+just issues       # List open issues
+just issue 42     # View issue details
+just pr-status    # Check PR status
+just ship "msg"   # Check + commit + push + PR
+```
+
+### Code Style
+
+- Type hints required on all functions
+- Docstrings for public functions
+- Use `logging` instead of `print()`
+- Use `pathlib.Path` over string paths
+- See `AGENTS.md` for detailed patterns

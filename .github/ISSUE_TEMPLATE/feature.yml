@@ -1,0 +1,65 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing a feature! Please fill out the sections below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of the feature you'd like to see
+      placeholder: Describe the feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: How would this feature be used? What problem does it solve?
+      placeholder: |
+        As a user, I want to...
+        So that I can...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What needs to be true for this feature to be complete?
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes
+      description: Any technical considerations, constraints, or implementation ideas
+      placeholder: |
+        - Consider using X library
+        - Watch out for Y edge case
+    validations:
+      required: false
+
+  - type: dropdown
+    id: subproject
+    attributes:
+      label: Subproject
+      description: Which part of the codebase does this affect?
+      options:
+        - Pipeline (audio/video processing)
+        - Web (Flask frontend)
+        - Both
+        - Other
+    validations:
+      required: true

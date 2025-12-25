@@ -21,6 +21,8 @@ classifiers = [
 
 dependencies = [
     "pedalboard>=0.9.0",
+    "neural-amp-modeler>=0.12.0",
+    "numba>=0.59.0",  # Force compatible version for Python 3.12
     "numpy>=1.26.0",
     "pillow>=10.0.0",
     "jinja2>=3.1.0",
@@ -28,6 +30,7 @@ dependencies = [
     "rich>=13.0.0",
     "pydantic>=2.0.0",
     "httpx>=0.27.0",
+    "playwright>=1.40.0",
 ]
 
 [project.optional-dependencies]
@@ -73,6 +76,7 @@ select = [
 ignore = [
     "PLR0913",  # too many arguments
     "PLR2004",  # magic value comparison
+    "PLC0415",  # import not at top-level (intentional for lazy loading heavy deps)
 ]
 
 [tool.ruff.lint.isort]
@@ -92,7 +96,7 @@ check_untyped_defs = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["pedalboard.*"]
+module = ["pedalboard.*", "nam.*", "playwright.*", "torch.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

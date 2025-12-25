@@ -8,52 +8,44 @@ default:
 # Setup
 # ============================================
 
-# Setup development environment
-setup:
-    uv venv
-    uv pip install -e ".[dev]"
+# Setup development environment (Python + Node)
+setup: setup-python setup-node
     @echo "✓ Web setup complete"
 
-# Install frontend build tools (standalone binaries, no Node required)
-install-tools:
-    @echo "Installing Tailwind CSS standalone CLI..."
-    @if [ "$(uname -m)" = "arm64" ]; then \
-        curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-macos-arm64; \
-        chmod +x tailwindcss-macos-arm64; \
-        mv tailwindcss-macos-arm64 ~/.local/bin/tailwindcss 2>/dev/null || sudo mv tailwindcss-macos-arm64 /usr/local/bin/tailwindcss; \
-    else \
-        curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-macos-x64; \
-        chmod +x tailwindcss-macos-x64; \
-        mv tailwindcss-macos-x64 ~/.local/bin/tailwindcss 2>/dev/null || sudo mv tailwindcss-macos-x64 /usr/local/bin/tailwindcss; \
-    fi
-    @echo "Installing esbuild..."
-    curl -fsSL https://esbuild.github.io/dl/latest | sh
-    mv esbuild ~/.local/bin/ 2>/dev/null || sudo mv esbuild /usr/local/bin/
-    @echo "✓ Frontend tools installed"
+# Setup Python environment
+setup-python:
+    uv venv
+    uv pip install -e ".[dev]"
+
+# Setup Node environment (pnpm + Tailwind + Flowbite)
+setup-node:
+    pnpm install
+    @echo "✓ Node dependencies installed"
 
 # ============================================
 # Build
 # ============================================
 
-# Build CSS with Tailwind CLI
+# Build all frontend assets
+build:
+    pnpm build
+    @echo "✓ Frontend assets built"
+
+# Build CSS with Tailwind
 build-css:
-    tailwindcss -i static/src/styles.css -o static/dist/styles.min.css --minify
+    pnpm build:css
 
 # Build JS with esbuild
 build-js:
-    esbuild static/src/app.js --bundle --minify --outfile=static/dist/app.min.js
+    pnpm build:js
 
-# Build all frontend assets
-build: build-css build-js
-    @echo "✓ Frontend assets built"
+# ============================================
+# Development
+# ============================================
 
-# Watch CSS for changes during development
+# Watch CSS for changes (run in separate terminal)
 watch-css:
-    tailwindcss -i static/src/styles.css -o static/dist/styles.min.css --watch
-
-# ============================================
-# Development Server
-# ============================================
+    pnpm dev:css
 
 # Run Flask development server
 serve:
@@ -63,11 +55,13 @@ serve:
 serve-dev:
     FLASK_DEBUG=1 uv run flask --app app.main:app run --reload --port 5000
 
-# Run Flask + CSS watch together (requires: parallel or run in separate terminals)
+# Development mode: watch CSS + Flask (requires two terminals)
 dev:
     @echo "Run these in separate terminals:"
     @echo "  just watch-css"
     @echo "  just serve-dev"
+    @echo ""
+    @echo "Or use: pnpm dev (watches CSS only)"
 
 # ============================================
 # Code Quality
@@ -97,6 +91,10 @@ typecheck:
 test:
     uv run pytest
 
+# Run tests with coverage
+test-cov:
+    uv run pytest --cov=app --cov-report=term-missing
+
 # Run all checks
 check: lint format-check typecheck test
     @echo "✓ All web checks passed"
@@ -105,6 +103,27 @@ check: lint format-check typecheck test
 # Production
 # ============================================
 
+# Build for production
+build-prod: build
+    @echo "✓ Production build complete"
+
 # Run production server with gunicorn
 serve-prod:
     uv run gunicorn "app:create_app()" --bind 0.0.0.0:8000 --workers 4
+
+# ============================================
+# Utilities
+# ============================================
+
+# Clean build artifacts
+clean:
+    rm -rf node_modules
+    rm -rf static/dist/*.css static/dist/*.js
+    rm -rf .pytest_cache .mypy_cache .ruff_cache
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    @echo "✓ Cleaned"
+
+# Update Node dependencies
+update-deps:
+    pnpm update
+    @echo "✓ Dependencies updated"

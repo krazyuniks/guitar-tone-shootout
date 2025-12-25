@@ -1,14 +1,14 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./web/templates/**/*.html",
-    "./web/static/src/**/*.js",
+    "./templates/**/*.html",
+    "./static/src/**/*.js",
     "./node_modules/flowbite/**/*.js"
   ],
   theme: {
     extend: {
       colors: {
-        // Custom brand colors
+        // Custom brand colors - guitar amp inspired
         brand: {
           50: '#fef2f2',
           100: '#fee2e2',
@@ -28,7 +28,6 @@ export default {
     },
   },
   plugins: [
-    // Flowbite plugin if installed locally
-    // require('flowbite/plugin')
+    require('flowbite/plugin')
   ],
 }
