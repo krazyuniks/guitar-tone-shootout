@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>{{ comparison_name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 1920px;
+            height: 1080px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1600px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 700;
+            color: #e94560;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            font-size: 24px;
+            color: #a0a0a0;
+        }
+
+        .signal-chain {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .signal-block {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 30px 40px;
+            min-width: 280px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .signal-block.active {
+            border-color: #e94560;
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
+        }
+
+        .signal-block .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .signal-block .label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .signal-block .value {
+            font-size: 22px;
+            font-weight: 600;
+            color: #ffffff;
+            word-break: break-word;
+        }
+
+        .arrow {
+            font-size: 36px;
+            color: #e94560;
+        }
+
+        .meta-info {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+            margin-top: 20px;
+        }
+
+        .meta-item {
+            text-align: center;
+        }
+
+        .meta-item .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .meta-item .value {
+            font-size: 18px;
+            color: #ccc;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 30px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ comparison_name }}</h1>
+            <div class="subtitle">Guitar Tone Comparison</div>
+        </div>
+
+        <div class="signal-chain">
+            <div class="signal-block">
+                <div class="icon">🎸</div>
+                <div class="label">Guitar</div>
+                <div class="value">{{ guitar }}</div>
+            </div>
+
+            <div class="arrow">→</div>
+
+            <div class="signal-block">
+                <div class="icon">🎚️</div>
+                <div class="label">Pickup</div>
+                <div class="value">{{ pickup }}</div>
+            </div>
+
+            <div class="arrow">→</div>
+
+            <div class="signal-block">
+                <div class="icon">📄</div>
+                <div class="label">DI Track</div>
+                <div class="value">{{ di_track }}</div>
+            </div>
+
+            <div class="arrow">→</div>
+
+            <div class="signal-block active">
+                <div class="icon">🔥</div>
+                <div class="label">Amp Model</div>
+                <div class="value">{{ amp_name }}</div>
+            </div>
+
+            <div class="arrow">→</div>
+
+            <div class="signal-block active">
+                <div class="icon">📢</div>
+                <div class="label">Cabinet IR</div>
+                <div class="value">{{ cab_name }}</div>
+            </div>
+        </div>
+
+        <div class="meta-info">
+            <div class="meta-item">
+                <div class="label">Author</div>
+                <div class="value">{{ author }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="label">Amp Source</div>
+                <div class="value">{{ amp_source }}</div>
+            </div>
+            <div class="meta-item">
+                <div class="label">IR Source</div>
+                <div class="value">{{ cab_source }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        Generated with Guitar Tone Shootout
+    </div>
+</body>
+</html>

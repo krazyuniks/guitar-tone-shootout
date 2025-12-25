@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+/* Custom styles below Tailwind imports */
+
+/* Signal chain visualization */
+.signal-block {
+    @apply bg-white/5 border-2 border-white/10 rounded-2xl p-6 min-w-64 text-center backdrop-blur-sm transition-all duration-300;
+}
+
+.signal-block.active {
+    @apply border-red-500 shadow-lg shadow-red-500/30;
+}
+
+/* Form styling for comparison builder */
+.form-section {
+    @apply bg-slate-800/50 rounded-xl p-6 mb-6;
+}
+
+.form-label {
+    @apply block text-sm font-medium text-slate-300 mb-2;
+}
+
+.form-input {
+    @apply w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent;
+}
+
+.form-select {
+    @apply w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent;
+}
+
+.btn-primary {
+    @apply bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200;
+}
+
+.btn-secondary {
+    @apply bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-6 rounded-lg transition-colors duration-200;
+}

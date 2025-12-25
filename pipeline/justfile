@@ -1,0 +1,75 @@
+# Guitar Tone Shootout - Pipeline Tasks
+# Run from pipeline/ directory
+
+default:
+    @just --list
+
+# Setup development environment
+setup:
+    uv venv
+    uv pip install -e ".[dev]"
+    @echo "✓ Pipeline setup complete"
+
+# Install dependencies only (no dev)
+install:
+    uv pip install -e .
+
+# Run linter
+lint:
+    uv run ruff check src tests
+
+# Run linter with auto-fix
+lint-fix:
+    uv run ruff check --fix src tests
+
+# Format code
+format:
+    uv run ruff format src tests
+
+# Check formatting without changes
+format-check:
+    uv run ruff format --check src tests
+
+# Run type checker
+typecheck:
+    uv run mypy src tests
+
+# Run tests
+test:
+    uv run pytest
+
+# Run tests with coverage
+test-cov:
+    uv run pytest --cov=src/guitar_tone_shootout --cov-report=term-missing
+
+# Run all checks
+check: lint format-check typecheck test
+    @echo "✓ All pipeline checks passed"
+
+# Process a comparison INI file
+process ini_file:
+    uv run gts process {{ini_file}}
+
+# Validate a comparison INI file without processing
+validate ini_file:
+    uv run gts validate {{ini_file}}
+
+# List available NAM models
+list-models:
+    uv run gts list-models
+
+# List available IRs
+list-irs:
+    uv run gts list-irs
+
+# List available DI tracks
+list-di:
+    uv run gts list-di
+
+# Check FFmpeg installation
+check-ffmpeg:
+    @which ffmpeg > /dev/null && echo "✓ FFmpeg found: $(ffmpeg -version | head -1)" || echo "✗ FFmpeg not found"
+
+# Build distribution package
+build:
+    uv build

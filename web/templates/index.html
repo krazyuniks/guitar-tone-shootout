@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Guitar Tone Shootout - Create Amp Comparison Videos{% endblock %}
+
+{% block meta_description %}Create professional guitar amp and cabinet comparison videos for YouTube. Compare NAM models, impulse responses, and more.{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+    <!-- Hero Section -->
+    <div class="text-center mb-16">
+        <h1 class="text-5xl font-bold mb-6">
+            Compare Guitar Tones
+            <span class="text-brand-500">Instantly</span>
+        </h1>
+        <p class="text-xl text-slate-400 max-w-2xl mx-auto mb-8">
+            Create professional A/B comparison videos for YouTube. 
+            Process DI tracks through NAM amp models and cabinet IRs automatically.
+        </p>
+        <div class="flex justify-center gap-4">
+            <a href="/compare" class="btn-primary text-lg px-8 py-3">
+                Start Comparing
+            </a>
+            <a href="/browse" class="btn-secondary text-lg px-8 py-3">
+                Browse Comparisons
+            </a>
+        </div>
+    </div>
+
+    <!-- Features Grid -->
+    <div class="grid md:grid-cols-3 gap-8 mb-16">
+        <div class="form-section text-center">
+            <div class="text-4xl mb-4">🎛️</div>
+            <h3 class="text-xl font-semibold mb-2">Build Signal Chains</h3>
+            <p class="text-slate-400">
+                Combine NAM amp models, cabinet IRs, and effects in any order.
+            </p>
+        </div>
+        <div class="form-section text-center">
+            <div class="text-4xl mb-4">🔄</div>
+            <h3 class="text-xl font-semibold mb-2">Auto Permutations</h3>
+            <p class="text-slate-400">
+                Automatically generate all amp × cab combinations from your selections.
+            </p>
+        </div>
+        <div class="form-section text-center">
+            <div class="text-4xl mb-4">📹</div>
+            <h3 class="text-xl font-semibold mb-2">YouTube Ready</h3>
+            <p class="text-slate-400">
+                Export 1080p videos with professional visuals, ready to upload.
+            </p>
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="form-section">
+        <h2 class="text-2xl font-bold mb-6 text-center">How It Works</h2>
+        <div class="flex flex-col md:flex-row justify-center items-center gap-4 md:gap-8">
+            <div class="text-center">
+                <div class="w-12 h-12 rounded-full bg-brand-500 flex items-center justify-center mx-auto mb-2 text-lg font-bold">1</div>
+                <p class="text-sm text-slate-300">Upload DI tracks</p>
+            </div>
+            <div class="hidden md:block text-2xl text-slate-600">→</div>
+            <div class="text-center">
+                <div class="w-12 h-12 rounded-full bg-brand-500 flex items-center justify-center mx-auto mb-2 text-lg font-bold">2</div>
+                <p class="text-sm text-slate-300">Select amp models</p>
+            </div>
+            <div class="hidden md:block text-2xl text-slate-600">→</div>
+            <div class="text-center">
+                <div class="w-12 h-12 rounded-full bg-brand-500 flex items-center justify-center mx-auto mb-2 text-lg font-bold">3</div>
+                <p class="text-sm text-slate-300">Choose cabinet IRs</p>
+            </div>
+            <div class="hidden md:block text-2xl text-slate-600">→</div>
+            <div class="text-center">
+                <div class="w-12 h-12 rounded-full bg-brand-500 flex items-center justify-center mx-auto mb-2 text-lg font-bold">4</div>
+                <p class="text-sm text-slate-300">Download video</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

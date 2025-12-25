@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{% block meta_description %}Create guitar amp and cab comparison videos for YouTube{% endblock %}">
+    <title>{% block title %}Guitar Tone Shootout{% endblock %}</title>
+
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link href="{{ url_for('static', filename='dist/styles.min.css') }}" rel="stylesheet">
+
+    <!-- Flowbite CSS (CDN for simplicity) -->
+    <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.css" rel="stylesheet">
+
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-slate-800 border-b border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="flex items-center gap-2">
+                        <span class="text-2xl">🎸</span>
+                        <span class="font-bold text-xl">Guitar Tone Shootout</span>
+                    </a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="flex items-center space-x-4">
+                        <a href="/" class="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                        <a href="/compare" class="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">New Comparison</a>
+                        <a href="/browse" class="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Browse</a>
+                        <a href="/about" class="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium">About</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 border-t border-slate-700 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-slate-400 text-sm">
+                    &copy; 2025 Guitar Tone Shootout. Open source project.
+                </div>
+                <div class="flex gap-6">
+                    <a href="https://github.com/yourusername/guitar-tone-shootout" class="text-slate-400 hover:text-white text-sm">GitHub</a>
+                    <a href="https://tone3000.com" class="text-slate-400 hover:text-white text-sm">Tone3000</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+
+    <!-- Flowbite JS (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+
+    <!-- App JS -->
+    <script src="{{ url_for('static', filename='dist/app.min.js') }}"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

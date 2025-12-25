@@ -1,0 +1,110 @@
+# Guitar Tone Shootout - Web Frontend Tasks
+# Run from web/ directory
+
+default:
+    @just --list
+
+# ============================================
+# Setup
+# ============================================
+
+# Setup development environment
+setup:
+    uv venv
+    uv pip install -e ".[dev]"
+    @echo "✓ Web setup complete"
+
+# Install frontend build tools (standalone binaries, no Node required)
+install-tools:
+    @echo "Installing Tailwind CSS standalone CLI..."
+    @if [ "$(uname -m)" = "arm64" ]; then \
+        curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-macos-arm64; \
+        chmod +x tailwindcss-macos-arm64; \
+        mv tailwindcss-macos-arm64 ~/.local/bin/tailwindcss 2>/dev/null || sudo mv tailwindcss-macos-arm64 /usr/local/bin/tailwindcss; \
+    else \
+        curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-macos-x64; \
+        chmod +x tailwindcss-macos-x64; \
+        mv tailwindcss-macos-x64 ~/.local/bin/tailwindcss 2>/dev/null || sudo mv tailwindcss-macos-x64 /usr/local/bin/tailwindcss; \
+    fi
+    @echo "Installing esbuild..."
+    curl -fsSL https://esbuild.github.io/dl/latest | sh
+    mv esbuild ~/.local/bin/ 2>/dev/null || sudo mv esbuild /usr/local/bin/
+    @echo "✓ Frontend tools installed"
+
+# ============================================
+# Build
+# ============================================
+
+# Build CSS with Tailwind CLI
+build-css:
+    tailwindcss -i static/src/styles.css -o static/dist/styles.min.css --minify
+
+# Build JS with esbuild
+build-js:
+    esbuild static/src/app.js --bundle --minify --outfile=static/dist/app.min.js
+
+# Build all frontend assets
+build: build-css build-js
+    @echo "✓ Frontend assets built"
+
+# Watch CSS for changes during development
+watch-css:
+    tailwindcss -i static/src/styles.css -o static/dist/styles.min.css --watch
+
+# ============================================
+# Development Server
+# ============================================
+
+# Run Flask development server
+serve:
+    uv run python -m app.main
+
+# Run Flask with auto-reload
+serve-dev:
+    FLASK_DEBUG=1 uv run flask --app app.main:app run --reload --port 5000
+
+# Run Flask + CSS watch together (requires: parallel or run in separate terminals)
+dev:
+    @echo "Run these in separate terminals:"
+    @echo "  just watch-css"
+    @echo "  just serve-dev"
+
+# ============================================
+# Code Quality
+# ============================================
+
+# Run linter
+lint:
+    uv run ruff check app tests
+
+# Run linter with auto-fix
+lint-fix:
+    uv run ruff check --fix app tests
+
+# Format code
+format:
+    uv run ruff format app tests
+
+# Check formatting
+format-check:
+    uv run ruff format --check app tests
+
+# Run type checker
+typecheck:
+    uv run mypy app tests
+
+# Run tests
+test:
+    uv run pytest
+
+# Run all checks
+check: lint format-check typecheck test
+    @echo "✓ All web checks passed"
+
+# ============================================
+# Production
+# ============================================
+
+# Run production server with gunicorn
+serve-prod:
+    uv run gunicorn "app:create_app()" --bind 0.0.0.0:8000 --workers 4
