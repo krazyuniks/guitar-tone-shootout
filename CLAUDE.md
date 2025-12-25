@@ -1,5 +1,32 @@
 # Guitar Tone Shootout
 
+## Current Status (Session 1 Complete)
+
+**Environment**: Set up and working
+- uv 0.9.18, just 1.45.0, ffmpeg 8.0.1, Python 3.12.7
+- All tools in `~/.local/bin` and `~/.cargo/bin`
+- Pipeline venv at `pipeline/.venv`
+
+**Completed**:
+- Project structure and tooling
+- INI config schema redesigned (DI tracks with metadata, signal chains)
+- Config parser with DITrack, SignalChain, ChainEffect dataclasses
+- 17 tests passing
+
+**Next Steps** (for next session):
+1. Implement signal chain processing in `pipeline.py`:
+   - NAM Python package for amp modeling (`nam.models.init_from_nam`)
+   - Pedalboard for IR convolution and built-in effects
+   - Hybrid approach: NAM (PyTorch) + Pedalboard (C++)
+2. Implement FFmpeg wrappers (silence trim, clip creation, concatenation)
+3. Implement image generation (HTML → PNG via Playwright)
+4. Get sample DI track, NAM model, and IR for end-to-end testing
+
+**Key Decision Made**: Use NAM Python package (not VST3) for amp modeling because:
+- Simpler API: `init_from_nam(json.load(fp))` then `model(audio_tensor)`
+- VST3 state injection for model loading is complex
+- Hybrid approach works: NAM → numpy → Pedalboard for remaining effects
+
 ## Project Overview
 
 A CLI-driven pipeline for creating guitar amp/cab comparison videos for YouTube. Processes DI (direct input) guitar tracks through Neural Amp Modeler (NAM) captures and impulse responses (IRs), generates comparison images, and outputs YouTube-ready videos.
