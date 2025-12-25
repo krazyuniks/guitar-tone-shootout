@@ -1,6 +1,11 @@
+# prek configuration (compatible with pre-commit)
+# Uses built-in Rust-native hooks for maximum speed
+# Run: prek run --all-files
+# Install: prek install
+
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+  # Built-in Rust-native hooks (instant execution, no environment setup)
+  - repo: builtin
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -11,22 +16,34 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
+  # Ruff linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.8.4
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
 
+  # Type checking with mypy (separate hooks for each subproject)
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+    rev: v1.14.1
     hooks:
       - id: mypy
+        name: mypy (pipeline)
+        files: ^pipeline/
         additional_dependencies:
           - pydantic>=2.0.0
           - click>=8.1.0
-        args: [--strict, --ignore-missing-imports]
+        args: [--strict, --ignore-missing-imports, --config-file=pipeline/pyproject.toml]
+      - id: mypy
+        name: mypy (web)
+        files: ^web/
+        additional_dependencies:
+          - pydantic>=2.0.0
+          - flask>=3.0.0
+        args: [--strict, --ignore-missing-imports, --config-file=web/pyproject.toml]
 
+  # Local hooks
   - repo: local
     hooks:
       - id: check-ini-files

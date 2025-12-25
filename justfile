@@ -99,20 +99,26 @@ check-deps:
     @which esbuild > /dev/null && echo "✓ esbuild: $(esbuild --version)" || echo "✗ esbuild not found (run: cd web && just install-tools)"
     @which uv > /dev/null && echo "✓ uv: $(uv --version)" || echo "✗ uv not found"
     @which just > /dev/null && echo "✓ just: $(just --version)" || echo "✗ just not found"
+    @which prek > /dev/null && echo "✓ prek: $(prek --version)" || echo "✗ prek not found (run: uv tool install prek)"
     @python3 --version 2>/dev/null || echo "✗ Python 3 not found"
 
 # ============================================
-# Git Hooks
+# Git Hooks (prek - Rust-based, faster than pre-commit)
 # ============================================
 
-# Install pre-commit hooks
+# Install prek hooks
 install-hooks:
-    uv run pre-commit install
-    @echo "✓ Pre-commit hooks installed"
+    prek install
+    @echo "✓ prek hooks installed"
 
-# Run pre-commit hooks on all files
+# Run prek hooks on all files
 run-hooks:
-    uv run pre-commit run --all-files
+    prek run --all-files
+
+# Uninstall prek hooks
+uninstall-hooks:
+    prek uninstall
+    @echo "✓ prek hooks uninstalled"
 
 # ============================================
 # Clean
