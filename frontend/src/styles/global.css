@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Custom theme extensions for guitar theme */
+@theme {
+  --color-amp-50: #fef3e2;
+  --color-amp-100: #fde4c4;
+  --color-amp-500: #f59e0b;
+  --color-amp-600: #d97706;
+  --color-amp-700: #b45309;
+}
