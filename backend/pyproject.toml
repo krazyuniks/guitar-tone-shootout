@@ -15,6 +15,10 @@ dependencies = [
     "redis>=5.2.0",
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
+    # Job queue
+    "taskiq>=0.11.0",
+    "taskiq-redis>=1.0.0",
+    "taskiq-fastapi>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +60,18 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = "jose.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "taskiq.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "taskiq_redis.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "taskiq_fastapi.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
