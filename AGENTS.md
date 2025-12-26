@@ -77,6 +77,26 @@ gh issue view 6
 
 3. **Never** tell user to start new session without saving state first
 
+### NEVER Use Git Stash
+
+**CRITICAL: Do NOT use `git stash` for any reason.**
+
+- Stashing causes merge conflicts when resuming work
+- If work is incomplete, either:
+  - Commit it as a WIP checkpoint (`git commit -m "WIP: description"`)
+  - Or discard uncommitted changes and document what was done in session-state.md
+- The next session starts fresh from the last commit
+
+### One Issue Per Session
+
+**After a PR is merged:**
+1. Sync with main: `git checkout main && git pull --ff-only`
+2. Delete the feature branch
+3. Update `dev/session-state.md` with progress
+4. Commit and push the session-state update
+5. **STOP** - Provide resume commands for the next session
+6. Do NOT start the next issue in the same session (context degrades)
+
 ### Pre-commit Hook Enforcement
 
 A pre-commit hook validates:
