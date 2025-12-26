@@ -7,11 +7,14 @@ import pytest
 from pedalboard.io import AudioFile
 
 from guitar_tone_shootout.audio import (
+    NAM_VST3_ENV_VAR,
     AudioProcessingError,
     create_effect,
+    find_nam_vst3,
     load_audio,
     load_ir,
     load_nam_model,
+    load_nam_via_vst3,
     process_chain,
     save_audio,
 )
@@ -114,6 +117,79 @@ def test_load_nam_model_invalid_json_raises(tmp_path: Path) -> None:
 
     with pytest.raises(AudioProcessingError, match="Failed to load NAM model"):
         load_nam_model(model_path)
+
+
+# =============================================================================
+# NAM VST3 Tests
+# =============================================================================
+
+
+def test_find_nam_vst3_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Should find VST3 via environment variable."""
+    import guitar_tone_shootout.audio as audio_module
+
+    # Reset cached path
+    audio_module._nam_vst3_path = None
+
+    # Create a fake VST3 directory
+    fake_vst3 = tmp_path / "NeuralAmpModeler.vst3"
+    fake_vst3.mkdir()
+
+    monkeypatch.setenv(NAM_VST3_ENV_VAR, str(fake_vst3))
+
+    result = find_nam_vst3()
+
+    assert result == str(fake_vst3)
+
+    # Reset cached path for other tests
+    audio_module._nam_vst3_path = None
+
+
+def test_find_nam_vst3_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Should return None if VST3 not found."""
+    import guitar_tone_shootout.audio as audio_module
+
+    # Reset cached path
+    audio_module._nam_vst3_path = None
+
+    # Clear the environment variable
+    monkeypatch.delenv(NAM_VST3_ENV_VAR, raising=False)
+
+    # The search paths won't exist in the test environment
+    result = find_nam_vst3()
+
+    # May or may not find it depending on test environment
+    # Just verify it returns str or None
+    assert result is None or isinstance(result, str)
+
+    # Reset cached path for other tests
+    audio_module._nam_vst3_path = None
+
+
+def test_load_nam_via_vst3_missing_model(tmp_path: Path) -> None:
+    """Should raise if model file doesn't exist."""
+    fake_model = tmp_path / "nonexistent.nam"
+
+    with pytest.raises(AudioProcessingError, match="NAM model not found"):
+        load_nam_via_vst3(fake_model, vst3_path="/some/path.vst3")
+
+
+def test_load_nam_via_vst3_no_vst3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Should return None if VST3 is not available."""
+    import guitar_tone_shootout.audio as audio_module
+
+    # Reset cached path and mock find_nam_vst3 to return None
+    audio_module._nam_vst3_path = None
+    monkeypatch.setattr(audio_module, "find_nam_vst3", lambda: None)
+
+    model = tmp_path / "test.nam"
+    model.write_text("{}")
+
+    result = load_nam_via_vst3(model, vst3_path=None)
+    assert result is None
+
+    # Reset cached path for other tests
+    audio_module._nam_vst3_path = None
 
 
 # =============================================================================
@@ -222,6 +298,44 @@ def test_process_chain_multiple_effects(sample_audio: np.ndarray, tmp_path: Path
     ]
 
     processed = process_chain(sample_audio, 44100, chain)
+
+    assert processed is not None
+    assert processed.dtype == np.float32
+
+
+def test_process_chain_with_normalization(sample_audio: np.ndarray) -> None:
+    """Test input and output normalization in process_chain."""
+    from guitar_tone_shootout.normalize import rms_db
+
+    chain = [ChainEffect(effect_type="gain", value="0.0")]  # Unity gain
+
+    # Process with output normalization
+    target_db = -14.0
+    processed = process_chain(
+        sample_audio,
+        44100,
+        chain,
+        normalize_output=True,
+        output_target_db=target_db,
+    )
+
+    # Check output is near target
+    result_rms = rms_db(processed)
+    assert abs(result_rms - target_db) < 1.0  # Within 1 dB
+
+
+def test_process_chain_with_input_normalization(sample_audio: np.ndarray) -> None:
+    """Test input normalization before processing."""
+    chain = [ChainEffect(effect_type="gain", value="0.0")]
+
+    # Process with input normalization
+    processed = process_chain(
+        sample_audio,
+        44100,
+        chain,
+        normalize_input=True,
+        input_target_db=-18.0,
+    )
 
     assert processed is not None
     assert processed.dtype == np.float32

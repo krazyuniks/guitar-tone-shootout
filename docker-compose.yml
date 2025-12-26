@@ -55,6 +55,7 @@ services:
       - TONE3000_CLIENT_ID=${TONE3000_CLIENT_ID:-}
       - TONE3000_CLIENT_SECRET=${TONE3000_CLIENT_SECRET:-}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - NAM_VST3_PATH=/usr/lib/vst3/NeuralAmpModeler.vst3
     depends_on:
       db:
         condition: service_healthy

@@ -123,6 +123,85 @@ guitar-tone-shootout/
 | **NAM** | Neural Amp Modeler - AI-based amp capture technology |
 | **IR** | Impulse Response - Speaker cabinet acoustic snapshot |
 
+## Comparison Methodology
+
+Guitar Tone Shootout uses scientifically-grounded comparison methods to ensure fair, unbiased tone evaluation.
+
+### Short, Back-to-Back Comparisons
+
+The comparison format uses **rapid A/B switching** rather than long isolated clips:
+
+```
+┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
+│  Amp A  │  Amp B  │  Amp A  │  Amp B  │  Amp A  │  Amp B  │
+│  ~3-5s  │  ~3-5s  │  ~3-5s  │  ~3-5s  │  ~3-5s  │  ~3-5s  │
+└─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
+          ↑                   ↑
+     Same riff            Same riff
+```
+
+**Why this matters:**
+- Human audio memory is short (~3-5 seconds for detailed recall)
+- Back-to-back comparison highlights tonal differences
+- Same musical phrase allows direct "apples to apples" comparison
+- Multiple repetitions reveal consistency and character
+
+### Volume Normalization (Fletcher-Munson Compensation)
+
+All comparison segments are **loudness-normalized** to eliminate psychoacoustic bias:
+
+```
+DI Input → [Normalize to -18 dB RMS] → Amp Model → IR → [Normalize to -14 dB RMS] → Output
+```
+
+**The Fletcher-Munson Effect:**
+- Human ears perceive different frequencies at different loudness levels
+- A louder tone often sounds "better" even when it isn't (more bass, more presence)
+- Without normalization, volume differences corrupt tone comparisons
+
+**Our normalization approach:**
+
+| Stage | Target | Purpose |
+|-------|--------|---------|
+| Input (DI) | -18 dB RMS | Consistent signal hitting all amp models |
+| Output | -14 dB RMS | Same perceived loudness for all segments |
+
+This ensures the **only variable is tone character**, not volume.
+
+### Signal Chain Processing
+
+```
+DI Audio
+    │
+    ▼
+┌───────────────────────┐
+│  Input Normalization  │  ← Consistent input level
+└───────────────────────┘
+    │
+    ▼
+┌───────────────────────┐
+│  NAM Amp Model        │  ← Neural amp modeling (VST3)
+└───────────────────────┘
+    │
+    ▼
+┌───────────────────────┐
+│  IR Convolution       │  ← Cabinet impulse response
+└───────────────────────┘
+    │
+    ▼
+┌───────────────────────┐
+│  Effects (optional)   │  ← EQ, reverb, delay
+└───────────────────────┘
+    │
+    ▼
+┌───────────────────────┐
+│  Output Normalization │  ← Consistent output level
+└───────────────────────┘
+    │
+    ▼
+  Final Audio
+```
+
 ## Development
 
 See [AGENTS.md](AGENTS.md) for detailed development workflow, patterns, and conventions.
