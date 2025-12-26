@@ -21,7 +21,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Epic | Issue | Dev Docs | Status | Next Action |
 |------|-------|----------|--------|-------------|
-| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | #8 PR ready, pending merge |
+| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | #8 merged, start #9 |
 
 ---
 
