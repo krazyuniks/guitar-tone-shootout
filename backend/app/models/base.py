@@ -6,7 +6,7 @@ Provides consistent naming conventions and common functionality across all model
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import MetaData
+from sqlalchemy import DateTime, MetaData
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Naming conventions for database constraints
@@ -33,9 +33,11 @@ class TimestampMixin:
     """Mixin that adds created_at and updated_at timestamps to models."""
 
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
     )
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )

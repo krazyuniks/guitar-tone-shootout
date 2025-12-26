@@ -194,6 +194,39 @@ All must pass before PR:
 | Backend Tests | `docker compose exec backend pytest` | Unit/integration tests |
 | Frontend Lint | `docker compose exec frontend pnpm lint` | TypeScript/Astro linting |
 | Frontend Build | `docker compose exec frontend pnpm build` | Verify build succeeds |
+| **Browser Test** | Chrome DevTools MCP or Playwright | **MANDATORY end-to-end test** |
+
+### Phase 3.5: Browser Testing (MANDATORY)
+
+**CRITICAL: Never claim a feature is complete without browser testing.**
+
+For any feature that has UI or API endpoints:
+
+1. **Use Chrome DevTools MCP** to test the actual user flow:
+   ```
+   - Navigate to the endpoint
+   - Take snapshots to verify UI state
+   - Check network requests/responses
+   - Verify cookies, headers, redirects
+   ```
+
+2. **Test the happy path** end-to-end in the browser
+
+3. **Test error cases** (invalid input, auth failures, etc.)
+
+4. **Document test results** before creating PR
+
+**AI Agent Rule:** You are NOT allowed to:
+- Say "PR is ready" without browser testing
+- Claim "all tests pass" if you only ran unit tests
+- Mark a task complete without verifying it works in the browser
+
+**Use these MCP tools:**
+- `mcp__chrome-devtools__navigate_page` - Navigate to URLs
+- `mcp__chrome-devtools__take_snapshot` - Capture page state
+- `mcp__chrome-devtools__list_network_requests` - Check API calls
+- `mcp__chrome-devtools__list_console_messages` - Check for errors
+- `mcp__playwright__browser_navigate` - Alternative browser control
 
 ### Phase 4: Pull Request
 

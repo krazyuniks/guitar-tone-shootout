@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "Guitar Tone Shootout"
     debug: bool = False
+    app_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:4321"
 
     # Database
     database_url: str = "postgresql+asyncpg://shootout:devpassword@db:5432/shootout"
