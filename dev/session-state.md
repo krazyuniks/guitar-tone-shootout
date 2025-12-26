@@ -1,27 +1,15 @@
 # Session State
 
 **Last Updated:** 2025-12-26
-**Branch:** main
-
----
-
-## Project Pivot Summary
-
-This project is pivoting from a CLI-focused tool to a **full web application** with:
-- Tone 3000 OAuth integration for user authentication
-- PostgreSQL database for shootout storage
-- Job queue for async pipeline processing
-- Astro + React frontend (replacing Flask + HTMX)
-
-See `EXECUTION-PLAN.md` for full architecture and epic tracking.
+**Branch:** 17-websocket-progress (WIP stashed)
 
 ---
 
 ## Active Work
 
-| Epic | Issue | Dev Docs | Status | Next Action |
-|------|-------|----------|--------|-------------|
-| - | - | - | v2.1 Complete | Start v2.2 (Job Queue), v2.3 (Frontend), or v2.4 (Pipeline)
+| Epic | Issue | Status | Next Action |
+|------|-------|--------|-------------|
+| v2.2 | #17 WebSocket progress | WIP stashed | Resume in new session |
 
 ---
 
@@ -31,9 +19,30 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 |-----------|------------|------------|--------|
 | v2.0 - Web Application Foundation | #5 | #6, #7, #8, #9, #10 | **Complete** |
 | v2.1 - Tone 3000 Integration | #11 | #12, #13 | **Complete** |
-| v2.2 - Job Queue System | #14 | #15, #16, #17 | Ready to Start |
+| v2.2 - Job Queue System | #14 | #15, #16, #17 | **In Progress** |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | Ready to Start |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | Ready to Start |
+
+---
+
+## v2.2 Job Queue System - IN PROGRESS
+
+| Issue | Title | Status |
+|-------|-------|--------|
+| #15 | TaskIQ setup with Redis broker | **Merged** (#52) |
+| #16 | Job model and status endpoints | **Merged** (#53) |
+| #17 | WebSocket for real-time progress | **WIP (stashed)** |
+
+**What was built:**
+- **TaskIQ broker** (`backend/app/tasks/broker.py`): Redis broker + result backend
+- **Health check task** (`backend/app/tasks/health.py`): Worker validation
+- **Job model** (`backend/app/models/job.py`): JobStatus enum, progress tracking
+- **Job service** (`backend/app/services/job_service.py`): CRUD + progress updates
+- **Job endpoints** (`backend/app/api/v1/jobs.py`): POST/GET/DELETE /jobs
+
+**WIP for #17 (stashed):**
+- `backend/app/core/redis.py` - Redis pub/sub helpers
+- `backend/app/api/v1/ws.py` - WebSocket endpoint (partial)
 
 ---
 
@@ -44,21 +53,9 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 | #12 | OAuth login and callback endpoints | Merged |
 | #13 | API client with automatic token refresh | Merged |
 
-**What was built:**
-- **OAuth endpoints** (`backend/app/api/v1/auth.py`): `/login`, `/callback`, `/logout`, `/me`
-- **Tone 3000 API client** (`backend/app/services/tone3000.py`): Auto token refresh with 30-second buffer
-- **Frontend auth** (`frontend/src/components/UserNav.tsx`): Shows logged-in username + logout, or login link
-- **Login page** (`frontend/src/pages/login.astro`): Redirects to backend OAuth flow
-- **Tests** (`backend/tests/test_auth.py`): Unit tests for all auth endpoints
-
-**Lessons learned:**
-- Tone 3000 user IDs are UUIDs (strings), not integers
-- PostgreSQL timestamps need `DateTime(timezone=True)` for timezone-aware datetimes
-- Browser testing is MANDATORY before claiming any feature is complete
-
 ---
 
-## v2.0 Foundation Progress
+## v2.0 Foundation - COMPLETE
 
 | Issue | Title | Status |
 |-------|-------|--------|
@@ -72,22 +69,48 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 ## Recent Activity
 
-- **2025-12-26**: Merged v2.1 Tone 3000 Integration (#12, #13). OAuth flow, API client, UserNav component showing auth state in nav. Browser tested end-to-end.
-- **2025-12-26**: Merged #10 - Documentation updates for Docker workflow. v2.0 Foundation epic complete!
-- **2025-12-26**: Merged #9 SQLAlchemy 2.0 async setup. Async engine with asyncpg, Base model with naming conventions, User model, Alembic async migrations, auto-migration on startup.
-- **2025-12-26**: Completed #8 FastAPI project structure. API v1 versioning, logging module, dependency injection, lifespan events. Fixed Redis image to 8.4.0-alpine.
-- **2025-12-26**: Created #7 Docker Compose production environment. Multi-stage builds, nginx reverse proxy, gunicorn workers, health checks, resource limits.
-- **2025-12-26**: Fixed Tailwind CSS v4 compatibility (migrated from @astrojs/tailwind to @tailwindcss/vite).
-- **2025-12-26**: Merged #6. Set up Git workflow (squash-only, ff-only). Added admin.sh for dependency management.
-- **2025-12-26**: Completed #6 Docker Compose dev environment. Backend + frontend + db + redis all running with hot-reload.
-- **2025-12-26**: Project pivot decided. Created epics #5-#25. Closed old issues #1-4.
-- **2025-12-26**: Set up dev-docs framework to prevent context loss.
+- **2025-12-26**: Merged #16 Job model and endpoints. Job CRUD, JobStatus enum, 20 tests.
+- **2025-12-26**: Merged #15 TaskIQ setup. Redis broker, health check task.
+- **2025-12-26**: Merged v2.1 Tone 3000 Integration (#12, #13).
+- **2025-12-26**: v2.0 Foundation complete.
 
 ---
 
 ## Resume Instructions
 
-1. Read this file first
-2. Check `EXECUTION-PLAN.md` for architecture decisions
-3. Read active task docs in `dev/active/[task]/`
-4. v2.1 is complete - choose next epic: v2.2 (Jobs), v2.3 (Frontend), or v2.4 (Pipeline)
+To continue with #17 in a new session:
+
+```bash
+# 1. Check current state
+git status
+git stash list
+
+# 2. You should be on branch 17-websocket-progress with stashed WIP
+git stash pop
+
+# 3. Key files already created (in stash):
+#    - backend/app/core/redis.py (pub/sub helpers)
+#    - backend/app/api/v1/ws.py (WebSocket endpoint - partial)
+#    - backend/app/api/v1/router.py (needs ws import)
+
+# 4. Remaining work for #17:
+#    - Complete WebSocket endpoint
+#    - Add tests
+#    - Run quality checks
+#    - Browser test
+#    - Commit and create PR
+
+# 5. Issue details:
+gh issue view 17
+```
+
+---
+
+## Pipeline Research (for #23)
+
+Background agent completed research on pipeline code. Key findings:
+- Main entry: `pipeline.py:process_comparison()`
+- Audio processing: `audio.py` (NAM, IR, effects chain)
+- Progress callbacks needed at ~10 points
+- Use `asyncio.to_thread()` for CPU-intensive operations
+- FFmpeg required for video generation
