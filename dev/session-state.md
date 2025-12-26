@@ -3,6 +3,21 @@
 **Last Updated:** 2025-12-26
 **Branch:** 12-tone3000-oauth
 
+## CRITICAL: Resume Here
+
+**Issue:** Frontend `/login` page returns 404. The Login link in nav goes to `/login` which doesn't exist.
+
+**Fix needed:** Create `frontend/src/pages/login.astro` that redirects to `/api/v1/auth/login` on the backend.
+
+**What's working:**
+- Backend OAuth: `/api/v1/auth/login` → Tone 3000 → callback → frontend ✅
+- `/api/v1/auth/me` returns user data ✅
+- `/api/v1/auth/logout` clears session ✅
+
+**What's broken:**
+- Frontend `/login` page doesn't exist (404)
+- Need to create a simple redirect page
+
 ---
 
 ## Project Pivot Summary
