@@ -15,9 +15,10 @@ Establish the Docker-based development infrastructure for the Guitar Tone Shooto
 ## Current State
 
 - Project has `pipeline/` with audio processing code (preserved)
-- Project has `web/` with Flask + HTMX (deprecated, to be removed)
-- No Docker configuration exists
-- No `backend/` or `frontend/` directories exist
+- Project has `web/` with Flask + HTMX (deprecated, to be removed after frontend complete)
+- Docker Compose dev/prod environments operational
+- `backend/` with FastAPI, SQLAlchemy 2.0, Alembic migrations
+- `frontend/` with Astro + React + Tailwind CSS 4
 
 ---
 
