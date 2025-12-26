@@ -1,11 +1,15 @@
 """User model for storing Tone 3000 authenticated users."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.job import Job
 
 
 class User(Base, UUIDMixin, TimestampMixin):
@@ -26,6 +30,11 @@ class User(Base, UUIDMixin, TimestampMixin):
     access_token: Mapped[str | None] = mapped_column(String(2000))
     refresh_token: Mapped[str | None] = mapped_column(String(2000))
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Relationships
+    jobs: Mapped[list["Job"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         """Return string representation of the user."""

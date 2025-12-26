@@ -1,13 +1,8 @@
 """Tests for TaskIQ background tasks."""
 
-import os
-
 import pytest
 
-# Set testing environment before imports
-os.environ["TESTING"] = "1"
-
-from app.tasks import broker, health_check  # noqa: E402
+from app.tasks import broker, health_check
 
 
 @pytest.fixture
