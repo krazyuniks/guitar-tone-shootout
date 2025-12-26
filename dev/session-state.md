@@ -21,7 +21,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Epic | Issue | Dev Docs | Status | Next Action |
 |------|-------|----------|--------|-------------|
-| - | - | - | v2.1 Complete | Start v2.2 (Job Queue) or v2.3 (Frontend)
+| - | - | - | v2.1 Complete | Start v2.2 (Job Queue), v2.3 (Frontend), or v2.4 (Pipeline)
 
 ---
 
@@ -34,6 +34,27 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | Ready to Start |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | Ready to Start |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | Ready to Start |
+
+---
+
+## v2.1 Tone 3000 Integration - COMPLETE
+
+| Issue | Title | Status |
+|-------|-------|--------|
+| #12 | OAuth login and callback endpoints | Merged |
+| #13 | API client with automatic token refresh | Merged |
+
+**What was built:**
+- **OAuth endpoints** (`backend/app/api/v1/auth.py`): `/login`, `/callback`, `/logout`, `/me`
+- **Tone 3000 API client** (`backend/app/services/tone3000.py`): Auto token refresh with 30-second buffer
+- **Frontend auth** (`frontend/src/components/UserNav.tsx`): Shows logged-in username + logout, or login link
+- **Login page** (`frontend/src/pages/login.astro`): Redirects to backend OAuth flow
+- **Tests** (`backend/tests/test_auth.py`): Unit tests for all auth endpoints
+
+**Lessons learned:**
+- Tone 3000 user IDs are UUIDs (strings), not integers
+- PostgreSQL timestamps need `DateTime(timezone=True)` for timezone-aware datetimes
+- Browser testing is MANDATORY before claiming any feature is complete
 
 ---
 
@@ -69,4 +90,4 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 1. Read this file first
 2. Check `EXECUTION-PLAN.md` for architecture decisions
 3. Read active task docs in `dev/active/[task]/`
-4. v2.0 is complete - choose next epic: v2.1 (Tone 3000), v2.2 (Jobs), v2.3 (Frontend), or v2.4 (Pipeline)
+4. v2.1 is complete - choose next epic: v2.2 (Jobs), v2.3 (Frontend), or v2.4 (Pipeline)
