@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-26
-**Branch:** main
+**Branch:** 17-websocket-progress (PR #54 pending review)
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.2 | #17 WebSocket progress | Ready | Start in new session |
+| v2.2 | #17 WebSocket progress | PR #54 pending | Await review and merge |
 
 ---
 
@@ -31,7 +31,7 @@
 |-------|-------|--------|
 | #15 | TaskIQ setup with Redis broker | **Merged** (#52) |
 | #16 | Job model and status endpoints | **Merged** (#53) |
-| #17 | WebSocket for real-time progress | Ready to start |
+| #17 | WebSocket for real-time progress | **PR #54 pending** |
 
 **What was built:**
 - **TaskIQ broker** (`backend/app/tasks/broker.py`): Redis broker + result backend
@@ -39,6 +39,8 @@
 - **Job model** (`backend/app/models/job.py`): JobStatus enum, progress tracking
 - **Job service** (`backend/app/services/job_service.py`): CRUD + progress updates
 - **Job endpoints** (`backend/app/api/v1/jobs.py`): POST/GET/DELETE /jobs
+- **WebSocket endpoint** (`backend/app/api/v1/ws.py`): Real-time job progress via Redis pub/sub
+- **Redis helpers** (`backend/app/core/redis.py`): Pub/sub for job progress updates
 
 ---
 
@@ -65,6 +67,7 @@
 
 ## Recent Activity
 
+- **2025-12-26**: Created PR #54 for #17 WebSocket progress endpoint. Redis pub/sub, JWT auth, 9 tests.
 - **2025-12-26**: Merged #16 Job model and endpoints. Job CRUD, JobStatus enum, 20 tests.
 - **2025-12-26**: Merged #15 TaskIQ setup. Redis broker, health check task.
 - **2025-12-26**: Merged v2.1 Tone 3000 Integration (#12, #13).
@@ -74,22 +77,15 @@
 
 ## Resume Instructions
 
-To continue with #17 in a new session:
+After PR #54 is merged, to continue with v2.3:
 
 ```bash
-# 1. Read context
-cat dev/session-state.md
-gh issue view 17
+# 1. Sync with main after merge
+git checkout main && git pull --ff-only
+git branch -d 17-websocket-progress
 
-# 2. Create branch and start work
-git checkout -b 17-websocket-progress
-
-# 3. Implementation needed:
-#    - backend/app/core/redis.py (pub/sub helpers)
-#    - backend/app/api/v1/ws.py (WebSocket endpoint)
-#    - Update backend/app/api/v1/router.py to include ws
-#    - Add tests
-#    - Browser test
+# 2. Update session-state.md to mark v2.2 complete
+# 3. Start v2.3 Frontend (Astro) epic - begin with #19
 ```
 
 ---
