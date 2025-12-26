@@ -6,7 +6,7 @@ default:
 
 # Setup development environment
 setup:
-    uv venv
+    @[ -d .venv ] || uv venv
     uv pip install -e ".[dev]"
     @echo "✓ Pipeline setup complete"
 
@@ -38,25 +38,9 @@ typecheck:
 test:
     uv run pytest
 
-# Run unit tests only (fast)
-test-unit:
-    uv run pytest -m unit
-
-# Run integration tests (requires FFmpeg)
-test-integration:
-    uv run pytest -m integration
-
-# Run e2e tests (requires all dependencies)
-test-e2e:
-    uv run pytest -m e2e
-
 # Run tests with coverage
 test-cov:
     uv run pytest --cov=src/guitar_tone_shootout --cov-report=term-missing
-
-# Generate test fixtures
-generate-fixtures:
-    uv run python tests/fixtures/generate_fixtures.py
 
 # Run all checks
 check: lint format-check typecheck test
