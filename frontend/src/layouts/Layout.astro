@@ -1,0 +1,38 @@
+---
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-900 text-white min-h-screen">
+    <nav class="bg-gray-800 border-b border-gray-700 px-4 py-3">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <a href="/" class="text-xl font-bold text-amber-500">
+          Guitar Tone Shootout
+        </a>
+        <div class="flex gap-4">
+          <a href="/shootouts" class="hover:text-amber-400 transition-colors">
+            Shootouts
+          </a>
+          <a href="/login" class="hover:text-amber-400 transition-colors">
+            Login
+          </a>
+        </div>
+      </div>
+    </nav>
+    <main class="max-w-7xl mx-auto px-4 py-8">
+      <slot />
+    </main>
+  </body>
+</html>
