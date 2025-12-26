@@ -61,12 +61,16 @@ dmypy.json
 Thumbs.db
 
 # Project specific - Binary files (too large for git)
-inputs/di_tracks/*.wav
-inputs/di_tracks/*.flac
-inputs/di_tracks/*.mp3
+inputs/di_tracks/**/*.wav
+inputs/di_tracks/**/*.flac
+inputs/di_tracks/**/*.mp3
 inputs/nam_models/**/*.nam
 inputs/irs/**/*.wav
 inputs/other_captures/**/*
+
+# DAW cache files (Reaper peaks, etc.)
+**/peaks/
+*.reapeaks
 
 # Keep directory structure
 !inputs/di_tracks/.gitkeep
@@ -75,16 +79,7 @@ inputs/other_captures/**/*
 !inputs/other_captures/.gitkeep
 
 # Outputs (generated, should not be committed)
-outputs/audio/*
-outputs/images/*
-outputs/clips/*
-outputs/videos/*
-
-# Keep output directory structure
-!outputs/audio/.gitkeep
-!outputs/images/.gitkeep
-!outputs/clips/.gitkeep
-!outputs/videos/.gitkeep
+outputs/*/
 
 # Web frontend built assets
 web/static/dist/*.css

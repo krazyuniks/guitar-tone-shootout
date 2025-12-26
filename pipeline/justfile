@@ -34,13 +34,29 @@ format-check:
 typecheck:
     uv run mypy src tests
 
-# Run tests
+# Run all tests
 test:
     uv run pytest
+
+# Run unit tests only (fast)
+test-unit:
+    uv run pytest -m unit
+
+# Run integration tests (requires FFmpeg)
+test-integration:
+    uv run pytest -m integration
+
+# Run e2e tests (requires all dependencies)
+test-e2e:
+    uv run pytest -m e2e
 
 # Run tests with coverage
 test-cov:
     uv run pytest --cov=src/guitar_tone_shootout --cov-report=term-missing
+
+# Generate test fixtures
+generate-fixtures:
+    uv run python tests/fixtures/generate_fixtures.py
 
 # Run all checks
 check: lint format-check typecheck test
@@ -48,23 +64,23 @@ check: lint format-check typecheck test
 
 # Process a comparison INI file
 process ini_file:
-    uv run gts process {{ini_file}}
+    uv run shootout process {{ini_file}}
 
 # Validate a comparison INI file without processing
 validate ini_file:
-    uv run gts validate {{ini_file}}
+    uv run shootout validate {{ini_file}}
 
 # List available NAM models
 list-models:
-    uv run gts list-models
+    uv run shootout list-models
 
 # List available IRs
 list-irs:
-    uv run gts list-irs
+    uv run shootout list-irs
 
 # List available DI tracks
 list-di:
-    uv run gts list-di
+    uv run shootout list-di
 
 # Check FFmpeg installation
 check-ffmpeg:

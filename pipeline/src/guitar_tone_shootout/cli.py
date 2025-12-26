@@ -30,13 +30,22 @@ def main() -> None:
 
 @main.command()
 @click.argument("ini_file", type=click.Path(exists=True, path_type=Path))
-def process(ini_file: Path) -> None:
+@click.option(
+    "--duration",
+    "-d",
+    type=float,
+    default=None,
+    help="Trim DI tracks to this duration in seconds (e.g., 4.0 for 4 seconds)",
+)
+def process(ini_file: Path, duration: float | None) -> None:
     """Process a comparison INI file and generate outputs."""
     logger.info(f"Processing: {ini_file}")
+    if duration:
+        logger.info(f"Trimming to: {duration}s")
 
     try:
         comparison = load_comparison(ini_file)
-        process_comparison(comparison)
+        process_comparison(comparison, duration=duration)
         logger.info("✓ Processing complete")
     except Exception as e:
         logger.error(f"Processing failed: {e}")

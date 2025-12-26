@@ -264,6 +264,81 @@ just test       # Run tests
 just check      # All checks
 ```
 
+## Testing
+
+The test suite is organized into three categories with increasing scope and dependencies:
+
+### Test Categories
+
+| Category | Command | Speed | Dependencies |
+|----------|---------|-------|--------------|
+| **Unit** | `just test-unit` | Fast (~4s) | Python only |
+| **Integration** | `just test-integration` | Medium (~10s) | FFmpeg, Pillow |
+| **E2E** | `just test-e2e` | Slow (~30s) | FFmpeg, Playwright |
+
+### Running Tests
+
+```bash
+cd pipeline
+
+# Run all tests
+just test
+
+# Run only fast unit tests (mocked dependencies)
+just test-unit
+
+# Run integration tests (requires FFmpeg)
+just test-integration
+
+# Run end-to-end tests (requires FFmpeg + Playwright)
+just test-e2e
+
+# Run tests with coverage report
+just test-cov
+
+# Generate test fixtures (if missing)
+just generate-fixtures
+```
+
+### Test Structure
+
+```
+pipeline/tests/
+├── conftest.py              # Shared fixtures & pytest config
+├── fixtures/                # Test data files
+│   ├── di_tracks/           # Test DI audio files
+│   ├── irs/                 # Test impulse responses
+│   ├── nam_models/          # Test NAM models (if any)
+│   ├── comparisons/         # Test INI files
+│   └── generate_fixtures.py # Script to regenerate fixtures
+├── unit/                    # Fast tests with mocked dependencies
+│   ├── test_audio.py
+│   ├── test_config.py
+│   └── test_pipeline.py
+├── integration/             # Tests with real FFmpeg/files
+│   ├── test_audio_processing.py
+│   └── test_pipeline_processing.py
+└── e2e/                     # Full workflow tests
+    └── test_comparison_workflow.py
+```
+
+### Writing Tests
+
+Tests are auto-marked based on their location:
+- `tests/unit/` → `@pytest.mark.unit`
+- `tests/integration/` → `@pytest.mark.integration`
+- `tests/e2e/` → `@pytest.mark.e2e`
+
+Use fixtures from `conftest.py`:
+
+```python
+def test_my_feature(test_di_track: Path, sample_audio: np.ndarray) -> None:
+    """Example test using fixtures."""
+    # test_di_track: Path to test DI WAV file
+    # sample_audio: 1 second of 440Hz sine wave
+    ...
+```
+
 ## Resources
 
 - [NAM Models on Tone3000](https://tone3000.com)

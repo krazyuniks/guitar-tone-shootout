@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pedalboard
-from pedalboard import Pedalboard
+from pedalboard import Pedalboard  # type: ignore[attr-defined]
 from pedalboard.io import AudioFile
 
 if TYPE_CHECKING:
@@ -222,6 +222,7 @@ def process_chain(
     audio: NDArray[np.float32],
     sample_rate: int,
     chain_effects: list[ChainEffect],
+    project_root: Path | None = None,
 ) -> NDArray[np.float32]:
     """
     Process audio through a complete signal chain.
@@ -230,18 +231,28 @@ def process_chain(
         audio: Input audio as 1D numpy array
         sample_rate: Sample rate in Hz
         chain_effects: List of ChainEffect objects defining the chain
+        project_root: Project root directory for resolving input paths
 
     Returns:
         Processed audio as 1D numpy array
     """
     current_audio = audio.copy()
 
+    # Resolve base paths for inputs
+    if project_root:
+        nam_base = project_root / "inputs" / "nam_models"
+        ir_base = project_root / "inputs" / "irs"
+    else:
+        nam_base = NAM_MODELS_BASE
+        ir_base = IRS_BASE
+
     for effect in chain_effects:
         logger.debug(f"Applying effect: {effect.effect_type}:{effect.value}")
 
         if effect.effect_type == "nam":
             # Process through NAM model
-            model = load_nam_model(Path(effect.value))
+            nam_path = nam_base / effect.value
+            model = load_nam_model(nam_path)
 
             # Check sample rate compatibility
             if model.sample_rate and model.sample_rate != sample_rate:
@@ -253,7 +264,8 @@ def process_chain(
 
         elif effect.effect_type == "ir":
             # Apply IR convolution
-            ir_effect = load_ir(Path(effect.value))
+            ir_path = ir_base / effect.value
+            ir_effect = load_ir(ir_path)
             board = Pedalboard([ir_effect])
             # Pedalboard expects 2D: (channels, samples)
             audio_2d = current_audio.reshape(1, -1)

@@ -29,7 +29,27 @@ class ChainEffect:
     """A single effect in a signal chain."""
 
     effect_type: str  # nam, ir, eq, reverb, delay, gain, vst
-    value: str  # path or preset name
+    value: str  # path or preset name (or alias for nam_sources)
+
+
+@dataclass
+class NAMSource:
+    """
+    NAM model source for auto-download from Tone3000.
+
+    Defines where to fetch a NAM model if not present locally.
+    """
+
+    alias: str  # Key used in signal chain (e.g., "jcm800")
+    url: str  # Tone3000 page URL
+    model: str  # Specific capture/model name to download
+
+    @property
+    def local_dir(self) -> Path:
+        """Directory where downloaded model should be stored."""
+        # Extract slug from URL (e.g., "jcm800-44269" from ".../tones/jcm800-44269")
+        slug = self.url.rstrip("/").split("/")[-1]
+        return Path("inputs/nam_models/tone3000") / slug
 
 
 @dataclass
@@ -48,7 +68,9 @@ class Comparison:
     meta: ComparisonMeta
     di_tracks: list[DITrack]
     signal_chains: list[SignalChain]
+    nam_sources: dict[str, NAMSource] = field(default_factory=dict)
     source_path: Path = field(default_factory=Path)
+    project_root: Path = field(default_factory=Path)
 
     @property
     def segment_count(self) -> int:
@@ -100,11 +122,19 @@ def load_comparison(ini_path: Path) -> Comparison:
         description=meta_section.get("description", ""),
     )
 
+    # Resolve project root (INI files are in comparisons/, so go up one level)
+    project_root = ini_path.parent.parent.resolve()
+
     # Load DI tracks
-    di_tracks = _load_di_tracks(config["di_tracks"])
+    di_tracks = _load_di_tracks(config["di_tracks"], project_root)
 
     # Load signal chains
     signal_chains = _load_signal_chains(config["signal_chains"])
+
+    # Load NAM sources (optional section)
+    nam_sources: dict[str, NAMSource] = {}
+    if "nam_sources" in config:
+        nam_sources = _load_nam_sources(config["nam_sources"])
 
     # Validate we have at least one of each
     if not di_tracks:
@@ -116,11 +146,13 @@ def load_comparison(ini_path: Path) -> Comparison:
         meta=meta,
         di_tracks=di_tracks,
         signal_chains=signal_chains,
+        nam_sources=nam_sources,
         source_path=ini_path,
+        project_root=project_root,
     )
 
 
-def _load_di_tracks(section: configparser.SectionProxy) -> list[DITrack]:
+def _load_di_tracks(section: configparser.SectionProxy, base_dir: Path) -> list[DITrack]:
     """
     Load DI tracks from an INI section.
 
@@ -128,6 +160,7 @@ def _load_di_tracks(section: configparser.SectionProxy) -> list[DITrack]:
 
     Args:
         section: ConfigParser section with numbered DI track entries
+        base_dir: Base directory for resolving relative paths (INI file's parent)
 
     Returns:
         List of DITrack objects in order
@@ -150,7 +183,8 @@ def _load_di_tracks(section: configparser.SectionProxy) -> list[DITrack]:
 
     # Convert to DITrack objects
     di_tracks: list[DITrack] = []
-    base_path = Path("inputs/di_tracks")
+    # Resolve inputs/di_tracks relative to the INI file's directory
+    inputs_path = base_dir / "inputs" / "di_tracks"
 
     for num in sorted(tracks_data.keys()):
         data = tracks_data[num]
@@ -158,7 +192,7 @@ def _load_di_tracks(section: configparser.SectionProxy) -> list[DITrack]:
         if "file" not in data:
             raise ValueError(f"DI track {num} missing required 'file' field")
 
-        file_path = base_path / data["file"]
+        file_path = inputs_path / data["file"]
 
         di_tracks.append(
             DITrack(
@@ -260,3 +294,50 @@ def _parse_chain(chain_str: str) -> list[ChainEffect]:
         effects.append(ChainEffect(effect_type=effect_type, value=value))
 
     return effects
+
+
+def _load_nam_sources(section: configparser.SectionProxy) -> dict[str, NAMSource]:
+    """
+    Load NAM sources from an INI section.
+
+    Format:
+        alias.url = https://www.tone3000.com/tones/jcm800-44269
+        alias.model = JCM800 capture 3
+
+    Args:
+        section: ConfigParser section with NAM source definitions
+
+    Returns:
+        Dict mapping alias to NAMSource objects
+    """
+    # Group entries by their alias prefix
+    sources_data: dict[str, dict[str, str]] = {}
+
+    for key, value in section.items():
+        if "." not in key:
+            continue
+
+        alias, field_name = key.split(".", 1)
+        alias = alias.strip()
+        field_name = field_name.strip().lower()
+
+        if alias not in sources_data:
+            sources_data[alias] = {}
+        sources_data[alias][field_name] = value
+
+    # Convert to NAMSource objects
+    nam_sources: dict[str, NAMSource] = {}
+
+    for alias, data in sources_data.items():
+        if "url" not in data:
+            raise ValueError(f"NAM source '{alias}' missing required 'url' field")
+        if "model" not in data:
+            raise ValueError(f"NAM source '{alias}' missing required 'model' field")
+
+        nam_sources[alias] = NAMSource(
+            alias=alias,
+            url=data["url"],
+            model=data["model"],
+        )
+
+    return nam_sources

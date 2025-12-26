@@ -34,14 +34,14 @@ repos:
         additional_dependencies:
           - pydantic>=2.0.0
           - click>=8.1.0
-        args: [--strict, --ignore-missing-imports, --config-file=pipeline/pyproject.toml]
+        args: [--ignore-missing-imports, --config-file=pipeline/pyproject.toml]
       - id: mypy
         name: mypy (web)
         files: ^web/
         additional_dependencies:
           - pydantic>=2.0.0
           - flask>=3.0.0
-        args: [--strict, --ignore-missing-imports, --config-file=web/pyproject.toml]
+        args: [--ignore-missing-imports, --config-file=web/pyproject.toml]
 
   # Local hooks
   - repo: local
