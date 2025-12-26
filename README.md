@@ -167,9 +167,12 @@ uv run playwright install chromium
 just process comparisons/my_comparison.ini
 ```
 
-Outputs will be in:
-- `outputs/audio/` - FLAC files (lossless, for SoundCloud etc.)
-- `outputs/videos/` - MP4 files (YouTube-ready)
+Outputs will be in `outputs/<shootout-title>/`:
+- `<shootout-title>.mp4` - Final comparison video (YouTube-ready)
+- `audio/<shootout-title>_NNN.flac` - Per-segment FLAC files
+- `audio/<shootout-title>_full.flac` - Combined full audio (for SoundCloud etc.)
+- `clips/<shootout-title>_NNN.mp4` - Individual video clips per segment
+- `images/<shootout-title>_NNN.png` - Generated segment images
 
 ## Comparison INI Format
 
@@ -238,11 +241,12 @@ guitar-tone-shootout/
 │   ├── nam_models/     # NAM amp/pedal captures
 │   └── irs/            # Cabinet impulse responses
 ├── comparisons/        # INI comparison files
-├── outputs/            # Generated files
-│   ├── audio/          # FLAC files
-│   ├── images/         # Segment images
-│   ├── clips/          # Individual video clips
-│   └── videos/         # Final comparison videos
+├── outputs/            # Generated files (per shootout)
+│   └── <shootout-title>/   # One folder per comparison
+│       ├── <shootout-title>.mp4  # Final comparison video
+│       ├── audio/          # FLAC files (_NNN.flac, _full.flac)
+│       ├── images/         # Segment images (_NNN.png)
+│       └── clips/          # Individual video clips (_NNN.mp4)
 └── justfile            # Root orchestration
 ```
 
