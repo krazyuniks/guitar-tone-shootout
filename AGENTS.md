@@ -29,6 +29,32 @@ gh issue view 6
 
 ---
 
+## Dependency Version Policy
+
+**Always use the latest stable/mainline versions** of all dependencies:
+
+| Category | Policy |
+|----------|--------|
+| Python | Latest stable (currently 3.14) |
+| Node.js | Latest LTS or current stable |
+| npm packages | Latest stable versions |
+| Astro, React, Tailwind | Latest stable versions |
+| PostgreSQL, Redis | Latest stable Alpine images |
+| nginx | Latest stable for reverse proxy |
+| Docker base images | Latest stable slim/alpine variants |
+
+**Downgrade only when:**
+- Integration problems occur between dependencies
+- Stability issues are encountered in production
+- Security vulnerabilities require a specific version
+
+**Update strategy:**
+- Check for updates when starting new features
+- Document any pinned versions and reasons in comments
+- Prefer `>=` version constraints over exact pins
+
+---
+
 ## Session Checkpoint Rules
 
 **CRITICAL: These rules prevent context loss across Claude Code sessions.**
@@ -197,18 +223,76 @@ EOF
 )"
 ```
 
-### Phase 5: Merge and Archive
+**IMPORTANT:** After creating the PR, **STOP and wait for user review**. Do not proceed to Phase 5 until the PR is approved and merged on GitHub.
+
+### Phase 5: Merge (on GitHub) and Sync Local
+
+**Merging happens on GitHub, not locally.** The repo is configured for:
+- **Squash merge only** - All PR commits are squashed into one
+- **Linear history required** - No merge commits allowed
+- **Auto-delete branches** - Feature branches deleted after merge
 
 ```bash
-gh pr merge --squash
-git checkout main
-git pull origin main
-git branch -d 6-docker-compose-dev
+# User merges PR on GitHub web UI (github.com)
+# Then sync locally:
 
-# Archive dev-docs
-mv dev/active/docker-compose-dev dev/archive/
+git checkout main
+git pull --ff-only origin main   # Will fail if history diverged
+git branch -d 6-docker-compose-dev  # Delete local branch (remote already deleted)
+
+# Archive dev-docs if any
+mv dev/active/docker-compose-dev dev/archive/ 2>/dev/null || true
 # Update session-state.md
 ```
+
+**If `git pull --ff-only` fails:** The local branch has diverged. Reset to remote:
+```bash
+git fetch origin
+git reset --hard origin/main
+```
+
+---
+
+## Git & GitHub Configuration
+
+### Repository Settings (GitHub)
+
+The repository is configured with these merge settings:
+- **Squash merge:** Enabled (only option)
+- **Merge commits:** Disabled
+- **Rebase merge:** Disabled
+- **Auto-delete head branches:** Enabled
+
+### Branch Protection (main)
+
+The `main` branch has these protections:
+- **Required linear history:** Yes (no merge commits)
+- **Allow force pushes:** No
+- **Allow deletions:** No
+
+### Local Git Configuration
+
+Configure your local repo for fast-forward only:
+```bash
+git config --local pull.ff only
+git config --local merge.ff only
+```
+
+### Workflow Rules
+
+1. **Never commit directly to main** - Always use feature branches
+2. **Never merge locally** - All merges happen via GitHub PR squash merge
+3. **Always sync with ff-only** - Ensures local matches remote exactly
+4. **One PR per issue** - Branch naming: `<issue-number>-<short-description>`
+
+### AI Agent Instructions
+
+**Claude Code must:**
+- Create feature branches for all work
+- Push branches and create PRs via `gh pr create`
+- **STOP after creating PR** - Do not suggest next steps until user confirms merge
+- After user confirms merge, sync local with `git pull --ff-only`
+- Never use `gh pr merge` - user merges on GitHub
 
 ---
 

@@ -1,0 +1,46 @@
+# Backend development commands
+
+# Run all checks (lint, type check, tests)
+check: lint typecheck test
+
+# Run linter
+lint:
+    ruff check .
+    ruff format --check .
+
+# Fix linting issues
+fix:
+    ruff check --fix .
+    ruff format .
+
+# Run type checker
+typecheck:
+    mypy .
+
+# Run tests
+test *args:
+    pytest {{args}}
+
+# Run tests with coverage
+test-cov:
+    pytest --cov=app --cov-report=term-missing
+
+# Start development server
+dev:
+    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Create database migration
+migrate-create message:
+    alembic revision --autogenerate -m "{{message}}"
+
+# Run database migrations
+migrate-up:
+    alembic upgrade head
+
+# Rollback last migration
+migrate-down:
+    alembic downgrade -1
+
+# Show migration history
+migrate-history:
+    alembic history

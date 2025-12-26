@@ -88,6 +88,9 @@ web/static/dist/*.js
 
 # Node
 node_modules/
+
+# Astro
+.astro/
 package-lock.json
 yarn.lock
 # Note: pnpm-lock.yaml IS committed for reproducible builds
