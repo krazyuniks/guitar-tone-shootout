@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-26
-**Branch:** 6-docker-compose-dev
+**Branch:** main
 
 ---
 
@@ -21,7 +21,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Epic | Issue | Dev Docs | Status | Next Action |
 |------|-------|----------|--------|-------------|
-| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | PR for #6 ready, continue to #7 |
+| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | #6 merged, start #7 |
 
 ---
 
@@ -45,7 +45,7 @@ v2.0 Foundation → v2.1 Tone3000 → v2.2 Jobs → v2.3 Frontend → v2.4 Pipel
      │                 └──────────────┴─────────────┴──────────────┘
      │                           (can run in parallel after v2.0)
      ▼
-Start here: Issue #6 (Docker Compose dev environment)
+Next: Issue #7 (Docker Compose production environment)
 ```
 
 ---
@@ -70,6 +70,7 @@ cat dev/active/web-app-foundation/web-app-foundation-context.md
 
 ## Recent Activity
 
+- **2025-12-26**: Merged #6. Set up Git workflow (squash-only, ff-only). Added admin.sh for dependency management.
 - **2025-12-26**: Completed #6 Docker Compose dev environment. Backend + frontend + db + redis all running with hot-reload.
 - **2025-12-26**: Project pivot decided. Created epics #5-#25. Closed old issues #1-4.
 - **2025-12-26**: Set up dev-docs framework to prevent context loss.
