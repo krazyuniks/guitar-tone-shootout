@@ -78,6 +78,10 @@ ignore_missing_imports = true
 module = "taskiq_fastapi.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "redis.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

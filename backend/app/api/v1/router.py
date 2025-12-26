@@ -5,7 +5,7 @@ This router aggregates all v1 API endpoints.
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, jobs, tones
+from app.api.v1 import auth, jobs, tones, ws
 
 api_router = APIRouter()
 
@@ -17,3 +17,6 @@ api_router.include_router(tones.router)
 
 # Job management endpoints
 api_router.include_router(jobs.router)
+
+# WebSocket endpoints
+api_router.include_router(ws.router)
