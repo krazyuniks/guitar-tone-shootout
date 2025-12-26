@@ -14,7 +14,7 @@ setup: setup-python setup-node
 
 # Setup Python environment
 setup-python:
-    uv venv
+    @[ -d .venv ] || uv venv
     uv pip install -e ".[dev]"
 
 # Setup Node environment (pnpm + Tailwind + Flowbite)
