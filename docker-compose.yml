@@ -45,13 +45,16 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    command: ["python", "-m", "app.tasks"]  # Will be implemented later
+    command: ["taskiq", "worker", "app.tasks:broker", "--workers", "2", "--log-level", "INFO"]
     volumes:
       - ./backend:/app
       - ./pipeline:/pipeline:ro
     environment:
       - DATABASE_URL=postgresql+asyncpg://shootout:${DB_PASSWORD:-devpassword}@db:5432/shootout
       - REDIS_URL=redis://redis:6379
+      - TONE3000_CLIENT_ID=${TONE3000_CLIENT_ID:-}
+      - TONE3000_CLIENT_SECRET=${TONE3000_CLIENT_SECRET:-}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
     depends_on:
       db:
         condition: service_healthy
