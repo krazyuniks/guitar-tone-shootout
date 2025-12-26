@@ -14,9 +14,10 @@ docker compose up                    # Start all services with hot-reload
 docker compose logs -f backend       # View backend logs
 docker compose exec backend bash     # Shell into backend container
 
-# Quality Gates
-docker compose exec backend just check
-docker compose exec frontend pnpm check
+# Quality Gates (run from host)
+just check-backend                    # ruff, mypy, pytest in backend container
+just check-frontend                   # pnpm lint, build in frontend container
+just check                            # Run all checks
 
 # Database
 docker compose exec backend alembic upgrade head    # Run migrations
@@ -179,7 +180,7 @@ git checkout -b 6-docker-compose-dev
 
 4. **Run quality gates** frequently:
    ```bash
-   docker compose exec backend just check
+   just check                    # Run all checks from host
    ```
 
 ### Phase 3: Quality Gates

@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-26
-**Branch:** main
+**Branch:** 10-docs-update-docker-workflow
 
 ---
 
@@ -21,7 +21,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Epic | Issue | Dev Docs | Status | Next Action |
 |------|-------|----------|--------|-------------|
-| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | #9 merged, start #10 |
+| Web Application Foundation | #10 | `dev/active/web-app-foundation/` | In Progress | Create PR for docs update |
 
 ---
 
@@ -29,7 +29,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Milestone | Epic Issue | Sub-Issues | Status |
 |-----------|------------|------------|--------|
-| v2.0 - Web Application Foundation | #5 | #6, #7, #8, #9, #10 | In Progress |
+| v2.0 - Web Application Foundation | #5 | #6, #7, #8, #9, #10 | #10 in progress |
 | v2.1 - Tone 3000 Integration | #11 | #12, #13 | Blocked by v2.0 |
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | Blocked by v2.0 |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | Blocked by v2.0 |
@@ -37,39 +37,21 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 ---
 
-## Execution Order
+## v2.0 Foundation Progress
 
-```
-v2.0 Foundation → v2.1 Tone3000 → v2.2 Jobs → v2.3 Frontend → v2.4 Pipeline
-     │                 │              │             │              │
-     │                 └──────────────┴─────────────┴──────────────┘
-     │                           (can run in parallel after v2.0)
-     ▼
-Next: Issue #10 (Pydantic schemas for API)
-```
-
----
-
-## Quick Commands
-
-```bash
-# View all open issues
-gh issue list --state open
-
-# View specific milestone
-gh issue list --milestone "v2.0 - Web Application Foundation"
-
-# View issue details
-gh issue view 6
-
-# Read current dev-docs
-cat dev/active/web-app-foundation/web-app-foundation-context.md
-```
+| Issue | Title | Status |
+|-------|-------|--------|
+| #6 | Docker Compose dev environment | Merged |
+| #7 | Docker Compose production environment | Merged |
+| #8 | FastAPI project structure | Merged |
+| #9 | SQLAlchemy 2.0 async + Alembic | Merged |
+| #10 | Update README and AGENTS.md | In Progress |
 
 ---
 
 ## Recent Activity
 
+- **2025-12-26**: Working on #10 - Updated justfile for Docker workflow, removed deprecated web-dev.md skill, updated AGENTS.md quick reference.
 - **2025-12-26**: Merged #9 SQLAlchemy 2.0 async setup. Async engine with asyncpg, Base model with naming conventions, User model, Alembic async migrations, auto-migration on startup.
 - **2025-12-26**: Completed #8 FastAPI project structure. API v1 versioning, logging module, dependency injection, lifespan events. Fixed Redis image to 8.4.0-alpine.
 - **2025-12-26**: Created #7 Docker Compose production environment. Multi-stage builds, nginx reverse proxy, gunicorn workers, health checks, resource limits.

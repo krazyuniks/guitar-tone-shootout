@@ -29,7 +29,7 @@ The project is pivoting from a CLI-focused audio processing tool to a **full web
 │                         FRONTEND (Astro)                        │
 ├─────────────────────────────────────────────────────────────────┤
 │  Landing Page    │  Comparison Pages   │  Pipeline Builder      │
-│  (Static HTML)   │  (Static + HTMX)    │  (React Island)        │
+│  (Static HTML)   │  (Static)           │  (React Island)        │
 │  0 KB JS         │  Minimal JS         │  React + Tone 3000 SDK │
 └────────────────────────────┬────────────────────────────────────┘
                              │ REST API + WebSocket
