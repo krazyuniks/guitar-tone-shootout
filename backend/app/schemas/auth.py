@@ -16,7 +16,7 @@ class TokenResponse(BaseModel):
 class Tone3000User(BaseModel):
     """User profile from Tone 3000 API."""
 
-    id: int
+    id: str  # Tone 3000 uses UUIDs for user IDs
     username: str
     avatar_url: str | None = None
     tones_count: int = 0
@@ -26,7 +26,7 @@ class UserResponse(BaseModel):
     """User response for API endpoints."""
 
     id: str
-    tone3000_id: int
+    tone3000_id: str
     username: str
     avatar_url: str | None
     created_at: datetime
