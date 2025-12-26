@@ -45,9 +45,6 @@ htmlcov/
 .tox/
 .nox/
 
-# Test fixtures (binary files)
-pipeline/tests/fixtures/
-
 # Type checking
 .mypy_cache/
 .dmypy.json
