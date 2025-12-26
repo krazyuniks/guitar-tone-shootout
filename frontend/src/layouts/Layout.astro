@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import UserNav from '../components/UserNav';
 
 interface Props {
   title: string;
@@ -23,13 +24,11 @@ const { title } = Astro.props;
         <a href="/" class="text-xl font-bold text-amber-500">
           Guitar Tone Shootout
         </a>
-        <div class="flex gap-4">
+        <div class="flex items-center gap-4">
           <a href="/shootouts" class="hover:text-amber-400 transition-colors">
             Shootouts
           </a>
-          <a href="/login" class="hover:text-amber-400 transition-colors">
-            Login
-          </a>
+          <UserNav client:load />
         </div>
       </div>
     </nav>
