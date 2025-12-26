@@ -1,282 +1,166 @@
 # Guitar Tone Shootout
 
-A CLI pipeline for creating guitar amp/cab comparison videos for YouTube.
+A web application for creating guitar amp/cab comparison videos, integrated with [Tone 3000](https://tone3000.com) for model management and user authentication.
 
 ## What It Does
 
-1. Takes DI (direct input) guitar recordings
-2. Processes them through signal chains (NAM amp models, cabinet IRs, effects)
-3. Generates professional comparison images showing the signal chain
-4. Outputs YouTube-ready videos with all permutations
+1. **Authenticate** via Tone 3000 OAuth
+2. **Select** NAM amp models, cabinet IRs, and effects from your Tone 3000 library
+3. **Upload** DI (direct input) guitar recordings
+4. **Build** comparison shootouts via the web interface
+5. **Process** through an async job queue with real-time progress
+6. **Download** YouTube-ready comparison videos
 
-## Vocabulary
+## Architecture
 
-These terms are used consistently throughout the project:
-
-| Term | Definition |
-|------|------------|
-| **Comparison** | A complete project comparing multiple signal chains across DI tracks. Defined by an INI file. |
-| **DI Track** | A raw, unprocessed guitar recording (Direct Input) with associated metadata (guitar, pickup, notes). |
-| **Signal Chain** | An ordered sequence of effects (amp, cab, pedals, etc.) that processes a DI track. |
-| **Segment** | One processed audio/video clip representing 1 DI track × 1 signal chain. |
-| **Permutation** | The full set of segments generated (all DI tracks × all signal chains). |
-| **NAM** | Neural Amp Modeler - AI-based amp/pedal capture technology. Uses `.nam` model files. |
-| **IR** | Impulse Response - Audio snapshot of a speaker cabinet's acoustic properties. Used for cab simulation. |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (Astro + React)                    │
+│  Landing (Static) │ Comparison Pages │ Pipeline Builder (React) │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ REST API + WebSocket
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      BACKEND (FastAPI)                          │
+│   Auth (Tone 3000 OAuth) │ API │ WebSocket │ Background Jobs    │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+┌─────────────────┐  ┌───────────────┐  ┌────────────────────┐
+│   PostgreSQL    │  │  Tone 3000    │  │   Pipeline         │
+│   + Redis       │  │  API          │  │   (Audio/Video)    │
+└─────────────────┘  └───────────────┘  └────────────────────┘
+```
 
 ## Quick Start
 
 ### Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Python | 3.12+ | Core language (via [pyenv](https://github.com/pyenv/pyenv), system, or [python.org](https://www.python.org/downloads/)) |
-| uv | Latest | Python package manager |
-| just | Latest | Task runner |
-| FFmpeg | 6.0+ | Audio/video processing |
-| Node.js | 20+ | Web frontend build tools (optional for MVP) |
-| pnpm | 9+ | Node package manager (optional for MVP) |
+- **Docker** and **Docker Compose** (all dependencies run in containers)
+- **Tone 3000 account** for authentication
 
-### Installation
-
-**Python 3.12+** — Install via your preferred method ([pyenv](https://github.com/pyenv/pyenv#installation), [python.org](https://www.python.org/downloads/), or system package manager).
-
-**uv** (Python package manager):
-```bash
-# Unix/macOS/WSL
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows PowerShell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-**just** (task runner):
-```bash
-# Unix/macOS/WSL
-curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
-
-# Windows PowerShell
-powershell -ExecutionPolicy ByPass -c "irm https://just.systems/install.ps1 | iex"
-```
-
-**FFmpeg 6.0+** — Install from OS package manager or download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH.
-
-**Node.js & pnpm** (optional, for web frontend):
-```bash
-# Install Node.js from https://nodejs.org/ or via nvm/fnm
-npm install -g pnpm
-```
-
-> **Note:** Ensure `~/.local/bin` (Unix) or the install directories are in your PATH.
-
-### Verify Installation
-
-```bash
-python3 --version    # Should be 3.12+
-uv --version         # Should show version
-just --version       # Should show version
-ffmpeg -version      # Should show version 6+
-node --version       # Should be 20+ (optional for MVP)
-pnpm --version       # Should be 9+ (optional for MVP)
-```
-
-### Setup
+### Development Setup
 
 ```bash
 git clone https://github.com/krazyuniks/guitar-tone-shootout.git
 cd guitar-tone-shootout
-just setup
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your Tone 3000 API credentials
+
+# Start all services with hot-reload
+docker compose up
+
+# Access the app
+# Frontend: http://localhost:4321
+# Backend API: http://localhost:8000/docs
 ```
 
-### Install Playwright Browser (Required for Image Generation)
+### Production Deployment
 
 ```bash
-cd pipeline
-uv run playwright install chromium
+# Build production images
+docker compose -f docker-compose.prod.yml build
+
+# Deploy
+docker compose -f docker-compose.prod.yml up -d
 ```
-
-### Usage
-
-1. Add your DI tracks to `inputs/di_tracks/`
-2. Add NAM models to `inputs/nam_models/`
-3. Add cabinet IRs to `inputs/irs/`
-4. Create a comparison INI file in `comparisons/`
-5. Run the pipeline:
-
-```bash
-just process comparisons/my_comparison.ini
-```
-
-Outputs will be in `outputs/<shootout-title>/`:
-- `<shootout-title>.mp4` - Final comparison video (YouTube-ready)
-- `audio/<shootout-title>_NNN.flac` - Per-segment FLAC files
-- `audio/<shootout-title>_full.flac` - Combined full audio (for SoundCloud etc.)
-- `clips/<shootout-title>_NNN.mp4` - Individual video clips per segment
-- `images/<shootout-title>_NNN.png` - Generated segment images
-
-## Comparison INI Format
-
-Each comparison is defined by an INI file with three sections:
-
-```ini
-[meta]
-name = Marshall vs Fender Clean Comparison
-author = your_username
-description = Comparing classic American and British clean tones
-
-[di_tracks]
-# Each DI track has metadata
-1.file = clean_chords.wav
-1.guitar = Fender Stratocaster
-1.pickup = bridge single coil
-1.notes = recorded with fresh strings
-
-2.file = blues_lick.wav
-2.guitar = Gibson Les Paul
-2.pickup = neck humbucker
-
-[signal_chains]
-# Each signal chain is a complete effects group
-1.name = Plexi Crunch
-1.description = Classic British crunch tone
-1.chain = nam:marshall/plexi.nam, ir:greenback.wav
-
-2.name = Twin Clean
-2.description = Sparkling Fender clean
-2.chain = nam:fender/twin.nam, ir:jensen.wav, reverb:hall
-```
-
-This generates 4 segments (2 DI tracks × 2 signal chains).
-
-### Signal Chain Effect Types
-
-| Type | Format | Description |
-|------|--------|-------------|
-| `nam` | `nam:<path>` | Neural Amp Modeler capture (.nam file) |
-| `ir` | `ir:<path>` | Impulse Response / Cabinet sim (.wav file) |
-| `eq` | `eq:<preset>` | EQ preset (highpass_80hz, lowpass_12k, etc.) |
-| `reverb` | `reverb:<preset>` | Reverb preset (room, hall, plate, spring) |
-| `delay` | `delay:<preset>` | Delay preset (slap, quarter, dotted_eighth) |
-| `gain` | `gain:<value>` | Gain adjustment (e.g., +6db, -3db) |
-
-## Output Specs
-
-| Output | Format | Details |
-|--------|--------|---------|
-| Audio | FLAC | Lossless, original sample rate |
-| Video | MP4 | 1080p, 30fps, H.264, AAC 384kbps |
 
 ## Project Structure
 
 ```
 guitar-tone-shootout/
-├── pipeline/           # Audio/video processing (Python)
-│   ├── src/            # Source code
-│   ├── tests/          # Pipeline tests
-│   ├── pyproject.toml  # Dependencies
-│   └── justfile        # Tasks
-├── web/                # Web frontend (Flask + HTMX) - Future
-├── inputs/             # Shared input files
-│   ├── di_tracks/      # Raw guitar recordings
-│   ├── nam_models/     # NAM amp/pedal captures
-│   └── irs/            # Cabinet impulse responses
-├── comparisons/        # INI comparison files
-├── outputs/            # Generated files (per shootout)
-│   └── <shootout-title>/   # One folder per comparison
-│       ├── <shootout-title>.mp4  # Final comparison video
-│       ├── audio/          # FLAC files (_NNN.flac, _full.flac)
-│       ├── images/         # Segment images (_NNN.png)
-│       └── clips/          # Individual video clips (_NNN.mp4)
-└── justfile            # Root orchestration
+├── backend/                # FastAPI application
+│   ├── app/
+│   │   ├── api/           # REST endpoints
+│   │   ├── core/          # Config, security, Tone 3000 client
+│   │   ├── models/        # SQLAlchemy models
+│   │   ├── schemas/       # Pydantic schemas
+│   │   └── tasks/         # Background job definitions
+│   ├── alembic/           # Database migrations
+│   └── pyproject.toml
+├── frontend/               # Astro + React application
+│   ├── src/
+│   │   ├── pages/         # Astro pages (static + dynamic)
+│   │   ├── components/    # React components
+│   │   └── layouts/       # Page layouts
+│   └── package.json
+├── pipeline/               # Audio/video processing library
+│   ├── src/               # NAM, Pedalboard, FFmpeg processing
+│   └── tests/
+├── dev/                    # Development documentation
+│   ├── session-state.md   # Current work tracking
+│   ├── EXECUTION-PLAN.md  # Architecture and epics
+│   └── active/            # Active task documentation
+├── docker-compose.yml      # Development environment
+├── docker-compose.prod.yml # Production environment
+└── AGENTS.md               # Development workflow guide
 ```
+
+## Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| Frontend | Astro + React | Static SEO pages + interactive components |
+| Backend | FastAPI | REST API, WebSocket, OAuth |
+| Database | PostgreSQL | User data, shootouts, job status |
+| Cache/Queue | Redis | Job queue, real-time pub/sub |
+| Task Queue | TaskIQ | Async pipeline processing |
+| Auth | Tone 3000 OAuth | User authentication |
+| Audio | NAM + Pedalboard | Amp modeling, effects |
+| Video | FFmpeg + Playwright | Video generation |
+
+## Vocabulary
+
+| Term | Definition |
+|------|------------|
+| **Shootout** | A comparison project with multiple signal chains and DI tracks |
+| **DI Track** | Raw, unprocessed guitar recording (Direct Input) |
+| **Signal Chain** | Ordered sequence of effects (amp, cab, pedals) |
+| **Segment** | One processed audio/video clip (1 DI track × 1 signal chain) |
+| **NAM** | Neural Amp Modeler - AI-based amp capture technology |
+| **IR** | Impulse Response - Speaker cabinet acoustic snapshot |
 
 ## Development
 
-### Quick Start
+See [AGENTS.md](AGENTS.md) for detailed development workflow, patterns, and conventions.
+
+### Key Commands
 
 ```bash
-just setup      # Setup all subprojects
-just check      # Run all checks (lint, format, types, tests)
+# Start development environment
+docker compose up
+
+# Run quality checks (in container)
+docker compose exec backend just check
+docker compose exec frontend pnpm check
+
+# View logs
+docker compose logs -f backend
+docker compose logs -f worker
+
+# Database migrations
+docker compose exec backend alembic upgrade head
 ```
 
-### Pipeline Only
+## Roadmap
 
-```bash
-cd pipeline
-just setup      # Install dependencies
-just test       # Run tests
-just check      # All checks
-```
+See [GitHub Milestones](https://github.com/krazyuniks/guitar-tone-shootout/milestones) for current progress:
 
-## Testing
-
-```bash
-cd pipeline
-just test        # Run all tests
-just test-cov    # Run with coverage report
-```
-
-Tests require FFmpeg. Playwright tests are skipped if Chromium is not installed.
-
-```
-pipeline/tests/
-├── test_config.py    # INI parsing tests
-├── test_audio.py     # Audio I/O and effect chain tests
-├── test_pipeline.py  # FFmpeg operations (trim, clip, concat)
-└── test_workflow.py  # Full workflow and CLI tests
-```
+- **v2.0** - Web Application Foundation (Docker, FastAPI, PostgreSQL)
+- **v2.1** - Tone 3000 Integration (OAuth, API client)
+- **v2.2** - Job Queue System (TaskIQ, Redis, WebSocket)
+- **v2.3** - Frontend (Astro, React, Tailwind)
+- **v2.4** - Pipeline Web Adapter
 
 ## Resources
 
-- [NAM Models on Tone3000](https://tone3000.com)
-- [Pedalboard Documentation](https://spotify.github.io/pedalboard/)
+- [Tone 3000 API Documentation](https://www.tone3000.com/api)
+- [Tone 3000 GitHub](https://github.com/tone-3000)
 - [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler)
 
 ## License
 
 MIT
-
-## Contributing
-
-We welcome contributions! This project uses an issue-driven development workflow.
-
-### Development Workflow
-
-1. **Create an issue** for your feature/fix:
-   ```bash
-   gh issue create --title "feat: your feature description"
-   ```
-   Or use the [issue templates](https://github.com/krazyuniks/guitar-tone-shootout/issues/new/choose)
-
-2. **Create a branch** from the issue:
-   ```bash
-   just branch 42   # Creates branch 42-feature
-   ```
-
-3. **Develop** following the patterns in `AGENTS.md`
-
-4. **Run quality checks** before committing:
-   ```bash
-   just check       # Runs lint, format, typecheck, test
-   ```
-
-5. **Create a PR**:
-   ```bash
-   just pr          # Creates PR with template
-   ```
-
-### Quick Commands
-
-```bash
-just issues       # List open issues
-just issue 42     # View issue details
-just pr-status    # Check PR status
-just ship "msg"   # Check + commit + push + PR
-```
-
-### Code Style
-
-- Type hints required on all functions
-- Docstrings for public functions
-- Use `logging` instead of `print()`
-- Use `pathlib.Path` over string paths
-- See `AGENTS.md` for detailed patterns

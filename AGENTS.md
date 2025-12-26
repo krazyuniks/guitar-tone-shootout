@@ -1,6 +1,6 @@
 # Guitar Tone Shootout - Development Operations Guide
 
-**Version:** 1.0 | **Last Updated:** 2025-12-25
+**Version:** 2.0 | **Last Updated:** 2025-12-26
 
 This document defines the development workflow, patterns, and automation for the Guitar Tone Shootout project. It serves as the primary reference for both human developers and AI agents.
 
@@ -9,24 +9,103 @@ This document defines the development workflow, patterns, and automation for the
 ## Quick Reference
 
 ```bash
-# Development Workflow
-gh issue create --title "feat: <description>"    # Create issue
-git checkout -b <issue-number>-<short-desc>      # Create branch
-# ... implement ...
-just check                                        # Run all quality gates
-gh pr create                                      # Create PR
+# Development (Docker-based)
+docker compose up                    # Start all services with hot-reload
+docker compose logs -f backend       # View backend logs
+docker compose exec backend bash     # Shell into backend container
 
 # Quality Gates
-just check              # All checks (lint, format, type, test)
-just lint               # Ruff linting
-just format             # Ruff formatting
-just check-pipeline     # Pipeline checks only
-just check-web          # Web checks only
+docker compose exec backend just check
+docker compose exec frontend pnpm check
 
-# Task Management
-just new-issue          # Create GitHub issue interactively
-just pr                 # Create PR from current branch
+# Database
+docker compose exec backend alembic upgrade head    # Run migrations
+docker compose exec backend alembic revision -m "description"  # Create migration
+
+# GitHub Workflow
+gh issue list --milestone "v2.0 - Web Application Foundation"
+gh issue view 6
 ```
+
+---
+
+## Session Checkpoint Rules
+
+**CRITICAL: These rules prevent context loss across Claude Code sessions.**
+
+### Before Ending a Session
+
+1. **Update dev-docs** with current progress:
+   ```bash
+   # Update session-state.md with current status
+   # Update active task context.md with decisions/progress
+   ```
+
+2. **Commit and push** all changes:
+   ```bash
+   git add -A
+   git commit -m "checkpoint: description of current state"
+   git push
+   ```
+
+3. **Never** tell user to start new session without saving state first
+
+### Pre-commit Hook Enforcement
+
+A pre-commit hook validates:
+- `dev/session-state.md` exists and is not empty
+- Active GitHub issues have corresponding `dev/active/` documentation
+- Architecture decisions are documented in `dev/EXECUTION-PLAN.md`
+
+### Resuming Work
+
+1. Read `dev/session-state.md` first
+2. Check `dev/EXECUTION-PLAN.md` for architecture context
+3. Read active task docs in `dev/active/[task]/`
+4. Continue from documented "Next Action"
+
+---
+
+## Project Structure
+
+```
+guitar-tone-shootout/
+├── backend/                    # FastAPI application
+│   ├── app/
+│   │   ├── api/               # REST endpoints (auth, shootouts, jobs, ws)
+│   │   ├── core/              # Config, security, Tone 3000 client
+│   │   ├── models/            # SQLAlchemy models
+│   │   ├── schemas/           # Pydantic schemas
+│   │   └── tasks/             # TaskIQ background jobs
+│   ├── alembic/               # Database migrations
+│   ├── Dockerfile.dev         # Development container
+│   ├── Dockerfile             # Production container
+│   └── pyproject.toml
+├── frontend/                   # Astro + React application
+│   ├── src/
+│   │   ├── pages/             # Astro pages
+│   │   ├── components/        # React components (islands)
+│   │   └── layouts/
+│   ├── Dockerfile.dev
+│   ├── Dockerfile
+│   └── package.json
+├── pipeline/                   # Audio/video processing (preserved)
+│   ├── src/guitar_tone_shootout/
+│   └── tests/
+├── dev/                        # Development documentation
+│   ├── README.md              # Dev-docs pattern guide
+│   ├── session-state.md       # Current work tracking (SOURCE OF TRUTH)
+│   ├── EXECUTION-PLAN.md      # Architecture and epic tracking
+│   ├── active/                # Active task documentation
+│   └── archive/               # Completed task documentation
+├── docker-compose.yml          # Development environment
+├── docker-compose.prod.yml     # Production environment
+├── .env.example                # Environment template
+├── AGENTS.md                   # This file
+└── CLAUDE.md                   # Pointer to AGENTS.md
+```
+
+**Note:** The `web/` directory (Flask + HTMX) is deprecated and will be removed after `frontend/` is complete.
 
 ---
 
@@ -37,19 +116,9 @@ just pr                 # Create PR from current branch
 Every feature, bug fix, or task starts with a GitHub issue.
 
 ```bash
-# Create a feature issue
-gh issue create --title "feat: implement CLI commands" \
-  --body "## Description
-Implement Click-based CLI for processing comparisons.
-
-## Acceptance Criteria
-- [ ] \`shootout process <ini>\` processes a comparison
-- [ ] \`shootout validate <ini>\` validates config
-- [ ] Error handling with helpful messages
-
-## Technical Notes
-- Use Click library
-- Follow existing patterns in config.py"
+gh issue create --title "feat: description" \
+  --milestone "v2.0 - Web Application Foundation" \
+  --label "epic:foundation"
 ```
 
 **Issue Title Conventions:**
@@ -63,27 +132,28 @@ Implement Click-based CLI for processing comparisons.
 ### Phase 1: Branch Creation
 
 ```bash
-# Get issue number (e.g., 42)
 git checkout main
 git pull origin main
-git checkout -b 42-cli-commands
+git checkout -b 6-docker-compose-dev
 ```
 
 **Branch Naming:** `<issue-number>-<short-description>`
 
 ### Phase 2: Development
 
-1. **Create dev-doc** for complex tasks (optional for simple fixes):
+1. **Create dev-docs** for complex tasks:
    ```bash
-   mkdir -p dev/active
-   touch dev/active/42-cli-commands.md
+   mkdir -p dev/active/docker-compose-dev
+   # Create plan.md, context.md, tasks.md
    ```
 
-2. **Implement** following the patterns in this document
+2. **Update session-state.md** with task mapping
 
-3. **Run quality gates** frequently:
+3. **Implement** following patterns in this document
+
+4. **Run quality gates** frequently:
    ```bash
-   just check
+   docker compose exec backend just check
    ```
 
 ### Phase 3: Quality Gates
@@ -92,33 +162,34 @@ All must pass before PR:
 
 | Check | Command | What it does |
 |-------|---------|--------------|
-| Lint | `just lint` | Ruff linting with auto-fix |
-| Format | `just format` | Ruff formatting |
-| Types | `cd pipeline && just typecheck` | mypy strict mode |
-| Tests | `cd pipeline && just test` | pytest |
+| Backend Lint | `docker compose exec backend ruff check` | Python linting |
+| Backend Types | `docker compose exec backend mypy` | Type checking |
+| Backend Tests | `docker compose exec backend pytest` | Unit/integration tests |
+| Frontend Lint | `docker compose exec frontend pnpm lint` | TypeScript/Astro linting |
+| Frontend Build | `docker compose exec frontend pnpm build` | Verify build succeeds |
 
 ### Phase 4: Pull Request
 
 ```bash
-# Push branch
 git push -u origin $(git branch --show-current)
 
-# Create PR
-gh pr create --title "feat: implement CLI commands" --body "$(cat <<'EOF'
+gh pr create --title "feat: Docker Compose dev environment" --body "$(cat <<'EOF'
 ## Summary
-- Implemented Click-based CLI for comparison processing
-- Added validation command
+- Added Docker Compose for development with hot-reload
+- PostgreSQL, Redis, backend, frontend, worker services
 
 ## Changes
-- Added `cli.py` with process and validate commands
-- Updated `__init__.py` with CLI entry point
+- docker-compose.yml
+- backend/Dockerfile.dev
+- frontend/Dockerfile.dev
 
 ## Related Issues
-Closes #42
+Closes #6
 
 ## Test Plan
-- [ ] `just check` passes
-- [ ] Manual test with sample INI file
+- [ ] `docker compose up` starts all services
+- [ ] Backend hot-reload works
+- [ ] Frontend hot-reload works
 
 ---
 Generated with [Claude Code](https://claude.com/claude-code)
@@ -126,82 +197,48 @@ EOF
 )"
 ```
 
-### Phase 5: Merge
+### Phase 5: Merge and Archive
 
-After PR approval:
 ```bash
 gh pr merge --squash
 git checkout main
 git pull origin main
-git branch -d 42-cli-commands
-```
+git branch -d 6-docker-compose-dev
 
-Move dev-doc to archive (if created):
-```bash
-mv dev/active/42-cli-commands.md dev/archive/
-```
-
----
-
-## Project Structure
-
-```
-guitar-tone-shootout/
-├── pipeline/                   # Audio/video processing (Python)
-│   ├── src/guitar_tone_shootout/
-│   │   ├── audio.py           # NAM + Pedalboard processing
-│   │   ├── cli.py             # Click CLI
-│   │   ├── config.py          # INI parsing
-│   │   └── pipeline.py        # FFmpeg + Playwright
-│   ├── tests/
-│   └── pyproject.toml
-├── web/                        # Web frontend (Flask + HTMX)
-│   ├── app/                   # Flask application
-│   ├── templates/             # Jinja2 templates
-│   ├── static/src/            # Source CSS/JS
-│   ├── static/dist/           # Built assets
-│   └── pyproject.toml
-├── dev/                        # Development docs
-│   ├── active/                # Current work
-│   ├── archive/               # Completed work
-│   └── roadmap.md             # Project roadmap
-├── .claude/                    # Claude Code configuration
-│   ├── settings.json          # Permissions and settings
-│   └── skills/                # Specialized prompts
-├── .github/                    # GitHub configuration
-│   ├── ISSUE_TEMPLATE/
-│   └── pull_request_template.md
-├── inputs/                     # DI tracks, NAM models, IRs
-├── outputs/                    # Generated audio/video
-├── comparisons/                # INI config files
-├── templates/                  # HTML templates for images
-├── AGENTS.md                   # This file
-└── CLAUDE.md                   # Pointer to AGENTS.md
+# Archive dev-docs
+mv dev/active/docker-compose-dev dev/archive/
+# Update session-state.md
 ```
 
 ---
 
 ## Code Patterns
 
-### Python Style
+### Python Style (Backend)
 
 ```python
 # Type hints required on all functions
-def process_audio(
-    input_path: Path,
-    output_path: Path,
-    sample_rate: int = 44100,
-) -> None:
-    """Process audio through signal chain.
+from typing import Annotated
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+async def get_shootout(
+    shootout_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> Shootout:
+    """Retrieve a shootout by ID.
 
     Args:
-        input_path: Path to input audio file
-        output_path: Path for output file
-        sample_rate: Target sample rate
+        shootout_id: The shootout's database ID
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        The shootout if found and owned by user
 
     Raises:
-        FileNotFoundError: If input file doesn't exist
-        AudioProcessingError: If processing fails
+        HTTPException: If not found or not authorized
     """
     ...
 ```
@@ -209,105 +246,222 @@ def process_audio(
 **Rules:**
 - Type hints on all functions
 - Docstrings for public functions
-- No `print()` - use `logging` module
+- Use `logging` module (not `print()`)
 - `pathlib.Path` over string paths
-- Specific exceptions, not bare `except:`
-- Lazy imports for heavy dependencies (torch, playwright)
+- Async/await for all database operations
+- Pydantic for request/response schemas
 
-### Testing Pattern
+### TypeScript Style (Frontend)
 
-```python
-# tests/test_config.py
-import pytest
-from guitar_tone_shootout.config import parse_comparison
+```typescript
+// Type definitions required
+interface ToneModel {
+  id: number;
+  title: string;
+  gear: 'amp' | 'pedal' | 'ir';
+  platform: 'nam' | 'ir' | 'aida-x';
+}
 
-class TestParseComparison:
-    """Tests for parse_comparison function."""
+// React component with props typing
+interface PipelineBuilderProps {
+  userId: number;
+  onSubmit: (shootout: ShootoutConfig) => void;
+}
 
-    def test_valid_config(self, tmp_path: Path) -> None:
-        """Should parse valid INI config."""
-        config_path = tmp_path / "test.ini"
-        config_path.write_text(VALID_CONFIG)
-
-        result = parse_comparison(config_path)
-
-        assert result.meta.name == "Test Comparison"
-
-    def test_missing_section_raises(self, tmp_path: Path) -> None:
-        """Should raise ConfigError for missing required section."""
-        config_path = tmp_path / "test.ini"
-        config_path.write_text(INVALID_CONFIG)
-
-        with pytest.raises(ConfigError, match="Missing required section"):
-            parse_comparison(config_path)
+export function PipelineBuilder({ userId, onSubmit }: PipelineBuilderProps) {
+  // ...
+}
 ```
 
-### Error Handling Pattern
+### Error Handling
 
 ```python
-# Custom exceptions in exceptions.py
+# Custom exceptions
 class ShootoutError(Exception):
-    """Base exception for all shootout errors."""
+    """Base exception for shootout errors."""
 
-class ConfigError(ShootoutError):
-    """Configuration file error."""
-
-class AudioProcessingError(ShootoutError):
-    """Audio processing error."""
+class Tone3000Error(ShootoutError):
+    """Tone 3000 API error."""
 
 class PipelineError(ShootoutError):
-    """Pipeline execution error."""
+    """Pipeline processing error."""
 
-# Usage
-def load_nam_model(path: Path) -> NAMModel:
-    if not path.exists():
-        raise AudioProcessingError(f"NAM model not found: {path}")
-    try:
-        return _load_model(path)
-    except Exception as e:
-        raise AudioProcessingError(f"Failed to load NAM model: {e}") from e
+# HTTP exception handling in FastAPI
+from fastapi import HTTPException, status
+
+async def get_shootout(shootout_id: int) -> Shootout:
+    shootout = await db.get(Shootout, shootout_id)
+    if not shootout:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Shootout {shootout_id} not found"
+        )
+    return shootout
 ```
 
 ---
 
-## Subproject Patterns
+## Docker Development
 
-### Pipeline (`pipeline/`)
+### Services
 
-The audio/video processing engine.
+| Service | Port | Purpose |
+|---------|------|---------|
+| backend | 8000 | FastAPI with uvicorn --reload |
+| frontend | 4321 | Astro dev server |
+| worker | - | TaskIQ workers |
+| db | 5432 | PostgreSQL |
+| redis | 6379 | Redis (queue + cache) |
 
-**Key modules:**
-- `config.py` - INI parsing with dataclasses
-- `audio.py` - NAM + Pedalboard processing
-- `pipeline.py` - FFmpeg + Playwright orchestration
-- `cli.py` - Click-based CLI
+### Common Commands
 
-**Dependencies:** torch, nam, pedalboard, playwright, jinja2
+```bash
+# Start all services
+docker compose up
 
-### Web (`web/`)
+# Rebuild after dependency changes
+docker compose build backend
+docker compose up
 
-The Flask + HTMX web interface (future phase).
+# Shell into container
+docker compose exec backend bash
+docker compose exec frontend sh
 
-**Key patterns:**
-- Server-side rendering with Jinja2
-- HTMX for dynamic updates
-- Tailwind CSS 4 for styling
-- Flowbite components
+# Run one-off commands
+docker compose exec backend alembic upgrade head
+docker compose exec backend pytest tests/
 
-**Dependencies:** flask, htmx (via CDN), tailwindcss, flowbite
+# View logs
+docker compose logs -f backend worker
+
+# Reset database
+docker compose down -v  # Removes volumes
+docker compose up
+```
+
+### Volume Mounts
+
+Development containers mount source code for hot-reload:
+- `./backend:/app` - Backend source
+- `./frontend:/app` - Frontend source
+- `./pipeline:/pipeline` - Pipeline library (read-only in workers)
 
 ---
 
-## External Dependencies
+## Database Patterns
 
-| Tool | Purpose | Installation |
-|------|---------|--------------|
-| FFmpeg | Video/audio processing | `brew install ffmpeg` |
-| uv | Python package management | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| just | Task runner | `cargo install just` |
-| pnpm | Node package manager | `npm install -g pnpm` |
-| prek | Git hooks (Rust-based) | `uv tool install prek` |
-| Playwright | Browser automation | `playwright install chromium` |
+### Models (SQLAlchemy 2.0)
+
+```python
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.core.database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tone3000_id: Mapped[int] = mapped_column(unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(100))
+
+    shootouts: Mapped[list["Shootout"]] = relationship(back_populates="user")
+
+class Shootout(Base):
+    __tablename__ = "shootouts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String(200))
+
+    user: Mapped["User"] = relationship(back_populates="shootouts")
+```
+
+### Migrations
+
+```bash
+# Create migration
+docker compose exec backend alembic revision --autogenerate -m "add shootouts table"
+
+# Apply migrations
+docker compose exec backend alembic upgrade head
+
+# Rollback one
+docker compose exec backend alembic downgrade -1
+```
+
+---
+
+## Tone 3000 Integration
+
+### OAuth Flow
+
+```
+1. User clicks Login → Redirect to tone3000.com/api/v1/auth
+2. User authenticates on Tone 3000
+3. Redirect back to /auth/callback?api_key=xxx
+4. Exchange api_key for JWT tokens
+5. Store tokens, create local user session
+```
+
+### API Client Pattern
+
+```python
+from httpx import AsyncClient
+
+class Tone3000Client:
+    def __init__(self, access_token: str):
+        self.access_token = access_token
+        self.base_url = "https://www.tone3000.com/api/v1"
+
+    async def get_user_tones(self) -> list[Tone]:
+        async with AsyncClient() as client:
+            response = await client.get(
+                f"{self.base_url}/tones/created",
+                headers={"Authorization": f"Bearer {self.access_token}"}
+            )
+            response.raise_for_status()
+            return [Tone(**t) for t in response.json()["data"]]
+```
+
+---
+
+## Job Queue Patterns
+
+### Task Definition
+
+```python
+from taskiq import TaskiqScheduler
+from taskiq_redis import ListQueueBroker, RedisAsyncResultBackend
+
+broker = ListQueueBroker(url="redis://redis:6379")
+broker.with_result_backend(RedisAsyncResultBackend(redis_url="redis://redis:6379"))
+
+@broker.task
+async def process_shootout(job_id: str, shootout_id: int) -> str:
+    """Process a shootout through the pipeline."""
+    await update_job_status(job_id, "running", progress=0)
+
+    # Download models, process audio, generate video...
+    await update_job_status(job_id, "running", progress=50)
+
+    # Complete
+    await update_job_status(job_id, "completed", progress=100)
+    return output_path
+```
+
+### WebSocket Progress
+
+```python
+@router.websocket("/ws/jobs/{job_id}")
+async def job_progress(websocket: WebSocket, job_id: str):
+    await websocket.accept()
+    async for update in subscribe_job_updates(job_id):
+        await websocket.send_json({
+            "status": update.status,
+            "progress": update.progress,
+            "message": update.message
+        })
+```
 
 ---
 
@@ -315,68 +469,73 @@ The Flask + HTMX web interface (future phase).
 
 ### Autonomous Execution
 
-The following commands are pre-approved for immediate execution:
+Pre-approved commands (no confirmation needed):
 
 ```bash
-# Quality gates
-just check
-just lint
-just format
-cd pipeline && just test
-cd pipeline && just typecheck
+# Docker operations
+docker compose up
+docker compose logs
+docker compose exec backend pytest
+docker compose exec frontend pnpm build
 
-# Git operations (read-only)
+# Git (read-only)
 git status
 git log
 git diff
-git branch
 
 # GitHub CLI (read-only)
 gh issue list
 gh pr list
-gh pr view
+gh issue view
 ```
 
-### Skills
+### Dev-Docs Commands
 
-Located in `.claude/skills/`:
+```bash
+# Check session state
+cat dev/session-state.md
 
-- **pipeline-dev**: Audio processing, NAM models, Pedalboard effects
-- **web-dev**: Flask, HTMX, Tailwind, Flowbite patterns
-- **testing**: pytest patterns, fixture usage
+# Check execution plan
+cat dev/EXECUTION-PLAN.md
 
-### Hooks
-
-Located in `.claude/hooks/`:
-
-- **pre-commit**: Runs quality gates before git commit
-- **post-edit**: Suggests running tests after file modifications
+# View active task
+cat dev/active/[task-name]/[task-name]-context.md
+```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+### Docker Issues
 
-**NAM model fails to load:**
-- Ensure `.nam` file is valid JSON
-- Check PyTorch version compatibility
-- Verify CUDA availability (if using GPU)
+**Container won't start:**
+```bash
+docker compose logs [service]  # Check error logs
+docker compose down -v         # Reset volumes
+docker compose build --no-cache [service]  # Rebuild
+```
 
-**Playwright fails:**
-- Run `playwright install chromium`
-- Check browser version compatibility
+**Hot-reload not working:**
+- Check volume mounts in docker-compose.yml
+- Verify file permissions
+- Restart the specific service: `docker compose restart backend`
 
-**FFmpeg encoding fails:**
-- Verify input file format
-- Check output directory permissions
-- Review FFmpeg error output
+### Database Issues
 
-### Getting Help
+**Migration conflicts:**
+```bash
+docker compose exec backend alembic history  # View history
+docker compose exec backend alembic current  # Current state
+docker compose exec backend alembic downgrade base  # Reset
+docker compose exec backend alembic upgrade head    # Reapply
+```
 
-1. Check existing issues: `gh issue list`
-2. Search codebase: `just grep <pattern>` (if implemented)
-3. Ask in discussions: `gh discussion create`
+### Tone 3000 API
+
+**Auth failures:**
+- Check TONE3000_CLIENT_ID and TONE3000_CLIENT_SECRET in .env
+- Verify redirect URL matches registered callback
+- Check token expiry and refresh logic
 
 ---
 
@@ -384,4 +543,5 @@ Located in `.claude/hooks/`:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0 | 2025-12-25 | Initial workflow documentation |
+| 2.0 | 2025-12-26 | Web application pivot, Docker-based workflow |
+| 1.0 | 2025-12-25 | Initial CLI-focused workflow |

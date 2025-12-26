@@ -52,3 +52,10 @@ repos:
         language: system
         files: \.ini$
         types: [file]
+
+      - id: check-dev-docs
+        name: Validate dev-docs exist
+        entry: bash scripts/check-dev-docs.sh
+        language: system
+        always_run: true
+        pass_filenames: false
