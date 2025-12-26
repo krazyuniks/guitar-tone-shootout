@@ -61,7 +61,7 @@ services:
       - worker  # Only start when explicitly requested
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -77,7 +77,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.0.6-alpine
     ports:
       - "6379:6379"
     volumes:
