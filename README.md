@@ -29,105 +29,44 @@ These terms are used consistently throughout the project:
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Python | 3.12+ | Core language |
+| Python | 3.12+ | Core language (via [pyenv](https://github.com/pyenv/pyenv), system, or [python.org](https://www.python.org/downloads/)) |
 | uv | Latest | Python package manager |
 | just | Latest | Task runner |
 | FFmpeg | 6.0+ | Audio/video processing |
 | Node.js | 20+ | Web frontend build tools (optional for MVP) |
 | pnpm | 9+ | Node package manager (optional for MVP) |
 
-### Installation by Platform
+### Installation
 
-<details>
-<summary><strong>macOS</strong></summary>
+**Python 3.12+** — Install via your preferred method ([pyenv](https://github.com/pyenv/pyenv#installation), [python.org](https://www.python.org/downloads/), or system package manager).
 
+**uv** (Python package manager):
 ```bash
-# Install Homebrew if not present
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install dependencies
-brew install python@3.12 ffmpeg just
-
-# Install uv (Python package manager)
+# Unix/macOS/WSL
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install Node.js and pnpm (for web frontend - optional for MVP)
-brew install node
-npm install -g pnpm
+# Windows PowerShell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
-</details>
 
-<details>
-<summary><strong>Linux (Ubuntu/Debian)</strong></summary>
-
+**just** (task runner):
 ```bash
-# Update package list
-sudo apt update
-
-# Install Python 3.12
-sudo apt install python3.12 python3.12-venv
-
-# Install FFmpeg
-sudo apt install ffmpeg
-
-# Install just
+# Unix/macOS/WSL
 curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
 
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install Node.js 20+ and pnpm (for web frontend - optional for MVP)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install nodejs
-npm install -g pnpm
-
-# Add ~/.local/bin to PATH (add to ~/.bashrc or ~/.zshrc)
-export PATH="$HOME/.local/bin:$PATH"
+# Windows PowerShell
+powershell -ExecutionPolicy ByPass -c "irm https://just.systems/install.ps1 | iex"
 ```
-</details>
 
-<details>
-<summary><strong>Windows</strong></summary>
+**FFmpeg 6.0+** — Install from OS package manager or download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH.
 
-**Option 1: Using winget (Windows 11 / Windows 10 21H2+)**
-```powershell
-# Install dependencies
-winget install Python.Python.3.12
-winget install Gyan.FFmpeg
-winget install Casey.Just
-winget install OpenJS.NodeJS.LTS
-
-# Install uv (run in PowerShell as Administrator)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Install pnpm
+**Node.js & pnpm** (optional, for web frontend):
+```bash
+# Install Node.js from https://nodejs.org/ or via nvm/fnm
 npm install -g pnpm
 ```
 
-**Option 2: Using Scoop**
-```powershell
-# Install Scoop if not present
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-irm get.scoop.sh | iex
-
-# Install dependencies
-scoop install python ffmpeg just nodejs
-
-# Install uv
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Install pnpm
-npm install -g pnpm
-```
-
-**Option 3: Manual installation**
-- Python 3.12+: https://www.python.org/downloads/
-- FFmpeg: https://ffmpeg.org/download.html (add to PATH)
-- just: https://github.com/casey/just/releases
-- Node.js 20+: https://nodejs.org/
-- uv: `pip install uv` (after Python is installed)
-- pnpm: `npm install -g pnpm` (after Node.js is installed)
-</details>
+> **Note:** Ensure `~/.local/bin` (Unix) or the install directories are in your PATH.
 
 ### Verify Installation
 
