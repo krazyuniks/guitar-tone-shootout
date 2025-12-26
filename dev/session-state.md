@@ -21,7 +21,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Epic | Issue | Dev Docs | Status | Next Action |
 |------|-------|----------|--------|-------------|
-| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | #7 merged, start #8 |
+| Web Application Foundation | #5 | `dev/active/web-app-foundation/` | In Progress | #8 PR ready, pending merge |
 
 ---
 
@@ -45,7 +45,7 @@ v2.0 Foundation → v2.1 Tone3000 → v2.2 Jobs → v2.3 Frontend → v2.4 Pipel
      │                 └──────────────┴─────────────┴──────────────┘
      │                           (can run in parallel after v2.0)
      ▼
-Next: Issue #8 (after #7 merges)
+Next: Issue #9 (after #8 merges)
 ```
 
 ---
@@ -70,6 +70,7 @@ cat dev/active/web-app-foundation/web-app-foundation-context.md
 
 ## Recent Activity
 
+- **2025-12-26**: Completed #8 FastAPI project structure. API v1 versioning, logging module, dependency injection, lifespan events. Fixed Redis image to 8.4.0-alpine.
 - **2025-12-26**: Created #7 Docker Compose production environment. Multi-stage builds, nginx reverse proxy, gunicorn workers, health checks, resource limits.
 - **2025-12-26**: Fixed Tailwind CSS v4 compatibility (migrated from @astrojs/tailwind to @tailwindcss/vite).
 - **2025-12-26**: Merged #6. Set up Git workflow (squash-only, ff-only). Added admin.sh for dependency management.
