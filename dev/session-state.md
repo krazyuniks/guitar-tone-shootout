@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-26
-**Branch:** main
+**Branch:** 12-tone3000-oauth
 
 ---
 
@@ -21,7 +21,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 | Epic | Issue | Dev Docs | Status | Next Action |
 |------|-------|----------|--------|-------------|
-| - | - | - | v2.0 Complete | Start v2.1 (Tone 3000 Integration) |
+| v2.1 | #12, #13 | - | PR Ready | Awaiting merge
 
 ---
 
@@ -30,7 +30,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 | Milestone | Epic Issue | Sub-Issues | Status |
 |-----------|------------|------------|--------|
 | v2.0 - Web Application Foundation | #5 | #6, #7, #8, #9, #10 | **Complete** |
-| v2.1 - Tone 3000 Integration | #11 | #12, #13 | Ready to Start |
+| v2.1 - Tone 3000 Integration | #11 | #12, #13 | **In Progress - PR Ready** |
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | Ready to Start |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | Ready to Start |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | Ready to Start |
@@ -51,6 +51,7 @@ See `EXECUTION-PLAN.md` for full architecture and epic tracking.
 
 ## Recent Activity
 
+- **2025-12-26**: Created PR for v2.1 Tone 3000 Integration (#12, #13). Implemented OAuth login/callback/logout/me endpoints, Tone 3000 API client with automatic token refresh, tones API endpoints for fetching user tones and searching.
 - **2025-12-26**: Merged #10 - Documentation updates for Docker workflow. v2.0 Foundation epic complete!
 - **2025-12-26**: Merged #9 SQLAlchemy 2.0 async setup. Async engine with asyncpg, Base model with naming conventions, User model, Alembic async migrations, auto-migration on startup.
 - **2025-12-26**: Completed #8 FastAPI project structure. API v1 versioning, logging module, dependency injection, lifespan events. Fixed Redis image to 8.4.0-alpine.
