@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-26
-**Branch:** 19-astro-project-setup
+**Branch:** main
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.3 | #19 Astro project setup | **PR #55 Open** | Awaiting review/merge |
+| v2.3 | #20 TBD | Ready | Start in new session |
 
 ---
 
@@ -29,9 +29,9 @@
 
 | Issue | Title | Status |
 |-------|-------|--------|
-| #19 | Astro project setup with shadcn/ui | **PR #55 Open** |
-| #20 | TBD | Pending |
-| #21 | TBD | Pending |
+| #19 | Astro project setup with shadcn/ui | **Merged** (#55) |
+| #20 | TBD | Ready |
+| #21 | TBD | Ready |
 
 **What was built in #19:**
 - **shadcn/ui setup** (`frontend/components.json`): Dark theme, zinc base, new-york style
@@ -83,8 +83,8 @@
 
 ## Recent Activity
 
-- **2025-12-26**: Created PR #55 for #19 Astro project setup with shadcn/ui.
-- **2025-12-26**: Merged #17 WebSocket progress endpoint (#54). v2.2 Job Queue System complete.
+- **2025-12-26**: Merged #19 Astro project setup (#55). v2.3 Frontend started.
+- **2025-12-26**: Merged #17 WebSocket progress endpoint (#54). v2.2 complete.
 - **2025-12-26**: Merged #16 Job model and endpoints (#53).
 - **2025-12-26**: Merged #15 TaskIQ setup (#52).
 - **2025-12-26**: v2.1 Tone 3000 Integration complete (#12, #13).
@@ -94,18 +94,14 @@
 
 ## Resume Instructions
 
-After PR #55 is merged, continue with #20 in a new session:
+To continue v2.3 Frontend in a new session:
 
 ```bash
-# 1. Sync with main
-git checkout main
-git pull --ff-only
-
-# 2. Read context
+# 1. Read context
 cat dev/session-state.md
 gh issue view 20
 
-# 3. Create branch for next issue
+# 2. Create branch for next issue
 git checkout -b 20-[issue-description]
 ```
 
