@@ -1,56 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Hero from '../components/Hero.astro';
+import Features from '../components/Features.astro';
+import CTA from '../components/CTA.astro';
 ---
 
-<Layout title="Guitar Tone Shootout - Compare NAM, IR, and AIDA-X">
-  <div class="text-center py-16">
-    <h1 class="text-5xl font-bold mb-6">
-      <span class="text-amber-500">Guitar Tone</span> Shootout
-    </h1>
-    <p class="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
-      Compare NAM models, IRs, and AIDA-X profiles side-by-side.
-      Create video comparisons to share with the community.
-    </p>
-    <div class="flex gap-4 justify-center">
-      <a
-        href="/shootouts/new"
-        class="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-      >
-        Create Shootout
-      </a>
-      <a
-        href="/shootouts"
-        class="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-      >
-        Browse Shootouts
-      </a>
-    </div>
-  </div>
-
-  <section class="mt-16">
-    <h2 class="text-2xl font-bold mb-6 text-center">How It Works</h2>
-    <div class="grid md:grid-cols-3 gap-8">
-      <div class="bg-gray-800 p-6 rounded-lg">
-        <div class="text-3xl mb-4">1</div>
-        <h3 class="text-lg font-semibold mb-2">Select Tones</h3>
-        <p class="text-gray-400">
-          Browse your Tone 3000 library and pick the NAM models, IRs, or profiles you want to compare.
-        </p>
-      </div>
-      <div class="bg-gray-800 p-6 rounded-lg">
-        <div class="text-3xl mb-4">2</div>
-        <h3 class="text-lg font-semibold mb-2">Upload Audio</h3>
-        <p class="text-gray-400">
-          Record a DI track or upload an existing one. Our pipeline processes it through each tone.
-        </p>
-      </div>
-      <div class="bg-gray-800 p-6 rounded-lg">
-        <div class="text-3xl mb-4">3</div>
-        <h3 class="text-lg font-semibold mb-2">Share Results</h3>
-        <p class="text-gray-400">
-          Get a side-by-side video comparison showing waveforms and playing back each tone in sequence.
-        </p>
-      </div>
-    </div>
-  </section>
+<Layout title="Home">
+  <Hero />
+  <Features />
+  <CTA />
 </Layout>
