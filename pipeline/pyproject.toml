@@ -104,7 +104,7 @@ check_untyped_defs = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["pedalboard", "pedalboard.*", "nam.*", "playwright.*", "torch.*"]
+module = ["pedalboard", "pedalboard.*", "nam.*", "playwright.*", "torch.*", "pyloudnorm", "scipy.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
