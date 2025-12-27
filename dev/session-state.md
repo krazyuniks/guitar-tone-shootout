@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.3 | #20 TBD | Ready | Start in new session |
+| v2.3 | #21 Pipeline builder | Ready | Start in new session |
 
 ---
 
@@ -34,23 +34,17 @@
 | Issue | Title | Status |
 |-------|-------|--------|
 | #19 | Astro project setup with shadcn/ui | **Merged** (#55) |
-| #20 | TBD | Ready |
-| #21 | TBD | Ready |
+| #20 | Landing page and layout components | **Merged** (#66) |
+| #21 | Pipeline builder React component | Ready |
 
-**What was built in #19:**
-- **shadcn/ui setup** (`frontend/components.json`): Dark theme, zinc base, new-york style
-- **Button component** (`frontend/src/components/ui/button.tsx`): First shadcn component
-- **Utils** (`frontend/src/lib/utils.ts`): cn() class utility
-- **API client** (`frontend/src/lib/api.ts`): Typed fetch wrapper
-- **ESLint 9 config** (`frontend/eslint.config.mjs`): Flat config with Astro support
-- **Global CSS** (`frontend/src/styles/global.css`): Tailwind 4 + shadcn CSS variables
-- **API proxy** (`frontend/astro.config.mjs`): /api → backend:8000
-
-**Dependencies added:**
-- @tanstack/react-query, @tanstack/react-form, @tanstack/react-table
-- @dnd-kit/core, @dnd-kit/sortable, @dnd-kit/utilities
-- class-variance-authority, clsx, tailwind-merge, lucide-react
-- @radix-ui/react-slot
+**What was built in #20:**
+- **Header.astro**: Sticky header with mobile hamburger menu
+- **Footer.astro**: Footer with Resources and Legal links
+- **Hero.astro**: Hero with CTAs and platform stats (NAM, IR, AIDA-X)
+- **Features.astro**: "How It Works" and "Why Tone Shootout?" sections
+- **CTA.astro**: Sign-in with Tone 3000 call to action
+- **Layout.astro**: SEO meta tags (Open Graph, Twitter, canonical URL)
+- **UserNav.tsx**: Fixed to use `/api` proxy instead of hardcoded URLs
 
 ---
 
@@ -110,6 +104,7 @@
 
 ## Recent Activity
 
+- **2025-12-27**: Merged #20 Landing page and layout components (#66).
 - **2025-12-27**: Created v2.8 Audio Analysis & Reproducibility epic (#58) with 7 sub-issues.
 - **2025-12-27**: Merged #56 Pedalboard NAM Migration (#57). PyTorch NAM → Pedalboard + VST3.
 - **2025-12-26**: Merged #19 Astro project setup (#55). v2.3 Frontend started.
@@ -128,10 +123,11 @@ To continue v2.3 Frontend in a new session:
 ```bash
 # 1. Read context
 cat dev/session-state.md
-gh issue view 20
+gh issue list --milestone "v2.3 - Frontend (Astro)"
 
-# 2. Create branch for next issue
-git checkout -b 20-[issue-description]
+# 2. View next issue and create branch
+gh issue view 21
+git checkout -b 21-pipeline-builder
 ```
 
 ---
