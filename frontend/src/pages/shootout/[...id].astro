@@ -1,0 +1,24 @@
+---
+/**
+ * Shootout detail page with catch-all routing.
+ * Uses getStaticPaths to generate a placeholder page,
+ * with actual data fetching happening client-side.
+ */
+
+import Layout from '../../layouts/Layout.astro';
+import { ShootoutDetailPage } from '../../components/shootout/ShootoutDetail';
+
+// For static generation, we provide a minimal set of paths
+// The client-side component handles fetching the actual data
+export function getStaticPaths() {
+  // Return an empty array - the catch-all route will handle all /shootout/* paths
+  // and the client-side component will validate and fetch the data
+  return [
+    { params: { id: undefined } }
+  ];
+}
+---
+
+<Layout title="Shootout" description="View guitar tone shootout comparison with video player and signal chain details.">
+  <ShootoutDetailPage client:load />
+</Layout>
