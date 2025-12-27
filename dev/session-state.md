@@ -97,6 +97,10 @@ Per the orchestration plan at `~/.claude/plans/golden-hugging-kurzweil.md`:
 
 ## Recent Activity
 
+- **2025-12-27**: Fixed CloudBeaver config and enhanced worktree CLI
+  - Regenerated stale docker-compose.override.yml for main worktree
+  - Added credentials display to `./worktree.py status|setup|health|ports`
+  - CloudBeaver now shows login: cbadmin / DB_PASSWORD
 - **2025-12-27**: Merged 6 PRs via parallel orchestration (Phase 1+2)
   - PRs: #74, #75, #76, #77, #78, #79
   - Issues closed: #32, #36, #37, #38, #39, #59, #60, #73
