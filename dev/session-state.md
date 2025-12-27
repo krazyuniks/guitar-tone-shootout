@@ -1,7 +1,7 @@
 # Session State
 
-**Last Updated:** 2025-12-26
-**Branch:** 56-pedalboard-nam-migration
+**Last Updated:** 2025-12-27
+**Branch:** main
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| Pipeline | #56 Pedalboard NAM Migration | **PR Ready** | Review & Merge |
+| v2.3 | #20 TBD | Ready | Start in new session |
 
 ---
 
@@ -83,7 +83,7 @@
 
 ## Recent Activity
 
-- **2025-12-26**: #56 Pedalboard NAM Migration complete. Created preset.py, normalize.py, refactored audio.py.
+- **2025-12-27**: Merged #56 Pedalboard NAM Migration (#57). PyTorch NAM → Pedalboard + VST3.
 - **2025-12-26**: Merged #19 Astro project setup (#55). v2.3 Frontend started.
 - **2025-12-26**: Merged #17 WebSocket progress endpoint (#54). v2.2 complete.
 - **2025-12-26**: Merged #16 Job model and endpoints (#53).
