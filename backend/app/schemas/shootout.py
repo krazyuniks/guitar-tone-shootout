@@ -220,6 +220,64 @@ class ProcessingMetadataSchema(BaseModel):
     )
 
 
+# =============================================================================
+# Segment Timestamp Schema
+# =============================================================================
+
+
+class SegmentTimestampsSchema(BaseModel):
+    """Precise timing information for a processed audio segment.
+
+    Tracks both the position in the final output (milliseconds) and the
+    source sample positions for exact reproducibility.
+
+    Attributes:
+        position: Segment index (0-based) in the shootout
+        start_ms: Start position in final output (milliseconds)
+        end_ms: End position in final output (milliseconds)
+        duration_ms: Segment duration (milliseconds)
+        source_start_sample: Start sample index in source audio
+        source_end_sample: End sample index in source audio
+        sample_rate: Sample rate used for processing (Hz)
+    """
+
+    position: int = Field(
+        ...,
+        ge=0,
+        description="Segment index (0-based) in the shootout",
+    )
+    start_ms: int = Field(
+        ...,
+        ge=0,
+        description="Start position in final output (milliseconds)",
+    )
+    end_ms: int = Field(
+        ...,
+        ge=0,
+        description="End position in final output (milliseconds)",
+    )
+    duration_ms: int = Field(
+        ...,
+        ge=0,
+        description="Segment duration (milliseconds)",
+    )
+    source_start_sample: int = Field(
+        default=0,
+        ge=0,
+        description="Start sample index in source audio",
+    )
+    source_end_sample: int = Field(
+        default=0,
+        ge=0,
+        description="End sample index in source audio",
+    )
+    sample_rate: int = Field(
+        ...,
+        gt=0,
+        description="Sample rate used for processing (Hz)",
+    )
+
+
 class EffectSchema(BaseModel):
     """Schema for an audio effect in the signal chain."""
 
@@ -551,4 +609,163 @@ class ShootoutListResponse(BaseModel):
     )
     page_size: int = Field(
         description="Number of items per page",
+    )
+
+
+# =============================================================================
+# Metrics API Response Schemas
+# =============================================================================
+
+
+class ProcessingVersionsSchema(BaseModel):
+    """Software versions used during processing."""
+
+    pedalboard: str = Field(..., description="Pedalboard library version")
+    nam_vst: str = Field(..., description="NAM VST/library version")
+    ffmpeg: str = Field(..., description="FFmpeg version")
+    pipeline: str = Field(..., description="Pipeline version")
+    python: str = Field(..., description="Python version")
+
+
+class AudioSettingsFullSchema(BaseModel):
+    """Audio processing settings for reproducibility."""
+
+    sample_rate: int = Field(..., gt=0, description="Sample rate in Hz")
+    bit_depth: int = Field(..., gt=0, description="Bit depth")
+    channels: int = Field(..., ge=1, le=2, description="Number of channels")
+    format: str = Field(default="float32", description="Audio format")
+
+
+class NormalizationSettingsSchema(BaseModel):
+    """Audio normalization settings."""
+
+    input_target_rms_db: float = Field(
+        default=-18.0, description="Input normalization target RMS in dB"
+    )
+    output_target_rms_db: float = Field(
+        default=-14.0, description="Output normalization target RMS in dB"
+    )
+    method: str = Field(default="rms", description="Normalization method")
+    headroom_db: float = Field(default=-1.0, description="Peak headroom in dB")
+
+
+class FileHashesSchema(BaseModel):
+    """SHA-256 hashes of input files."""
+
+    di_track_sha256: str = Field(..., description="SHA-256 hash of DI track")
+    nam_model_sha256: str | None = Field(
+        default=None, description="SHA-256 hash of NAM model"
+    )
+    ir_sha256: str | None = Field(default=None, description="SHA-256 hash of IR file")
+
+
+class ShootoutMetadataResponse(BaseModel):
+    """Full reproducibility metadata for a shootout.
+
+    Response schema for GET /api/v1/shootouts/{id}/metadata
+    """
+
+    shootout_id: UUID = Field(..., description="Shootout ID")
+    processing_versions: ProcessingVersionsSchema | None = Field(
+        default=None, description="Software versions used"
+    )
+    normalization: NormalizationSettingsSchema | None = Field(
+        default=None, description="Normalization settings"
+    )
+    audio_settings: AudioSettingsFullSchema | None = Field(
+        default=None, description="Audio processing settings"
+    )
+    file_hashes: FileHashesSchema | None = Field(
+        default=None, description="Input file hashes"
+    )
+    total_duration_ms: int = Field(default=0, ge=0, description="Total output duration")
+    segment_count: int = Field(default=0, ge=0, description="Number of segments")
+    processed_at: str | None = Field(
+        default=None, description="ISO timestamp of processing"
+    )
+    platform_info: str | None = Field(
+        default=None, description="Platform/OS information"
+    )
+
+
+class SignalChainSchema(BaseModel):
+    """Signal chain information for a segment."""
+
+    tone_title: str = Field(..., description="Title of the tone")
+    model_name: str = Field(..., description="NAM model name")
+    model_size: str = Field(..., description="Model size (standard, lite, etc.)")
+    gear_type: str = Field(..., description="Gear type (amp, pedal, full-rig)")
+    ir_path: str | None = Field(default=None, description="IR file path if used")
+    highpass: bool = Field(default=True, description="Highpass filter applied")
+    effects: list[EffectSchema] = Field(
+        default_factory=list, description="Additional effects"
+    )
+
+
+class SegmentMetricsResponse(BaseModel):
+    """Detailed metrics for a single segment.
+
+    Response schema for GET /api/v1/shootouts/{id}/segments/{position}/metrics
+    """
+
+    segment_id: UUID = Field(..., description="Segment (tone selection) ID")
+    position: int = Field(..., ge=0, description="Position in shootout")
+    timestamps: SegmentTimestampsSchema | None = Field(
+        default=None, description="Precise timing information"
+    )
+    audio_metrics: AudioMetricsSchema | None = Field(
+        default=None, description="Audio analysis metrics"
+    )
+    ai_evaluation: AIEvaluationSchema | None = Field(
+        default=None, description="AI-generated evaluation"
+    )
+    signal_chain: SignalChainSchema = Field(
+        ..., description="Signal chain configuration"
+    )
+
+
+class SegmentComparisonItem(BaseModel):
+    """Single segment for comparison view."""
+
+    segment_id: UUID = Field(..., description="Segment ID")
+    position: int = Field(..., ge=0, description="Position in shootout")
+    tone_title: str = Field(..., description="Tone title")
+    timestamps: SegmentTimestampsSchema | None = Field(
+        default=None, description="Timing information"
+    )
+    audio_metrics: AudioMetricsSchema | None = Field(
+        default=None, description="Audio metrics"
+    )
+    ai_evaluation: AIEvaluationSchema | None = Field(
+        default=None, description="AI evaluation"
+    )
+
+
+class MetricsAverages(BaseModel):
+    """Average metrics across all segments."""
+
+    rms_dbfs: float = Field(..., description="Average RMS level")
+    peak_dbfs: float = Field(..., description="Average peak level")
+    spectral_centroid_hz: float = Field(..., description="Average spectral centroid")
+    bass_energy_ratio: float = Field(..., description="Average bass energy ratio")
+    mid_energy_ratio: float = Field(..., description="Average mid energy ratio")
+    treble_energy_ratio: float = Field(..., description="Average treble energy ratio")
+    lufs_integrated: float = Field(..., description="Average LUFS")
+
+
+class ShootoutComparisonResponse(BaseModel):
+    """Comparison of all segments with averages.
+
+    Response schema for GET /api/v1/shootouts/{id}/comparison
+    """
+
+    shootout_id: UUID = Field(..., description="Shootout ID")
+    shootout_name: str = Field(..., description="Shootout name")
+    segment_count: int = Field(..., ge=0, description="Number of segments")
+    total_duration_ms: int = Field(default=0, ge=0, description="Total duration")
+    segments: list[SegmentComparisonItem] = Field(
+        ..., description="All segments with metrics"
+    )
+    averages: MetricsAverages | None = Field(
+        default=None, description="Average metrics across segments"
     )

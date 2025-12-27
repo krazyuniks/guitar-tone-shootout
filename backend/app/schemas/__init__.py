@@ -8,14 +8,21 @@ from app.schemas.job import (
 )
 from app.schemas.shootout import (
     EffectSchema,
+    MetricsAverages,
+    SegmentComparisonItem,
+    SegmentMetricsResponse,
+    SegmentTimestampsSchema,
+    ShootoutComparisonResponse,
     ShootoutConfigSchema,
     ShootoutCreate,
     ShootoutListItem,
     ShootoutListResponse,
+    ShootoutMetadataResponse,
     ShootoutResponse,
     ShootoutSubmitRequest,
     ShootoutSubmitResponse,
     ShootoutUpdate,
+    SignalChainSchema,
     ToneSchema,
     ToneSelectionCreate,
     ToneSelectionResponse,
@@ -34,6 +41,7 @@ __all__ = [
     "ShootoutSubmitResponse",
     "ToneSchema",
     # Shootout model schemas (for CRUD)
+    "SegmentTimestampsSchema",
     "ShootoutCreate",
     "ShootoutListItem",
     "ShootoutListResponse",
@@ -41,4 +49,11 @@ __all__ = [
     "ShootoutUpdate",
     "ToneSelectionCreate",
     "ToneSelectionResponse",
+    # Metrics API schemas
+    "MetricsAverages",
+    "SegmentComparisonItem",
+    "SegmentMetricsResponse",
+    "ShootoutComparisonResponse",
+    "ShootoutMetadataResponse",
+    "SignalChainSchema",
 ]
