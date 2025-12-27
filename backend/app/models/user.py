@@ -10,6 +10,7 @@ from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
     from app.models.job import Job
+    from app.models.shootout import Shootout
 
 
 class User(Base, UUIDMixin, TimestampMixin):
@@ -33,6 +34,9 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     jobs: Mapped[list["Job"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    shootouts: Mapped[list["Shootout"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 

@@ -9,9 +9,15 @@ from app.schemas.job import (
 from app.schemas.shootout import (
     EffectSchema,
     ShootoutConfigSchema,
+    ShootoutCreate,
+    ShootoutListResponse,
+    ShootoutResponse,
     ShootoutSubmitRequest,
     ShootoutSubmitResponse,
+    ShootoutUpdate,
     ToneSchema,
+    ToneSelectionCreate,
+    ToneSelectionResponse,
 )
 
 __all__ = [
@@ -20,10 +26,17 @@ __all__ = [
     "JobListResponse",
     "JobProgressUpdate",
     "JobResponse",
-    # Shootout schemas
+    # Shootout config schemas (for job submission)
     "EffectSchema",
     "ShootoutConfigSchema",
     "ShootoutSubmitRequest",
     "ShootoutSubmitResponse",
     "ToneSchema",
+    # Shootout model schemas (for CRUD)
+    "ShootoutCreate",
+    "ShootoutListResponse",
+    "ShootoutResponse",
+    "ShootoutUpdate",
+    "ToneSelectionCreate",
+    "ToneSelectionResponse",
 ]
