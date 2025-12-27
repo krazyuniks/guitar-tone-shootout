@@ -9,16 +9,13 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| Tooling | #71 CloudBeaver database GUI | **Ready** | Execute in fresh session |
-| v2.4 | #25 Shootout database model | **Merged** (#70) | v2.4 Complete! |
+| Parallel Orchestration | Phase 1+2 | **Complete** | Phase 3 in fresh session |
 
 ---
 
 ## Active Worktrees
 
-| Issue | Worktree | Branch | Ports | Status |
-|-------|----------|--------|-------|--------|
-| #71 | `71-add-cloudbeaver-database-gui-to-docker-c` | `71/add-cloudbeaver-database-gui-to-docker-c` | FE:4331 BE:8010 DB:5433 | Ready |
+None - all Phase 1+2 worktrees torn down.
 
 ---
 
@@ -31,158 +28,100 @@
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | **Complete** |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | **Complete** |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | **Complete** |
-| v2.5 - UI Design System | TBD | TBD | Ready |
-| v2.6 - Signal Chain Builder | TBD | TBD | Ready |
-| v2.7 - Browse & Discovery | TBD | TBD | Ready |
-| v2.8 - Audio Analysis & Reproducibility | #58 | #59, #60, #61, #62, #63, #64, #65 | **New** |
+| v2.5 - UI Design System | #32 | #32, #33, #34 | **#32 Merged (PR #74)** |
+| v2.6 - Signal Chain Builder | #35 | #36-#45 | **#36-39 Merged (PR #77, #78)** |
+| v2.7 - Browse & Discovery | #46 | #47-#50, #73 | **#73 Merged (PR #75)** |
+| v2.8 - Audio Analysis & Reproducibility | #58 | #59-#65 | **#59, #60 Merged (PR #76, #79)** |
 
 ---
 
-## v2.4 Pipeline Web Adapter - COMPLETE
+## Parallel Orchestration Session - COMPLETE
 
-| Issue | Title | Status |
-|-------|-------|--------|
-| #23 | Pipeline service wrapper with progress callbacks | **Merged** (#68) |
-| #24 | Tone 3000 model downloader with caching | **Merged** (#69) |
-| #25 | Shootout database model replacing INI configuration | **Merged** (#70) |
+### Phase 1 (3 PRs Merged)
 
-**What was built in #25:**
-- **Shootout model**: Database model with name, description, DI track info, guitar/pickup metadata
-- **ToneSelection model**: Stores selected tones with Tone 3000 IDs, display names, effects
-- **Pydantic schemas**: Full CRUD schemas for Shootout and ToneSelection
-- **Alembic migration**: Creates shootouts and tone_selections tables
-- **File upload endpoint**: `/api/v1/files/upload` for DI tracks with validation
-- **Bug fixes**: React hooks ordering, Tone 3000 schema optional fields
-- **Cleanup**: Removed legacy comparisons/*.ini files
-- **AGENTS.md**: Strengthened browser testing requirements
-- 24 unit tests for shootout models and schemas
+| PR | Issue | Description | Agent |
+|----|-------|-------------|-------|
+| #74 | #32 | Design tokens and Tailwind theme | Agent 2 |
+| #75 | #73 | Shootout CRUD API endpoints | Agent 1 |
+| #76 | #59 | Audio metrics extraction library | Agent 3 |
 
-**What was built in #24:**
-- **ModelDownloader**: Service to download NAM models from Tone 3000 via pre-signed URLs
-- **Caching**: Local cache to avoid re-downloading, with LRU-style mtime updates
-- **Validation**: Checks downloaded NAM files for valid JSON structure (architecture/config + weights)
-- **Cleanup**: Configurable max age for automatic cache cleanup (default: 30 days)
-- **Docker volume**: Shared `model_cache` volume between backend and worker
-- **Configuration**: `MODEL_CACHE_DIR` and `MODEL_CACHE_MAX_AGE_DAYS` settings
-- Added `aiofiles` dependency for async file I/O
-- 25 unit tests with full coverage
+### Phase 2 (3 PRs Merged)
 
-**What was built in #23:**
-- **PipelineService**: Main service class with async progress callbacks
-- **ShootoutConfig/ToneConfig/EffectConfig**: Data classes for web-based configuration
-- **process_shootout_task**: TaskIQ task wrapper with Redis progress publishing
-- **Pydantic schemas**: ShootoutConfigSchema, ToneSchema, EffectSchema for API validation
-- Uses `asyncio.to_thread()` for CPU-intensive pipeline operations
-- Full test coverage with 12 new tests
+| PR | Issues | Description | Agent |
+|----|--------|-------------|-------|
+| #77 | #36, #37 | BlockCard base component and DITrackBlock | Agent 1 |
+| #78 | #38, #39 | Amp and Cabinet block components | Agent 2 |
+| #79 | #60 | Database schema for metrics & reproducibility | Agent 3 |
 
----
+**Total: 6 PRs merged, 8 issues closed**
 
-## v2.3 Frontend (Astro) - COMPLETE
+### What Was Built
 
-| Issue | Title | Status |
-|-------|-------|--------|
-| #19 | Astro project setup with shadcn/ui | **Merged** (#55) |
-| #20 | Landing page and layout components | **Merged** (#66) |
-| #21 | Pipeline builder React component | **Merged** (#67) |
+**Frontend (v2.5/v2.6):**
+- Design tokens in `global.css` (dark theme colors, block type accents)
+- `SignalChain/BlockCard.tsx` - Base component for all block types
+- `SignalChain/DITrackBlock.tsx` - DI track display with waveform placeholder
+- `SignalChain/AmpBlock.tsx` - Amp model block (amber accent)
+- `SignalChain/CabinetBlock.tsx` - Cabinet/IR block (green accent)
 
-**What was built in #21:**
-- **PipelineBuilder**: Main component with 3-step UX flow
-- **ToneSelector**: Browse My Tones, Favorites, Search with gear/platform filters
-- **ToneCard**: Display selected tones with NAM/IR/AIDA-X platform badges
-- **DITrackUpload**: Drag-and-drop audio upload with format validation
-- **Hooks**: TanStack Query hooks for tones, job submission, and auth
-- **builder.astro**: Builder page at `/builder` route
-- Updated navigation links in Header and Hero
+**Backend (v2.7):**
+- `api/v1/shootouts.py` - CRUD endpoints for shootouts
+- `services/shootout_service.py` - Service layer
+- Pagination support for shootout lists
+
+**Pipeline (v2.8):**
+- `pipeline/src/guitar_tone_shootout/metrics.py` - ~700 lines audio metrics
+  - Core: RMS, Peak, Crest Factor, Dynamic Range
+  - Spectral: Centroid, Bass/Mid/Treble Energy
+  - Advanced: LUFS, Transient Density, Attack Time, Sustain Decay
+- 48 unit tests for metrics module
+
+**Database (v2.8):**
+- `processing_metadata` JSONB on Shootout (reproducibility)
+- `audio_metrics`, `ai_evaluation` JSONB on ToneSelection
+- `start_ms`, `end_ms` segment timestamps
+- Corresponding Pydantic schemas
 
 ---
 
-## v2.2 Job Queue System - COMPLETE
+## Phase 3 - Ready for Next Session
 
-| Issue | Title | Status |
-|-------|-------|--------|
-| #15 | TaskIQ setup with Redis broker | **Merged** (#52) |
-| #16 | Job model and status endpoints | **Merged** (#53) |
-| #17 | WebSocket for real-time progress | **Merged** (#54) |
+Per the orchestration plan at `~/.claude/plans/golden-hugging-kurzweil.md`:
 
----
-
-## v2.1 Tone 3000 Integration - COMPLETE
-
-| Issue | Title | Status |
-|-------|-------|--------|
-| #12 | OAuth login and callback endpoints | Merged |
-| #13 | API client with automatic token refresh | Merged |
-
----
-
-## v2.0 Foundation - COMPLETE
-
-| Issue | Title | Status |
-|-------|-------|--------|
-| #6 | Docker Compose dev environment | Merged |
-| #7 | Docker Compose production environment | Merged |
-| #8 | FastAPI project structure | Merged |
-| #9 | SQLAlchemy 2.0 async + Alembic | Merged |
-| #10 | Update README and AGENTS.md | Merged |
-
----
-
-## v2.8 Audio Analysis & Reproducibility - NEW
-
-| Issue | Title | Status |
-|-------|-------|--------|
-| #58 | Epic: Audio Analysis & Reproducibility | Open |
-| #59 | Audio metrics extraction library | Open |
-| #60 | Database schema for metrics & reproducibility | Open |
-| #61 | AI evaluation generation (algorithmic + LLM) | Open |
-| #62 | Segment timestamp tracking | Open |
-| #63 | Shootout metadata capture | Open |
-| #64 | API endpoints for metrics & evaluation | Open |
-| #65 | Frontend display of metrics & AI evaluation | Open |
-
-**Dev Docs:** `dev/active/audio-analysis-reproducibility/`
-
-**Key Features:**
-- Comprehensive audio metrics (12+ measurements)
-- AI evaluation per segment (algorithmic + LLM)
-- Full reproducibility metadata (versions, hashes, settings)
-- Millisecond-accurate timestamps for deep linking
+**Phase 3 Issues:**
+- #40 Effect blocks (EQ, Delay, Reverb)
+- #42-45 Builder interface
+- #61-64 v2.8 APIs
 
 ---
 
 ## Recent Activity
 
+- **2025-12-27**: Merged 6 PRs via parallel orchestration (Phase 1+2)
+  - PRs: #74, #75, #76, #77, #78, #79
+  - Issues closed: #32, #36, #37, #38, #39, #59, #60, #73
 - **2025-12-27**: Merged #25 Shootout database model (#70). **v2.4 Complete!**
 - **2025-12-27**: Merged #24 Model downloader with caching (#69).
 - **2025-12-27**: Merged #23 Pipeline service wrapper (#68). v2.4 started.
 - **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
-- **2025-12-27**: Merged #20 Landing page and layout components (#66).
-- **2025-12-27**: Created v2.8 Audio Analysis & Reproducibility epic (#58) with 7 sub-issues.
-- **2025-12-27**: Merged #56 Pedalboard NAM Migration (#57). PyTorch NAM → Pedalboard + VST3.
-- **2025-12-26**: Merged #19 Astro project setup (#55). v2.3 Frontend started.
-- **2025-12-26**: Merged #17 WebSocket progress endpoint (#54). v2.2 complete.
-- **2025-12-26**: Merged #16 Job model and endpoints (#53).
-- **2025-12-26**: Merged #15 TaskIQ setup (#52).
-- **2025-12-26**: v2.1 Tone 3000 Integration complete (#12, #13).
-- **2025-12-26**: v2.0 Foundation complete.
 
 ---
 
 ## Resume Instructions
 
-To start the next session:
+To continue with Phase 3:
 
 ```bash
-# 1. Read context
-cat dev/session-state.md
-cat dev/EXECUTION-PLAN.md
+cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
+claude
 
-# 2. Check available epics
-gh issue list --milestone "v2.0 - Web Application Foundation"
+# Then tell Claude:
+# "Execute Phase 3 of the orchestration plan at ~/.claude/plans/golden-hugging-kurzweil.md"
+```
 
-# 3. Choose next epic (v2.5, v2.6, v2.7, or v2.8)
-# v2.5 - UI Design System (ready)
-# v2.6 - Signal Chain Builder (ready)
-# v2.7 - Browse & Discovery (ready)
-# v2.8 - Audio Analysis & Reproducibility (new)
+**Phase 3 setup:**
+```bash
+./worktree.py setup 40   # Effect blocks
+./worktree.py setup 42   # Builder interface
+./worktree.py setup 61   # AI evaluation
 ```
