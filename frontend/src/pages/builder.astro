@@ -1,0 +1,27 @@
+---
+/**
+ * Builder page - Create a new tone comparison.
+ *
+ * This page requires authentication. Auth is handled client-side
+ * by the PipelineBuilder component checking the auth API.
+ */
+import Layout from '../layouts/Layout.astro';
+import PipelineBuilder from '../components/PipelineBuilder';
+---
+
+<Layout title="Create Comparison - Tone Shootout">
+  <main class="container mx-auto px-4 py-8">
+    <div class="mb-8 text-center">
+      <h1 class="text-3xl font-bold text-foreground md:text-4xl">
+        Build Your Tone Comparison
+      </h1>
+      <p class="mt-2 text-muted-foreground">
+        Select tones from your Tone 3000 library and hear them side-by-side
+      </p>
+    </div>
+
+    <div class="mx-auto max-w-3xl">
+      <PipelineBuilder client:load />
+    </div>
+  </main>
+</Layout>

@@ -97,3 +97,62 @@ export interface AuthStatus {
   authenticated: boolean;
   user: User | null;
 }
+
+// Tone 3000 types
+export type Gear = 'amp' | 'full-rig' | 'pedal' | 'outboard' | 'ir';
+export type Platform = 'nam' | 'ir' | 'aida-x';
+
+export interface Tag {
+  id: number;
+  name: string;
+}
+
+export interface Make {
+  id: number;
+  name: string;
+}
+
+export interface Tone {
+  id: number;
+  title: string;
+  description: string | null;
+  gear: Gear;
+  platform: Platform;
+  tags: Tag[];
+  makes: Make[];
+  models_count: number;
+  downloads_count: number;
+}
+
+export interface PaginatedTones {
+  data: Tone[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+}
+
+// Job types
+export interface JobCreate {
+  config: {
+    tones: number[];
+    di_track_path?: string;
+    title?: string;
+    description?: string;
+  };
+}
+
+export interface JobResponse {
+  id: string;
+  user_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  message: string | null;
+  config: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  result_path: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
