@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-27
-**Branch:** main
+**Branch:** 25-shootout-model
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.4 | #25 Shootout database model | Ready | Start in new session |
+| v2.4 | #25 Shootout database model | **PR #70 Open** | Await review and merge |
 
 ---
 
@@ -35,7 +35,7 @@
 |-------|-------|--------|
 | #23 | Pipeline service wrapper with progress callbacks | **Merged** (#68) |
 | #24 | Tone 3000 model downloader with caching | **Merged** (#69) |
-| #25 | Shootout database model replacing INI configuration | Open |
+| #25 | Shootout database model replacing INI configuration | **PR #70 Open** |
 
 **What was built in #24:**
 - **ModelDownloader**: Service to download NAM models from Tone 3000 via pre-signed URLs

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from app.models.shootout import Shootout
     from app.models.user import User
 
 
@@ -63,11 +64,18 @@ class Job(Base, UUIDMixin, TimestampMixin):
     task_id: Mapped[str | None] = mapped_column(String(100))
 
     # Job configuration (stored as JSON-compatible dict)
-    # This will hold the shootout configuration until Shootout model exists
+    # Kept for backwards compatibility, but prefer using Shootout model
     config: Mapped[str | None] = mapped_column(Text)
+
+    # Optional link to Shootout (replaces config when present)
+    shootout_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("shootouts.id", ondelete="SET NULL"),
+        index=True,
+    )
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="jobs")
+    shootout: Mapped["Shootout | None"] = relationship(back_populates="jobs")
 
     def __repr__(self) -> str:
         """Return string representation of the job."""

@@ -7,6 +7,7 @@ services:
       - ./backend:/app
       - ./pipeline:/pipeline:ro  # Read-only access to pipeline code
       - model_cache:/data/models/cache  # Model download cache
+      - uploads:/data/uploads  # DI track uploads
     ports:
       - "8000:8000"
     environment:
@@ -97,3 +98,4 @@ volumes:
   postgres_data:
   redis_data:
   model_cache:
+  uploads:

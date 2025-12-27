@@ -6,6 +6,16 @@ the Base metadata for Alembic migrations.
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
 from app.models.job import Job, JobStatus
+from app.models.shootout import Shootout, ToneSelection
 from app.models.user import User
 
-__all__ = ["Base", "Job", "JobStatus", "TimestampMixin", "UUIDMixin", "User"]
+__all__ = [
+    "Base",
+    "Job",
+    "JobStatus",
+    "Shootout",
+    "TimestampMixin",
+    "ToneSelection",
+    "UUIDMixin",
+    "User",
+]

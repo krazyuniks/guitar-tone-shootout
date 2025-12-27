@@ -21,6 +21,8 @@ dependencies = [
     "taskiq-fastapi>=0.3.0",
     # Async file I/O
     "aiofiles>=24.1.0",
+    # Form data / file uploads
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
