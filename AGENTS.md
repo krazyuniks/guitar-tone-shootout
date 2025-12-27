@@ -1,6 +1,6 @@
 # Guitar Tone Shootout - Development Operations Guide
 
-**Version:** 2.1 | **Last Updated:** 2025-12-27
+**Version:** 2.3 | **Last Updated:** 2025-12-27
 
 This document defines the development workflow, patterns, and automation for the Guitar Tone Shootout project. It serves as the primary reference for both human developers and AI agents.
 
@@ -90,12 +90,11 @@ gh issue view 6 --repo krazyuniks/guitar-tone-shootout
 ### One Issue Per Session
 
 **After a PR is merged:**
-1. Sync with main: `git checkout main && git pull --ff-only`
-2. Delete the feature branch
-3. Update `dev/session-state.md` with progress
-4. Commit and push the session-state update
-5. **STOP** - Provide resume commands for the next session
-6. Do NOT start the next issue in the same session (context degrades)
+1. Run `./worktree.py merge-pr <number>` (automates sync, teardown, cleanup)
+2. Update `dev/session-state.md` with progress
+3. Commit and push the session-state update
+4. **STOP** - Provide resume commands for the next session
+5. Do NOT start the next issue in the same session (context degrades)
 
 ### Pre-commit Hook Enforcement
 
@@ -128,7 +127,7 @@ This project uses git worktrees for isolated parallel development. Each worktree
 │  - Runs in main worktree                                       │
 │  - Spawns background Task agents (one per worktree)            │
 │  - Monitors for PR completion                                   │
-│  - Merges PRs and runs ./worktree.py sync                      │
+│  - Runs ./worktree.py merge-pr (auto: merge, sync, teardown)   │
 │  - Handles conflicts, continues monitoring                      │
 └─────────────────────────────────────────────────────────────────┘
          │                    │                    │
@@ -143,12 +142,13 @@ This project uses git worktrees for isolated parallel development. Each worktree
 
 **When any agent completes:**
 1. Agent creates PR
-2. Orchestrator reviews and merges: `gh pr merge <number> --squash`
-3. Orchestrator syncs all worktrees: `./worktree.py sync`
-4. Sync rebases all active worktrees onto updated main
-5. Orchestrator continues monitoring other agents
+2. Orchestrator runs: `./worktree.py merge-pr <number>`
+   - Automatically merges PR with squash
+   - Syncs all worktrees (rebases onto main)
+   - Tears down the completed worktree
+3. Orchestrator continues monitoring other agents
 
-**This prevents merge conflict hell.**
+**All sync/merge/teardown operations are automated via worktree.py CLI.**
 
 ### Session Discipline for Orchestration
 
@@ -277,23 +277,20 @@ cd ../42-feature-audio
 - Use `./worktree.py health` to verify services
 - Access frontend at `http://localhost:<frontend-port>`
 
-**After PR Merged (CRITICAL: Sync all worktrees)**
+**After PR Merged**
 ```bash
-# Option A: Use merge-pr command (RECOMMENDED)
+# Single command handles everything:
 ./worktree.py merge-pr 42
-# Automatically: merges PR, syncs all worktrees, tears down merged worktree
 
-# Option B: Manual workflow
-gh pr merge 42 --squash
-./worktree.py sync          # CRITICAL: Rebases all active worktrees onto main
-./worktree.py teardown 42-feature-audio
+# This automatically:
+# - Merges PR with squash
+# - Syncs all worktrees (rebases onto main)
+# - Tears down the merged worktree
+# - Cleans up branches
 ```
 
-**Why sync is critical:**
-- Without sync, other worktrees diverge from main
-- Diverged worktrees cause merge conflicts later
-- Sync rebases all feature branches onto updated main
-- Run sync after EVERY PR merge, not just your own
+**AI agents should NOT manually run sync, teardown, or git commands for orchestration.**
+All merge/sync/teardown operations are automated in the CLI.
 
 ### Claude Slash Commands
 
@@ -690,36 +687,21 @@ Generated with [Claude Code](https://claude.com/claude-code)"
 
 ### Phase 7: Merge and Worktree Teardown
 
-**Merging happens on GitHub, not locally.** The repo is configured for:
-- **Squash merge only** - All PR commits are squashed into one
-- **Linear history required** - No merge commits allowed
-- **Auto-delete branches** - Feature branches deleted after merge
-
+**Single command handles everything:**
 ```bash
-# User merges PR on GitHub web UI (github.com)
-# Then teardown the worktree:
-
-cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
-./worktree.py teardown <issue-number>-<description>
-
-# This automatically:
-# - Stops Docker containers
-# - Removes Docker volumes
-# - Deletes the worktree directory
-# - Deletes local and remote branches
-# - Archives dev-docs to dev/archive/
+./worktree.py merge-pr <pr-number>
 ```
 
-After teardown, sync main:
-```bash
-git pull --ff-only origin main
-```
+This automatically:
+- Merges PR with squash (via GitHub API)
+- Syncs all worktrees (rebases onto main)
+- Tears down the merged worktree
+- Stops Docker containers
+- Removes Docker volumes
+- Deletes worktree directory
+- Cleans up branches
 
-**If `git pull --ff-only` fails:** The local branch has diverged. Reset to remote:
-```bash
-git fetch origin
-git reset --hard origin/main
-```
+**AI agents should NOT manually run git pull, sync, or teardown commands.**
 
 ---
 
@@ -761,8 +743,8 @@ git config --local merge.ff only
 - Create feature branches for all work
 - Push branches and create PRs via `gh pr create`
 - **STOP after creating PR** - Do not suggest next steps until user confirms merge
-- After user confirms merge, sync local with `git pull --ff-only`
-- Never use `gh pr merge` - user merges on GitHub
+- After user confirms merge, run `./worktree.py merge-pr <number>` (automates everything)
+- Never manually run git pull, sync, teardown, or gh pr merge commands
 
 ---
 
@@ -1097,6 +1079,7 @@ docker compose exec backend alembic upgrade head    # Reapply
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.3 | 2025-12-27 | Automated orchestration - AI agents use merge-pr command, no manual sync/teardown |
 | 2.2 | 2025-12-27 | Parallel orchestration model, sync/merge-pr/validate commands, session discipline |
 | 2.1 | 2025-12-27 | Mandatory worktree workflow, session discipline, planning/execution separation |
 | 2.0 | 2025-12-26 | Web application pivot, Docker-based workflow |
