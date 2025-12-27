@@ -22,6 +22,10 @@
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | **Complete** |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | In Progress |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | Ready to Start |
+| v2.5 - UI Design System | TBD | TBD | Ready |
+| v2.6 - Signal Chain Builder | TBD | TBD | Ready |
+| v2.7 - Browse & Discovery | TBD | TBD | Ready |
+| v2.8 - Audio Analysis & Reproducibility | #58 | #59, #60, #61, #62, #63, #64, #65 | **New** |
 
 ---
 
@@ -81,8 +85,32 @@
 
 ---
 
+## v2.8 Audio Analysis & Reproducibility - NEW
+
+| Issue | Title | Status |
+|-------|-------|--------|
+| #58 | Epic: Audio Analysis & Reproducibility | Open |
+| #59 | Audio metrics extraction library | Open |
+| #60 | Database schema for metrics & reproducibility | Open |
+| #61 | AI evaluation generation (algorithmic + LLM) | Open |
+| #62 | Segment timestamp tracking | Open |
+| #63 | Shootout metadata capture | Open |
+| #64 | API endpoints for metrics & evaluation | Open |
+| #65 | Frontend display of metrics & AI evaluation | Open |
+
+**Dev Docs:** `dev/active/audio-analysis-reproducibility/`
+
+**Key Features:**
+- Comprehensive audio metrics (12+ measurements)
+- AI evaluation per segment (algorithmic + LLM)
+- Full reproducibility metadata (versions, hashes, settings)
+- Millisecond-accurate timestamps for deep linking
+
+---
+
 ## Recent Activity
 
+- **2025-12-27**: Created v2.8 Audio Analysis & Reproducibility epic (#58) with 7 sub-issues.
 - **2025-12-27**: Merged #56 Pedalboard NAM Migration (#57). PyTorch NAM → Pedalboard + VST3.
 - **2025-12-26**: Merged #19 Astro project setup (#55). v2.3 Frontend started.
 - **2025-12-26**: Merged #17 WebSocket progress endpoint (#54). v2.2 complete.
