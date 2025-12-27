@@ -49,6 +49,10 @@ class Worktree:
     def backend_url(self) -> str:
         return f"http://localhost:{self.ports.backend}"
 
+    @property
+    def cloudbeaver_url(self) -> str:
+        return f"http://localhost:{self.ports.cloudbeaver}"
+
 
 @dataclass
 class GitState:
@@ -75,7 +79,7 @@ class NoAvailableOffsetError(RegistryError):
     """No available port offset found."""
 
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 SCHEMA_SQL = """
 -- Schema versioning
@@ -98,9 +102,11 @@ CREATE TABLE IF NOT EXISTS worktrees (
     port_backend INTEGER NOT NULL,
     port_db INTEGER NOT NULL,
     port_redis INTEGER NOT NULL,
+    port_cloudbeaver INTEGER NOT NULL DEFAULT 8978,
     volume_postgres TEXT NOT NULL,
     volume_redis TEXT NOT NULL,
-    volume_uploads TEXT NOT NULL
+    volume_uploads TEXT NOT NULL,
+    volume_cloudbeaver TEXT NOT NULL DEFAULT ''
 );
 
 -- Git state tracking (singleton)
@@ -145,6 +151,38 @@ def get_db(registry_path: Path | None = None) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _migrate_1_0_to_1_1(conn: sqlite3.Connection) -> None:
+    """Migrate schema from 1.0 to 1.1 (add cloudbeaver columns)."""
+    # Check if columns already exist
+    cursor = conn.execute("PRAGMA table_info(worktrees)")
+    columns = {row[1] for row in cursor.fetchall()}
+
+    if "port_cloudbeaver" not in columns:
+        # Add cloudbeaver port column with calculated default based on offset
+        conn.execute(
+            "ALTER TABLE worktrees ADD COLUMN port_cloudbeaver INTEGER NOT NULL DEFAULT 8978"
+        )
+        # Update existing rows with correct calculated port
+        conn.execute(
+            """
+            UPDATE worktrees
+            SET port_cloudbeaver = 8978 + (offset * 10)
+            """
+        )
+
+    if "volume_cloudbeaver" not in columns:
+        conn.execute(
+            "ALTER TABLE worktrees ADD COLUMN volume_cloudbeaver TEXT NOT NULL DEFAULT ''"
+        )
+        # Update existing rows with correct volume name
+        conn.execute(
+            """
+            UPDATE worktrees
+            SET volume_cloudbeaver = 'gts-' || LOWER(REPLACE(worktree_name, '/', '-')) || '-cloudbeaver'
+            """
+        )
+
+
 def init_registry(registry_path: Path | None = None) -> None:
     """Initialize the registry database with schema.
 
@@ -158,6 +196,19 @@ def init_registry(registry_path: Path | None = None) -> None:
 
     with get_db(path) as conn:
         conn.executescript(SCHEMA_SQL)
+
+        # Check current schema version and migrate if needed
+        try:
+            row = conn.execute(
+                "SELECT version FROM schema_info ORDER BY version DESC LIMIT 1"
+            ).fetchone()
+            current_version = row["version"] if row else None
+        except sqlite3.OperationalError:
+            current_version = None
+
+        # Apply migrations
+        if current_version is None or current_version == "1.0":
+            _migrate_1_0_to_1_1(conn)
 
         # Insert or update schema version
         now = datetime.now(timezone.utc).isoformat()
@@ -239,9 +290,9 @@ def register_worktree(
                 INSERT INTO worktrees (
                     branch, worktree_name, worktree_path, compose_project,
                     status, offset, created_at,
-                    port_frontend, port_backend, port_db, port_redis,
-                    volume_postgres, volume_redis, volume_uploads
-                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    port_frontend, port_backend, port_db, port_redis, port_cloudbeaver,
+                    volume_postgres, volume_redis, volume_uploads, volume_cloudbeaver
+                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     branch,
@@ -254,9 +305,11 @@ def register_worktree(
                     ports.backend,
                     ports.db,
                     ports.redis,
+                    ports.cloudbeaver,
                     volumes.postgres,
                     volumes.redis,
                     volumes.uploads,
+                    volumes.cloudbeaver,
                 ),
             )
         except sqlite3.IntegrityError as e:
@@ -480,10 +533,12 @@ def _row_to_worktree(row: sqlite3.Row) -> Worktree:
             backend=row["port_backend"],
             db=row["port_db"],
             redis=row["port_redis"],
+            cloudbeaver=row["port_cloudbeaver"],
         ),
         volumes=VolumeConfig(
             postgres=row["volume_postgres"],
             redis=row["volume_redis"],
             uploads=row["volume_uploads"],
+            cloudbeaver=row["volume_cloudbeaver"],
         ),
     )

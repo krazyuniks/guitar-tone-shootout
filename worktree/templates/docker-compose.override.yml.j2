@@ -48,9 +48,19 @@ services:
     volumes:
       - {{ worktree.volumes.redis }}:/data
 
+  cloudbeaver:
+    container_name: {{ worktree.compose_project }}-cloudbeaver
+    ports:
+      - "127.0.0.1:{{ worktree.ports.cloudbeaver }}:8978"
+    volumes:
+      - {{ worktree.volumes.cloudbeaver }}:/opt/cloudbeaver/workspace
+    environment:
+      CB_SERVER_NAME: "GTS {{ worktree.worktree_name }}"
+
 volumes:
   {{ worktree.volumes.postgres }}:
   {{ worktree.volumes.redis }}:
   {{ worktree.volumes.uploads }}:
+  {{ worktree.volumes.cloudbeaver }}:
   {{ settings.shared_model_cache_volume }}:
     external: true

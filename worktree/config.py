@@ -14,6 +14,7 @@ class PortConfig(NamedTuple):
     backend: int
     db: int
     redis: int
+    cloudbeaver: int
 
 
 class VolumeConfig(NamedTuple):
@@ -22,6 +23,7 @@ class VolumeConfig(NamedTuple):
     postgres: str
     redis: str
     uploads: str
+    cloudbeaver: str
 
 
 class Settings(BaseSettings):
@@ -32,6 +34,7 @@ class Settings(BaseSettings):
     base_port_backend: int = Field(default=8000, description="Base backend port")
     base_port_db: int = Field(default=5432, description="Base PostgreSQL port")
     base_port_redis: int = Field(default=6379, description="Base Redis port")
+    base_port_cloudbeaver: int = Field(default=8978, description="Base CloudBeaver port")
 
     # Port offset multipliers
     offset_multiplier_http: int = Field(
@@ -130,7 +133,7 @@ def calculate_ports(offset: int) -> PortConfig:
         offset: The worktree offset (0 for main, 1+ for features)
 
     Returns:
-        PortConfig with frontend, backend, db, redis ports
+        PortConfig with frontend, backend, db, redis, cloudbeaver ports
     """
     return PortConfig(
         frontend=settings.base_port_frontend
@@ -138,6 +141,8 @@ def calculate_ports(offset: int) -> PortConfig:
         backend=settings.base_port_backend + (offset * settings.offset_multiplier_http),
         db=settings.base_port_db + (offset * settings.offset_multiplier_db),
         redis=settings.base_port_redis + (offset * settings.offset_multiplier_db),
+        cloudbeaver=settings.base_port_cloudbeaver
+        + (offset * settings.offset_multiplier_http),
     )
 
 
@@ -148,7 +153,7 @@ def calculate_volumes(worktree_name: str) -> VolumeConfig:
         worktree_name: The worktree name (e.g., "main", "42-feature-audio")
 
     Returns:
-        VolumeConfig with postgres, redis, uploads volume names
+        VolumeConfig with postgres, redis, uploads, cloudbeaver volume names
     """
     prefix = settings.compose_project_prefix
     # Sanitize name for Docker volume naming
@@ -158,6 +163,7 @@ def calculate_volumes(worktree_name: str) -> VolumeConfig:
         postgres=f"{prefix}-{safe_name}-postgres",
         redis=f"{prefix}-{safe_name}-redis",
         uploads=f"{prefix}-{safe_name}-uploads",
+        cloudbeaver=f"{prefix}-{safe_name}-cloudbeaver",
     )
 
 

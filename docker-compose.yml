@@ -108,8 +108,22 @@ services:
     volumes:
       - redis_data:/data
 
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    # ports defined in docker-compose.override.yml (worktree-specific)
+    volumes:
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CB_SERVER_NAME: GTS Database
+    profiles:
+      - tools  # Only start when explicitly requested
+
 volumes:
   postgres_data:
   redis_data:
   model_cache:
   uploads:
+  cloudbeaver_data:

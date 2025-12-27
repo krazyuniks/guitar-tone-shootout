@@ -91,6 +91,7 @@ FRONTEND_PORT={worktree.ports.frontend}
 BACKEND_PORT={worktree.ports.backend}
 DB_PORT={worktree.ports.db}
 REDIS_PORT={worktree.ports.redis}
+CLOUDBEAVER_PORT={worktree.ports.cloudbeaver}
 
 # API URL for frontend (must use external backend port)
 PUBLIC_API_URL=http://localhost:{worktree.ports.backend}
@@ -99,6 +100,7 @@ PUBLIC_API_URL=http://localhost:{worktree.ports.backend}
 POSTGRES_VOLUME={worktree.volumes.postgres}
 REDIS_VOLUME={worktree.volumes.redis}
 UPLOADS_VOLUME={worktree.volumes.uploads}
+CLOUDBEAVER_VOLUME={worktree.volumes.cloudbeaver}
 
 # Model cache (shared, read-only in containers)
 MODEL_CACHE_VOLUME={settings.shared_model_cache_volume}
@@ -161,10 +163,20 @@ services:
     volumes:
       - {volumes.redis}:/data
 
+  cloudbeaver:
+    container_name: {worktree.compose_project}-cloudbeaver
+    ports:
+      - "127.0.0.1:{ports.cloudbeaver}:8978"
+    volumes:
+      - {volumes.cloudbeaver}:/opt/cloudbeaver/workspace
+    environment:
+      CB_SERVER_NAME: "GTS {worktree.worktree_name}"
+
 volumes:
   {volumes.postgres}:
   {volumes.redis}:
   {volumes.uploads}:
+  {volumes.cloudbeaver}:
   {settings.shared_model_cache_volume}:
     external: true
 """
