@@ -10,6 +10,7 @@ from app.models import Shootout, ToneSelection
 from app.schemas import (
     EffectSchema,
     ShootoutCreate,
+    ShootoutListItem,
     ShootoutListResponse,
     ShootoutResponse,
     ShootoutUpdate,
@@ -424,11 +425,11 @@ class TestShootoutResponseSchema:
         assert response.tone_selections[0].description == "Classic British crunch"
 
 
-class TestShootoutListResponseSchema:
-    """Tests for ShootoutListResponse Pydantic schema."""
+class TestShootoutListItemSchema:
+    """Tests for ShootoutListItem Pydantic schema."""
 
-    def test_list_response_includes_tone_count(self):
-        """Test list response includes tone count instead of full selections."""
+    def test_list_item_includes_tone_count(self):
+        """Test list item includes tone count instead of full selections."""
         from datetime import UTC, datetime
 
         now = datetime.now(UTC)
@@ -446,9 +447,43 @@ class TestShootoutListResponseSchema:
             "updated_at": now,
         }
 
-        response = ShootoutListResponse(**data)
-        assert response.name == "Test"
-        assert response.tone_count == 3
+        item = ShootoutListItem(**data)
+        assert item.name == "Test"
+        assert item.tone_count == 3
+
+
+class TestShootoutListResponseSchema:
+    """Tests for ShootoutListResponse Pydantic schema (paginated)."""
+
+    def test_list_response_is_paginated(self):
+        """Test list response contains pagination info."""
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
+        shootout_id = uuid4()
+
+        item_data = {
+            "id": shootout_id,
+            "name": "Test",
+            "description": None,
+            "is_processed": False,
+            "output_path": None,
+            "tone_count": 3,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        response = ShootoutListResponse(
+            shootouts=[ShootoutListItem(**item_data)],
+            total=1,
+            page=1,
+            page_size=20,
+        )
+        assert len(response.shootouts) == 1
+        assert response.shootouts[0].name == "Test"
+        assert response.total == 1
+        assert response.page == 1
+        assert response.page_size == 20
 
 
 class TestEffectSchema:
