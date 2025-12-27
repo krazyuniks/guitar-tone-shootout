@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.4 | #22 Pipeline Web Adapter | Ready | Start in new session |
+| v2.4 | #23 Pipeline service wrapper | PR Ready | Await merge, then start #24 |
 
 ---
 
@@ -21,11 +21,29 @@
 | v2.1 - Tone 3000 Integration | #11 | #12, #13 | **Complete** |
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | **Complete** |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | **Complete** |
-| v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | Ready to Start |
+| v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | **In Progress** |
 | v2.5 - UI Design System | TBD | TBD | Ready |
 | v2.6 - Signal Chain Builder | TBD | TBD | Ready |
 | v2.7 - Browse & Discovery | TBD | TBD | Ready |
 | v2.8 - Audio Analysis & Reproducibility | #58 | #59, #60, #61, #62, #63, #64, #65 | **New** |
+
+---
+
+## v2.4 Pipeline Web Adapter - IN PROGRESS
+
+| Issue | Title | Status |
+|-------|-------|--------|
+| #23 | Pipeline service wrapper with progress callbacks | **PR Ready** |
+| #24 | Tone 3000 model downloader with caching | Open |
+| #25 | Shootout database model replacing INI configuration | Open |
+
+**What was built in #23:**
+- **PipelineService**: Main service class with async progress callbacks
+- **ShootoutConfig/ToneConfig/EffectConfig**: Data classes for web-based configuration
+- **process_shootout_task**: TaskIQ task wrapper with Redis progress publishing
+- **Pydantic schemas**: ShootoutConfigSchema, ToneSchema, EffectSchema for API validation
+- Uses `asyncio.to_thread()` for CPU-intensive pipeline operations
+- Full test coverage with 12 new tests
 
 ---
 
@@ -104,6 +122,7 @@
 
 ## Recent Activity
 
+- **2025-12-27**: Created PR for #23 Pipeline service wrapper. v2.4 started.
 - **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
 - **2025-12-27**: Merged #20 Landing page and layout components (#66).
 - **2025-12-27**: Created v2.8 Audio Analysis & Reproducibility epic (#58) with 7 sub-issues.
@@ -119,26 +138,13 @@
 
 ## Resume Instructions
 
-To start v2.4 Pipeline Web Adapter in a new session:
+After #23 PR is merged:
 
 ```bash
-# 1. Read context
-cat dev/session-state.md
-gh issue list --milestone "v2.4 - Pipeline Web Adapter"
+# 1. Sync with main
+git checkout main && git pull --ff-only
 
-# 2. View epic and first issue
-gh issue view 22
-gh issue view 23
-git checkout -b 23-pipeline-task
+# 2. Start next issue
+gh issue view 24
+git checkout -b 24-model-downloader
 ```
-
----
-
-## Pipeline Research (for #23)
-
-Background agent completed research on pipeline code. Key findings:
-- Main entry: `pipeline.py:process_comparison()`
-- Audio processing: `audio.py` (NAM, IR, effects chain)
-- Progress callbacks needed at ~10 points
-- Use `asyncio.to_thread()` for CPU-intensive operations
-- FFmpeg required for video generation

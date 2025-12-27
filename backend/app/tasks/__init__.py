@@ -6,5 +6,6 @@ Import the broker from here to register tasks.
 
 from app.tasks.broker import broker
 from app.tasks.health import health_check
+from app.tasks.shootout import process_shootout_task
 
-__all__ = ["broker", "health_check"]
+__all__ = ["broker", "health_check", "process_shootout_task"]
