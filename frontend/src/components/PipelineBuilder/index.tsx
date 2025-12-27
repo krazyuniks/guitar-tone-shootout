@@ -35,6 +35,32 @@ function PipelineBuilderInner() {
   const fileUpload = useFileUpload();
   const jobSubmit = useJobSubmit();
 
+  // All hooks must be called before any conditional returns
+  const handleToneSelect = useCallback((tone: Tone) => {
+    setSelectedTones((prev) => [...prev, tone]);
+  }, []);
+
+  const handleToneRemove = useCallback((toneId: number) => {
+    setSelectedTones((prev) => prev.filter((t) => t.id !== toneId));
+  }, []);
+
+  const handleFileSelect = useCallback(
+    async (file: File | null) => {
+      setDiFile(file);
+      setUploadedPath(null);
+
+      if (file) {
+        try {
+          const result = await fileUpload.mutateAsync(file);
+          setUploadedPath(result.path);
+        } catch {
+          // Error is handled by mutation state
+        }
+      }
+    },
+    [fileUpload]
+  );
+
   // Show loading state while checking auth
   if (auth.isLoading) {
     return (
@@ -70,31 +96,6 @@ function PipelineBuilderInner() {
       </div>
     );
   }
-
-  const handleToneSelect = useCallback((tone: Tone) => {
-    setSelectedTones((prev) => [...prev, tone]);
-  }, []);
-
-  const handleToneRemove = useCallback((toneId: number) => {
-    setSelectedTones((prev) => prev.filter((t) => t.id !== toneId));
-  }, []);
-
-  const handleFileSelect = useCallback(
-    async (file: File | null) => {
-      setDiFile(file);
-      setUploadedPath(null);
-
-      if (file) {
-        try {
-          const result = await fileUpload.mutateAsync(file);
-          setUploadedPath(result.path);
-        } catch {
-          // Error is handled by mutation state
-        }
-      }
-    },
-    [fileUpload]
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

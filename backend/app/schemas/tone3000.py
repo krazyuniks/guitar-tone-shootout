@@ -35,14 +35,14 @@ class ModelSize(str, Enum):
 class Tag(BaseModel):
     """Tag from Tone 3000."""
 
-    id: int
+    id: int | None = None
     name: str
 
 
 class Make(BaseModel):
     """Manufacturer/Make from Tone 3000."""
 
-    id: int
+    id: int | None = None
     name: str
 
 

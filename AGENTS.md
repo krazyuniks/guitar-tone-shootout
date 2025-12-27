@@ -218,35 +218,91 @@ All must pass before PR:
 
 ### Phase 3.5: Browser Testing (MANDATORY)
 
-**CRITICAL: Never claim a feature is complete without browser testing.**
+**CRITICAL: No feature is complete without FULL end-to-end browser testing with screenshot proof.**
 
-For any feature that has UI or API endpoints:
+This is **non-negotiable**. Unit tests passing does NOT mean the feature works.
 
-1. **Use Chrome DevTools MCP** to test the actual user flow:
+#### Required Browser Testing Steps
+
+For **EVERY** feature that has UI or API endpoints:
+
+1. **Start Docker services and verify healthy:**
+   ```bash
+   docker compose up -d
+   docker compose ps  # All services must be healthy
    ```
-   - Navigate to the endpoint
-   - Take snapshots to verify UI state
-   - Check network requests/responses
-   - Verify cookies, headers, redirects
+
+2. **Navigate to the feature in the browser:**
+   ```
+   - Use mcp__playwright__browser_navigate or mcp__chrome-devtools__navigate_page
+   - Take a snapshot of the initial state
    ```
 
-2. **Test the happy path** end-to-end in the browser
+3. **Execute the FULL user flow:**
+   ```
+   - Click buttons, fill forms, trigger actions
+   - Take snapshots at EACH step
+   - Verify the UI updates correctly
+   ```
 
-3. **Test error cases** (invalid input, auth failures, etc.)
+4. **Check for errors:**
+   ```
+   - Run mcp__playwright__browser_console_messages with level="error"
+   - Run mcp__playwright__browser_network_requests to verify API calls succeed
+   - ANY console error or failed network request = feature is NOT complete
+   ```
 
-4. **Document test results** before creating PR
+5. **Take a FINAL screenshot as proof:**
+   ```
+   - Use mcp__playwright__browser_take_screenshot
+   - This screenshot is REQUIRED before claiming completion
+   ```
 
-**AI Agent Rule:** You are NOT allowed to:
-- Say "PR is ready" without browser testing
-- Claim "all tests pass" if you only ran unit tests
-- Mark a task complete without verifying it works in the browser
+#### AI Agent Rules (STRICTLY ENFORCED)
 
-**Use these MCP tools:**
-- `mcp__chrome-devtools__navigate_page` - Navigate to URLs
-- `mcp__chrome-devtools__take_snapshot` - Capture page state
-- `mcp__chrome-devtools__list_network_requests` - Check API calls
-- `mcp__chrome-devtools__list_console_messages` - Check for errors
-- `mcp__playwright__browser_navigate` - Alternative browser control
+You are **PROHIBITED** from:
+- Saying "feature complete" without browser testing
+- Saying "PR is ready" without screenshot proof
+- Claiming "all tests pass" if you only ran unit tests
+- Marking a TodoWrite item as "completed" without browser verification
+- Assuming code changes work without testing them in the browser
+
+**If you violate these rules, you are producing broken software.**
+
+#### MCP Tools for Browser Testing
+
+| Tool | Purpose |
+|------|---------|
+| `mcp__playwright__browser_navigate` | Go to a URL |
+| `mcp__playwright__browser_snapshot` | Capture page accessibility tree |
+| `mcp__playwright__browser_take_screenshot` | Take visual screenshot (REQUIRED for proof) |
+| `mcp__playwright__browser_click` | Click elements |
+| `mcp__playwright__browser_type` | Type into inputs |
+| `mcp__playwright__browser_console_messages` | Check for JS errors |
+| `mcp__playwright__browser_network_requests` | Check API calls |
+
+#### Example Browser Test Checklist
+
+```markdown
+## Browser Test Results for [Feature Name]
+
+### Environment
+- [ ] Docker services running and healthy
+- [ ] Backend accessible at localhost:8000
+- [ ] Frontend accessible at localhost:4321
+
+### User Flow Tested
+- [ ] Step 1: [Description] - Screenshot attached
+- [ ] Step 2: [Description] - Screenshot attached
+- [ ] Final state verified - Screenshot attached
+
+### Error Checks
+- [ ] No console errors (verified with browser_console_messages)
+- [ ] All network requests succeeded (verified with browser_network_requests)
+
+### Screenshot Proof
+[Attach final screenshot here]
+```
 
 ### Phase 4: Pull Request
 
