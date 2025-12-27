@@ -765,8 +765,6 @@ dependencies = [
     { name = "click" },
     { name = "httpx" },
     { name = "jinja2" },
-    { name = "neural-amp-modeler" },
-    { name = "numba" },
     { name = "numpy" },
     { name = "pedalboard" },
     { name = "pillow" },
@@ -782,15 +780,24 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+full = [
+    { name = "neural-amp-modeler" },
+    { name = "numba" },
+]
+pytorch-nam = [
+    { name = "neural-amp-modeler" },
+    { name = "numba" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.0" },
+    { name = "guitar-tone-shootout-pipeline", extras = ["pytorch-nam"], marker = "extra == 'full'" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "neural-amp-modeler", specifier = ">=0.12.0" },
-    { name = "numba", specifier = ">=0.59.0" },
+    { name = "neural-amp-modeler", marker = "extra == 'pytorch-nam'", specifier = ">=0.12.0" },
+    { name = "numba", marker = "extra == 'pytorch-nam'", specifier = ">=0.59.0" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "pedalboard", specifier = ">=0.9.0" },
     { name = "pillow", specifier = ">=10.0.0" },
@@ -801,7 +808,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["pytorch-nam", "dev", "full"]
 
 [[package]]
 name = "h11"

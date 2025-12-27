@@ -8,7 +8,17 @@ WORKDIR /app
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install NAM VST3 plugin for audio processing
+ARG NAM_VERSION=0.7.13
+RUN mkdir -p /opt/vst3 && \
+    curl -L "https://github.com/sdatkinson/NeuralAmpModelerPlugin/releases/download/v${NAM_VERSION}/NeuralAmpModeler-linux-v${NAM_VERSION}.zip" -o /tmp/nam.zip && \
+    unzip /tmp/nam.zip -d /tmp/nam && \
+    mv /tmp/nam/NeuralAmpModeler.vst3 /opt/vst3/ && \
+    rm -rf /tmp/nam /tmp/nam.zip
 
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
@@ -38,6 +48,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy NAM VST3 plugin from builder
+COPY --from=builder /opt/vst3 /usr/lib/vst3
+ENV NAM_VST3_PATH=/usr/lib/vst3/NeuralAmpModeler.vst3
 
 # Copy application code
 COPY --chown=appuser:appuser . .

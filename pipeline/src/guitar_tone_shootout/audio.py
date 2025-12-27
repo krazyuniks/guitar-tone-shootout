@@ -1,9 +1,28 @@
-"""Audio processing using NAM and Pedalboard."""
+"""Audio processing using Pedalboard with NAM VST3 plugin support.
+
+This module provides audio processing for guitar tone comparisons, including:
+- Neural Amp Modeler (NAM) model processing via VST3 plugin
+- Impulse Response (IR) convolution
+- Built-in effects (EQ, reverb, delay, gain)
+- Volume normalization
+
+Architecture:
+    The preferred approach uses Pedalboard with the NAM VST3 plugin for
+    unified processing. Model paths are embedded in generated VST3 presets.
+    A PyTorch-based fallback is available for environments without the VST3 plugin.
+
+    Preferred (Pedalboard + VST3):
+        DI Audio -> [Pedalboard: NAM VST3 + IR + Effects] -> Output
+
+    Fallback (PyTorch):
+        DI Audio -> [PyTorch NAM] -> [Pedalboard Effects] -> Output
+"""
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,9 +43,61 @@ logger = logging.getLogger(__name__)
 NAM_MODELS_BASE = Path("inputs/nam_models")
 IRS_BASE = Path("inputs/irs")
 
+# Environment variable to specify NAM VST3 plugin path
+NAM_VST3_ENV_VAR = "NAM_VST3_PATH"
+# Default locations to search for NAM VST3 plugin
+NAM_VST3_SEARCH_PATHS: list[str | Path] = [
+    "/usr/lib/vst3/NeuralAmpModeler.vst3",  # Linux system
+    "/usr/local/lib/vst3/NeuralAmpModeler.vst3",  # Linux local
+    Path.home() / ".vst3" / "NeuralAmpModeler.vst3",  # Linux user
+    "/Library/Audio/Plug-Ins/VST3/NeuralAmpModeler.vst3",  # macOS system
+    Path.home() / "Library/Audio/Plug-Ins/VST3/NeuralAmpModeler.vst3",  # macOS user
+]
+
+# Cached VST3 plugin path (None = not yet searched, "" = not found)
+_nam_vst3_path: str | None = None
+
 
 class AudioProcessingError(Exception):
     """Error during audio processing."""
+
+
+def find_nam_vst3() -> str | None:
+    """
+    Find the NAM VST3 plugin.
+
+    Searches in order:
+    1. NAM_VST3_PATH environment variable
+    2. Common system locations
+
+    Returns:
+        Path to the VST3 plugin, or None if not found
+    """
+    global _nam_vst3_path  # noqa: PLW0603
+
+    # Return cached result if already searched
+    if _nam_vst3_path is not None:
+        return _nam_vst3_path if _nam_vst3_path else None
+
+    # Check environment variable first
+    env_path = os.environ.get(NAM_VST3_ENV_VAR)
+    if env_path and Path(env_path).exists():
+        _nam_vst3_path = env_path
+        logger.info(f"NAM VST3 found via env: {_nam_vst3_path}")
+        return _nam_vst3_path
+
+    # Search common locations
+    for search_path in NAM_VST3_SEARCH_PATHS:
+        path = Path(search_path)
+        if path.exists():
+            _nam_vst3_path = str(path)
+            logger.info(f"NAM VST3 found: {_nam_vst3_path}")
+            return _nam_vst3_path
+
+    # Not found
+    _nam_vst3_path = ""
+    logger.debug("NAM VST3 plugin not found, will use PyTorch fallback")
+    return None
 
 
 def load_audio(path: Path) -> tuple[NDArray[np.float32], int]:
@@ -83,9 +154,62 @@ def save_audio(
     return path
 
 
+def load_nam_via_vst3(
+    model_path: Path,
+    vst3_path: str | None = None,
+) -> pedalboard.Plugin | None:
+    """
+    Load a NAM model via the VST3 plugin.
+
+    This generates a preset with the model path embedded and loads it
+    into the NAM VST3 plugin via Pedalboard.
+
+    Args:
+        model_path: Absolute path to the .nam model file
+        vst3_path: Optional path to NAM VST3 plugin (auto-detected if None)
+
+    Returns:
+        Loaded Pedalboard plugin, or None if VST3 not available
+    """
+    # Find VST3 plugin
+    if vst3_path is None:
+        vst3_path = find_nam_vst3()
+
+    if not vst3_path:
+        logger.debug("NAM VST3 not available")
+        return None
+
+    if not model_path.exists():
+        raise AudioProcessingError(f"NAM model not found: {model_path}")
+
+    try:
+        # Import here to avoid circular dependency
+        from guitar_tone_shootout.preset import generate_preset_bytes
+
+        # Load the plugin
+        plugin = pedalboard.load_plugin(vst3_path)  # type: ignore[attr-defined]
+
+        # Generate preset with model path and load it
+        preset_bytes = generate_preset_bytes(model_path)
+        plugin.preset_data = preset_bytes  # type: ignore[attr-defined]
+
+        # Disable plugin's internal IR (we use Pedalboard's Convolution)
+        if hasattr(plugin, "irtoggle"):
+            plugin.irtoggle = False
+
+        logger.debug(f"Loaded NAM model via VST3: {model_path.name}")
+        return plugin
+
+    except Exception as e:
+        logger.warning(f"Failed to load NAM via VST3: {e}")
+        return None
+
+
 def load_nam_model(model_path: Path) -> NAMModel:
     """
-    Load a NAM model from a .nam file.
+    Load a NAM model from a .nam file using PyTorch.
+
+    This is the fallback method when the VST3 plugin is not available.
 
     Args:
         model_path: Path to .nam file (relative to NAM_MODELS_BASE or absolute)
@@ -112,7 +236,7 @@ def load_nam_model(model_path: Path) -> NAMModel:
 
 
 class NAMModel:
-    """Wrapper for NAM model to simplify processing."""
+    """Wrapper for PyTorch NAM model to simplify processing."""
 
     def __init__(self, model: torch.nn.Module, path: Path) -> None:
         self._model = model
@@ -218,25 +342,44 @@ def create_effect(effect_type: str, value: str) -> pedalboard.Plugin | None:
     return None
 
 
-def process_chain(
+def process_chain(  # noqa: PLR0912
     audio: NDArray[np.float32],
     sample_rate: int,
     chain_effects: list[ChainEffect],
     project_root: Path | None = None,
+    normalize_input: bool = False,
+    normalize_output: bool = False,
+    input_target_db: float = -18.0,
+    output_target_db: float = -14.0,
 ) -> NDArray[np.float32]:
     """
     Process audio through a complete signal chain.
+
+    Supports both VST3-based NAM processing (preferred) and PyTorch fallback.
+    When VST3 is available, NAM processing is integrated into a unified
+    Pedalboard chain for better performance.
 
     Args:
         audio: Input audio as 1D numpy array
         sample_rate: Sample rate in Hz
         chain_effects: List of ChainEffect objects defining the chain
         project_root: Project root directory for resolving input paths
+        normalize_input: Apply input normalization before processing
+        normalize_output: Apply output normalization after processing
+        input_target_db: Target RMS for input normalization (default: -18 dB)
+        output_target_db: Target RMS for output normalization (default: -14 dB)
 
     Returns:
         Processed audio as 1D numpy array
     """
     current_audio = audio.copy()
+
+    # Apply input normalization if requested
+    if normalize_input:
+        from guitar_tone_shootout.normalize import normalize_rms
+
+        current_audio = normalize_rms(current_audio, target_db=input_target_db)
+        logger.debug(f"Applied input normalization to {input_target_db} dB RMS")
 
     # Resolve base paths for inputs
     if project_root:
@@ -246,21 +389,39 @@ def process_chain(
         nam_base = NAM_MODELS_BASE
         ir_base = IRS_BASE
 
+    # Try to use VST3-based processing
+    vst3_path = find_nam_vst3()
+
     for effect in chain_effects:
         logger.debug(f"Applying effect: {effect.effect_type}:{effect.value}")
 
         if effect.effect_type == "nam":
             # Process through NAM model
             nam_path = nam_base / effect.value
-            model = load_nam_model(nam_path)
 
-            # Check sample rate compatibility
-            if model.sample_rate and model.sample_rate != sample_rate:
-                logger.warning(
-                    f"Sample rate mismatch: audio={sample_rate}, model={model.sample_rate}"
-                )
-
-            current_audio = model.process(current_audio)
+            if vst3_path:
+                # Preferred: Use VST3 plugin
+                plugin = load_nam_via_vst3(nam_path, vst3_path)
+                if plugin:
+                    board = Pedalboard([plugin])
+                    audio_2d = current_audio.reshape(1, -1)
+                    current_audio = board(audio_2d, sample_rate)[0]
+                else:
+                    # Fallback to PyTorch if VST3 loading failed
+                    model = load_nam_model(nam_path)
+                    if model.sample_rate and model.sample_rate != sample_rate:
+                        logger.warning(
+                            f"Sample rate mismatch: audio={sample_rate}, model={model.sample_rate}"
+                        )
+                    current_audio = model.process(current_audio)
+            else:
+                # Fallback: Use PyTorch
+                model = load_nam_model(nam_path)
+                if model.sample_rate and model.sample_rate != sample_rate:
+                    logger.warning(
+                        f"Sample rate mismatch: audio={sample_rate}, model={model.sample_rate}"
+                    )
+                current_audio = model.process(current_audio)
 
         elif effect.effect_type == "ir":
             # Apply IR convolution
@@ -272,8 +433,8 @@ def process_chain(
             current_audio = board(audio_2d, sample_rate)[0]
 
         elif effect.effect_type == "vst":
-            # VST loading - not implemented yet
-            logger.warning(f"VST effects not yet supported: {effect.value}")
+            # Generic VST loading
+            logger.warning(f"Generic VST loading not yet supported: {effect.value}")
 
         else:
             # Built-in Pedalboard effect
@@ -283,4 +444,78 @@ def process_chain(
                 audio_2d = current_audio.reshape(1, -1)
                 current_audio = board(audio_2d, sample_rate)[0]
 
+    # Apply output normalization if requested
+    if normalize_output:
+        from guitar_tone_shootout.normalize import normalize_rms
+
+        current_audio = normalize_rms(current_audio, target_db=output_target_db)
+        logger.debug(f"Applied output normalization to {output_target_db} dB RMS")
+
     return current_audio
+
+
+def process_chain_unified(
+    audio: NDArray[np.float32],
+    sample_rate: int,
+    chain_effects: list[ChainEffect],
+    project_root: Path | None = None,
+) -> NDArray[np.float32]:
+    """
+    Process audio through a unified Pedalboard chain (VST3 required).
+
+    This builds a single Pedalboard with all effects for optimal performance.
+    Falls back to process_chain() if VST3 is not available.
+
+    Args:
+        audio: Input audio as 1D numpy array
+        sample_rate: Sample rate in Hz
+        chain_effects: List of ChainEffect objects defining the chain
+        project_root: Project root directory for resolving input paths
+
+    Returns:
+        Processed audio as 1D numpy array
+    """
+    vst3_path = find_nam_vst3()
+
+    if not vst3_path:
+        logger.debug("VST3 not available, using sequential processing")
+        return process_chain(audio, sample_rate, chain_effects, project_root)
+
+    # Resolve base paths
+    if project_root:
+        nam_base = project_root / "inputs" / "nam_models"
+        ir_base = project_root / "inputs" / "irs"
+    else:
+        nam_base = NAM_MODELS_BASE
+        ir_base = IRS_BASE
+
+    # Build unified plugin chain
+    plugins: list[pedalboard.Plugin] = []
+
+    for effect in chain_effects:
+        if effect.effect_type == "nam":
+            nam_path = nam_base / effect.value
+            plugin = load_nam_via_vst3(nam_path, vst3_path)
+            if plugin:
+                plugins.append(plugin)
+            else:
+                logger.warning(f"Failed to load NAM via VST3: {effect.value}")
+
+        elif effect.effect_type == "ir":
+            ir_path = ir_base / effect.value
+            plugins.append(load_ir(ir_path))
+
+        elif effect.effect_type == "vst":
+            logger.warning(f"Generic VST not supported in unified chain: {effect.value}")
+
+        else:
+            plugin = create_effect(effect.effect_type, effect.value)
+            if plugin:
+                plugins.append(plugin)
+
+    # Process through unified chain
+    board = Pedalboard(plugins)
+    audio_2d = audio.reshape(1, -1)
+    output: NDArray[np.float32] = board(audio_2d, sample_rate)[0]
+
+    return output

@@ -6,7 +6,20 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install NAM VST3 plugin for audio processing
+# Download from official releases: https://github.com/sdatkinson/NeuralAmpModelerPlugin/releases
+ARG NAM_VERSION=0.7.13
+RUN mkdir -p /usr/lib/vst3 && \
+    curl -L "https://github.com/sdatkinson/NeuralAmpModelerPlugin/releases/download/v${NAM_VERSION}/NeuralAmpModeler-linux-v${NAM_VERSION}.zip" -o /tmp/nam.zip && \
+    unzip /tmp/nam.zip -d /tmp/nam && \
+    mv /tmp/nam/NeuralAmpModeler.vst3 /usr/lib/vst3/ && \
+    rm -rf /tmp/nam /tmp/nam.zip
+
+# Set NAM VST3 path for the pipeline
+ENV NAM_VST3_PATH=/usr/lib/vst3/NeuralAmpModeler.vst3
 
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
