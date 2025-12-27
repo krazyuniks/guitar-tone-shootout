@@ -108,8 +108,34 @@ services:
     volumes:
       - redis_data:/data
 
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    env_file:
+      - .env
+      - .env.local
+    # ports defined in docker-compose.override.yml (worktree-specific)
+    volumes:
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+      - ./cloudbeaver/initial-data-sources.conf:/opt/cloudbeaver/conf/initial-data-sources.conf:ro
+      - ./cloudbeaver/entrypoint.sh:/opt/cloudbeaver/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/opt/cloudbeaver/entrypoint.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Auto-configure server (skip setup wizard)
+      # Note: CB_ADMIN_NAME cannot be "admin" - it's a reserved team name
+      CB_SERVER_NAME: ${CB_SERVER_NAME:-GTS Database}
+      CB_ADMIN_NAME: ${CB_ADMIN_NAME:-cbadmin}
+      CB_ADMIN_PASSWORD: ${DB_PASSWORD:-devpassword}
+      # Pass DB_PASSWORD for data source injection
+      DB_PASSWORD: ${DB_PASSWORD:-devpassword}
+    profiles:
+      - tools  # Only start when explicitly requested
+
 volumes:
   postgres_data:
   redis_data:
   model_cache:
   uploads:
+  cloudbeaver_data:
