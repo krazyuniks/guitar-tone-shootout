@@ -1,6 +1,6 @@
 # Guitar Tone Shootout - Development Operations Guide
 
-**Version:** 2.0 | **Last Updated:** 2025-12-26
+**Version:** 2.1 | **Last Updated:** 2025-12-27
 
 This document defines the development workflow, patterns, and automation for the Guitar Tone Shootout project. It serves as the primary reference for both human developers and AI agents.
 
@@ -355,16 +355,54 @@ guitar-tone-shootout/
 
 ---
 
-## Workflow Phases
+## Workflow Phases (MANDATORY)
 
-### Phase 0: Issue Creation
+**CRITICAL: This is the ONLY way to develop. No exceptions.**
 
-Every feature, bug fix, or task starts with a GitHub issue.
+All development MUST follow this workflow. AI agents are PROHIBITED from:
+- Writing code without first creating a GitHub issue
+- Working directly on `main` branch
+- Skipping worktree setup for any feature/fix
+- Executing implementation in the same session as planning
+- Making decisions without recording them in GH issue or dev-docs
+
+### Session Discipline
+
+**Planning and execution happen in SEPARATE sessions:**
+
+1. **Planning Session**: Explore, ask questions, create issue, set up worktree, document plan
+2. **Execution Session**: Fresh context, implement from documented plan
+3. **All outputs recorded**: Every decision, plan, and finding goes in GH issue comments or dev-docs
+
+This separation ensures:
+- Fresh context for implementation (no degraded context from long planning)
+- Complete documentation trail
+- Reproducible work by any agent or human
+
+### Phase 0: GitHub Issue Creation
+
+Every feature, bug fix, or task starts with a GitHub issue. **No issue = No work.**
 
 ```bash
 gh issue create --title "feat: description" \
   --milestone "v2.0 - Web Application Foundation" \
-  --label "epic:foundation"
+  --label "epic:foundation" \
+  --body "$(cat <<'EOF'
+## Summary
+Brief description of what needs to be done.
+
+## Approach
+High-level implementation approach.
+
+## Files to Modify
+- file1.py
+- file2.ts
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+EOF
+)"
 ```
 
 **Issue Title Conventions:**
@@ -375,34 +413,98 @@ gh issue create --title "feat: description" \
 - `test:` - Test additions/fixes
 - `chore:` - Maintenance tasks
 
-### Phase 1: Branch Creation
+**Record all planning decisions in the issue body or comments.**
+
+### Phase 1: Worktree Setup
+
+**ALWAYS use worktrees. Never work on main.**
 
 ```bash
-git checkout main
-git pull origin main
-git checkout -b 6-docker-compose-dev
+# From main worktree
+cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
+
+# Create worktree for issue (creates branch automatically)
+./worktree.py setup <issue-number>
+
+# Move to new worktree
+cd ../<issue-number>-<description>
+
+# Verify health
+./worktree.py health
 ```
 
-**Branch Naming:** `<issue-number>-<short-description>`
+This creates:
+- Isolated git worktree with dedicated branch
+- Unique Docker ports (no conflicts with other worktrees)
+- Isolated database and Redis volumes
+- Fresh Docker environment
 
-### Phase 2: Development
+### Phase 2: Dev-Docs Setup
 
-1. **Create dev-docs** for complex tasks:
+Create documentation BEFORE writing code:
+
+```bash
+mkdir -p dev/active/<task-name>
+```
+
+Create `dev/active/<task-name>/plan.md`:
+```markdown
+# Plan: <Task Name>
+
+**Issue:** #<number>
+**Created:** <date>
+**Status:** Ready to implement
+
+## Summary
+What we're building and why.
+
+## Implementation Steps
+1. Step one
+2. Step two
+3. Step three
+
+## Files to Modify
+- path/to/file1.py
+- path/to/file2.ts
+
+## Testing Strategy
+How we'll verify this works.
+```
+
+### Phase 3: End Planning Session
+
+**STOP HERE. Do not implement in the same session.**
+
+1. Commit dev-docs:
    ```bash
-   mkdir -p dev/active/docker-compose-dev
-   # Create plan.md, context.md, tasks.md
+   git add dev/active/<task-name>/
+   git commit -m "docs: planning for #<issue-number>"
+   git push -u origin <branch-name>
    ```
 
-2. **Update session-state.md** with task mapping
+2. Update session-state.md with task reference
 
-3. **Implement** following patterns in this document
-
-4. **Run quality gates** frequently:
+3. Provide resume command for execution session:
    ```bash
-   just check                    # Run all checks from host
+   cd /path/to/worktree && claude
+   # Then: "Implement #<issue-number> - see dev/active/<task-name>/plan.md"
    ```
 
-### Phase 3: Quality Gates
+### Phase 4: Implementation (NEW SESSION)
+
+Start fresh session, read the plan, implement:
+
+```bash
+# Read context first
+cat dev/active/<task-name>/plan.md
+gh issue view <issue-number>
+
+# Implement following the plan
+# Run quality gates frequently
+just check
+```
+
+### Phase 5: Quality Gates
 
 All must pass before PR:
 
@@ -415,7 +517,7 @@ All must pass before PR:
 | Frontend Build | `docker compose exec frontend pnpm build` | Verify build succeeds |
 | **Browser Test** | Chrome DevTools MCP or Playwright | **MANDATORY end-to-end test** |
 
-### Phase 3.5: Browser Testing (MANDATORY)
+### Phase 5.5: Browser Testing (MANDATORY)
 
 **CRITICAL: No feature is complete without FULL end-to-end browser testing with screenshot proof.**
 
@@ -503,7 +605,7 @@ You are **PROHIBITED** from:
 [Attach final screenshot here]
 ```
 
-### Phase 4: Pull Request
+### Phase 6: Pull Request
 
 ```bash
 git push -u origin $(git branch --show-current)
@@ -532,9 +634,9 @@ EOF
 )"
 ```
 
-**IMPORTANT:** After creating the PR, **STOP and wait for user review**. Do not proceed to Phase 5 until the PR is approved and merged on GitHub.
+**IMPORTANT:** After creating the PR, **STOP and wait for user review**. Do not proceed to Phase 7 until the PR is approved and merged on GitHub.
 
-### Phase 5: Merge (on GitHub) and Sync Local
+### Phase 7: Merge and Worktree Teardown
 
 **Merging happens on GitHub, not locally.** The repo is configured for:
 - **Squash merge only** - All PR commits are squashed into one
@@ -543,15 +645,22 @@ EOF
 
 ```bash
 # User merges PR on GitHub web UI (github.com)
-# Then sync locally:
+# Then teardown the worktree:
 
-git checkout main
-git pull --ff-only origin main   # Will fail if history diverged
-git branch -d 6-docker-compose-dev  # Delete local branch (remote already deleted)
+cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
+./worktree.py teardown <issue-number>-<description>
 
-# Archive dev-docs if any
-mv dev/active/docker-compose-dev dev/archive/ 2>/dev/null || true
-# Update session-state.md
+# This automatically:
+# - Stops Docker containers
+# - Removes Docker volumes
+# - Deletes the worktree directory
+# - Deletes local and remote branches
+# - Archives dev-docs to dev/archive/
+```
+
+After teardown, sync main:
+```bash
+git pull --ff-only origin main
 ```
 
 **If `git pull --ff-only` fails:** The local branch has diverged. Reset to remote:
@@ -936,5 +1045,6 @@ docker compose exec backend alembic upgrade head    # Reapply
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.1 | 2025-12-27 | Mandatory worktree workflow, session discipline, planning/execution separation |
 | 2.0 | 2025-12-26 | Web application pivot, Docker-based workflow |
 | 1.0 | 2025-12-25 | Initial CLI-focused workflow |
