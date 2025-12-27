@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.4 | #24 Tone 3000 model downloader | Ready | Start in new session |
+| v2.4 | #25 Shootout database model | Ready | Start in new session |
 
 ---
 
@@ -34,8 +34,18 @@
 | Issue | Title | Status |
 |-------|-------|--------|
 | #23 | Pipeline service wrapper with progress callbacks | **Merged** (#68) |
-| #24 | Tone 3000 model downloader with caching | Open |
+| #24 | Tone 3000 model downloader with caching | **Merged** (#69) |
 | #25 | Shootout database model replacing INI configuration | Open |
+
+**What was built in #24:**
+- **ModelDownloader**: Service to download NAM models from Tone 3000 via pre-signed URLs
+- **Caching**: Local cache to avoid re-downloading, with LRU-style mtime updates
+- **Validation**: Checks downloaded NAM files for valid JSON structure (architecture/config + weights)
+- **Cleanup**: Configurable max age for automatic cache cleanup (default: 30 days)
+- **Docker volume**: Shared `model_cache` volume between backend and worker
+- **Configuration**: `MODEL_CACHE_DIR` and `MODEL_CACHE_MAX_AGE_DAYS` settings
+- Added `aiofiles` dependency for async file I/O
+- 25 unit tests with full coverage
 
 **What was built in #23:**
 - **PipelineService**: Main service class with async progress callbacks
@@ -122,6 +132,7 @@
 
 ## Recent Activity
 
+- **2025-12-27**: Merged #24 Model downloader with caching (#69).
 - **2025-12-27**: Merged #23 Pipeline service wrapper (#68). v2.4 started.
 - **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
 - **2025-12-27**: Merged #20 Landing page and layout components (#66).
@@ -138,13 +149,13 @@
 
 ## Resume Instructions
 
-After #23 PR is merged:
+After #24 PR is merged:
 
 ```bash
-# 1. Sync with main
-git checkout main && git pull --ff-only
+# 1. Read context
+cat dev/session-state.md
+gh issue view 25
 
-# 2. Start next issue
-gh issue view 24
-git checkout -b 24-model-downloader
+# 2. Create feature branch
+git checkout -b 25-shootout-model
 ```
