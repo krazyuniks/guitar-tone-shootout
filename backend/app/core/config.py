@@ -41,5 +41,8 @@ class Settings(BaseSettings):
     model_cache_dir: str = "/data/models/cache"
     model_cache_max_age_days: int = 30
 
+    # File uploads
+    upload_dir: str = "/data/uploads"
+
 
 settings = Settings()
