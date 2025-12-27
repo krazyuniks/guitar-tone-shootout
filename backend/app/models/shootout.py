@@ -48,6 +48,7 @@ class Shootout(Base, UUIDMixin, TimestampMixin):
     # Optional metadata (guitar/pickup info)
     guitar: Mapped[str | None] = mapped_column(String(255))
     pickup: Mapped[str | None] = mapped_column(String(255))
+    di_track_description: Mapped[str | None] = mapped_column(Text)
 
     # Processing state
     is_processed: Mapped[bool] = mapped_column(default=False)
@@ -95,8 +96,9 @@ class ToneSelection(Base, UUIDMixin, TimestampMixin):
     model_size: Mapped[str] = mapped_column(String(20))  # standard, lite, feather, nano
     gear_type: Mapped[str] = mapped_column(String(20))  # amp, pedal, full-rig
 
-    # Display name override (optional)
+    # Display name and description override (optional)
     display_name: Mapped[str | None] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
 
     # Optional IR override (path to IR file)
     ir_path: Mapped[str | None] = mapped_column(String(1000))

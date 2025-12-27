@@ -48,6 +48,7 @@ class TestShootoutModel:
         assert shootout.description is None
         assert shootout.guitar is None
         assert shootout.pickup is None
+        assert shootout.di_track_description is None
         # Non-nullable fields are set explicitly
         assert shootout.output_format == "mp4"
         assert shootout.sample_rate == 44100
@@ -88,6 +89,7 @@ class TestToneSelectionModel:
         )
         # Nullable fields default to None when not provided
         assert tone.display_name is None
+        assert tone.description is None
         assert tone.ir_path is None
         assert tone.effects_json is None
         # Non-nullable fields are set explicitly
@@ -125,6 +127,7 @@ class TestToneSelectionCreateSchema:
             "model_size": "standard",
             "gear_type": "amp",
             "display_name": "My Custom Name",
+            "description": "Classic British crunch tone",
             "ir_path": "/path/to/ir.wav",
             "highpass": False,
             "position": 2,
@@ -134,6 +137,7 @@ class TestToneSelectionCreateSchema:
         }
         tone = ToneSelectionCreate(**data)
         assert tone.display_name == "My Custom Name"
+        assert tone.description == "Classic British crunch tone"
         assert tone.ir_path == "/path/to/ir.wav"
         assert tone.highpass is False
         assert tone.position == 2
@@ -205,6 +209,7 @@ class TestShootoutCreateSchema:
             "sample_rate": 48000,
             "guitar": "Gibson Les Paul",
             "pickup": "Bridge Humbucker",
+            "di_track_description": "Recorded with fresh strings",
             "tone_selections": [
                 {
                     "tone3000_tone_id": 123,
@@ -222,6 +227,7 @@ class TestShootoutCreateSchema:
         assert shootout.sample_rate == 48000
         assert shootout.guitar == "Gibson Les Paul"
         assert shootout.pickup == "Bridge Humbucker"
+        assert shootout.di_track_description == "Recorded with fresh strings"
 
     def test_shootout_requires_at_least_one_tone(self):
         """Test shootout requires at least one tone selection."""
@@ -308,6 +314,7 @@ class TestShootoutUpdateSchema:
         assert update.description is None
         assert update.guitar is None
         assert update.pickup is None
+        assert update.di_track_description is None
 
     def test_update_all_fields(self):
         """Test update with all fields."""
@@ -316,12 +323,14 @@ class TestShootoutUpdateSchema:
             "description": "New description",
             "guitar": "Fender Strat",
             "pickup": "Neck Single",
+            "di_track_description": "Updated DI description",
         }
         update = ShootoutUpdate(**data)
         assert update.name == "New Name"
         assert update.description == "New description"
         assert update.guitar == "Fender Strat"
         assert update.pickup == "Neck Single"
+        assert update.di_track_description == "Updated DI description"
 
     def test_update_empty(self):
         """Test update with no fields."""
@@ -346,6 +355,7 @@ class TestToneSelectionResponseSchema:
             model_size="standard",
             gear_type="amp",
             display_name="My Plexi",
+            description="Classic British crunch",
             ir_path="/path/to/ir.wav",
             highpass=False,
             effects_json='[{"effect_type": "reverb", "value": "room"}]',
@@ -359,6 +369,7 @@ class TestToneSelectionResponseSchema:
         response = ToneSelectionResponse.model_validate(tone)
         assert response.tone3000_tone_id == 123
         assert response.model_size == "standard"
+        assert response.description == "Classic British crunch"
         assert response.effects_json == '[{"effect_type": "reverb", "value": "room"}]'
 
 
@@ -381,6 +392,7 @@ class TestShootoutResponseSchema:
             model_name="Standard",
             model_size="standard",
             gear_type="amp",
+            description="Classic British crunch",
             highpass=True,
             position=0,
             created_at=now,
@@ -397,6 +409,7 @@ class TestShootoutResponseSchema:
             sample_rate=44100,
             guitar="Les Paul",
             pickup="Bridge",
+            di_track_description="Fresh strings, medium attack",
             is_processed=False,
             created_at=now,
             updated_at=now,
@@ -405,8 +418,10 @@ class TestShootoutResponseSchema:
 
         response = ShootoutResponse.model_validate(shootout)
         assert response.name == "Test Shootout"
+        assert response.di_track_description == "Fresh strings, medium attack"
         assert len(response.tone_selections) == 1
         assert response.tone_selections[0].tone_title == "Plexi"
+        assert response.tone_selections[0].description == "Classic British crunch"
 
 
 class TestShootoutListResponseSchema:

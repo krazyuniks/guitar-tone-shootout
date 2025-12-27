@@ -158,6 +158,10 @@ class ToneSelectionCreate(BaseModel):
         max_length=255,
         description="Optional display name override",
     )
+    description: str | None = Field(
+        default=None,
+        description="Description of the tone (e.g., 'Classic British crunch tone')",
+    )
     ir_path: str | None = Field(
         default=None,
         max_length=1000,
@@ -189,6 +193,7 @@ class ToneSelectionResponse(BaseModel):
     model_size: str
     gear_type: str
     display_name: str | None
+    description: str | None
     ir_path: str | None
     highpass: bool
     effects_json: str | None
@@ -239,6 +244,10 @@ class ShootoutCreate(BaseModel):
         max_length=255,
         description="Pickup configuration used",
     )
+    di_track_description: str | None = Field(
+        default=None,
+        description="Description of the DI recording",
+    )
     tone_selections: list[ToneSelectionCreate] = Field(
         min_length=1,
         max_length=10,
@@ -268,6 +277,10 @@ class ShootoutUpdate(BaseModel):
         max_length=255,
         description="Pickup configuration used",
     )
+    di_track_description: str | None = Field(
+        default=None,
+        description="Description of the DI recording",
+    )
 
 
 class ShootoutResponse(BaseModel):
@@ -282,6 +295,7 @@ class ShootoutResponse(BaseModel):
     sample_rate: int
     guitar: str | None
     pickup: str | None
+    di_track_description: str | None
     is_processed: bool
     output_path: str | None
     tone_selections: list[ToneSelectionResponse]
