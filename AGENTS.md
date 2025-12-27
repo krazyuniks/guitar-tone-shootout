@@ -117,6 +117,52 @@ A pre-commit hook validates:
 
 This project uses git worktrees for isolated parallel development. Each worktree has its own Docker environment with unique ports.
 
+### Parallel Orchestration Model
+
+**CRITICAL: This is how multi-agent parallel development works.**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ORCHESTRATOR (Main Terminal)                  │
+│                                                                 │
+│  - Runs in main worktree                                       │
+│  - Spawns background Task agents (one per worktree)            │
+│  - Monitors for PR completion                                   │
+│  - Merges PRs and runs ./worktree.py sync                      │
+│  - Handles conflicts, continues monitoring                      │
+└─────────────────────────────────────────────────────────────────┘
+         │                    │                    │
+         ▼                    ▼                    ▼
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│   AGENT 1       │  │   AGENT 2       │  │   AGENT 3       │
+│                 │  │                 │  │                 │
+│ Worktree: #66   │  │ Worktree: #32   │  │ Worktree: #59   │
+│ Backend API     │  │ Frontend CSS    │  │ Pipeline Python │
+└─────────────────┘  └─────────────────┘  └─────────────────┘
+```
+
+**When any agent completes:**
+1. Agent creates PR
+2. Orchestrator reviews and merges: `gh pr merge <number> --squash`
+3. Orchestrator syncs all worktrees: `./worktree.py sync`
+4. Sync rebases all active worktrees onto updated main
+5. Orchestrator continues monitoring other agents
+
+**This prevents merge conflict hell.**
+
+### Session Discipline for Orchestration
+
+**MANDATORY: Planning and execution happen in SEPARATE sessions.**
+
+| Session Type | What Happens | Context |
+|--------------|--------------|---------|
+| Planning | Explore, analyze, create plan file | Gets exhausted |
+| Execution | Fresh start, implement from plan | Clean context |
+
+- After planning, context is degraded - ALWAYS start fresh for execution
+- Each worktree agent runs with fresh context
+- Orchestrator manages coordination, not implementation
+
 ### Structure (After Migration)
 
 Everything is contained in a SINGLE directory:
@@ -188,13 +234,33 @@ cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
 # Teardown worktree (after PR merged)
 ./worktree.py teardown 42-feature-audio
 
+# SYNC ALL WORKTREES (critical for parallel development)
+./worktree.py sync       # Fetch, update main, rebase all feature branches
+
+# Merge PR and sync (recommended workflow)
+./worktree.py merge-pr 123  # Merge PR, sync all worktrees automatically
+
+# Validate environment
+./worktree.py validate   # Comprehensive check: git state, Docker, ports, sync status
+
 # Other utilities
 ./worktree.py ports      # Show port allocations
-./worktree.py prune      # Remove stale entries
+./worktree.py prune      # Remove stale entries (--force to execute)
+./worktree.py cleanup    # Clean merged branches (--force to execute)
+./worktree.py logs       # Show Docker compose logs
 ./worktree.py start      # Start Docker services
 ./worktree.py stop       # Stop Docker services
 ./worktree.py seed       # Re-run database seeding
 ```
+
+### Critical Commands for Parallel Development
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `sync` | Rebase all worktrees onto main | After ANY PR is merged |
+| `merge-pr <n>` | Merge PR + sync all worktrees | Preferred over manual merge |
+| `validate` | Check git state, detect divergence | Before starting work, debugging |
+| `cleanup --force` | Remove merged branches | Periodic maintenance |
 
 ### Worktree Workflow
 
@@ -211,11 +277,23 @@ cd ../42-feature-audio
 - Use `./worktree.py health` to verify services
 - Access frontend at `http://localhost:<frontend-port>`
 
-**After PR Merged**
+**After PR Merged (CRITICAL: Sync all worktrees)**
 ```bash
+# Option A: Use merge-pr command (RECOMMENDED)
+./worktree.py merge-pr 42
+# Automatically: merges PR, syncs all worktrees, tears down merged worktree
+
+# Option B: Manual workflow
+gh pr merge 42 --squash
+./worktree.py sync          # CRITICAL: Rebases all active worktrees onto main
 ./worktree.py teardown 42-feature-audio
-# Cleans up: containers, volumes, git worktree, branches
 ```
+
+**Why sync is critical:**
+- Without sync, other worktrees diverge from main
+- Diverged worktrees cause merge conflicts later
+- Sync rebases all feature branches onto updated main
+- Run sync after EVERY PR merge, not just your own
 
 ### Claude Slash Commands
 
@@ -1019,6 +1097,7 @@ docker compose exec backend alembic upgrade head    # Reapply
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.2 | 2025-12-27 | Parallel orchestration model, sync/merge-pr/validate commands, session discipline |
 | 2.1 | 2025-12-27 | Mandatory worktree workflow, session discipline, planning/execution separation |
 | 2.0 | 2025-12-26 | Web application pivot, Docker-based workflow |
 | 1.0 | 2025-12-25 | Initial CLI-focused workflow |

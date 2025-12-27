@@ -594,6 +594,366 @@ def version() -> None:
     console.print(f"worktree v{__version__}")
 
 
+@app.command()
+def sync() -> None:
+    """Sync all worktrees with main (fetch, update main, rebase feature branches).
+
+    This is CRITICAL after any PR is merged to prevent divergence.
+    """
+    import subprocess
+
+    worktree_root = get_worktree_root()
+    main_path = worktree_root / "main"
+
+    if not main_path.exists():
+        print_error("Main worktree not found")
+        raise typer.Exit(1)
+
+    worktrees = list_worktrees()
+    feature_worktrees = [wt for wt in worktrees if wt.branch != "main"]
+
+    with console.status("[bold blue]Syncing worktrees...") as status:
+        # Step 1: Fetch origin
+        status.update("[bold blue]Fetching from origin...")
+        result = subprocess.run(
+            ["git", "fetch", "origin"],
+            cwd=main_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print_error(f"Failed to fetch: {result.stderr}")
+            raise typer.Exit(1)
+        print_success("Fetched from origin")
+
+        # Step 2: Update main
+        status.update("[bold blue]Updating main branch...")
+        result = subprocess.run(
+            ["git", "pull", "--ff-only", "origin", "main"],
+            cwd=main_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print_error(f"Failed to update main: {result.stderr}")
+            console.print("[yellow]Main may have diverged. Manual resolution required.[/yellow]")
+            raise typer.Exit(1)
+        print_success("Main branch updated")
+
+        # Step 3: Rebase feature branches
+        if not feature_worktrees:
+            console.print("No feature worktrees to rebase.")
+        else:
+            console.print(f"Rebasing {len(feature_worktrees)} feature worktrees...")
+
+            failed_rebases = []
+            for wt in feature_worktrees:
+                wt_path = Path(wt.worktree_path)
+                if not wt_path.exists():
+                    print_warning(f"Worktree path not found: {wt.worktree_name}")
+                    continue
+
+                status.update(f"[bold blue]Rebasing {wt.worktree_name}...")
+
+                # Check for uncommitted changes
+                result = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                )
+                if result.stdout.strip():
+                    print_warning(f"{wt.worktree_name}: Has uncommitted changes, skipping rebase")
+                    failed_rebases.append((wt.worktree_name, "uncommitted changes"))
+                    continue
+
+                # Rebase onto main
+                result = subprocess.run(
+                    ["git", "rebase", "main"],
+                    cwd=wt_path,
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0:
+                    # Abort the failed rebase
+                    subprocess.run(
+                        ["git", "rebase", "--abort"],
+                        cwd=wt_path,
+                        capture_output=True,
+                    )
+                    print_warning(f"{wt.worktree_name}: Rebase failed, aborted")
+                    failed_rebases.append((wt.worktree_name, "conflicts"))
+                else:
+                    print_success(f"{wt.worktree_name}: Rebased successfully")
+
+            if failed_rebases:
+                console.print()
+                print_warning("Some rebases failed:")
+                for name, reason in failed_rebases:
+                    console.print(f"  - {name}: {reason}")
+                console.print()
+                console.print("[yellow]Resolve manually and run rebase in those worktrees.[/yellow]")
+
+    console.print()
+    print_success("Sync complete!")
+
+
+@app.command("merge-pr")
+def merge_pr(
+    pr_number: int = typer.Argument(..., help="PR number to merge"),
+    skip_sync: bool = typer.Option(False, "--skip-sync", help="Skip syncing other worktrees"),
+) -> None:
+    """Merge a PR and sync all worktrees (RECOMMENDED workflow).
+
+    This command:
+    1. Merges the PR via gh CLI (squash merge)
+    2. Updates main branch
+    3. Rebases all active feature worktrees onto new main
+    4. Optionally tears down the merged worktree
+    """
+    import subprocess
+
+    worktree_root = get_worktree_root()
+    main_path = worktree_root / "main"
+
+    if not main_path.exists():
+        print_error("Main worktree not found")
+        raise typer.Exit(1)
+
+    with console.status(f"[bold green]Merging PR #{pr_number}...") as status:
+        # Step 1: Merge the PR
+        status.update(f"[bold green]Merging PR #{pr_number}...")
+        result = subprocess.run(
+            ["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"],
+            cwd=main_path,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print_error(f"Failed to merge PR: {result.stderr}")
+            raise typer.Exit(1)
+        print_success(f"PR #{pr_number} merged successfully")
+
+    # Step 2: Sync all worktrees
+    if not skip_sync:
+        console.print()
+        console.print("[bold]Syncing all worktrees...[/bold]")
+        sync()  # Call the sync command
+    else:
+        print_warning("Skipping sync - remember to run ./worktree.py sync manually!")
+
+
+@app.command()
+def validate() -> None:
+    """Validate environment and check for divergence.
+
+    Performs comprehensive checks:
+    - Git configuration
+    - Docker status
+    - Port allocations
+    - Main branch sync status
+    - Feature branch divergence
+    """
+    import shutil
+    import subprocess
+
+    worktree_root = get_worktree_root()
+    main_path = worktree_root / "main"
+    issues = []
+
+    console.print("[bold]Running validation checks...[/bold]\n")
+
+    # Check 1: Git installed
+    if shutil.which("git"):
+        print_success("Git: installed")
+    else:
+        print_error("Git: not found")
+        issues.append("Git not installed")
+
+    # Check 2: gh CLI installed
+    if shutil.which("gh"):
+        print_success("GitHub CLI: installed")
+    else:
+        print_warning("GitHub CLI: not found (optional)")
+
+    # Check 3: Docker installed
+    if shutil.which("docker"):
+        print_success("Docker: installed")
+    else:
+        print_error("Docker: not found")
+        issues.append("Docker not installed")
+
+    # Check 4: Main worktree exists
+    if main_path.exists():
+        print_success(f"Main worktree: {main_path}")
+    else:
+        print_error("Main worktree: not found")
+        issues.append("Main worktree not found")
+        raise typer.Exit(1)
+
+    # Check 5: Registry exists
+    registry_path = worktree_root / ".worktree" / "registry.db"
+    if registry_path.exists():
+        print_success("Registry: exists")
+    else:
+        print_warning("Registry: not found (run ./worktree.py setup main)")
+        issues.append("Registry not initialized")
+
+    # Check 6: Main branch status
+    result = subprocess.run(
+        ["git", "fetch", "origin"],
+        cwd=main_path,
+        capture_output=True,
+    )
+
+    result = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD..origin/main"],
+        cwd=main_path,
+        capture_output=True,
+        text=True,
+    )
+    behind = int(result.stdout.strip()) if result.returncode == 0 else 0
+
+    result = subprocess.run(
+        ["git", "rev-list", "--count", "origin/main..HEAD"],
+        cwd=main_path,
+        capture_output=True,
+        text=True,
+    )
+    ahead = int(result.stdout.strip()) if result.returncode == 0 else 0
+
+    if behind == 0 and ahead == 0:
+        print_success("Main branch: in sync with origin")
+    elif behind > 0 and ahead == 0:
+        print_warning(f"Main branch: {behind} commits behind origin (run git pull)")
+        issues.append(f"Main behind by {behind} commits")
+    elif ahead > 0 and behind == 0:
+        print_info(f"Main branch: {ahead} commits ahead of origin (push when ready)")
+    else:
+        print_error(f"Main branch: DIVERGED ({ahead} ahead, {behind} behind)")
+        issues.append("Main branch has diverged - manual resolution required")
+
+    # Check 7: Feature worktrees
+    console.print()
+    worktrees = list_worktrees()
+    feature_worktrees = [wt for wt in worktrees if wt.branch != "main"]
+
+    if feature_worktrees:
+        console.print(f"[bold]Feature worktrees: {len(feature_worktrees)}[/bold]")
+        for wt in feature_worktrees:
+            wt_path = Path(wt.worktree_path)
+            if not wt_path.exists():
+                print_warning(f"  {wt.worktree_name}: path not found")
+                continue
+
+            # Check if behind main
+            result = subprocess.run(
+                ["git", "rev-list", "--count", f"{wt.branch}..main"],
+                cwd=main_path,
+                capture_output=True,
+                text=True,
+            )
+            behind_main = int(result.stdout.strip()) if result.returncode == 0 else 0
+
+            if behind_main == 0:
+                print_success(f"  {wt.worktree_name}: up to date with main")
+            else:
+                print_warning(f"  {wt.worktree_name}: {behind_main} commits behind main (needs rebase)")
+    else:
+        console.print("[dim]No feature worktrees[/dim]")
+
+    # Summary
+    console.print()
+    if issues:
+        print_warning(f"Validation completed with {len(issues)} issue(s)")
+        for issue in issues:
+            console.print(f"  - {issue}")
+    else:
+        print_success("All validation checks passed!")
+
+
+@app.command()
+def cleanup(
+    force: bool = typer.Option(False, "--force", "-f", help="Actually perform cleanup (default: dry-run)"),
+) -> None:
+    """Clean up merged branches and orphaned Docker resources.
+
+    By default runs in dry-run mode. Use --force to actually clean up.
+    """
+    import subprocess
+
+    worktree_root = get_worktree_root()
+    main_path = worktree_root / "main"
+
+    if not main_path.exists():
+        print_error("Main worktree not found")
+        raise typer.Exit(1)
+
+    console.print("[bold]Checking for cleanup candidates...[/bold]\n")
+
+    # Find merged branches
+    result = subprocess.run(
+        ["git", "branch", "--merged", "main"],
+        cwd=main_path,
+        capture_output=True,
+        text=True,
+    )
+    merged_branches = [
+        b.strip().lstrip("* ")
+        for b in result.stdout.strip().split("\n")
+        if b.strip() and b.strip() not in ["main", "* main"]
+    ]
+
+    if merged_branches:
+        console.print(f"[bold]Merged branches ({len(merged_branches)}):[/bold]")
+        for branch in merged_branches:
+            console.print(f"  - {branch}")
+    else:
+        console.print("[dim]No merged branches to clean[/dim]")
+
+    if not force:
+        console.print()
+        console.print("[yellow]Dry-run mode. Use --force to actually delete.[/yellow]")
+        return
+
+    # Actually clean up
+    if merged_branches:
+        console.print()
+        console.print("[bold]Cleaning up merged branches...[/bold]")
+        for branch in merged_branches:
+            try:
+                delete_branch(branch, force=False)
+                print_success(f"Deleted: {branch}")
+            except GitError as e:
+                print_warning(f"Could not delete {branch}: {e}")
+
+    print_success("Cleanup complete!")
+
+
+@app.command()
+def logs(
+    lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to show"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
+) -> None:
+    """Show Docker compose logs for current worktree."""
+    import subprocess
+
+    try:
+        current_path = get_current_worktree_path()
+        get_worktree_by_path(current_path)
+    except WorktreeNotFoundError:
+        print_error("Current directory is not a registered worktree")
+        raise typer.Exit(1)
+
+    cmd = ["docker", "compose", "logs"]
+    if follow:
+        cmd.append("-f")
+    else:
+        cmd.extend(["--tail", str(lines)])
+
+    subprocess.run(cmd, cwd=current_path)
+
+
 def main() -> None:
     """Entry point."""
     app()
