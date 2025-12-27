@@ -37,5 +37,9 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Model cache
+    model_cache_dir: str = "/data/models/cache"
+    model_cache_max_age_days: int = 30
+
 
 settings = Settings()
