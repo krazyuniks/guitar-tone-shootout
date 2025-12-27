@@ -6,6 +6,7 @@ services:
     volumes:
       - ./backend:/app
       - ./pipeline:/pipeline:ro  # Read-only access to pipeline code
+      - model_cache:/data/models/cache  # Model download cache
     ports:
       - "8000:8000"
     environment:
@@ -15,6 +16,8 @@ services:
       - TONE3000_CLIENT_ID=${TONE3000_CLIENT_ID:-}
       - TONE3000_CLIENT_SECRET=${TONE3000_CLIENT_SECRET:-}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - MODEL_CACHE_DIR=/data/models/cache
+      - MODEL_CACHE_MAX_AGE_DAYS=${MODEL_CACHE_MAX_AGE_DAYS:-30}
     depends_on:
       db:
         condition: service_healthy
@@ -49,6 +52,7 @@ services:
     volumes:
       - ./backend:/app
       - ./pipeline:/pipeline:ro
+      - model_cache:/data/models/cache  # Shared model cache with backend
     environment:
       - DATABASE_URL=postgresql+asyncpg://shootout:${DB_PASSWORD:-devpassword}@db:5432/shootout
       - REDIS_URL=redis://redis:6379
@@ -56,6 +60,8 @@ services:
       - TONE3000_CLIENT_SECRET=${TONE3000_CLIENT_SECRET:-}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - NAM_VST3_PATH=/usr/lib/vst3/NeuralAmpModeler.vst3
+      - MODEL_CACHE_DIR=/data/models/cache
+      - MODEL_CACHE_MAX_AGE_DAYS=${MODEL_CACHE_MAX_AGE_DAYS:-30}
     depends_on:
       db:
         condition: service_healthy
@@ -90,3 +96,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  model_cache:
