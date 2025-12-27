@@ -23,10 +23,13 @@ just check                            # Run all checks
 docker compose exec backend alembic upgrade head    # Run migrations
 docker compose exec backend alembic revision -m "description"  # Create migration
 
-# GitHub Workflow
-gh issue list --milestone "v2.0 - Web Application Foundation"
-gh issue view 6
+# GitHub Workflow (ALWAYS use --repo flag)
+gh issue list --repo krazyuniks/guitar-tone-shootout
+gh issue view 6 --repo krazyuniks/guitar-tone-shootout
+gh pr list --repo krazyuniks/guitar-tone-shootout
 ```
+
+**IMPORTANT:** Always use `--repo krazyuniks/guitar-tone-shootout` with `gh` commands. The SSH alias `github_osx` prevents `gh` from auto-detecting the repository owner.
 
 ---
 
@@ -384,7 +387,8 @@ This separation ensures:
 Every feature, bug fix, or task starts with a GitHub issue. **No issue = No work.**
 
 ```bash
-gh issue create --title "feat: description" \
+gh issue create --repo krazyuniks/guitar-tone-shootout \
+  --title "feat: description" \
   --milestone "v2.0 - Web Application Foundation" \
   --label "epic:foundation" \
   --body "$(cat <<'EOF'
@@ -610,7 +614,8 @@ You are **PROHIBITED** from:
 ```bash
 git push -u origin $(git branch --show-current)
 
-gh pr create --title "feat: Docker Compose dev environment" --body "$(cat <<'EOF'
+gh pr create --repo krazyuniks/guitar-tone-shootout \
+  --title "feat: Docker Compose dev environment" --body "$(cat <<'EOF'
 ## Summary
 - Added Docker Compose for development with hot-reload
 - PostgreSQL, Redis, backend, frontend, worker services
