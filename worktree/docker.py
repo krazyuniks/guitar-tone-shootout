@@ -38,21 +38,13 @@ def run_compose(
     """
     import os
 
+    # Docker compose auto-loads .env if present
     cmd = ["docker", "compose", *args]
 
     # Build environment
     full_env = os.environ.copy()
     if env:
         full_env.update(env)
-
-    # Load .env.local if exists
-    env_local = cwd / ".env.local"
-    if env_local.exists():
-        for line in env_local.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, value = line.split("=", 1)
-                full_env[key] = value
 
     try:
         result = subprocess.run(
