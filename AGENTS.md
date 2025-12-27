@@ -23,13 +23,10 @@ just check                            # Run all checks
 docker compose exec backend alembic upgrade head    # Run migrations
 docker compose exec backend alembic revision -m "description"  # Create migration
 
-# GitHub Workflow (ALWAYS use --repo flag)
+# GitHub Workflow (see .claude/rules/github.md for --repo flag requirement)
 gh issue list --repo krazyuniks/guitar-tone-shootout
 gh issue view 6 --repo krazyuniks/guitar-tone-shootout
-gh pr list --repo krazyuniks/guitar-tone-shootout
 ```
-
-**IMPORTANT:** Always use `--repo krazyuniks/guitar-tone-shootout` with `gh` commands. The SSH alias `github_osx` prevents `gh` from auto-detecting the repository owner.
 
 ---
 
@@ -387,26 +384,11 @@ This separation ensures:
 Every feature, bug fix, or task starts with a GitHub issue. **No issue = No work.**
 
 ```bash
+# See .claude/rules/github.md for --repo flag requirement
 gh issue create --repo krazyuniks/guitar-tone-shootout \
   --title "feat: description" \
-  --milestone "v2.0 - Web Application Foundation" \
-  --label "epic:foundation" \
-  --body "$(cat <<'EOF'
-## Summary
-Brief description of what needs to be done.
-
-## Approach
-High-level implementation approach.
-
-## Files to Modify
-- file1.py
-- file2.ts
-
-## Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
-EOF
-)"
+  --body "## Summary
+..."
 ```
 
 **Issue Title Conventions:**
@@ -614,29 +596,16 @@ You are **PROHIBITED** from:
 ```bash
 git push -u origin $(git branch --show-current)
 
+# See .claude/rules/github.md for --repo flag requirement
 gh pr create --repo krazyuniks/guitar-tone-shootout \
-  --title "feat: Docker Compose dev environment" --body "$(cat <<'EOF'
-## Summary
-- Added Docker Compose for development with hot-reload
-- PostgreSQL, Redis, backend, frontend, worker services
+  --title "feat: Description" \
+  --body "## Summary
+...
 
-## Changes
-- docker-compose.yml
-- backend/Dockerfile.dev
-- frontend/Dockerfile.dev
-
-## Related Issues
-Closes #6
-
-## Test Plan
-- [ ] `docker compose up` starts all services
-- [ ] Backend hot-reload works
-- [ ] Frontend hot-reload works
+Closes #<issue-number>
 
 ---
-Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
+Generated with [Claude Code](https://claude.com/claude-code)"
 ```
 
 **IMPORTANT:** After creating the PR, **STOP and wait for user review**. Do not proceed to Phase 7 until the PR is approved and merged on GitHub.
