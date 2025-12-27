@@ -1,7 +1,7 @@
 # Session State
 
 **Last Updated:** 2025-12-27
-**Branch:** 25-shootout-model
+**Branch:** main
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.4 | #25 Shootout database model | **PR #70 Open** | Await review and merge |
+| v2.4 | #25 Shootout database model | **Merged** (#70) | v2.4 Complete! |
 
 ---
 
@@ -21,7 +21,7 @@
 | v2.1 - Tone 3000 Integration | #11 | #12, #13 | **Complete** |
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | **Complete** |
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | **Complete** |
-| v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | **In Progress** |
+| v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | **Complete** |
 | v2.5 - UI Design System | TBD | TBD | Ready |
 | v2.6 - Signal Chain Builder | TBD | TBD | Ready |
 | v2.7 - Browse & Discovery | TBD | TBD | Ready |
@@ -29,13 +29,24 @@
 
 ---
 
-## v2.4 Pipeline Web Adapter - IN PROGRESS
+## v2.4 Pipeline Web Adapter - COMPLETE
 
 | Issue | Title | Status |
 |-------|-------|--------|
 | #23 | Pipeline service wrapper with progress callbacks | **Merged** (#68) |
 | #24 | Tone 3000 model downloader with caching | **Merged** (#69) |
-| #25 | Shootout database model replacing INI configuration | **PR #70 Open** |
+| #25 | Shootout database model replacing INI configuration | **Merged** (#70) |
+
+**What was built in #25:**
+- **Shootout model**: Database model with name, description, DI track info, guitar/pickup metadata
+- **ToneSelection model**: Stores selected tones with Tone 3000 IDs, display names, effects
+- **Pydantic schemas**: Full CRUD schemas for Shootout and ToneSelection
+- **Alembic migration**: Creates shootouts and tone_selections tables
+- **File upload endpoint**: `/api/v1/files/upload` for DI tracks with validation
+- **Bug fixes**: React hooks ordering, Tone 3000 schema optional fields
+- **Cleanup**: Removed legacy comparisons/*.ini files
+- **AGENTS.md**: Strengthened browser testing requirements
+- 24 unit tests for shootout models and schemas
 
 **What was built in #24:**
 - **ModelDownloader**: Service to download NAM models from Tone 3000 via pre-signed URLs
@@ -132,6 +143,7 @@
 
 ## Recent Activity
 
+- **2025-12-27**: Merged #25 Shootout database model (#70). **v2.4 Complete!**
 - **2025-12-27**: Merged #24 Model downloader with caching (#69).
 - **2025-12-27**: Merged #23 Pipeline service wrapper (#68). v2.4 started.
 - **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
@@ -149,13 +161,19 @@
 
 ## Resume Instructions
 
-After #24 PR is merged:
+To start the next session:
 
 ```bash
 # 1. Read context
 cat dev/session-state.md
-gh issue view 25
+cat dev/EXECUTION-PLAN.md
 
-# 2. Create feature branch
-git checkout -b 25-shootout-model
+# 2. Check available epics
+gh issue list --milestone "v2.0 - Web Application Foundation"
+
+# 3. Choose next epic (v2.5, v2.6, v2.7, or v2.8)
+# v2.5 - UI Design System (ready)
+# v2.6 - Signal Chain Builder (ready)
+# v2.7 - Browse & Discovery (ready)
+# v2.8 - Audio Analysis & Reproducibility (new)
 ```
