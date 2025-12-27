@@ -147,6 +147,22 @@ This project uses git worktrees for isolated parallel development. Each worktree
 - **Isolated per worktree**: PostgreSQL, Redis, uploads
 - **Shared read-only**: Model cache (`gts-model-cache`)
 
+### Initial Setup (One-time)
+
+After cloning or migrating to bare repo structure:
+
+```bash
+# Install worktree CLI dependencies (on host, not in Docker)
+pip install -e /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main/worktree/
+
+# Register the main worktree
+cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
+./worktree.py setup main
+
+# Verify
+./worktree.py list
+```
+
 ### Worktree Commands
 
 ```bash

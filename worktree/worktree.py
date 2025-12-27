@@ -10,7 +10,15 @@ Usage:
     ./worktree.py teardown 42-feature-name
 """
 
-from cli import main
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import worktree package
+parent = Path(__file__).resolve().parent.parent
+if str(parent) not in sys.path:
+    sys.path.insert(0, str(parent))
+
+from worktree.cli import main
 
 if __name__ == "__main__":
     main()
