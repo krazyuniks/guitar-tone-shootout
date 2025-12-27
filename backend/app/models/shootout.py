@@ -3,10 +3,11 @@
 Replaces INI file configuration with database-backed storage.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -53,6 +54,9 @@ class Shootout(Base, UUIDMixin, TimestampMixin):
     # Processing state
     is_processed: Mapped[bool] = mapped_column(default=False)
     output_path: Mapped[str | None] = mapped_column(String(1000))
+
+    # Processing metadata for reproducibility (stores pipeline config, versions, etc.)
+    processing_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="shootouts")
@@ -111,6 +115,16 @@ class ToneSelection(Base, UUIDMixin, TimestampMixin):
 
     # Ordering in comparison
     position: Mapped[int] = mapped_column(default=0)
+
+    # Segment timestamps (for video segments)
+    start_ms: Mapped[int | None] = mapped_column(Integer)
+    end_ms: Mapped[int | None] = mapped_column(Integer)
+
+    # Audio metrics extracted from processed audio (JSONB for flexibility)
+    audio_metrics: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    # AI-generated evaluation (tone description, comparison analysis, etc.)
+    ai_evaluation: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     # Relationship
     shootout: Mapped["Shootout"] = relationship(back_populates="tone_selections")

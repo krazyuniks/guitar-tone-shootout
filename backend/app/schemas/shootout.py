@@ -5,9 +5,219 @@ sent from the frontend and stored in the job config.
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+# =============================================================================
+# Audio Metrics Schemas (matching pipeline/src/guitar_tone_shootout/metrics.py)
+# =============================================================================
+
+
+class CoreMetricsSchema(BaseModel):
+    """Core loudness and dynamic metrics.
+
+    Attributes:
+        rms_dbfs: RMS level in dB relative to full scale
+        peak_dbfs: Peak level in dB relative to full scale
+        crest_factor_db: Peak-to-RMS ratio in dB (indicates dynamic range)
+        dynamic_range_db: Difference between loudest and quietest parts
+    """
+
+    rms_dbfs: float = Field(..., description="RMS level in dBFS")
+    peak_dbfs: float = Field(..., description="Peak level in dBFS")
+    crest_factor_db: float = Field(..., description="Peak/RMS ratio in dB")
+    dynamic_range_db: float = Field(..., description="Dynamic range in dB")
+
+
+class SpectralMetricsSchema(BaseModel):
+    """Spectral distribution metrics.
+
+    Attributes:
+        spectral_centroid_hz: Center of mass of the spectrum (brightness indicator)
+        bass_energy_ratio: Proportion of energy in bass range (20-250 Hz)
+        mid_energy_ratio: Proportion of energy in mid range (250-2000 Hz)
+        treble_energy_ratio: Proportion of energy in treble range (2000-20000 Hz)
+    """
+
+    spectral_centroid_hz: float = Field(
+        ..., description="Spectral centroid in Hz (brightness)"
+    )
+    bass_energy_ratio: float = Field(
+        ..., ge=0.0, le=1.0, description="Bass energy (20-250 Hz) ratio"
+    )
+    mid_energy_ratio: float = Field(
+        ..., ge=0.0, le=1.0, description="Mid energy (250-2000 Hz) ratio"
+    )
+    treble_energy_ratio: float = Field(
+        ..., ge=0.0, le=1.0, description="Treble energy (2000-20000 Hz) ratio"
+    )
+
+
+class AdvancedMetricsSchema(BaseModel):
+    """Advanced dynamics and envelope metrics.
+
+    Attributes:
+        lufs_integrated: Integrated loudness in LUFS (EBU R128)
+        transient_density: Number of transients per second
+        attack_time_ms: Time to reach peak amplitude in milliseconds
+        sustain_decay_rate_db_s: Rate of amplitude decay in dB/second
+    """
+
+    lufs_integrated: float = Field(..., description="Integrated loudness in LUFS")
+    transient_density: float = Field(
+        ..., ge=0.0, description="Transients per second"
+    )
+    attack_time_ms: float = Field(
+        ..., ge=0.0, description="Attack time in milliseconds"
+    )
+    sustain_decay_rate_db_s: float = Field(
+        ..., description="Sustain decay rate in dB/second"
+    )
+
+
+class AudioMetricsSchema(BaseModel):
+    """Complete audio metrics for a guitar tone sample.
+
+    This schema mirrors the AudioMetrics model from the pipeline library
+    for consistent serialization between the pipeline and API.
+
+    Attributes:
+        duration_seconds: Length of the audio in seconds
+        sample_rate: Sample rate in Hz
+        core: Core loudness metrics
+        spectral: Spectral distribution metrics
+        advanced: Advanced dynamics metrics
+    """
+
+    duration_seconds: float = Field(
+        ..., ge=0.0, description="Audio duration in seconds"
+    )
+    sample_rate: int = Field(..., gt=0, description="Sample rate in Hz")
+    core: CoreMetricsSchema = Field(..., description="Core loudness metrics")
+    spectral: SpectralMetricsSchema = Field(
+        ..., description="Spectral distribution metrics"
+    )
+    advanced: AdvancedMetricsSchema = Field(
+        ..., description="Advanced dynamics metrics"
+    )
+
+
+# =============================================================================
+# AI Evaluation Schema
+# =============================================================================
+
+
+class AIEvaluationSchema(BaseModel):
+    """AI-generated evaluation of a tone.
+
+    Stores subjective analysis from AI models (e.g., tone description,
+    comparison insights, recommended use cases).
+
+    Attributes:
+        model_name: The AI model used for evaluation (e.g., "gpt-4", "claude-3")
+        model_version: Version identifier for the model
+        tone_description: Natural language description of the tone character
+        strengths: List of tone strengths/positive characteristics
+        weaknesses: List of tone weaknesses/negative characteristics
+        recommended_genres: Suggested musical genres for this tone
+        comparison_notes: Notes from comparison with other tones (if applicable)
+        overall_rating: Subjective quality rating (1-10 scale)
+        raw_response: The complete raw response from the AI model
+    """
+
+    model_name: str = Field(
+        ..., description="AI model used for evaluation", examples=["gpt-4", "claude-3"]
+    )
+    model_version: str | None = Field(
+        default=None, description="Version identifier for the AI model"
+    )
+    tone_description: str = Field(
+        ..., description="Natural language description of the tone character"
+    )
+    strengths: list[str] = Field(
+        default_factory=list,
+        description="List of tone strengths/positive characteristics",
+    )
+    weaknesses: list[str] = Field(
+        default_factory=list,
+        description="List of tone weaknesses/negative characteristics",
+    )
+    recommended_genres: list[str] = Field(
+        default_factory=list,
+        description="Suggested musical genres for this tone",
+        examples=[["rock", "blues", "metal"]],
+    )
+    comparison_notes: str | None = Field(
+        default=None,
+        description="Notes from comparison with other tones in the shootout",
+    )
+    overall_rating: float | None = Field(
+        default=None, ge=1.0, le=10.0, description="Subjective quality rating (1-10)"
+    )
+    raw_response: dict[str, Any] | None = Field(
+        default=None, description="Complete raw response from the AI model"
+    )
+
+
+# =============================================================================
+# Processing Metadata Schema
+# =============================================================================
+
+
+class ProcessingMetadataSchema(BaseModel):
+    """Metadata about the processing pipeline for reproducibility.
+
+    Stores all configuration and version information needed to reproduce
+    the exact processing of a shootout.
+
+    Attributes:
+        pipeline_version: Version of the guitar-tone-shootout pipeline
+        nam_version: Version of NAM (Neural Amp Modeler) used
+        ffmpeg_version: Version of ffmpeg used for audio/video processing
+        python_version: Python version used for processing
+        processed_at: ISO timestamp when processing completed
+        processing_duration_seconds: Total processing time
+        worker_id: Identifier of the worker that processed the job
+        config_hash: Hash of the processing configuration for cache validation
+        audio_settings: Audio processing settings (sample rate, bit depth, etc.)
+        video_settings: Video encoding settings (if applicable)
+    """
+
+    pipeline_version: str = Field(
+        ..., description="Version of the guitar-tone-shootout pipeline"
+    )
+    nam_version: str | None = Field(
+        default=None, description="Version of NAM (Neural Amp Modeler) used"
+    )
+    ffmpeg_version: str | None = Field(
+        default=None, description="Version of ffmpeg used"
+    )
+    python_version: str | None = Field(
+        default=None, description="Python version used for processing"
+    )
+    processed_at: str = Field(
+        ..., description="ISO timestamp when processing completed"
+    )
+    processing_duration_seconds: float | None = Field(
+        default=None, ge=0.0, description="Total processing time in seconds"
+    )
+    worker_id: str | None = Field(
+        default=None, description="Identifier of the worker that processed the job"
+    )
+    config_hash: str | None = Field(
+        default=None,
+        description="Hash of the processing configuration for cache validation",
+    )
+    audio_settings: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Audio processing settings (sample rate, bit depth, etc.)",
+    )
+    video_settings: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Video encoding settings (codec, resolution, etc.)",
+    )
 
 
 class EffectSchema(BaseModel):
@@ -198,6 +408,10 @@ class ToneSelectionResponse(BaseModel):
     highpass: bool
     effects_json: str | None
     position: int
+    start_ms: int | None
+    end_ms: int | None
+    audio_metrics: AudioMetricsSchema | None
+    ai_evaluation: AIEvaluationSchema | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -298,6 +512,7 @@ class ShootoutResponse(BaseModel):
     di_track_description: str | None
     is_processed: bool
     output_path: str | None
+    processing_metadata: ProcessingMetadataSchema | None
     tone_selections: list[ToneSelectionResponse]
     created_at: datetime
     updated_at: datetime
