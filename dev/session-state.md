@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.3 | #21 Pipeline builder | Ready | Start in new session |
+| v2.4 | #22 Pipeline Web Adapter | Ready | Start in new session |
 
 ---
 
@@ -20,7 +20,7 @@
 | v2.0 - Web Application Foundation | #5 | #6, #7, #8, #9, #10 | **Complete** |
 | v2.1 - Tone 3000 Integration | #11 | #12, #13 | **Complete** |
 | v2.2 - Job Queue System | #14 | #15, #16, #17 | **Complete** |
-| v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | In Progress |
+| v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | **Complete** |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | Ready to Start |
 | v2.5 - UI Design System | TBD | TBD | Ready |
 | v2.6 - Signal Chain Builder | TBD | TBD | Ready |
@@ -29,22 +29,22 @@
 
 ---
 
-## v2.3 Frontend (Astro) - IN PROGRESS
+## v2.3 Frontend (Astro) - COMPLETE
 
 | Issue | Title | Status |
 |-------|-------|--------|
 | #19 | Astro project setup with shadcn/ui | **Merged** (#55) |
 | #20 | Landing page and layout components | **Merged** (#66) |
-| #21 | Pipeline builder React component | Ready |
+| #21 | Pipeline builder React component | **Merged** (#67) |
 
-**What was built in #20:**
-- **Header.astro**: Sticky header with mobile hamburger menu
-- **Footer.astro**: Footer with Resources and Legal links
-- **Hero.astro**: Hero with CTAs and platform stats (NAM, IR, AIDA-X)
-- **Features.astro**: "How It Works" and "Why Tone Shootout?" sections
-- **CTA.astro**: Sign-in with Tone 3000 call to action
-- **Layout.astro**: SEO meta tags (Open Graph, Twitter, canonical URL)
-- **UserNav.tsx**: Fixed to use `/api` proxy instead of hardcoded URLs
+**What was built in #21:**
+- **PipelineBuilder**: Main component with 3-step UX flow
+- **ToneSelector**: Browse My Tones, Favorites, Search with gear/platform filters
+- **ToneCard**: Display selected tones with NAM/IR/AIDA-X platform badges
+- **DITrackUpload**: Drag-and-drop audio upload with format validation
+- **Hooks**: TanStack Query hooks for tones, job submission, and auth
+- **builder.astro**: Builder page at `/builder` route
+- Updated navigation links in Header and Hero
 
 ---
 
@@ -104,6 +104,7 @@
 
 ## Recent Activity
 
+- **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
 - **2025-12-27**: Merged #20 Landing page and layout components (#66).
 - **2025-12-27**: Created v2.8 Audio Analysis & Reproducibility epic (#58) with 7 sub-issues.
 - **2025-12-27**: Merged #56 Pedalboard NAM Migration (#57). PyTorch NAM → Pedalboard + VST3.
@@ -118,16 +119,17 @@
 
 ## Resume Instructions
 
-To continue v2.3 Frontend in a new session:
+To start v2.4 Pipeline Web Adapter in a new session:
 
 ```bash
 # 1. Read context
 cat dev/session-state.md
-gh issue list --milestone "v2.3 - Frontend (Astro)"
+gh issue list --milestone "v2.4 - Pipeline Web Adapter"
 
-# 2. View next issue and create branch
-gh issue view 21
-git checkout -b 21-pipeline-builder
+# 2. View epic and first issue
+gh issue view 22
+gh issue view 23
+git checkout -b 23-pipeline-task
 ```
 
 ---
