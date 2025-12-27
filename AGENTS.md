@@ -119,18 +119,19 @@ This project uses git worktrees for isolated parallel development. Each worktree
 
 ### Structure (After Migration)
 
+Everything is contained in a SINGLE directory:
+
 ```
-/Users/ryanlauterbach/Work/
-├── guitar-tone-shootout.git/           # Bare repository
-├── guitar-tone-shootout-worktrees/     # Worktree root
-│   ├── .worktree/
-│   │   └── registry.db                 # SQLite registry (ports, volumes)
-│   ├── seed.sql                        # Shared database seed
-│   ├── main/                           # Main worktree (offset 0)
-│   │   ├── worktree.py → worktree/worktree.py
-│   │   ├── worktree/                   # Worktree management package
-│   │   └── ...
-│   └── 42-feature-audio/               # Feature worktree (offset 1)
+/Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/
+├── guitar-tone-shootout.git/       # Bare repository (INSIDE worktrees folder)
+├── .worktree/
+│   └── registry.db                 # SQLite registry (ports, volumes)
+├── seed.sql                        # Shared database seed
+├── main/                           # Main worktree (offset 0)
+│   ├── worktree.py → worktree/worktree.py
+│   ├── worktree/                   # Worktree management package
+│   └── ...
+└── 42-feature-audio/               # Feature worktree (offset 1)
 ```
 
 ### Port Allocation

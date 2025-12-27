@@ -144,15 +144,14 @@ See [AGENTS.md](AGENTS.md) for the complete development workflow, including:
 
 This project supports git worktrees for isolated parallel development. Each worktree has its own Docker environment with unique ports.
 
-**After bare repo migration:**
+**After bare repo migration (single directory):**
 ```
-/Work/
-├── guitar-tone-shootout.git/           # Bare repository
-├── guitar-tone-shootout-worktrees/     # Worktree root
-│   ├── .worktree/registry.db           # SQLite registry
-│   ├── seed.sql                        # Shared database seed
-│   ├── main/                           # Main worktree
-│   └── 42-feature-audio/               # Feature worktree
+/Work/guitar-tone-shootout-worktrees/
+├── guitar-tone-shootout.git/     # Bare repository (INSIDE worktrees folder)
+├── .worktree/registry.db         # SQLite registry
+├── seed.sql                      # Shared database seed
+├── main/                         # Main worktree
+└── 42-feature-audio/             # Feature worktree
 ```
 
 **Quick Start:**

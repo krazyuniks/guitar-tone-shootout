@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # convert-to-bare-repo.sh - Convert guitar-tone-shootout to bare repo + worktree structure
 #
-# This script:
-# 1. Clones the repo as a bare repository
-# 2. Creates the worktree root directory
-# 3. Creates the main worktree
-# 4. Sets up shared volumes
-# 5. Initializes the SQLite registry
-# 6. Creates seed.sql placeholder
+# This script creates a single directory containing:
+#   guitar-tone-shootout-worktrees/
+#   ├── guitar-tone-shootout.git/    # Bare repository (INSIDE worktrees folder)
+#   ├── .worktree/                    # Registry
+#   │   └── registry.db
+#   ├── seed.sql                      # Shared seed data
+#   ├── main/                         # Main worktree
+#   └── [feature worktrees...]
 #
 # Run from anywhere - paths are absolute
 
@@ -23,8 +24,8 @@ NC='\033[0m'
 # Configuration
 WORK_DIR="/Users/ryanlauterbach/Work"
 ORIGINAL_REPO="${WORK_DIR}/guitar-tone-shootout"
-BARE_REPO="${WORK_DIR}/guitar-tone-shootout.git"
 WORKTREE_ROOT="${WORK_DIR}/guitar-tone-shootout-worktrees"
+BARE_REPO="${WORKTREE_ROOT}/guitar-tone-shootout.git"  # INSIDE worktrees folder
 MAIN_WORKTREE="${WORKTREE_ROOT}/main"
 REGISTRY_DIR="${WORKTREE_ROOT}/.worktree"
 REGISTRY_DB="${REGISTRY_DIR}/registry.db"
@@ -45,13 +46,6 @@ log_step "Running pre-flight checks..."
 
 if [ ! -d "$ORIGINAL_REPO" ]; then
     log_error "Original repo not found: $ORIGINAL_REPO"
-    exit 1
-fi
-
-if [ -d "$BARE_REPO" ]; then
-    log_error "Bare repo already exists: $BARE_REPO"
-    echo "Remove it first if you want to re-run conversion:"
-    echo "  rm -rf $BARE_REPO"
     exit 1
 fi
 
@@ -79,12 +73,13 @@ log_info "Current branch: $CURRENT_BRANCH"
 
 # Confirm with user
 echo ""
-echo "This script will:"
-echo "  1. Clone $REMOTE_URL as bare repo"
-echo "  2. Create worktree structure at $WORKTREE_ROOT"
-echo "  3. Create main worktree at $MAIN_WORKTREE"
-echo "  4. Initialize SQLite registry"
-echo "  5. Create shared Docker volumes"
+echo "This script will create a SINGLE directory containing:"
+echo ""
+echo "  $WORKTREE_ROOT/"
+echo "  ├── guitar-tone-shootout.git/   # Bare repository"
+echo "  ├── .worktree/registry.db       # SQLite registry"
+echo "  ├── seed.sql                    # Shared seed data"
+echo "  └── main/                       # Main worktree"
 echo ""
 read -p "Continue? [y/N] " -n 1 -r
 echo ""
@@ -93,19 +88,19 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# Step 1: Clone as bare repo
+# Step 1: Create worktree root and registry directory
 echo ""
-log_step "Step 1: Creating bare repository..."
-git clone --bare "$REMOTE_URL" "$BARE_REPO"
-log_info "Bare repo created at: $BARE_REPO"
-
-# Step 2: Create worktree root and registry directory
-echo ""
-log_step "Step 2: Creating worktree root structure..."
+log_step "Step 1: Creating worktree root structure..."
 mkdir -p "$WORKTREE_ROOT"
 mkdir -p "$REGISTRY_DIR"
 log_info "Worktree root: $WORKTREE_ROOT"
 log_info "Registry dir: $REGISTRY_DIR"
+
+# Step 2: Clone as bare repo INSIDE worktrees folder
+echo ""
+log_step "Step 2: Creating bare repository (inside worktrees folder)..."
+git clone --bare "$REMOTE_URL" "$BARE_REPO"
+log_info "Bare repo created at: $BARE_REPO"
 
 # Step 3: Create main worktree
 echo ""
@@ -227,32 +222,37 @@ EOF
 
 log_info "Seed file created: ${WORKTREE_ROOT}/seed.sql"
 
-# Step 7: Note about worktree package
+# Step 7: Create symlink to worktree.py for convenience
 echo ""
-log_step "Step 7: Worktree management package..."
-log_warn "The worktree/ package needs to be created separately"
-echo "  This will be implemented in the next phase"
-echo ""
+log_step "Step 7: Creating worktree CLI symlink..."
+if [ -f "${MAIN_WORKTREE}/worktree/worktree.py" ]; then
+    ln -sf worktree/worktree.py "${MAIN_WORKTREE}/worktree.py"
+    log_info "Symlink created: ${MAIN_WORKTREE}/worktree.py -> worktree/worktree.py"
+else
+    log_warn "worktree/worktree.py not found, skipping symlink"
+fi
 
 # Summary
+echo ""
 echo "========================================="
 log_info "Conversion complete!"
 echo "========================================="
 echo ""
-echo "Structure created:"
-echo "  Bare repo:       $BARE_REPO"
-echo "  Worktree root:   $WORKTREE_ROOT"
-echo "  Main worktree:   $MAIN_WORKTREE"
-echo "  Registry DB:     $REGISTRY_DB"
-echo "  Seed file:       ${WORKTREE_ROOT}/seed.sql"
-echo "  Model cache:     gts-model-cache (Docker volume)"
+echo "Single directory structure created:"
+echo ""
+echo "  $WORKTREE_ROOT/"
+echo "  ├── guitar-tone-shootout.git/   # Bare repository"
+echo "  ├── .worktree/registry.db       # SQLite registry"
+echo "  ├── seed.sql                    # Shared seed data"
+echo "  └── main/                       # Main worktree"
 echo ""
 echo "Next steps:"
 echo "  1. cd $MAIN_WORKTREE"
-echo "  2. Implement worktree/ Python package"
-echo "  3. Run: ./worktree.py setup main"
-echo "  4. Export seed data if needed"
+echo "  2. pip install -e worktree/"
+echo "  3. ./worktree.py setup main"
+echo "  4. docker compose up"
 echo ""
 log_warn "Original repo preserved at: $ORIGINAL_REPO"
 echo "Delete it after verifying the new structure works:"
 echo "  rm -rf $ORIGINAL_REPO"
+echo ""

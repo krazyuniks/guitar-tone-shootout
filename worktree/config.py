@@ -100,10 +100,17 @@ def get_seed_path() -> Path:
 
 
 def get_bare_repo_path() -> Path:
-    """Get the path to the bare git repository."""
+    """Get the path to the bare git repository.
+
+    The bare repo is INSIDE the worktrees folder:
+    /Work/guitar-tone-shootout-worktrees/
+    ├── guitar-tone-shootout.git/    # Bare repository
+    ├── .worktree/                    # Registry
+    ├── main/                         # Main worktree
+    └── 42-feature/                   # Feature worktrees
+    """
     worktree_root = get_worktree_root()
-    # Assumes: /Work/guitar-tone-shootout-worktrees/ -> /Work/guitar-tone-shootout.git/
-    return worktree_root.parent / "guitar-tone-shootout.git"
+    return worktree_root / "guitar-tone-shootout.git"
 
 
 def get_current_worktree_path() -> Path:
