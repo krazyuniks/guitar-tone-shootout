@@ -113,6 +113,188 @@ A pre-commit hook validates:
 
 ---
 
+## Git Worktree Development
+
+This project uses git worktrees for isolated parallel development. Each worktree has its own Docker environment with unique ports.
+
+### Structure (After Migration)
+
+```
+/Users/ryanlauterbach/Work/
+├── guitar-tone-shootout.git/           # Bare repository
+├── guitar-tone-shootout-worktrees/     # Worktree root
+│   ├── .worktree/
+│   │   └── registry.db                 # SQLite registry (ports, volumes)
+│   ├── seed.sql                        # Shared database seed
+│   ├── main/                           # Main worktree (offset 0)
+│   │   ├── worktree.py → worktree/worktree.py
+│   │   ├── worktree/                   # Worktree management package
+│   │   └── ...
+│   └── 42-feature-audio/               # Feature worktree (offset 1)
+```
+
+### Port Allocation
+
+| Service | Main (offset 0) | Feature (offset N) |
+|---------|-----------------|-------------------|
+| Frontend | 4321 | 4321 + (N × 10) |
+| Backend | 8000 | 8000 + (N × 10) |
+| Database | 5432 | 5432 + N |
+| Redis | 6379 | 6379 + N |
+
+### Volume Strategy
+
+- **Isolated per worktree**: PostgreSQL, Redis, uploads
+- **Shared read-only**: Model cache (`gts-model-cache`)
+
+### Worktree Commands
+
+```bash
+# Create new worktree from issue
+./worktree.py setup 42
+
+# Create with explicit branch name
+./worktree.py setup 42/feature-audio-analysis
+
+# Register existing main worktree
+./worktree.py setup main
+
+# List all worktrees with status
+./worktree.py list
+
+# Check current worktree health
+./worktree.py health
+
+# Show detailed status
+./worktree.py status
+
+# Teardown worktree (after PR merged)
+./worktree.py teardown 42-feature-audio
+
+# Other utilities
+./worktree.py ports      # Show port allocations
+./worktree.py prune      # Remove stale entries
+./worktree.py start      # Start Docker services
+./worktree.py stop       # Stop Docker services
+./worktree.py seed       # Re-run database seeding
+```
+
+### Worktree Workflow
+
+**Phase 0: Create Worktree**
+```bash
+cd /path/to/main
+./worktree.py setup 42
+cd ../42-feature-audio
+./worktree.py health
+```
+
+**During Development**
+- Each worktree is completely isolated
+- Use `./worktree.py health` to verify services
+- Access frontend at `http://localhost:<frontend-port>`
+
+**After PR Merged**
+```bash
+./worktree.py teardown 42-feature-audio
+# Cleans up: containers, volumes, git worktree, branches
+```
+
+### Claude Slash Commands
+
+| Command | Description |
+|---------|-------------|
+| `/worktree-setup <issue>` | Create new worktree |
+| `/worktree-teardown <name>` | Remove worktree and cleanup |
+| `/worktree-list` | List all worktrees |
+| `/worktree-health` | Check current worktree health |
+
+---
+
+## Parallel Agent Task Planning
+
+When planning epic implementation, **explicitly identify parallel vs serial task blocks**. This enables efficient execution with multiple AI agents working simultaneously.
+
+### Task Block Types
+
+**Serial Block** (must run sequentially):
+- Tasks with dependencies on previous task outputs
+- Database migrations before queries
+- File creation before file editing
+- API design before implementation
+
+**Parallel Block** (can run simultaneously):
+- Independent feature implementations
+- Tests for different modules
+- Documentation for separate components
+- Frontend and backend work on different endpoints
+
+### Planning Format
+
+When creating execution plans, use this format:
+
+```markdown
+## Epic: User Authentication
+
+### Serial Block 1: Database Setup
+1. Create User model and migration
+2. Run migration
+3. Create seed data
+
+### Parallel Block 1: Core Features (3 agents)
+- [ ] Agent A: Implement login endpoint
+- [ ] Agent B: Implement logout endpoint
+- [ ] Agent C: Implement token refresh endpoint
+
+### Serial Block 2: Integration
+1. Connect frontend to auth endpoints
+2. Add auth middleware to protected routes
+
+### Parallel Block 2: Polish (2 agents)
+- [ ] Agent A: Add error handling and validation
+- [ ] Agent B: Write integration tests
+
+### Serial Block 3: Finalization
+1. End-to-end browser testing
+2. Documentation update
+3. PR creation
+```
+
+### Execution Rules
+
+1. **Complete all tasks in a serial block** before moving to the next block
+2. **Launch parallel agents simultaneously** using multiple `Task` tool calls in a single message
+3. **Wait for all parallel agents** to complete before the next serial block
+4. **Each parallel agent gets its own worktree** for isolation
+
+### Agent Assignment
+
+For parallel blocks with worktrees:
+
+```bash
+# Terminal 1 (Agent A)
+cd ../42-feature-login
+# Work on login endpoint
+
+# Terminal 2 (Agent B)
+cd ../43-feature-logout
+# Work on logout endpoint
+
+# Terminal 3 (Agent C)
+cd ../44-feature-refresh
+# Work on refresh endpoint
+```
+
+### Identifying Parallelizable Tasks
+
+Ask these questions:
+1. Does this task depend on output from another task? → **Serial**
+2. Does this task modify the same files as another? → **Serial**
+3. Does this task require a database state from another? → **Serial**
+4. Can this task run with only the current main branch state? → **Parallel**
+
+---
+
 ## Project Structure
 
 ```

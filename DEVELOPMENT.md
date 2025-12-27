@@ -140,6 +140,46 @@ See [AGENTS.md](AGENTS.md) for the complete development workflow, including:
 - Quality gates
 - Session checkpoints
 
+### Git Worktree Development (Parallel Development)
+
+This project supports git worktrees for isolated parallel development. Each worktree has its own Docker environment with unique ports.
+
+**After bare repo migration:**
+```
+/Work/
+├── guitar-tone-shootout.git/           # Bare repository
+├── guitar-tone-shootout-worktrees/     # Worktree root
+│   ├── .worktree/registry.db           # SQLite registry
+│   ├── seed.sql                        # Shared database seed
+│   ├── main/                           # Main worktree
+│   └── 42-feature-audio/               # Feature worktree
+```
+
+**Quick Start:**
+```bash
+# Create worktree from issue number
+./worktree.py setup 42
+
+# Navigate to new worktree
+cd ../42-feature-audio
+
+# Check health
+./worktree.py health
+
+# After PR merged, teardown
+./worktree.py teardown 42-feature-audio
+```
+
+**Port Allocation:**
+| Service | Main | Feature (offset N) |
+|---------|------|-------------------|
+| Frontend | 4321 | 4321 + (N × 10) |
+| Backend | 8000 | 8000 + (N × 10) |
+| Database | 5432 | 5432 + N |
+| Redis | 6379 | 6379 + N |
+
+See [AGENTS.md](AGENTS.md#git-worktree-development) for complete worktree documentation.
+
 ### Git Rules
 
 **Never use `git stash`**. If you need to switch context or pause work:
