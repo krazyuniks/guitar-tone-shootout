@@ -110,14 +110,22 @@ services:
 
   cloudbeaver:
     image: dbeaver/cloudbeaver:latest
+    env_file:
+      - .env
+      - .env.local
     # ports defined in docker-compose.override.yml (worktree-specific)
     volumes:
       - cloudbeaver_data:/opt/cloudbeaver/workspace
+      - ./cloudbeaver/initial-data-sources.conf:/opt/cloudbeaver/conf/initial-data-sources.conf:ro
     depends_on:
       db:
         condition: service_healthy
     environment:
-      CB_SERVER_NAME: GTS Database
+      # Auto-configure server (skip setup wizard)
+      # Note: CB_ADMIN_NAME cannot be "admin" - it's a reserved team name
+      CB_SERVER_NAME: ${CB_SERVER_NAME:-GTS Database}
+      CB_ADMIN_NAME: ${CB_ADMIN_NAME:-cbadmin}
+      CB_ADMIN_PASSWORD: ${CB_ADMIN_PASSWORD:-devpassword}
     profiles:
       - tools  # Only start when explicitly requested
 
