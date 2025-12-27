@@ -117,6 +117,8 @@ services:
     volumes:
       - cloudbeaver_data:/opt/cloudbeaver/workspace
       - ./cloudbeaver/initial-data-sources.conf:/opt/cloudbeaver/conf/initial-data-sources.conf:ro
+      - ./cloudbeaver/entrypoint.sh:/opt/cloudbeaver/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/opt/cloudbeaver/entrypoint.sh"]
     depends_on:
       db:
         condition: service_healthy
@@ -125,7 +127,9 @@ services:
       # Note: CB_ADMIN_NAME cannot be "admin" - it's a reserved team name
       CB_SERVER_NAME: ${CB_SERVER_NAME:-GTS Database}
       CB_ADMIN_NAME: ${CB_ADMIN_NAME:-cbadmin}
-      CB_ADMIN_PASSWORD: ${CB_ADMIN_PASSWORD:-devpassword}
+      CB_ADMIN_PASSWORD: ${DB_PASSWORD:-devpassword}
+      # Pass DB_PASSWORD for data source injection
+      DB_PASSWORD: ${DB_PASSWORD:-devpassword}
     profiles:
       - tools  # Only start when explicitly requested
 
