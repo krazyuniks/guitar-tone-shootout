@@ -61,7 +61,8 @@ from .templates import write_worktree_configs
 app = typer.Typer(
     name="worktree",
     help="Git Worktree management for Guitar Tone Shootout",
-    no_args_is_help=True,
+    no_args_is_help=False,
+    invoke_without_command=True,
 )
 console = Console()
 
@@ -84,6 +85,106 @@ def print_warning(message: str) -> None:
 def print_info(message: str) -> None:
     """Print an info message."""
     console.print(f"[blue]Info:[/blue] {message}")
+
+
+def get_db_password(worktree_path: Path) -> str:
+    """Read DB_PASSWORD from .env file."""
+    db_password = "devpassword"  # default
+    env_file = worktree_path / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("DB_PASSWORD="):
+                db_password = line.split("=", 1)[1].strip()
+                break
+    return db_password
+
+
+def print_worktree_info(worktree, health_result=None, show_services: bool = True) -> None:
+    """Print detailed worktree information including containers and credentials."""
+    wt_path = Path(worktree.worktree_path)
+    db_password = get_db_password(wt_path)
+
+    # Get health if not provided
+    if health_result is None and wt_path.exists():
+        health_result = check_worktree_health(wt_path)
+
+    status_str = "[green]Healthy[/green]" if (health_result and health_result.healthy) else "[yellow]Unknown[/yellow]"
+    if health_result and not health_result.healthy:
+        status_str = "[red]Unhealthy[/red]"
+
+    content = f"""[bold]Worktree:[/bold] {worktree.worktree_name}
+[bold]Branch:[/bold] {worktree.branch}
+[bold]Path:[/bold] {worktree.worktree_path}
+[bold]Status:[/bold] {status_str}
+
+[bold cyan]Service URLs:[/bold cyan]
+  Frontend:    http://localhost:{worktree.ports.frontend}
+  Backend:     http://localhost:{worktree.ports.backend}
+  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
+
+[bold cyan]Database Access:[/bold cyan]
+  Host: localhost:{worktree.ports.db}
+  User: shootout
+  Pass: {db_password}
+  DB:   shootout
+
+[bold cyan]CloudBeaver Login:[/bold cyan]
+  User: cbadmin
+  Pass: {db_password}
+
+[bold]Ports:[/bold]
+  Frontend:    {worktree.ports.frontend}
+  Backend:     {worktree.ports.backend}
+  Database:    {worktree.ports.db}
+  Redis:       {worktree.ports.redis}
+  CloudBeaver: {worktree.ports.cloudbeaver}"""
+
+    if show_services and health_result:
+        content += "\n\n[bold]Containers:[/bold]"
+        for svc, state in health_result.services.items():
+            icon = "[green]●[/green]" if state == "running" else "[red]○[/red]"
+            content += f"\n  {icon} {svc}: {state}"
+
+        if health_result.issues:
+            content += "\n\n[bold]Issues:[/bold]"
+            for issue in health_result.issues:
+                content += f"\n  - {issue}"
+
+    console.print(Panel(content, title=f"Worktree: {worktree.worktree_name}"))
+
+
+@app.callback()
+def main_callback(ctx: typer.Context) -> None:
+    """Show current worktree info when called without a command.
+
+    Run without arguments to see info for the current worktree,
+    or use a command like 'list', 'setup', 'health', etc.
+    """
+    # Only show info if no command was invoked
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # Try to show current worktree info
+    try:
+        current_path = get_current_worktree_path()
+        worktree = get_worktree_by_path(current_path)
+    except WorktreeNotFoundError:
+        # Not in a worktree - show help
+        console.print("[yellow]Not in a registered worktree.[/yellow]")
+        console.print()
+        console.print("Available commands:")
+        console.print("  [cyan]./worktree.py list[/cyan]     - List all worktrees")
+        console.print("  [cyan]./worktree.py setup <issue>[/cyan] - Create new worktree")
+        console.print("  [cyan]./worktree.py --help[/cyan]  - Show all commands")
+        return
+
+    with console.status("[bold]Loading worktree info..."):
+        health = check_worktree_health(current_path)
+
+    print_worktree_info(worktree, health)
+
+    console.print()
+    console.print("[dim]Start CloudBeaver: docker compose --profile tools up -d cloudbeaver[/dim]")
 
 
 @app.command()
@@ -252,50 +353,51 @@ def setup(
             if not run_migrations(worktree_path):
                 print_warning("Migrations may have failed. Check manually.")
 
-    # Read DB_PASSWORD from .env file for display
-    db_password = "devpassword"  # default
-    env_file = worktree_path / ".env"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            if line.startswith("DB_PASSWORD="):
-                db_password = line.split("=", 1)[1].strip()
-                break
+    # Get health status for container info
+    health = check_worktree_health(worktree_path) if not no_start else None
 
-    # Success summary
+    # Read DB_PASSWORD from .env file for display
+    db_password = get_db_password(worktree_path)
+
+    # Build container status line
+    containers_line = "[dim]Not started[/dim]"
+    if health:
+        container_parts = []
+        for svc, state in health.services.items():
+            icon = "[green]●[/green]" if state == "running" else "[red]○[/red]"
+            container_parts.append(f"{icon} {svc}")
+        containers_line = "  ".join(container_parts) if container_parts else "[dim]No containers[/dim]"
+
+    # Success summary with full details
     console.print()
     console.print(
         Panel(
-            f"""[green]Worktree created successfully![/green]
+            f"""[green bold]Worktree created successfully![/green bold]
 
-[bold]Path:[/bold] {worktree_path}
 [bold]Branch:[/bold] {branch}
+[bold]Path:[/bold] {worktree_path}
 
-[bold cyan]Service URLs:[/bold cyan]
-  Frontend:    http://localhost:{worktree.ports.frontend}
-  Backend:     http://localhost:{worktree.ports.backend}
-  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
+[bold cyan]URLs:[/bold cyan]
+  Frontend: http://localhost:{worktree.ports.frontend}  |  Backend: http://localhost:{worktree.ports.backend}  |  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
 
-[bold cyan]Database Access:[/bold cyan]
-  Host: localhost:{worktree.ports.db}
-  User: shootout
-  Pass: {db_password}
-  DB:   shootout
+[bold cyan]Database:[/bold cyan] localhost:{worktree.ports.db}  User: [green]shootout[/green]  Pass: [green]{db_password}[/green]
 
-[bold cyan]CloudBeaver Login:[/bold cyan]
-  URL:  http://localhost:{worktree.ports.cloudbeaver}
-  User: cbadmin
-  Pass: {db_password}
+[bold cyan]CloudBeaver:[/bold cyan] User: [green]cbadmin[/green]  Pass: [green]{db_password}[/green]
 
-[dim]Start CloudBeaver:[/dim]
-  docker compose --profile tools up -d cloudbeaver
-
-[dim]Next steps:[/dim]
-  cd {worktree_path}
-  ./worktree.py health
+[bold]Containers:[/bold] {containers_line}
 """,
-            title="Worktree Setup Complete",
+            title=f"Worktree: {worktree_name}",
+            border_style="green",
         )
     )
+
+    # Prominent cd command for easy copy
+    console.print()
+    console.print("[bold yellow]To start working:[/bold yellow]")
+    console.print()
+    console.print(f"  [bold cyan]cd {worktree_path}[/bold cyan]")
+    console.print()
+    console.print("[dim]Start CloudBeaver: docker compose --profile tools up -d cloudbeaver[/dim]")
 
 
 @app.command()
@@ -387,8 +489,14 @@ def teardown(
 
 
 @app.command("list")
-def list_cmd() -> None:
-    """List all registered worktrees."""
+def list_cmd(
+    compact: bool = typer.Option(False, "--compact", "-c", help="Show compact table view"),
+) -> None:
+    """List all registered worktrees with full details.
+
+    By default shows expanded view with containers, ports, and credentials.
+    Use --compact for a simple table view.
+    """
     worktrees = list_worktrees()
 
     if not worktrees:
@@ -404,38 +512,93 @@ def list_cmd() -> None:
     except Exception:
         current_name = None
 
-    table = Table(title="Guitar Tone Shootout Worktrees")
-    table.add_column("Name", style="cyan")
-    table.add_column("Status")
-    table.add_column("Branch")
-    table.add_column("Ports")
-    table.add_column("URL")
+    if compact:
+        # Compact table view (original behavior)
+        table = Table(title="Guitar Tone Shootout Worktrees")
+        table.add_column("Name", style="cyan")
+        table.add_column("Status")
+        table.add_column("Branch")
+        table.add_column("Ports")
+        table.add_column("URL")
+
+        for wt in worktrees:
+            wt_path = Path(wt.worktree_path)
+            if wt_path.exists():
+                healthy = quick_health_check(wt_path)
+                status = "[green]●[/green]" if healthy else "[yellow]○[/yellow]"
+            else:
+                status = "[red]●[/red]"
+
+            name = wt.worktree_name
+            if name == current_name:
+                name = f"{name} [dim](current)[/dim]"
+
+            table.add_row(
+                name,
+                status,
+                wt.branch,
+                format_ports_display(wt.ports),
+                wt.frontend_url,
+            )
+
+        console.print(table)
+        console.print()
+        console.print(f"Total: {len(worktrees)} worktrees")
+        return
+
+    # Expanded view with full details
+    console.print(f"[bold]Guitar Tone Shootout Worktrees ({len(worktrees)})[/bold]\n")
 
     for wt in worktrees:
-        # Check health
         wt_path = Path(wt.worktree_path)
+        is_current = wt.worktree_name == current_name
+        db_password = get_db_password(wt_path) if wt_path.exists() else "devpassword"
+
+        # Get health and container status
         if wt_path.exists():
-            healthy = quick_health_check(wt_path)
-            status = "[green]\u25cf[/green]" if healthy else "[yellow]\u25cb[/yellow]"
+            health = check_worktree_health(wt_path)
+            healthy = health.healthy
+            services = health.services
         else:
-            status = "[red]\u25cf[/red]"
+            healthy = False
+            services = {}
 
-        # Mark current
-        name = wt.worktree_name
-        if name == current_name:
-            name = f"{name} [dim](current)[/dim]"
+        # Build status indicator
+        if not wt_path.exists():
+            status_str = "[red]● Missing[/red]"
+        elif healthy:
+            status_str = "[green]● Healthy[/green]"
+        else:
+            status_str = "[yellow]○ Unhealthy[/yellow]"
 
-        table.add_row(
-            name,
-            status,
-            wt.branch,
-            format_ports_display(wt.ports),
-            wt.frontend_url,
-        )
+        # Build container status line
+        container_parts = []
+        for svc, state in services.items():
+            icon = "[green]●[/green]" if state == "running" else "[red]○[/red]"
+            container_parts.append(f"{icon} {svc}")
+        containers_line = "  ".join(container_parts) if container_parts else "[dim]No containers[/dim]"
 
-    console.print(table)
-    console.print()
-    console.print(f"Total: {len(worktrees)} worktrees")
+        # Title with current marker
+        title = f"{wt.worktree_name}"
+        if is_current:
+            title = f"★ {title} (current)"
+
+        content = f"""[bold]Branch:[/bold] {wt.branch}  |  [bold]Status:[/bold] {status_str}
+[bold]Path:[/bold] {wt.worktree_path}
+
+[bold cyan]URLs:[/bold cyan]
+  Frontend: http://localhost:{wt.ports.frontend}  |  Backend: http://localhost:{wt.ports.backend}  |  CloudBeaver: http://localhost:{wt.ports.cloudbeaver}
+
+[bold cyan]Database:[/bold cyan] localhost:{wt.ports.db}  User: [green]shootout[/green]  Pass: [green]{db_password}[/green]
+
+[bold cyan]CloudBeaver:[/bold cyan] User: [green]cbadmin[/green]  Pass: [green]{db_password}[/green]
+
+[bold]Containers:[/bold] {containers_line}"""
+
+        console.print(Panel(content, title=title, border_style="cyan" if is_current else "dim"))
+        console.print()
+
+    console.print("[dim]Use --compact for table view  |  Start CloudBeaver: docker compose --profile tools up -d cloudbeaver[/dim]")
 
 
 @app.command()
