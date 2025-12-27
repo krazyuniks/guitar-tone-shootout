@@ -1,0 +1,104 @@
+---
+const currentYear = new Date().getFullYear();
+---
+
+<footer class="border-t border-border bg-card">
+  <div class="container mx-auto px-4 py-8">
+    <div class="grid gap-8 md:grid-cols-3">
+      <!-- Brand -->
+      <div>
+        <a href="/" class="flex items-center gap-2 text-lg font-bold">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5 text-amber-500"
+            aria-hidden="true"
+          >
+            <path d="m11.9 12.1 4.514-4.514" />
+            <path d="M20.1 2.3a1 1 0 0 0-1.4 0l-1.114 1.114A2 2 0 0 0 17 4.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 17.828 7h1.344a2 2 0 0 0 1.414-.586L21.7 5.3a1 1 0 0 0 0-1.4z" />
+            <path d="m6 16 2 2" />
+            <path d="M8.2 9.9C8.7 8.8 9.8 8 11 8c2.8 0 5 2.2 5 5 0 1.2-.8 2.3-1.9 2.8l-.9.4A2 2 0 0 0 12 18a4 4 0 0 1-4 4c-3.3 0-6-2.7-6-6a4 4 0 0 1 4-4 2 2 0 0 0 1.8-1.2z" />
+            <path d="m6 12 2-2" />
+          </svg>
+          <span class="text-amber-500">Tone Shootout</span>
+        </a>
+        <p class="mt-2 text-sm text-muted-foreground">
+          Compare guitar amp tones with NAM models, IRs, and AIDA-X profiles.
+        </p>
+      </div>
+
+      <!-- Links -->
+      <div>
+        <h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Resources
+        </h3>
+        <ul class="space-y-2 text-sm">
+          <li>
+            <a
+              href="https://www.tone3000.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-muted-foreground transition-colors hover:text-amber-400"
+            >
+              Tone 3000
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/sdatkinson/neural-amp-modeler"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-muted-foreground transition-colors hover:text-amber-400"
+            >
+              NAM (Neural Amp Modeler)
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/AidaDSP/AIDA-X"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-muted-foreground transition-colors hover:text-amber-400"
+            >
+              AIDA-X
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Legal -->
+      <div>
+        <h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Legal
+        </h3>
+        <ul class="space-y-2 text-sm">
+          <li>
+            <a
+              href="/privacy"
+              class="text-muted-foreground transition-colors hover:text-amber-400"
+            >
+              Privacy Policy
+            </a>
+          </li>
+          <li>
+            <a
+              href="/terms"
+              class="text-muted-foreground transition-colors hover:text-amber-400"
+            >
+              Terms of Service
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-8 border-t border-border pt-8 text-center text-sm text-muted-foreground">
+      <p>&copy; {currentYear} Guitar Tone Shootout. All rights reserved.</p>
+    </div>
+  </div>
+</footer>

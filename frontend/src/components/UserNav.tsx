@@ -16,7 +16,7 @@ export default function UserNav() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/v1/auth/me', {
+    fetch('/api/v1/auth/me', {
       credentials: 'include',
     })
       .then((res) => res.json())
@@ -31,7 +31,7 @@ export default function UserNav() {
   }, []);
 
   const handleLogout = async () => {
-    await fetch('http://localhost:8000/api/v1/auth/logout', {
+    await fetch('/api/v1/auth/logout', {
       method: 'POST',
       credentials: 'include',
     });

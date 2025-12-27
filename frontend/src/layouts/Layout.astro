@@ -1,39 +1,52 @@
 ---
 import '../styles/global.css';
-import UserNav from '../components/UserNav';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
 
 interface Props {
   title: string;
+  description?: string;
 }
 
-const { title } = Astro.props;
+const {
+  title,
+  description = 'Compare guitar amp tones with NAM models, IRs, and AIDA-X profiles. Create side-by-side video comparisons.',
+} = Astro.props;
+
+const canonicalURL = Astro.site
+  ? new URL(Astro.url.pathname, Astro.site)
+  : Astro.url;
 ---
 
 <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={`${title} | Guitar Tone Shootout`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL} />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={`${title} | Guitar Tone Shootout`} />
+    <meta name="twitter:description" content={description} />
+
+    <link rel="canonical" href={canonicalURL} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
-    <title>{title}</title>
+    <title>{title} | Guitar Tone Shootout</title>
   </head>
-  <body class="min-h-screen">
-    <nav class="bg-card border-b border-border px-4 py-3">
-      <div class="max-w-7xl mx-auto flex items-center justify-between">
-        <a href="/" class="text-xl font-bold text-amber-500">
-          Guitar Tone Shootout
-        </a>
-        <div class="flex items-center gap-4">
-          <a href="/shootouts" class="hover:text-amber-400 transition-colors">
-            Shootouts
-          </a>
-          <UserNav client:load />
-        </div>
-      </div>
-    </nav>
-    <main class="max-w-7xl mx-auto px-4 py-8">
+  <body class="flex min-h-screen flex-col">
+    <Header />
+    <main class="flex-1">
       <slot />
     </main>
+    <Footer />
   </body>
 </html>
