@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-skill-rules.json",
+  "version": "1.0",
+  "description": "Auto-activation rules for Guitar Tone Shootout skills",
+  "global_settings": {
+    "enable_auto_activation": true,
+    "max_concurrent_skills": 3,
+    "cooldown_period_seconds": 0,
+    "logging": {
+      "enabled": true,
+      "level": "info"
+    }
+  },
+  "skills": [
+    {
+      "skillName": "backend-dev",
+      "description": "FastAPI + SQLAlchemy backend development patterns",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "backend", "api", "endpoint", "route", "fastapi", "sqlalchemy",
+            "database", "model", "schema", "pydantic", "alembic", "migration",
+            "async", "await", "crud", "repository", "service", "auth",
+            "oauth", "jwt", "tone3000", "taskiq", "worker", "job", "queue"
+          ],
+          "file_content": [
+            "from fastapi", "from sqlalchemy", "from pydantic",
+            "async def", "await", "AsyncSession", "Depends(",
+            "APIRouter", "HTTPException", "BaseModel", "Mapped["
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "backend/**/*.py",
+            "backend/app/**/*.py",
+            "backend/alembic/**/*.py"
+          ],
+          "exclude": [
+            "**/__pycache__/**",
+            "**/node_modules/**"
+          ]
+        }
+      },
+      "activation": {
+        "mode": "aggressive",
+        "confidence_threshold": 0.3,
+        "auto_activate": true,
+        "suggestion_priority": "high"
+      }
+    },
+    {
+      "skillName": "frontend-dev",
+      "description": "Astro + React islands with TanStack (Query, Form, Table) and Tailwind CSS",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "frontend", "astro", "react", "component", "island", "page",
+            "tailwind", "css", "styling", "layout", "ui", "ux",
+            "typescript", "tsx", "jsx", "hook", "state", "props",
+            "tanstack", "query", "form", "table", "mutation", "useQuery",
+            "useMutation", "useForm", "useTable", "data fetching"
+          ],
+          "file_content": [
+            "import React", "from 'react'", "useState", "useEffect",
+            "export default function", "interface.*Props",
+            "client:load", "client:idle", "class=", "className=",
+            "@tanstack/react-query", "@tanstack/react-form", "@tanstack/react-table",
+            "useQuery", "useMutation", "useForm", "useReactTable"
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "frontend/**/*.ts",
+            "frontend/**/*.tsx",
+            "frontend/**/*.astro",
+            "frontend/**/*.css"
+          ],
+          "exclude": [
+            "**/node_modules/**",
+            "**/dist/**"
+          ]
+        }
+      },
+      "activation": {
+        "mode": "aggressive",
+        "confidence_threshold": 0.3,
+        "auto_activate": true,
+        "suggestion_priority": "high"
+      }
+    },
+    {
+      "skillName": "playwright",
+      "description": "Playwright browser automation and E2E testing",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "playwright", "browser", "e2e", "end-to-end", "test",
+            "automation", "screenshot", "selector", "locator",
+            "page", "click", "fill", "navigate", "assertion",
+            "chromium", "firefox", "webkit", "debug", "trace"
+          ],
+          "file_content": [
+            "from playwright", "import.*playwright",
+            "page.goto", "page.click", "page.fill",
+            "expect(", "locator(", "getByRole", "getByText"
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "**/tests/e2e/**/*.py",
+            "**/tests/e2e/**/*.ts",
+            "**/playwright.config.*"
+          ],
+          "exclude": []
+        }
+      },
+      "activation": {
+        "mode": "standard",
+        "confidence_threshold": 0.4,
+        "auto_activate": true,
+        "suggestion_priority": "high"
+      }
+    },
+    {
+      "skillName": "pipeline-dev",
+      "description": "Audio/video pipeline processing with NAM, Pedalboard, FFmpeg",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "pipeline", "audio", "video", "nam", "neural amp",
+            "pedalboard", "ffmpeg", "ir", "impulse response",
+            "wav", "flac", "mp4", "processing", "render",
+            "di track", "signal chain", "tone", "amp model"
+          ],
+          "file_content": [
+            "from nam", "from pedalboard", "import soundfile",
+            "ffmpeg", "Pedalboard", "Convolution", "init_from_nam"
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "pipeline/**/*.py",
+            "pipeline/src/**/*.py"
+          ],
+          "exclude": [
+            "**/__pycache__/**"
+          ]
+        }
+      },
+      "activation": {
+        "mode": "aggressive",
+        "confidence_threshold": 0.3,
+        "auto_activate": true,
+        "suggestion_priority": "high"
+      }
+    },
+    {
+      "skillName": "testing",
+      "description": "pytest patterns and test development",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "test", "pytest", "testing", "unit test", "integration test",
+            "fixture", "mock", "patch", "coverage", "assert",
+            "parametrize", "conftest", "tmp_path"
+          ],
+          "file_content": [
+            "import pytest", "from pytest", "@pytest.fixture",
+            "@pytest.mark", "def test_", "assert ", "with pytest.raises"
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "**/tests/**/*.py",
+            "**/test_*.py",
+            "**/*_test.py"
+          ],
+          "exclude": []
+        }
+      },
+      "activation": {
+        "mode": "standard",
+        "confidence_threshold": 0.35,
+        "auto_activate": true,
+        "suggestion_priority": "medium"
+      }
+    },
+    {
+      "skillName": "docker-infra",
+      "description": "Docker, Docker Compose, and infrastructure patterns",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "docker", "container", "compose", "dockerfile",
+            "service", "volume", "network", "build", "image",
+            "postgres", "redis", "nginx", "worker", "reverse proxy"
+          ],
+          "file_content": [
+            "FROM ", "docker compose", "services:", "volumes:",
+            "WORKDIR", "COPY", "RUN ", "EXPOSE", "CMD ["
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "**/Dockerfile*",
+            "**/docker-compose*.yml",
+            "**/docker-compose*.yaml",
+            "**/.dockerignore"
+          ],
+          "exclude": []
+        }
+      },
+      "activation": {
+        "mode": "standard",
+        "confidence_threshold": 0.4,
+        "auto_activate": true,
+        "suggestion_priority": "medium"
+      }
+    },
+    {
+      "skillName": "ui-design-system",
+      "description": "Design tokens, visual patterns, and component styling",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "design", "colors", "theme", "styling", "tokens", "visual",
+            "dark mode", "component style", "UI", "UX", "aesthetic",
+            "typography", "spacing", "shadows", "borders"
+          ],
+          "file_content": [
+            "bg-", "text-", "border-", "rounded-", "shadow-",
+            "hover:", "focus:", "className="
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            "frontend/**/*.css",
+            "frontend/**/*.tsx",
+            "frontend/**/*.astro",
+            "**/tailwind.config.*"
+          ],
+          "exclude": []
+        }
+      },
+      "activation": {
+        "mode": "standard",
+        "confidence_threshold": 0.4,
+        "auto_activate": true,
+        "suggestion_priority": "medium"
+      }
+    },
+    {
+      "skillName": "skill-writer",
+      "description": "Create and maintain Claude Code skills with proper structure",
+      "triggers": {
+        "keywords": {
+          "message": [
+            "skill", "create skill", "new skill", "write skill", "update skill",
+            "SKILL.md", "skill-rules", "activation", "frontmatter"
+          ],
+          "file_content": [
+            "name:", "description:", "---"
+          ]
+        },
+        "file_patterns": {
+          "include": [
+            ".claude/skills/**/*.md",
+            ".claude/skill-rules.json"
+          ],
+          "exclude": []
+        }
+      },
+      "activation": {
+        "mode": "standard",
+        "confidence_threshold": 0.5,
+        "auto_activate": true,
+        "suggestion_priority": "medium"
+      }
+    }
+  ]
+}
