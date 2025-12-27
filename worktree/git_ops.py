@@ -345,3 +345,78 @@ def generate_worktree_name(branch: str) -> str:
     """
     # Replace slashes with hyphens for directory naming
     return branch.replace("/", "-")
+
+
+# =============================================================================
+# Hook Management
+# =============================================================================
+
+
+def get_hooks_path() -> Path:
+    """Get the path to the bare repo's hooks directory.
+
+    Returns:
+        Path to the hooks directory (e.g., .../guitar-tone-shootout.git/hooks/)
+    """
+    return get_bare_repo_path() / "hooks"
+
+
+def get_hook_template_path() -> Path:
+    """Get the path to the hook templates directory.
+
+    Returns:
+        Path to the hooks templates (worktree/hooks/)
+    """
+    return Path(__file__).parent / "hooks"
+
+
+def is_hook_installed(hook_name: str) -> bool:
+    """Check if a hook is installed in the bare repo.
+
+    Args:
+        hook_name: Name of the hook (e.g., "post-commit")
+
+    Returns:
+        True if the hook exists and is executable
+    """
+    hook_path = get_hooks_path() / hook_name
+    return hook_path.exists() and hook_path.stat().st_mode & 0o111
+
+
+def install_hook(hook_name: str) -> bool:
+    """Install a hook from the templates to the bare repo.
+
+    Args:
+        hook_name: Name of the hook (e.g., "post-commit")
+
+    Returns:
+        True if installed successfully, False if template not found
+    """
+    template_path = get_hook_template_path() / hook_name
+    if not template_path.exists():
+        return False
+
+    hooks_dir = get_hooks_path()
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    hook_path = hooks_dir / hook_name
+    hook_path.write_text(template_path.read_text())
+    hook_path.chmod(0o755)  # Make executable
+
+    return True
+
+
+def uninstall_hook(hook_name: str) -> bool:
+    """Remove a hook from the bare repo.
+
+    Args:
+        hook_name: Name of the hook (e.g., "post-commit")
+
+    Returns:
+        True if removed, False if didn't exist
+    """
+    hook_path = get_hooks_path() / hook_name
+    if hook_path.exists():
+        hook_path.unlink()
+        return True
+    return False

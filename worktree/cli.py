@@ -35,11 +35,14 @@ from .git_ops import (
     delete_branch,
     delete_remote_branch,
     generate_worktree_name,
+    install_hook,
     is_branch_merged,
+    is_hook_installed,
     is_main_behind_remote,
     parse_issue_input,
     prune_worktrees,
     remove_worktree,
+    uninstall_hook,
 )
 from .health import check_worktree_health, quick_health_check
 from .registry import (
@@ -315,6 +318,12 @@ def setup(
         # Step 4: Generate configuration files
         status.update("[bold green]Generating configuration files...")
         write_worktree_configs(worktree, worktree_path)
+
+        # Step 4.5: Install git hooks (for main worktree setup)
+        if is_main and not is_hook_installed("post-commit"):
+            status.update("[bold green]Installing git hooks...")
+            if install_hook("post-commit"):
+                console.print("  [green]✓[/green] Auto-sync hook installed")
 
         # Step 5: Create shared volume
         status.update("[bold green]Creating shared volumes...")
@@ -1170,6 +1179,62 @@ def logs(
         cmd.extend(["--tail", str(lines)])
 
     subprocess.run(cmd, cwd=current_path)
+
+
+@app.command()
+def hooks(
+    action: str = typer.Argument(
+        ...,
+        help="Action: install, uninstall, or status",
+    ),
+) -> None:
+    """Manage git hooks for automatic sync.
+
+    Actions:
+        install   - Install post-commit hook for auto-sync
+        uninstall - Remove post-commit hook
+        status    - Check if hooks are installed
+
+    The post-commit hook automatically rebases your feature branch onto
+    origin/main after every commit, keeping you in sync and preventing
+    merge conflicts.
+
+    To temporarily disable auto-sync:
+        GTS_NO_AUTO_SYNC=1 git commit -m "message"
+    """
+    hook_name = "post-commit"
+
+    if action == "status":
+        if is_hook_installed(hook_name):
+            print_success(f"Hook '{hook_name}' is installed")
+            console.print("  Auto-sync is active for all feature worktrees")
+            console.print("  [dim]Disable temporarily: GTS_NO_AUTO_SYNC=1 git commit -m \"msg\"[/dim]")
+        else:
+            print_warning(f"Hook '{hook_name}' is not installed")
+            console.print("  Run [cyan]./worktree.py hooks install[/cyan] to enable auto-sync")
+
+    elif action == "install":
+        if is_hook_installed(hook_name):
+            print_info(f"Hook '{hook_name}' is already installed, updating...")
+
+        if install_hook(hook_name):
+            print_success(f"Hook '{hook_name}' installed successfully")
+            console.print("  Feature branches will now auto-rebase onto origin/main after commits")
+        else:
+            print_error(f"Failed to install hook '{hook_name}' (template not found)")
+            raise typer.Exit(1)
+
+    elif action == "uninstall":
+        if uninstall_hook(hook_name):
+            print_success(f"Hook '{hook_name}' uninstalled")
+            console.print("  Auto-sync is now disabled")
+        else:
+            print_info(f"Hook '{hook_name}' was not installed")
+
+    else:
+        print_error(f"Unknown action: {action}")
+        console.print("  Valid actions: install, uninstall, status")
+        raise typer.Exit(1)
 
 
 def main() -> None:

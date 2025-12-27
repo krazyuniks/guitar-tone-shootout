@@ -1,6 +1,6 @@
 # Guitar Tone Shootout - Development Operations Guide
 
-**Version:** 2.3 | **Last Updated:** 2025-12-27
+**Version:** 2.4 | **Last Updated:** 2025-12-27
 
 This document defines the development workflow, patterns, and automation for the Guitar Tone Shootout project. It serves as the primary reference for both human developers and AI agents.
 
@@ -291,6 +291,34 @@ cd ../42-feature-audio
 
 **AI agents should NOT manually run sync, teardown, or git commands for orchestration.**
 All merge/sync/teardown operations are automated in the CLI.
+
+### Automatic Sync (Post-Commit Hook)
+
+After every commit in a feature worktree, a background process automatically:
+1. Fetches `origin/main`
+2. Rebases the current branch onto `origin/main`
+3. If conflicts occur, aborts the rebase and prints a warning
+
+This keeps feature branches up-to-date without manual intervention or agent thinking.
+
+**The hook is:**
+- Stored in the bare repo (`guitar-tone-shootout.git/hooks/`) - shared by ALL worktrees
+- Installed once during `./worktree.py setup main` (or manually via `hooks install`)
+- Non-blocking (commit returns immediately, sync runs in background)
+- Safe (auto-aborts on conflict, never leaves repo in dirty state)
+- Skips main branch (main is only updated via `git pull --ff-only`)
+
+**To disable auto-sync temporarily:**
+```bash
+GTS_NO_AUTO_SYNC=1 git commit -m "message"
+```
+
+**To manage hooks manually:**
+```bash
+./worktree.py hooks status    # Check if hook is installed
+./worktree.py hooks install   # Install/update the hook
+./worktree.py hooks uninstall # Remove the hook
+```
 
 ### Claude Slash Commands
 
@@ -1079,6 +1107,7 @@ docker compose exec backend alembic upgrade head    # Reapply
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.4 | 2025-12-27 | Automatic post-commit sync hook - feature branches auto-rebase onto origin/main |
 | 2.3 | 2025-12-27 | Automated orchestration - AI agents use merge-pr command, no manual sync/teardown |
 | 2.2 | 2025-12-27 | Parallel orchestration model, sync/merge-pr/validate commands, session discipline |
 | 2.1 | 2025-12-27 | Mandatory worktree workflow, session discipline, planning/execution separation |
