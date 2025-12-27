@@ -10,6 +10,7 @@ from app.schemas.shootout import (
     EffectSchema,
     ShootoutConfigSchema,
     ShootoutCreate,
+    ShootoutListItem,
     ShootoutListResponse,
     ShootoutResponse,
     ShootoutSubmitRequest,
@@ -34,6 +35,7 @@ __all__ = [
     "ToneSchema",
     # Shootout model schemas (for CRUD)
     "ShootoutCreate",
+    "ShootoutListItem",
     "ShootoutListResponse",
     "ShootoutResponse",
     "ShootoutUpdate",

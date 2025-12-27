@@ -305,8 +305,8 @@ class ShootoutResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class ShootoutListResponse(BaseModel):
-    """Schema for listing shootouts (without full tone_selections)."""
+class ShootoutListItem(BaseModel):
+    """Schema for a single shootout in list responses."""
 
     id: UUID
     name: str
@@ -320,3 +320,20 @@ class ShootoutListResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ShootoutListResponse(BaseModel):
+    """Paginated list of shootouts."""
+
+    shootouts: list[ShootoutListItem] = Field(
+        description="List of shootouts",
+    )
+    total: int = Field(
+        description="Total number of shootouts matching the query",
+    )
+    page: int = Field(
+        description="Current page number (1-indexed)",
+    )
+    page_size: int = Field(
+        description="Number of items per page",
+    )
