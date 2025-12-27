@@ -9,7 +9,7 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| v2.4 | #23 Pipeline service wrapper | PR Ready | Await merge, then start #24 |
+| v2.4 | #24 Tone 3000 model downloader | Ready | Start in new session |
 
 ---
 
@@ -33,7 +33,7 @@
 
 | Issue | Title | Status |
 |-------|-------|--------|
-| #23 | Pipeline service wrapper with progress callbacks | **PR Ready** |
+| #23 | Pipeline service wrapper with progress callbacks | **Merged** (#68) |
 | #24 | Tone 3000 model downloader with caching | Open |
 | #25 | Shootout database model replacing INI configuration | Open |
 
@@ -122,7 +122,7 @@
 
 ## Recent Activity
 
-- **2025-12-27**: Created PR for #23 Pipeline service wrapper. v2.4 started.
+- **2025-12-27**: Merged #23 Pipeline service wrapper (#68). v2.4 started.
 - **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
 - **2025-12-27**: Merged #20 Landing page and layout components (#66).
 - **2025-12-27**: Created v2.8 Audio Analysis & Reproducibility epic (#58) with 7 sub-issues.
