@@ -9,17 +9,13 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
-| Parallel Orchestration | Phase 3 | **In Progress** | Monitoring 3 parallel agents |
+| Parallel Orchestration | Phase 3 | **Complete** | Phase 4 planning |
 
 ---
 
 ## Active Worktrees
 
-| Worktree | Branch | Issues | Agent Status |
-|----------|--------|--------|--------------|
-| 40-effect-blocks-eq-delay-reverb-etc | 40/effect-blocks-eq-delay-reverb-etc | #40 | Running |
-| 42-builder-layout-and-stage-columns | 42/builder-layout-and-stage-columns | #42-45 | Running |
-| 61-ai-evaluation-generation-algorithmic-llm | 61/ai-evaluation-generation-algorithmic-llm | #61 | Running |
+None - all worktrees merged and torn down.
 
 ---
 
@@ -33,9 +29,9 @@
 | v2.3 - Frontend (Astro) | #18 | #19, #20, #21 | **Complete** |
 | v2.4 - Pipeline Web Adapter | #22 | #23, #24, #25 | **Complete** |
 | v2.5 - UI Design System | #32 | #32, #33, #34 | **#32 Merged (PR #74)** |
-| v2.6 - Signal Chain Builder | #35 | #36-#45 | **#36-39 Merged (PR #77, #78)** |
+| v2.6 - Signal Chain Builder | #35 | #36-#45 | **#36-45 Complete (PR #77, #78, #80, #82)** |
 | v2.7 - Browse & Discovery | #46 | #47-#50, #73 | **#73 Merged (PR #75)** |
-| v2.8 - Audio Analysis & Reproducibility | #58 | #59-#65 | **#59, #60 Merged (PR #76, #79)** |
+| v2.8 - Audio Analysis & Reproducibility | #58 | #59-#65 | **#59-61 Complete (PR #76, #79, #81)** |
 
 ---
 
@@ -57,9 +53,21 @@
 | #78 | #38, #39 | Amp and Cabinet block components | Agent 2 |
 | #79 | #60 | Database schema for metrics & reproducibility | Agent 3 |
 
-**Total: 6 PRs merged, 8 issues closed**
+### Phase 3 (3 PRs Merged)
 
-### What Was Built
+| PR | Issues | Description | Agent |
+|----|--------|-------------|-------|
+| #80 | #40 | EffectBlock component (EQ, Delay, Reverb, Compression, Noise Gate, Boost) | Agent 1 |
+| #81 | #61 | AI evaluation generation (algorithmic + LLM) | Agent 3 |
+| #82 | #42-45 | SignalChainBuilder interface with drag-drop, output matrix, search modal | Agent 2 |
+
+**Total: 9 PRs merged, 14 issues closed across 3 phases**
+
+---
+
+## What Was Built
+
+### Phase 1+2
 
 **Frontend (v2.5/v2.6):**
 - Design tokens in `global.css` (dark theme colors, block type accents)
@@ -75,69 +83,70 @@
 
 **Pipeline (v2.8):**
 - `pipeline/src/guitar_tone_shootout/metrics.py` - ~700 lines audio metrics
-  - Core: RMS, Peak, Crest Factor, Dynamic Range
-  - Spectral: Centroid, Bass/Mid/Treble Energy
-  - Advanced: LUFS, Transient Density, Attack Time, Sustain Decay
 - 48 unit tests for metrics module
 
 **Database (v2.8):**
 - `processing_metadata` JSONB on Shootout (reproducibility)
 - `audio_metrics`, `ai_evaluation` JSONB on ToneSelection
 - `start_ms`, `end_ms` segment timestamps
-- Corresponding Pydantic schemas
 
----
+### Phase 3
 
-## Phase 3 - IN PROGRESS
+**Frontend (v2.6):**
+- `SignalChain/EffectBlock.tsx` - Effect blocks supporting 6 types:
+  - EQ (bass/mid/treble/presence)
+  - Delay (time/feedback/mix)
+  - Reverb (size/decay/mix)
+  - Compression (threshold/ratio/attack/release)
+  - Noise Gate (threshold)
+  - Boost (gain)
+- `SignalChain/SignalChainBuilder.tsx` - Main builder with 4-stage layout
+- `SignalChain/StageColumn.tsx` - Column container for each stage
+- `SignalChain/SortableStageColumn.tsx` - dnd-kit integration
+- `SignalChain/SortableBlock.tsx` - Draggable block wrapper
+- `SignalChain/ConnectionLine.tsx` - Visual connectors between stages
+- `SignalChain/OutputMatrix.tsx` - Preview of DI x Amp x Cab combinations
+- `SignalChain/ToneSearchModal.tsx` - Tone 3000 search/select modal
+- `SignalChain/types.ts` - Type definitions for blocks and state
+- `SignalChain/useBuilderState.ts` - State management hook
 
-**Started:** 2025-12-27
-**Orchestrator:** Main terminal managing 3 parallel agents
-
-### Active Agents
-
-| Agent | Worktree | Issues | Focus |
-|-------|----------|--------|-------|
-| 1 | 40-effect-blocks | #40 | Frontend: Effect blocks (EQ, Delay, Reverb) |
-| 2 | 42-builder | #42-45 | Frontend: SignalChainBuilder interface |
-| 3 | 61-ai-evaluation | #61 | Pipeline: AI evaluation generation |
-
-### Completed PRs (Phase 3)
-
-None yet - agents working...
+**Pipeline (v2.8):**
+- `pipeline/src/guitar_tone_shootout/evaluation.py` (~1120 lines)
+  - Algorithmic summary generation from audio metrics
+  - Optional LLM enhancement via Claude API
+  - Spectral, dynamics, and envelope analysis
+  - Strengths/weaknesses/recommended genres
+- `pipeline/tests/test_evaluation.py` (779 lines, 49 tests)
 
 ---
 
 ## Recent Activity
 
+- **2025-12-27**: Completed Phase 3 parallel orchestration
+  - PRs: #80 (Effect blocks), #81 (AI evaluation), #82 (Builder interface)
+  - Issues closed: #40, #42, #43, #44, #45, #61
+  - All 3 worktrees torn down, main synced
 - **2025-12-27**: Fixed CloudBeaver config and enhanced worktree CLI
-  - Regenerated stale docker-compose.override.yml for main worktree
-  - Added credentials display to `./worktree.py status|setup|health|ports`
-  - CloudBeaver now shows login: cbadmin / DB_PASSWORD
 - **2025-12-27**: Merged 6 PRs via parallel orchestration (Phase 1+2)
   - PRs: #74, #75, #76, #77, #78, #79
   - Issues closed: #32, #36, #37, #38, #39, #59, #60, #73
 - **2025-12-27**: Merged #25 Shootout database model (#70). **v2.4 Complete!**
-- **2025-12-27**: Merged #24 Model downloader with caching (#69).
-- **2025-12-27**: Merged #23 Pipeline service wrapper (#68). v2.4 started.
-- **2025-12-27**: Merged #21 Pipeline builder React component (#67). **v2.3 Complete!**
 
 ---
 
 ## Resume Instructions
 
-To continue with Phase 3:
+Phase 3 is complete. To continue with Phase 4:
 
 ```bash
 cd /Users/ryanlauterbach/Work/guitar-tone-shootout-worktrees/main
 claude
 
-# Then tell Claude:
-# "Execute Phase 3 of the orchestration plan at ~/.claude/plans/golden-hugging-kurzweil.md"
+# Check the orchestration plan for Phase 4 tasks:
+# cat ~/.claude/plans/golden-hugging-kurzweil.md
 ```
 
-**Phase 3 setup:**
-```bash
-./worktree.py setup 40   # Effect blocks
-./worktree.py setup 42   # Builder interface
-./worktree.py setup 61   # AI evaluation
-```
+**Remaining issues for Phase 4:**
+- #33, #34 (v2.5 UI Design System)
+- #47-#50 (v2.7 Browse & Discovery)
+- #62-#65 (v2.8 Audio Analysis & Reproducibility)
