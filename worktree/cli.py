@@ -252,6 +252,15 @@ def setup(
             if not run_migrations(worktree_path):
                 print_warning("Migrations may have failed. Check manually.")
 
+    # Read DB_PASSWORD from .env file for display
+    db_password = "devpassword"  # default
+    env_file = worktree_path / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("DB_PASSWORD="):
+                db_password = line.split("=", 1)[1].strip()
+                break
+
     # Success summary
     console.print()
     console.print(
@@ -260,9 +269,25 @@ def setup(
 
 [bold]Path:[/bold] {worktree_path}
 [bold]Branch:[/bold] {branch}
-[bold]Frontend:[/bold] http://localhost:{worktree.ports.frontend}
-[bold]Backend:[/bold] http://localhost:{worktree.ports.backend}
-[bold]Database:[/bold] localhost:{worktree.ports.db}
+
+[bold cyan]Service URLs:[/bold cyan]
+  Frontend:    http://localhost:{worktree.ports.frontend}
+  Backend:     http://localhost:{worktree.ports.backend}
+  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
+
+[bold cyan]Database Access:[/bold cyan]
+  Host: localhost:{worktree.ports.db}
+  User: shootout
+  Pass: {db_password}
+  DB:   shootout
+
+[bold cyan]CloudBeaver Login:[/bold cyan]
+  URL:  http://localhost:{worktree.ports.cloudbeaver}
+  User: cbadmin
+  Pass: {db_password}
+
+[dim]Start CloudBeaver:[/dim]
+  docker compose --profile tools up -d cloudbeaver
 
 [dim]Next steps:[/dim]
   cd {worktree_path}
@@ -425,6 +450,15 @@ def status() -> None:
 
     health = check_worktree_health(current_path)
 
+    # Read DB_PASSWORD from .env file for display
+    db_password = "devpassword"  # default
+    env_file = current_path / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("DB_PASSWORD="):
+                db_password = line.split("=", 1)[1].strip()
+                break
+
     console.print(
         Panel(
             f"""[bold]Worktree:[/bold] {worktree.worktree_name}
@@ -432,16 +466,32 @@ def status() -> None:
 [bold]Path:[/bold] {worktree.worktree_path}
 [bold]Status:[/bold] {"[green]Healthy[/green]" if health.healthy else "[red]Unhealthy[/red]"}
 
+[bold cyan]Service URLs:[/bold cyan]
+  Frontend:    http://localhost:{worktree.ports.frontend}
+  Backend:     http://localhost:{worktree.ports.backend}
+  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
+
+[bold cyan]Database Access:[/bold cyan]
+  Host: localhost:{worktree.ports.db}
+  User: shootout
+  Pass: {db_password}
+
+[bold cyan]CloudBeaver Login:[/bold cyan]
+  User: cbadmin
+  Pass: {db_password}
+
 [bold]Ports:[/bold]
-  Frontend: {worktree.ports.frontend} -> http://localhost:{worktree.ports.frontend}
-  Backend:  {worktree.ports.backend} -> http://localhost:{worktree.ports.backend}
-  Database: {worktree.ports.db}
-  Redis:    {worktree.ports.redis}
+  Frontend:    {worktree.ports.frontend}
+  Backend:     {worktree.ports.backend}
+  Database:    {worktree.ports.db}
+  Redis:       {worktree.ports.redis}
+  CloudBeaver: {worktree.ports.cloudbeaver}
 
 [bold]Volumes:[/bold]
-  PostgreSQL: {worktree.volumes.postgres}
-  Redis:      {worktree.volumes.redis}
-  Uploads:    {worktree.volumes.uploads}
+  PostgreSQL:  {worktree.volumes.postgres}
+  Redis:       {worktree.volumes.redis}
+  Uploads:     {worktree.volumes.uploads}
+  CloudBeaver: {worktree.volumes.cloudbeaver}
 
 [bold]Services:[/bold]
 """
@@ -472,8 +522,11 @@ def health() -> None:
 
     if result.healthy:
         print_success("All services healthy")
-        console.print(f"  Frontend: http://localhost:{worktree.ports.frontend}")
-        console.print(f"  Backend:  http://localhost:{worktree.ports.backend}")
+        console.print(f"  Frontend:    http://localhost:{worktree.ports.frontend}")
+        console.print(f"  Backend:     http://localhost:{worktree.ports.backend}")
+        console.print(f"  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}")
+        console.print()
+        console.print("[dim]Start CloudBeaver: docker compose --profile tools up -d cloudbeaver[/dim]")
     else:
         print_error("Worktree is unhealthy")
         for issue in result.issues:
@@ -497,6 +550,7 @@ def ports() -> None:
     table.add_column("Backend")
     table.add_column("PostgreSQL")
     table.add_column("Redis")
+    table.add_column("CloudBeaver")
 
     for wt in worktrees:
         table.add_row(
@@ -506,6 +560,7 @@ def ports() -> None:
             str(wt.ports.backend),
             str(wt.ports.db),
             str(wt.ports.redis),
+            str(wt.ports.cloudbeaver),
         )
 
     console.print(table)
