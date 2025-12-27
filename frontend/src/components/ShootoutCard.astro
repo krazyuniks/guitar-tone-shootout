@@ -1,0 +1,192 @@
+---
+/**
+ * ShootoutCard - Astro component for displaying shootout previews
+ *
+ * Used in static pages like browse and leaderboard sections.
+ * For React contexts (interactive lists), use ShootoutCard.tsx instead.
+ */
+interface Props {
+  /** Unique identifier for the shootout */
+  id: number;
+  /** Shootout title */
+  title: string;
+  /** URL to thumbnail image */
+  thumbnailUrl?: string;
+  /** Creator username */
+  creator: string;
+  /** Creator's avatar URL */
+  creatorAvatarUrl?: string;
+  /** Genre/category badge text */
+  genre?: string;
+  /** Duration in seconds */
+  duration?: number;
+  /** Number of views */
+  viewCount?: number;
+  /** Number of likes */
+  likeCount?: number;
+  /** Link to shootout detail page */
+  href?: string;
+}
+
+const {
+  id,
+  title,
+  thumbnailUrl,
+  creator,
+  creatorAvatarUrl,
+  genre,
+  duration,
+  viewCount = 0,
+  likeCount = 0,
+  href,
+} = Astro.props;
+
+// Format duration as MM:SS
+function formatDuration(seconds?: number): string {
+  if (!seconds) return '';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+// Format view count with K/M suffix
+function formatViewCount(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}K`;
+  }
+  return count.toString();
+}
+
+const linkHref = href || `/shootouts/${id}`;
+const durationText = formatDuration(duration);
+---
+
+<article class="group relative flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-all duration-200 hover:scale-[1.02] hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/5">
+  <!-- Thumbnail -->
+  <a href={linkHref} class="relative aspect-video overflow-hidden bg-bg-elevated">
+    {thumbnailUrl ? (
+      <img
+        src={thumbnailUrl}
+        alt={`Thumbnail for ${title}`}
+        class="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+        loading="lazy"
+      />
+    ) : (
+      <div class="flex h-full w-full items-center justify-center">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-12 w-12 text-muted-foreground"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
+          />
+        </svg>
+      </div>
+    )}
+
+    <!-- Play button overlay (visible on hover) -->
+    <div class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+      <div class="flex h-14 w-14 items-center justify-center rounded-full bg-amber-500 text-white shadow-lg">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-6 w-6 translate-x-0.5"
+          fill="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </div>
+    </div>
+
+    <!-- Badge overlays -->
+    <div class="absolute bottom-2 left-2 right-2 flex items-end justify-between">
+      {genre && (
+        <span class="rounded bg-black/70 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+          {genre}
+        </span>
+      )}
+      {durationText && (
+        <span class="rounded bg-black/70 px-2 py-0.5 text-xs font-medium tabular-nums text-white backdrop-blur-sm">
+          {durationText}
+        </span>
+      )}
+    </div>
+  </a>
+
+  <!-- Content -->
+  <div class="flex flex-1 flex-col gap-2 p-4">
+    <!-- Title -->
+    <a href={linkHref} class="line-clamp-2 font-medium leading-snug text-foreground hover:text-amber-500">
+      {title}
+    </a>
+
+    <!-- Creator info -->
+    <div class="flex items-center gap-2 text-sm text-muted-foreground">
+      {creatorAvatarUrl ? (
+        <img
+          src={creatorAvatarUrl}
+          alt={creator}
+          class="h-5 w-5 rounded-full object-cover"
+          loading="lazy"
+        />
+      ) : (
+        <div class="flex h-5 w-5 items-center justify-center rounded-full bg-bg-elevated text-xs uppercase">
+          {creator.charAt(0)}
+        </div>
+      )}
+      <span class="truncate">{creator}</span>
+    </div>
+
+    <!-- Stats -->
+    <div class="mt-auto flex items-center gap-4 pt-2 text-xs text-muted-foreground">
+      <span class="flex items-center gap-1">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+          />
+        </svg>
+        <span class="tabular-nums">{formatViewCount(viewCount)}</span>
+      </span>
+      <span class="flex items-center gap-1">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+          />
+        </svg>
+        <span class="tabular-nums">{formatViewCount(likeCount)}</span>
+      </span>
+    </div>
+  </div>
+</article>

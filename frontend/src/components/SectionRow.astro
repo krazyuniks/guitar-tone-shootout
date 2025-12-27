@@ -1,0 +1,179 @@
+---
+/**
+ * SectionRow - Component for displaying categorized content with horizontal scrolling
+ *
+ * Features:
+ * - Section header with title and "View All" link
+ * - Horizontal scroll container with scroll-snap
+ * - Scroll arrows (desktop)
+ * - Touch scroll (mobile)
+ */
+interface Props {
+  /** Section title */
+  title: string;
+  /** Optional "View All" link */
+  viewAllHref?: string;
+  /** "View All" link text (default: "View All") */
+  viewAllText?: string;
+  /** Unique ID for scroll functionality */
+  id?: string;
+  /** Additional CSS classes for the container */
+  class?: string;
+}
+
+const {
+  title,
+  viewAllHref,
+  viewAllText = 'View All',
+  id = `section-${title.toLowerCase().replace(/\s+/g, '-')}`,
+  class: className,
+} = Astro.props;
+
+const scrollContainerId = `${id}-scroll`;
+---
+
+<section class:list={['relative py-8', className]}>
+  <!-- Section Header -->
+  <div class="mb-4 flex items-center justify-between px-4 sm:px-0">
+    <h2 class="text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
+    {viewAllHref && (
+      <a
+        href={viewAllHref}
+        class="text-sm font-medium text-amber-500 transition-colors hover:text-amber-400"
+      >
+        {viewAllText}
+        <span class="ml-1" aria-hidden="true">&rarr;</span>
+      </a>
+    )}
+  </div>
+
+  <!-- Scroll Container with Arrows -->
+  <div class="group relative">
+    <!-- Left Scroll Arrow (Desktop) -->
+    <button
+      type="button"
+      class="section-row-arrow section-row-arrow-left absolute left-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-lg backdrop-blur-sm transition-all hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 md:flex"
+      data-scroll-container={scrollContainerId}
+      data-direction="left"
+      aria-label="Scroll left"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+
+    <!-- Right Scroll Arrow (Desktop) -->
+    <button
+      type="button"
+      class="section-row-arrow section-row-arrow-right absolute right-0 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-lg backdrop-blur-sm transition-all hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 md:flex"
+      data-scroll-container={scrollContainerId}
+      data-direction="right"
+      aria-label="Scroll right"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </button>
+
+    <!-- Scroll Container -->
+    <div
+      id={scrollContainerId}
+      class="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-4 py-2 sm:px-0"
+    >
+      <slot />
+    </div>
+
+    <!-- Gradient Fade Edges (Desktop) -->
+    <div class="pointer-events-none absolute left-0 top-0 hidden h-full w-16 bg-gradient-to-r from-[var(--color-bg-base)] to-transparent md:block" aria-hidden="true"></div>
+    <div class="pointer-events-none absolute right-0 top-0 hidden h-full w-16 bg-gradient-to-l from-[var(--color-bg-base)] to-transparent md:block" aria-hidden="true"></div>
+  </div>
+</section>
+
+<style>
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Scroll snap for items */
+  .scrollbar-hide > :global(*) {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+</style>
+
+<script>
+  // Initialize scroll buttons functionality
+  function initSectionRowScrolling() {
+    const buttons = document.querySelectorAll('.section-row-arrow');
+
+    buttons.forEach((button) => {
+      const containerId = button.getAttribute('data-scroll-container');
+      const direction = button.getAttribute('data-direction');
+      const container = containerId ? document.getElementById(containerId) : null;
+
+      if (!container) return;
+
+      // Update button visibility based on scroll position
+      const updateButtonVisibility = () => {
+        const { scrollLeft, scrollWidth, clientWidth } = container;
+        const leftButton = container.parentElement?.querySelector('.section-row-arrow-left');
+        const rightButton = container.parentElement?.querySelector('.section-row-arrow-right');
+
+        if (leftButton instanceof HTMLButtonElement) {
+          leftButton.disabled = scrollLeft <= 0;
+        }
+        if (rightButton instanceof HTMLButtonElement) {
+          rightButton.disabled = scrollLeft + clientWidth >= scrollWidth - 1;
+        }
+      };
+
+      // Scroll on button click
+      button.addEventListener('click', () => {
+        const scrollAmount = container.clientWidth * 0.8;
+        const newScrollLeft =
+          direction === 'left'
+            ? container.scrollLeft - scrollAmount
+            : container.scrollLeft + scrollAmount;
+
+        container.scrollTo({
+          left: newScrollLeft,
+          behavior: 'smooth',
+        });
+      });
+
+      // Update visibility on scroll
+      container.addEventListener('scroll', updateButtonVisibility, { passive: true });
+
+      // Initial visibility check
+      updateButtonVisibility();
+    });
+  }
+
+  // Run on page load
+  document.addEventListener('astro:page-load', initSectionRowScrolling);
+  // Also run immediately for non-View Transitions pages
+  if (document.readyState !== 'loading') {
+    initSectionRowScrolling();
+  } else {
+    document.addEventListener('DOMContentLoaded', initSectionRowScrolling);
+  }
+</script>
