@@ -9,7 +9,16 @@
 
 | Epic | Issue | Status | Next Action |
 |------|-------|--------|-------------|
+| Tooling | #71 CloudBeaver database GUI | **Ready** | Execute in fresh session |
 | v2.4 | #25 Shootout database model | **Merged** (#70) | v2.4 Complete! |
+
+---
+
+## Active Worktrees
+
+| Issue | Worktree | Branch | Ports | Status |
+|-------|----------|--------|-------|--------|
+| #71 | `71-add-cloudbeaver-database-gui-to-docker-c` | `71/add-cloudbeaver-database-gui-to-docker-c` | FE:4331 BE:8010 DB:5433 | Ready |
 
 ---
 
