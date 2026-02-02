@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(just:*)",
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(pnpm:*)",
+      "Bash(python3:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(bd:*)"
+    ],
+    "deny": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {"type": "command", "command": ".claude/hooks/sync-start.sh"},
+          {"type": "command", "command": ".claude/hooks/auth-check.sh"},
+          {"type": "command", "command": ".claude/hooks/infrastructure-check.sh"},
+          {"type": "command", "command": ".claude/hooks/log-monitor-start.sh"}
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/block-adhoc-infra.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/cli-helper.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/adherence-check.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/post-edit.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/ui-file-check.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/capture-test-logs.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/ci-monitor.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/merge-teardown.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
