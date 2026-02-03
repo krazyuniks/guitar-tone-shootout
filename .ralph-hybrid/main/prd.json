@@ -302,8 +302,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Depends on STORY-003 (Tailwind) and STORY-008 (Base layout)",
+      "passes": true,
+      "notes": "Implemented with comprehensive pages. index.astro has hero section and features. about.astro has project info and how-it-works. login.astro has Tone3000 OAuth button. All pages use design tokens. Build succeeds, typecheck passes, all 42 tests pass.",
       "verify": {
         "command": "just build-astro && test -f frontend/astro/dist/index.html",
         "expected": "Static pages exist and use design tokens",

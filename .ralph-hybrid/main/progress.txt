@@ -980,3 +980,34 @@ Technical notes:
 - Added TC003 to per-file ignores (uuid is used at runtime, cannot be in TYPE_CHECKING)
 - JSON type used for default_params, params, slot_positions, gear_options
 - EnumByValue used for Platform and GearType enums
+
+---
+Iteration: 2
+Started: 2026-02-03T18:54:39Z
+Story: STORY-011 - Static Pages (Index, About, Login)
+Status: complete
+
+Changes made:
+- Created index.astro with hero section, features, navigation, and footer
+- Created about.astro with project information, features, how-it-works, and technology section
+- Created login.astro with OAuth buttons (Tone3000 primary, GitHub/Google disabled)
+- All pages use design tokens from Tailwind CSS (--color-bg-*, --color-text-*, --color-accent-*)
+- All pages have responsive layout with Tailwind utility classes
+- Fixed Docker volume permission issues with root-owned files in dist/
+
+Verification:
+- frontend/astro/dist/index.html exists
+- frontend/astro/dist/about.html exists
+- frontend/astro/dist/login.html exists
+- All pages use design tokens from global.css
+- just build-astro succeeds
+- pnpm astro check passes (0 errors, 0 warnings)
+- just test-regression passes (42 tests)
+- All acceptance criteria met
+
+Technical notes:
+- Docker builds create root-owned files in dist/
+- Used Docker to fix permissions: docker run --rm -v "$(pwd)/frontend/astro/dist:/dist" alpine chown -R 1000:1000 /dist
+- Static HTML files generated at root of dist/ (index.html, about.html, login.html)
+- CSS compiled to dist/_astro/about.CCULrn-Z.css
+- All pages include navigation header and footer for consistency
