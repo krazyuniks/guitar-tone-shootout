@@ -381,3 +381,37 @@ Root cause:
 Infrastructure note:
 - Workspace packages must be installed at session start (uv pip install -e)
 - This ensures tests can import modules correctly
+
+---
+Iteration: 12
+Started: 2026-02-03T03:29:54Z
+Story: STORY-008 - Base Layout Template (Verification)
+Status: complete
+
+Changes made:
+- Verified STORY-008 implementation from iteration 10
+- All quality checks now pass:
+  - 35 regression tests pass
+  - Type checking passes (mypy)
+  - Linting passes (ruff)
+  - Astro build succeeds
+- No code changes needed - implementation is correct
+
+Verification:
+- base.html exists at frontend/astro/dist/layouts/base.html
+- Contains all required Jinja2 blocks (title, content, scripts)
+- Includes HTMX script from unpkg CDN
+- Includes Alpine.js script from CDN
+- Includes compiled Tailwind CSS link
+- All acceptance criteria met
+
+Root cause:
+- Iteration 10 implemented STORY-008 correctly
+- Iteration 11 backpressure hook reported failure (transient)
+- All checks pass in fresh verification (iteration 12)
+- STORY-008 confirmed complete
+
+Infrastructure note:
+- Workspace packages must be installed at session start (uv pip install -e)
+- This ensures tests can import modules correctly
+- Transient failures can occur if packages not installed
