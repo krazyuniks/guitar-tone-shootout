@@ -689,8 +689,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Part of AudioProcessor protocol",
+      "passes": true,
+      "notes": "Implemented with standalone waveform.py module. extract_waveform() returns WaveformData with configurable peaks (default 200). Uses numpy for peak calculation. AudioProcessor.extract_waveform() delegates to module. All 8 integration tests pass.",
       "verify": {
         "command": "just tdd tests/integration/audio/test_waveform.py",
         "expected": "Waveform data extracts correctly",

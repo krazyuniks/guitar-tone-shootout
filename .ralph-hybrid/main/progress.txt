@@ -1462,3 +1462,43 @@ Technical notes:
 - Added type ignore comments for core domain imports (missing py.typed marker)
 - Added explicit type annotations to satisfy mypy no-any-return checks
 
+
+---
+Iteration: 16
+Started: 2026-02-03T20:01:23Z
+Story: STORY-025 - Waveform Extraction
+Status: complete
+
+Changes made:
+- Created standalone waveform.py module in libs/audio/src/audio/analysis/
+- Implemented extract_waveform() function returning WaveformData
+- Configurable number of peaks (default 200)
+- Works with various audio formats (WAV, FLAC, OGG, MP3)
+- Uses numpy for peak calculation with sign preservation
+- Refactored AudioProcessor.extract_waveform() to delegate to waveform module
+- Created 8 comprehensive integration tests
+
+Verification:
+- All 8 integration tests pass
+- All 159 regression tests pass (unit + integration)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met:
+  - extract_waveform() returns WaveformData ✓
+  - Configurable number of peaks (default 200) ✓
+  - Works with various audio formats ✓
+  - Uses numpy for peak calculation ✓
+  - Integration tests pass ✓
+  - Typecheck passes ✓
+
+Technical notes:
+- Uses soundfile for audio loading
+- Converts stereo to mono via np.mean()
+- Extracts peaks by downsampling with max absolute value per segment
+- Preserves sign of loudest sample in each segment
+- Returns sample_rate, duration_seconds, samples_per_peak metadata
+- AudioProcessor.extract_waveform() now delegates to analysis.waveform module
+- Added type ignore comments for core domain imports (missing py.typed marker)
+
+Infrastructure:
+- Workspace packages installed at session start (uv pip install -e)
