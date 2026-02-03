@@ -2,8 +2,6 @@
 
 Code patterns and quality standards.
 
----
-
 ## Quick Start
 
 ```bash
@@ -18,8 +16,6 @@ just up-d                    # Start services
 **Entry point**: http://localhost:9000 (main worktree)
 
 **Note:** Phase 7 will introduce `worktree.py` as the single idempotent setup command. Until then, use `just up-d` to start services.
-
----
 
 ## How to Run Commands
 
@@ -39,8 +35,6 @@ just build-astro      # Build Astro frontend
 
 **Never guess at commands.** If `just --list` doesn't have it, ask.
 
----
-
 ## Stack
 
 | Layer | Technology |
@@ -53,8 +47,6 @@ just build-astro      # Build Astro frontend
 | **Infrastructure** | Docker (db, redis, backend, nginx, worker, scheduler), worktrees |
 
 **Note:** Astro is pre-bundled (`frontend/astro/dist/` committed to git). No Vite dev server at runtime.
-
----
 
 ## Infrastructure Architecture
 
@@ -133,8 +125,6 @@ docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 
 **Development uses `Dockerfile.dev`** - single stage, uv installed, supports `docker compose exec backend pytest`.
 
----
-
 ## Development Workflow
 
 **Single path. No optional steps. Both developers and Claude follow identical workflow.**
@@ -151,8 +141,6 @@ just test-e2e               # Run E2E tests (on host)
 ```
 
 **No host .venv.** All project code executes in Docker. E2E tests are the only exception (they hit Docker containers from the host).
-
----
 
 ## Container-First Execution
 
@@ -182,8 +170,6 @@ pytest                        # Use: just tdd <path>
 ```
 
 **The ONLY `uv run` on host is in `tests/e2e/python/` for E2E tests.**
-
----
 
 ## Project Structure
 
@@ -253,8 +239,6 @@ gts/
 ```
 
 **Templates:** Edit `.html.ts` files in `frontend/astro/src/pages/`, build with `just build-astro`. Output to `frontend/astro/dist/` is committed to git.
-
----
 
 ## Key Patterns
 
@@ -330,8 +314,6 @@ See `tests/AGENTS.md` for test structure and patterns.
 
 **No host .venv.** There should be no `.venv` directory at project root. All project code executes in Docker.
 
----
-
 ## Skills Reference
 
 ### Global Skills (from ~/.claude/)
@@ -373,8 +355,6 @@ See `tests/AGENTS.md` for test structure and patterns.
 | `gts-error-resolver` | Debug and fix build/lint/test errors |
 | `gts-log-monitor` | Monitor Docker logs for errors |
 
----
-
 ## Conversation UX (CLI Environment)
 
 **CRITICAL:** User is in a CLI with limited screen real estate. They cannot see content at the top while reading the bottom.
@@ -405,8 +385,6 @@ Similar to #42 "Auth refactor"
 Is this a **duplicate** of #42, or a **separate issue**?
 ```
 *(wait for answer, then show next item with its context)*
-
----
 
 ## Rules
 
@@ -478,8 +456,6 @@ When uncertain about ANY of the following, STOP and ask the user:
 
 See `.claude/rules/infrastructure-protection.md` for details.
 
----
-
 ## MCP (Browser Tools)
 
 MCP servers enable browser inspection and automation. They're **not installed** - they're loaded dynamically via `npx` when Claude starts.
@@ -533,8 +509,6 @@ MCP **not required** for: planning, backend work, documentation, admin tasks.
 
 **Prefer `take_snapshot` over `take_screenshot`** - snapshots show element uids for interaction.
 
----
-
 ## Debugging Workflow
 
 ### During Development
@@ -574,8 +548,6 @@ MCP **not required** for: planning, backend work, documentation, admin tasks.
 | 404 on route | Network logs, docker logs |
 | Styles missing | Console logs, network logs |
 
----
-
 ## Git
 
 ```bash
@@ -588,8 +560,6 @@ git push
 ```
 
 For workflow (issue tracking, worktree setup, planning): `./worktree.py start`
-
----
 
 ## GitHub-First Workflow
 
@@ -622,8 +592,6 @@ Worktree (created from GH issue number)
 /issue-deps 413
 ```
 
----
-
 ## Session Context Management
 
 **Separate exploration from execution.** A session used for research, planning, or exploration should NOT be used for implementation.
@@ -647,8 +615,6 @@ After exploration/planning, provide:
 Issue #XXX created with N tasks.
 To execute: /ralph-hybrid-plan XXX (in fresh session)
 ```
-
----
 
 ## Landing the Plane (Session Completion)
 
@@ -676,8 +642,6 @@ To execute: /ralph-hybrid-plan XXX (in fresh session)
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
----
-
 ## Workflow Loops
 
 Development follows two loops:
@@ -693,55 +657,6 @@ Development follows two loops:
 For conceptual overview, see [Workflow Loops](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Workflow-Loops) in the wiki.
 For Ralph Hybrid details, see [Ralph Hybrid](https://github.com/krazyuniks/ralph-hybrid).
 
----
-
-## Ralph Hybrid (Autonomous Development)
-
-For complex features, use Ralph Hybrid to run autonomous development loops.
-
-### Workflow
-
-```
-1. Plan:  /ralph-hybrid-plan "description"   (in Claude Code)
-2. Run:   ralph-hybrid run                    (in terminal)
-```
-
-### When to Use Ralph
-
-- Multi-story features (3+ related tasks)
-- Features derived from GitHub issues
-- Work that benefits from TDD iteration
-- When you want autonomous implementation with human checkpoints
-
-### Commands
-
-| Command | Where | Purpose |
-|---------|-------|---------|
-| `/ralph-hybrid-plan` | Claude Code | Interactive planning, creates spec.md + prd.json |
-| `/ralph-hybrid-plan --regenerate` | Claude Code | Regenerate prd.json from updated spec.md |
-| `/ralph-hybrid-amend` | Claude Code | Modify requirements mid-implementation |
-| `ralph-hybrid run` | Terminal | Execute autonomous loop |
-| `ralph-hybrid run --monitor` | Terminal | Run with tmux dashboard |
-| `ralph-hybrid status` | Terminal | Show feature progress |
-
-### Example: GitHub Issue to Implementation
-
-```bash
-# 1. Create branch from issue number
-git checkout -b 42-user-authentication
-
-# 2. Plan (Claude auto-fetches issue #42 context)
-/ralph-hybrid-plan
-
-# 3. Run autonomous loop
-ralph-hybrid run --monitor
-```
-
-### Key Concepts
-
-- **Fresh context per iteration**: Each loop iteration starts Claude fresh
-- **Memory in files**: prd.json tracks story completion, progress.txt logs history
-- **Branch = feature folder**: `.ralph-hybrid/{branch-name}/` holds all state
 
 ### GTS Customizations
 
@@ -790,3 +705,60 @@ GTS-specific skills for specialised tasks. Also uses global skills:
 - Mitigation for DB/Redis/worker/nginx issues
 - Rollback procedures (code, migrations, full system)
 - GTS-specific incidents (T3K OAuth, job backlog)
+
+---
+
+<!-- RALPH_HYBRID_START -->
+## Ralph Hybrid (Autonomous Development)
+
+For complex features, use Ralph Hybrid to run autonomous development loops.
+
+### Workflow
+
+```
+1. Plan:    /ralph-hybrid-plan "description"   (in Claude Code)
+2. Run:     ralph-hybrid run                    (in terminal)
+3. Verify:  (automatic after stories complete)
+4. Archive: ralph-hybrid archive               (or prompted after verify)
+```
+
+### When to Use Ralph
+
+- Multi-story features (3+ related tasks)
+- Features derived from GitHub issues
+- Work that benefits from TDD iteration
+- When you want autonomous implementation with human checkpoints
+
+### Commands
+
+| Command | Where | Purpose |
+|---------|-------|---------|
+| `/ralph-hybrid-plan` | Claude Code | Interactive planning, creates spec.md + prd.json |
+| `/ralph-hybrid-plan --regenerate` | Claude Code | Regenerate prd.json from updated spec.md |
+| `/ralph-hybrid-amend` | Claude Code | Modify requirements mid-implementation |
+| `ralph-hybrid run` | Terminal | Execute autonomous loop |
+| `ralph-hybrid run --skip-verification` | Terminal | Run without goal-backward verification |
+| `ralph-hybrid verify` | Terminal | Run goal-backward verification manually |
+| `ralph-hybrid status` | Terminal | Show feature progress |
+
+### Example: GitHub Issue to Implementation
+
+```bash
+# 1. Create branch from issue number
+git checkout -b 42-user-authentication
+
+# 2. Plan (Claude auto-fetches issue #42 context)
+/ralph-hybrid-plan
+
+# 3. Run autonomous loop
+ralph-hybrid run
+```
+
+### Key Concepts
+
+- **Fresh context per iteration**: Each loop iteration starts Claude fresh
+- **Memory in files**: prd.json tracks story completion, progress.txt logs history
+- **Branch = feature folder**: `.ralph-hybrid/{branch-name}/` holds all state
+- **Fail fast**: Circuit breaker trips after 2 same errors or no progress
+- **Goal-backward verification**: After stories complete, verifies feature actually works
+<!-- RALPH_HYBRID_END -->
