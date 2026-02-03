@@ -657,55 +657,6 @@ Development follows two loops:
 For conceptual overview, see [Workflow Loops](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Workflow-Loops) in the wiki.
 For Ralph Hybrid details, see [Ralph Hybrid](https://github.com/krazyuniks/ralph-hybrid).
 
-
-### GTS Customizations
-
-GTS has customized Ralph Hybrid with project-specific features:
-
-#### Backpressure Hooks
-
-Post-iteration verification at `.ralph-hybrid/hooks/post_iteration.sh`:
-- Runs `ruff check` and `ruff format --check` for linting
-- Runs `mypy` for type checking (non-blocking)
-- Runs `pytest` for unit and integration tests
-- Returns exit code 75 (VERIFICATION_FAILED) on failure
-- Auto-detects Docker vs host execution
-
-```bash
-# Test the hook
-.ralph-hybrid/hooks/post_iteration.sh context.json --dry-run
-```
-
-#### Project Memories
-
-Cross-session learning at `.ralph-hybrid/memories.md`:
-
-| Section | Purpose |
-|---------|---------|
-| **Patterns** | Astro + Jinja2 rendering, transaction handling, testing patterns, container rules |
-| **Decisions** | PostgreSQL/SQLAlchemy, pre-bundled Astro, worktrees, Python Playwright |
-| **Fixes** | Navigation issues, E2E test fixes, auth centralization |
-| **Context** | Domain concepts (shootouts, signal chains, gear, auth patterns) |
-
-Memories are automatically injected into each iteration prompt.
-
-#### Customized Skills
-
-GTS-specific skills for specialised tasks. Also uses global skills:
-
-| Skill | When to Use | Location |
-|-------|-------------|----------|
-| `/security-review` | Security audits, pre-merge checks | Global (`~/.claude/skills/`) |
-| `/code-archaeology` | Legacy code investigation | Global (`~/.claude/skills/`) |
-| `incident-response` | Production issues | `.claude/skills/incident-response/` |
-
-**incident-response** covers:
-- GTS Docker Compose architecture
-- Diagnostic procedures (health checks, logs)
-- Mitigation for DB/Redis/worker/nginx issues
-- Rollback procedures (code, migrations, full system)
-- GTS-specific incidents (T3K OAuth, job backlog)
-
 ---
 
 <!-- RALPH_HYBRID_START -->
@@ -762,3 +713,51 @@ ralph-hybrid run
 - **Fail fast**: Circuit breaker trips after 2 same errors or no progress
 - **Goal-backward verification**: After stories complete, verifies feature actually works
 <!-- RALPH_HYBRID_END -->
+
+### GTS Customizations
+
+GTS has customized Ralph Hybrid with project-specific features:
+
+#### Backpressure Hooks
+
+Post-iteration verification at `.ralph-hybrid/hooks/post_iteration.sh`:
+- Runs `ruff check` and `ruff format --check` for linting
+- Runs `mypy` for type checking (non-blocking)
+- Runs `pytest` for unit and integration tests
+- Returns exit code 75 (VERIFICATION_FAILED) on failure
+- Auto-detects Docker vs host execution
+
+```bash
+# Test the hook
+.ralph-hybrid/hooks/post_iteration.sh context.json --dry-run
+```
+
+#### Project Memories
+
+Cross-session learning at `.ralph-hybrid/memories.md`:
+
+| Section | Purpose |
+|---------|---------|
+| **Patterns** | Astro + Jinja2 rendering, transaction handling, testing patterns, container rules |
+| **Decisions** | PostgreSQL/SQLAlchemy, pre-bundled Astro, worktrees, Python Playwright |
+| **Fixes** | Navigation issues, E2E test fixes, auth centralization |
+| **Context** | Domain concepts (shootouts, signal chains, gear, auth patterns) |
+
+Memories are automatically injected into each iteration prompt.
+
+#### Customized Skills
+
+GTS-specific skills for specialised tasks. Also uses global skills:
+
+| Skill | When to Use | Location |
+|-------|-------------|----------|
+| `/security-review` | Security audits, pre-merge checks | Global (`~/.claude/skills/`) |
+| `/code-archaeology` | Legacy code investigation | Global (`~/.claude/skills/`) |
+| `incident-response` | Production issues | `.claude/skills/incident-response/` |
+
+**incident-response** covers:
+- GTS Docker Compose architecture
+- Diagnostic procedures (health checks, logs)
+- Mitigation for DB/Redis/worker/nginx issues
+- Rollback procedures (code, migrations, full system)
+- GTS-specific incidents (T3K OAuth, job backlog)
