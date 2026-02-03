@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
@@ -191,9 +192,9 @@ class SQLAlchemyJobRepository:
         Returns:
             List of Jobs ready for retry
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         stmt = (
             select(Job)

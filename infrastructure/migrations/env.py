@@ -1,22 +1,21 @@
 import os
-from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config, pool
-
-from alembic import context
 
 # Import Base from ORM models for autogenerate support
 import sys
+from logging.config import fileConfig
 from pathlib import Path
+
+from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import all models to ensure they're registered with Base.metadata
-from webapp.adapters.persistence.models import (  # noqa: F401
-    AuditLog,
+from webapp.adapters.persistence.models import (
     AudioSegment,
+    AuditLog,
     Base,
     BlockType,
     DITrack,
@@ -36,7 +35,7 @@ from webapp.adapters.persistence.models import (  # noqa: F401
     User,
     UserIdentity,
 )
-from webapp.adapters.persistence.models.gear import gear_tags_table  # noqa: F401
+from webapp.adapters.persistence.models.gear import gear_tags_table
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

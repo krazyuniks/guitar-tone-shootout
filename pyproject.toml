@@ -134,6 +134,7 @@ known-first-party = ["core", "audio", "source_t3k", "webapp", "worker", "schedul
 "apps/webapp/src/webapp/adapters/persistence/models/user.py" = ["TC003"]
 "apps/webapp/src/webapp/adapters/persistence/unit_of_work.py" = ["TC002"]
 "tests/unit/webapp/test_job_model.py" = ["TC003"]
+"infrastructure/migrations/**/*.py" = ["E501", "F401", "E402", "F811", "F821"]
 
 # =============================================================================
 # MyPy Configuration
@@ -151,6 +152,9 @@ disallow_untyped_decorators = true
 no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+exclude = [
+    "infrastructure/migrations/",
+]
 
 [[tool.mypy.overrides]]
 module = [

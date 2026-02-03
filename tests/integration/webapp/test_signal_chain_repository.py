@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -17,7 +17,7 @@ from webapp.adapters.persistence.repositories.signal_chain_repository import (
 )
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from collections.abc import AsyncGenerator
 
 
 @pytest.fixture

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -23,7 +23,7 @@ from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity
 from core.domain.value_objects.audio_checksum import AudioChecksum
 from core.domain.value_objects.job_status import JobStatus, JobType
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from core.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.audit_repository import (
     SQLAlchemyAuditRepository,
@@ -116,8 +116,8 @@ async def test_di_track_save_and_get_by_id(
         guitar="Fender Strat",
         pickup="Bridge",
         checksum=AudioChecksum("a" * 64),  # Valid SHA256 checksum
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
 
     # Save track

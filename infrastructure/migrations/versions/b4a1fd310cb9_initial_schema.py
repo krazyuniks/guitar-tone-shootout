@@ -1,21 +1,21 @@
 """Initial schema
 
 Revision ID: b4a1fd310cb9
-Revises: 
+Revises:
 Create Date: 2026-02-03 20:38:14.374123
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'b4a1fd310cb9'
-down_revision: Union[str, Sequence[str], None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -371,7 +371,6 @@ def upgrade() -> None:
 
     # Seed data
     from uuid import uuid4
-    from datetime import datetime, timezone
 
     # Seed OAuthProvider
     oauth_providers = [
