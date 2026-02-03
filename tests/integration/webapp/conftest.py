@@ -39,7 +39,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
 
 
 @pytest.fixture
-async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session."""
     # Create session factory
     async_session = async_sessionmaker(db_engine, expire_on_commit=False)
