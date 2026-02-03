@@ -3275,3 +3275,106 @@
 {"timestamp":"2026-02-03T19:57:40Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-023\"","exit_code":0,"duration_ms":0,"iteration":14,"story_id":""}
 {"timestamp":"2026-02-03T19:57:44Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3769,"iteration":14,"story_id":""}
 {"timestamp":"2026-02-03T19:57:48Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3800,"iteration":14,"story_id":"STORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"find libs/core -name \"*.py\" -type f | xargs grep -l \"PermutationCalculator\" 2>/dev/null | head -5","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"test -f tests/integration/audio/test_permutation.py && echo \"EXISTS\" || echo \"MISSING\"","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"ls -la tests/integration/audio/ 2>/dev/null | head -20","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run pytest tests/integration/audio/test_permutation.py -v 2>&1 | head -50","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run pytest tests/integration/audio/test_permutation.py -v","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run pytest tests/integration/audio/test_permutation.py -v 2>&1 | grep -E \"(PASSED|FAILED|ERROR)\" | head -20","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run ruff check libs/audio/src/audio/processing/permutation.py tests/integration/audio/test_permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run ruff check libs/audio/src/audio/processing/permutation.py tests/integration/audio/test_permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run mypy libs/audio/src/audio/processing/permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run mypy libs/audio/src/audio/processing/permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:11Z","source":"claude_code","command":"uv run mypy libs/audio/src/audio/processing/permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"uv run pytest tests/unit/ tests/integration/ -v --tb=short 2>&1 | tail -50","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"git add -A && git commit -m \"feat: [STORY-024] - Permutation Processing\"","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"PRD_FILE=\".ralph-hybrid/$(git branch --show-current)/prd.json\"","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"jq '(.userStories[] | select(.id == \"STORY-024\")) |= (.passes = true | .notes = \"Implemented with Cartesian product generation, null handling, limit enforcement via domain PermutationCalculator. All 9 integration tests pass.\")' \\","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  \"$PRD_FILE\" > /tmp/prd.json && mv /tmp/prd.json \"$PRD_FILE\"","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"cat >> .ralph-hybrid/main/progress.txt << 'EOF'","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"---","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Iteration: 15","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Started: 2026-02-03T19:57:51Z","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Story: STORY-024 - Permutation Processing","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Status: complete","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Changes made:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Created libs/audio/src/audio/processing/permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Implemented expand_signal_chain_group() using domain PermutationCalculator","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Implemented generate_permutation_labels() for human-readable labels","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Created comprehensive integration tests (9 tests)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- All tests verify Cartesian product generation, null handling, and limit enforcement","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Verification:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- All 9 integration tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Cartesian product generation works correctly (2x2 = 4 permutations)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Null gear handling works (with/without effect comparisons)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Limit enforcement at 27 permutations works (3x3x3 = 27)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Groups exceeding limits raise PermutationError","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Uses domain PermutationCalculator as required","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- All 151 regression tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Type checking passes (mypy)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Linting passes (ruff)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Technical notes:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- expand_signal_chain_group() delegates to domain PermutationCalculator.calculate_permutations()","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- generate_permutation_labels() delegates to domain PermutationCalculator.generate_labels()","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- PermutationError wraps ValueError from domain layer","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Added type ignore comments for core domain imports (missing py.typed marker)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Added explicit type annotations to satisfy mypy no-any-return checks","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-024\"","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"cat << 'EOF'","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"STORY-024 Acceptance Criteria Verification:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Cartesian product generation from SignalChainGroup","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - expand_signal_chain_group() generates all permutations","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Test: test_expand_simple_group (2x2 = 4 permutations)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Null gear handling (with/without effect comparisons)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - include_null adds None as an option","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Test: test_expand_group_with_null (3 permutations including None)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Limit enforcement (max 27 permutations, max 3 options per block)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Groups at limit work correctly (3x3x3 = 27)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Groups exceeding limit raise PermutationError","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Test: test_expand_group_at_limit, test_expand_group_exceeds_limit_raises_error","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Uses domain PermutationCalculator","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - expand_signal_chain_group() delegates to calculator.calculate_permutations()","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - generate_permutation_labels() delegates to calculator.generate_labels()","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Test: test_permutations_use_domain_calculator","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Integration tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - All 9 integration tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - All 151 regression tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Typecheck passes","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - mypy passes with type ignore comments for core imports","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"  - Explicit type annotations satisfy no-any-return checks","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"All acceptance criteria met! ✓","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"just test-regression 2>&1 | tail -100","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"cat << 'EOF'","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✅ STORY-024 - Permutation Processing - COMPLETE","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Implementation Summary:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- Created libs/audio/src/audio/processing/permutation.py","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- expand_signal_chain_group() - Uses domain PermutationCalculator","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- generate_permutation_labels() - Generates human-readable labels","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"- PermutationError - Exception for invalid configurations","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Acceptance Criteria:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Cartesian product generation from SignalChainGroup","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Null gear handling (with/without effect comparisons)  ","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Limit enforcement (max 27 permutations, max 3 options per block)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Uses domain PermutationCalculator","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Integration tests pass (9/9)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Typecheck passes (mypy)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"Quality Checks:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ All 56 unit tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ All 9 integration tests for permutation pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ All 151 total regression tests pass","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Linting passes (ruff)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:12Z","source":"claude_code","command":"✓ Type checking passes (mypy)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"✓ just test-regression passes","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"Files Changed:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"- libs/audio/src/audio/processing/permutation.py (new)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"- libs/audio/src/audio/processing/__init__.py (updated exports)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"- tests/integration/audio/test_permutation.py (new)","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"Wiring:","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"- Shootout processing will use expand_signal_chain_group() to generate permutations","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"- Worker uses permutations for batch audio processing jobs","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:13Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:17Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3869,"iteration":15,"story_id":""}
+{"timestamp":"2026-02-03T20:01:20Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3825,"iteration":15,"story_id":"STORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}

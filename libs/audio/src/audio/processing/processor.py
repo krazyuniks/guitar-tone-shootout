@@ -19,6 +19,7 @@ from core.domain.value_objects.audio_result import AudioResult
 from core.domain.value_objects.tone_config import ToneConfig
 from core.domain.value_objects.waveform_data import WaveformData
 
+from ..analysis.waveform import extract_waveform as _extract_waveform
 from .ir_loader import load_ir
 from .loudness import measure_loudness as _measure_loudness
 from .loudness import normalize_loudness as _normalize_loudness
@@ -83,43 +84,8 @@ class PedalboardAudioProcessor:
         Returns:
             WaveformData for visualization
         """
-        # Load audio file
-        audio, sample_rate = sf.read(audio_path)
-
-        # Convert stereo to mono if needed
-        if audio.ndim == 2:
-            audio = np.mean(audio, axis=1)
-
-        # Calculate samples per peak
-        total_samples = len(audio)
-        samples_per_peak = max(1, total_samples // num_peaks)
-
-        # Extract peaks by downsampling
-        peaks = []
-        for i in range(num_peaks):
-            start_idx = i * samples_per_peak
-            end_idx = min(start_idx + samples_per_peak, total_samples)
-
-            if start_idx >= total_samples:
-                break
-
-            # Get max absolute value in this segment
-            segment = audio[start_idx:end_idx]
-            if len(segment) > 0:
-                peak = np.max(np.abs(segment))
-                # Preserve sign of the loudest sample
-                max_idx = np.argmax(np.abs(segment))
-                peaks.append(float(segment[max_idx]) if peak > 0 else 0.0)
-
-        # Calculate duration
-        duration = float(total_samples) / sample_rate
-
-        return WaveformData(
-            peaks=tuple(peaks),
-            sample_rate=sample_rate,
-            duration_seconds=duration,
-            samples_per_peak=samples_per_peak,
-        )
+        # Delegate to analysis module
+        return _extract_waveform(audio_path, num_peaks=num_peaks)
 
     async def measure_loudness(
         self,
