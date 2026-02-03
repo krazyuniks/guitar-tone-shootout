@@ -106,8 +106,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Foundation for audio processing - can run parallel with frontend stories",
+      "passes": true,
+      "notes": "Implemented NAM model loader using PyTorch directly (neural-amp-modeler library has Python 3.12 compatibility issues). LRU cache with configurable size (default 10), NAMLoadError exception, sample rate detection. All unit tests pass (6/6), type checking passes, linting passes.",
       "verify": {
         "command": "just tdd tests/unit/audio/test_nam_loader.py",
         "expected": "NAM models load and cache correctly",

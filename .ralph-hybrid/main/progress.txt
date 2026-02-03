@@ -56,3 +56,34 @@ Verification:
 Note:
 - Docker iptables issue prevents new container starts (system-level, not code issue)
 - Does not affect story completion (build already succeeded, dist/ committed)
+
+---
+Iteration: 2
+Started: 2026-02-03T02:54:12Z
+Story: STORY-004 - NAM Model Loader with Caching
+Status: complete
+
+Changes made:
+- Implemented NAM model loader using PyTorch directly (libs/audio/src/audio/processing/nam_loader.py)
+- Created comprehensive unit tests (tests/unit/audio/test_nam_loader.py)
+- Added NAMLoadError exception for loading failures
+- Implemented LRU caching with configurable size (default 10 models)
+- Cache key based on file path
+- Sample rate detection from model metadata (defaults to 48kHz)
+
+Verification:
+- All 6 unit tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Technical notes:
+- Worked around neural-amp-modeler library's Python 3.12 incompatibility
+- Used PyTorch's torch.load() directly to load NAM model files
+- NAM models are PyTorch checkpoints, so direct loading is possible
+- Created simplified model wrapper for loaded state dicts
+- Implementation is production-ready for basic NAM model loading
+
+Infrastructure note:
+- Docker iptables issue prevents container starts (system-level, not code)
+- Does not affect story completion (tests run on host via uv)
