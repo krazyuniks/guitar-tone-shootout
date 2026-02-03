@@ -187,8 +187,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Depends on STORY-001 (ORM base)",
+      "passes": true,
+      "notes": "Implemented complete Gear ORM hierarchy: Gear (aggregate root), GearModel (downloadable files), GearSource (sync tracking), GearTag and GearMake (categorization). All relationships configured with proper cascade, eager loading, and indexes. 8 unit tests pass, type checking passes, linting passes.",
       "verify": {
         "command": "just tdd tests/unit/webapp/test_gear_model.py",
         "expected": "Gear model with relationships works correctly",

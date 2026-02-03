@@ -226,3 +226,36 @@ Root cause:
 
 Infrastructure note:
 - Always install workspace packages at session start: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
+
+---
+Iteration: 7
+Started: 2026-02-03T03:13:18Z
+Story: STORY-007 - Gear ORM Models
+Status: complete
+
+Changes made:
+- Created Gear ORM model (aggregate root) with all domain entity fields
+- Created GearModel for downloadable model files (platform, size variants)
+- Created GearSource for tracking sync data (source_name, source_record_id)
+- Created GearTag and GearMake for categorization
+- Created gear_tags junction table for many-to-many relationship
+- Configured relationships with proper cascade and eager loading (selectin)
+- Added indexes for common query patterns (gear_type, platform, source)
+- Implemented comprehensive unit tests (8 tests covering all relationships)
+
+Verification:
+- All 8 unit tests pass
+- All 35 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Technical notes:
+- Used EnumByValue for GearType, Platform, ModelSize, DownloadStatus enums
+- Junction table uses Column (not mapped_column) for standalone Table
+- Test fixture matches pattern from test_user_model.py
+- Eager loading configured for models and tags relationships
+- Indexes configured via __table_args__ tuples
+
+Infrastructure note:
+- Workspace packages installed at session start (uv pip install -e)
