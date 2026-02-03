@@ -15,6 +15,7 @@ Plan a new feature for Ralph Hybrid development. Guide the user through requirem
 | `--regenerate` | Regenerate prd.json from existing spec.md |
 | `--no-issue` | Skip GitHub issue lookup |
 | `--skip-verify` | Skip plan verification phase (not recommended) |
+| `--legacy` | Use legacy .ralph-hybrid/ in-tree state (default: external state at ~/.ralph/) |
 
 ## Workflow States
 
@@ -29,6 +30,7 @@ Phase 2.7: SETTINGS   → Collect runtime settings (profile, success criteria, m
 Phase 3: ANALYZE      → Detect patterns requiring skills/scripts/callbacks
 Phase 4: DRAFT        → Generate spec.md document
 Phase 5: DECOMPOSE    → Break spec into properly-sized stories
+Phase 5.5: MUST-HAVES → Derive truths→artifacts→wiring per story (verify criteria)
 Phase 6: GENERATE     → Create prd.json for Ralph execution
 Phase 7: VERIFY       → Run plan checker and fix issues (unless --skip-verify)
 ```
@@ -438,11 +440,7 @@ If assumptions were surfaced, the CLARIFY phase uses them:
    - "Does this depend on other features?"
    - "What external systems does it interact with?"
 
-6. **Verification** (optional - user can skip)
-   - "What command validates this feature works?" (e.g., `pytest tests/`, `npm test`, `cargo test`)
-   - "What timeout is appropriate for this validation?" (default: 300 seconds)
-
-7. **UX Decisions (REQUIRED for any UI work)**
+6. **UX Decisions (REQUIRED for any UI work)**
    - "Navigation: flat visible links or dropdown menus?"
    - "Forms: inline validation or submit-time validation?"
    - "Confirmations: modal dialogs or inline prompts?"
@@ -457,16 +455,6 @@ If assumptions were surfaced, the CLARIFY phase uses them:
 - Wait for response before next question
 - Offer multiple-choice where possible: "A) Option, B) Option, C) Something else"
 - Allow quick responses: "1A, 2C" for batch answers
-
-### Verification Question Guidance:
-- If user provides a command: Store for prd.json generation
-- If user skips: Note that success criteria will use defaults (config.yaml or CLI flag)
-- Suggest common patterns based on detected project type:
-  - Python: `pytest`, `python -m pytest tests/`
-  - Node.js: `npm test`, `yarn test`
-  - Rust: `cargo test`
-  - Go: `go test ./...`
-  - Generic: `make test`, `./run-tests.sh`
 
 ### Stop Conditions:
 - 5 questions asked
@@ -609,6 +597,22 @@ Proceeding to ANALYZE phase with research context...
 
 > This phase eliminates the need for CLI flags during execution. Settings are collected once during planning and stored in `.ralph-hybrid/{branch}/config.yaml`.
 
+### Understanding TDD vs Validation (CRITICAL)
+
+There are TWO types of tests in Ralph's workflow - do NOT confuse them:
+
+| Type | When | What | Example |
+|------|------|------|---------|
+| **TDD Tests** | During implementation | Tests Claude writes FIRST (Red-Green-Refactor) | `test_oauth_redirects_to_google.py` |
+| **Validation Command** | After each story | Regression check - did we break anything? | `just test-regression` |
+
+**Key insight:** When planning a NEW feature, the TDD tests DON'T EXIST YET. Claude writes them as part of implementing each story. The validation command runs EXISTING tests to catch regressions.
+
+**Example for OAuth epic:**
+- TDD: Claude writes `test_google_oauth_redirect()` as part of STORY-001 (test first, then implement)
+- Validation: `just test-regression` runs ALL existing tests after STORY-001 completes
+- If validation fails, Claude broke something unrelated to OAuth
+
 ### Settings to Collect:
 
 Present all settings in a single prompt for quick batch answers:
@@ -622,14 +626,10 @@ Present all settings in a single prompt for quick batch answers:
    C) budget - Sonnet execution, Haiku research (lowest cost)
    D) glm - GLM for all phases
 
-2. **Success criteria** - Command to verify story completion?
-   [From SDLC discovery: {discovered_test_command}]  ← Pre-populated from Phase 0.5
-   Press Enter to use this, or provide a different command.
-
-3. **Max iterations** - Safety limit for the development loop?
+2. **Max iterations** - Safety limit for the development loop?
    Default: 20
 
-4. **MCP Servers** - Which MCP servers should be available to ALL stories?
+3. **MCP Servers** - Which MCP servers should be available to ALL stories?
    Available servers can be listed with: claude mcp list
    Common options:
    - chrome-devtools: Browser console, network inspection, UI validation
@@ -638,7 +638,20 @@ Present all settings in a single prompt for quick batch answers:
 
    Examples: "chrome-devtools, playwright" or "none"
 
-Your choices (e.g., "1B, 2: npm test, 3: 20, 4: chrome-devtools, playwright"):
+4. **Regression Command** - What command checks that EXISTING tests still pass?
+   This is NOT for validating the new feature (TDD tests handle that).
+   This catches regressions - did we accidentally break something else?
+
+   Common options:
+   - just test-regression (recommended if available)
+   - npm test
+   - pytest
+   - cargo test
+
+   NOTE: If you don't have a regression suite yet, enter "skip" and
+   Ralph will rely on TDD tests only.
+
+Your choices (e.g., "1B, 2: 20, 3: chrome-devtools, playwright, 4: just test-regression"):
 ```
 
 ### Store Settings:
@@ -652,17 +665,18 @@ After collecting responses, create/update `.ralph-hybrid/{branch}/config.yaml`:
 profile: balanced
 max_iterations: 20
 
-# Success criteria (optional)
-successCriteria:
-  command: "npm test"
-  timeout: 300
-
 # MCP servers for all stories (optional)
 # If set, all stories get these servers unless individually overridden
 mcpServers:
   - chrome-devtools
   - playwright
 mcpNotes: "chrome-devtools for UI validation, playwright for E2E tests"
+
+# Regression command - runs AFTER each story to catch regressions
+# This is NOT for validating the new feature (TDD tests do that)
+successCriteria:
+  command: "just test-regression"
+  timeout: 300
 ```
 
 ### Output:
@@ -670,10 +684,24 @@ mcpNotes: "chrome-devtools for UI validation, playwright for E2E tests"
 ```
 [SETTINGS] Configuration saved to .ralph-hybrid/{branch}/config.yaml
 
-  Profile:          balanced (Opus planning, Sonnet execution)
-  Success criteria: npm test
-  Max iterations:   20
-  MCP Servers:      chrome-devtools, playwright
+  Profile:            balanced (Opus planning, Sonnet execution)
+  Max iterations:     20
+  MCP Servers:        chrome-devtools, playwright
+  Regression Command: just test-regression
+
+Testing Strategy:
+  ┌─────────────────────────────────────────────────────────────┐
+  │ TDD Tests (Claude writes during implementation)             │
+  │   → Write tests FIRST for new feature behaviour             │
+  │   → Tests fail initially (Red)                              │
+  │   → Implement to make them pass (Green)                     │
+  │   → These ARE the feature validation                        │
+  ├─────────────────────────────────────────────────────────────┤
+  │ Regression Command (runs after each story)                  │
+  │   → Runs: just test-regression                              │
+  │   → Checks existing tests still pass                        │
+  │   → Catches accidental breakage of unrelated code           │
+  └─────────────────────────────────────────────────────────────┘
 
 When you run `ralph-hybrid run`, these settings will be used automatically.
 You can still override with CLI flags (e.g., --profile quality).
@@ -685,7 +713,9 @@ Proceeding to ANALYZE phase...
 - Settings are stored at the feature level, not globally
 - CLI flags always override feature config (escape hatch)
 - If user skips a setting, use the project/global default
-- The success criteria here becomes `successCriteria` in prd.json
+- If user enters "skip" for regression command, Ralph relies on TDD tests only (no post-story validation)
+- **TDD tests are written by Claude as part of implementation** - they don't exist until Claude creates them
+- **Regression command runs EXISTING tests** - it catches breakage, not feature validation
 
 ---
 
@@ -814,7 +844,36 @@ visual_regression:
 
 #### Step 1: Derive Feature Folder (CRITICAL)
 
-**IMPORTANT:** The folder name MUST be derived exactly from the git branch name. Do NOT invent a shorter or "cleaner" name.
+**IMPORTANT:** External state is the DEFAULT. State is stored OUTSIDE the working tree where Claude cannot modify it.
+
+##### External State Mode (default)
+
+State is stored at `~/.ralph/projects/{repo-name}/{branch}/`:
+
+```bash
+# Get project root and branch
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+BRANCH=$(git branch --show-current)
+
+# Get repo name from git remote (or directory name as fallback)
+REPO_NAME=$(basename "$(git remote get-url origin 2>/dev/null || echo "$PROJECT_ROOT")" .git)
+
+# Sanitize branch name
+FOLDER_NAME=$(echo "$BRANCH" | tr '/' '-')
+
+# External state directory
+STATE_DIR="$HOME/.ralph/projects/${REPO_NAME}/${FOLDER_NAME}"
+```
+
+**Examples:**
+| Repo | Branch | State Directory |
+|------|--------|-----------------|
+| `ralph-hybrid` | `feature/42-auth` | `~/.ralph/projects/ralph-hybrid/feature-42-auth/` |
+| `my-app` | `603-improve-display` | `~/.ralph/projects/my-app/603-improve-display/` |
+
+##### Legacy Mode (--legacy flag)
+
+The folder name MUST be derived exactly from the git branch name. Do NOT invent a shorter or "cleaner" name.
 
 ```bash
 # Get exact branch name
@@ -827,16 +886,39 @@ FOLDER_NAME=$(echo "$BRANCH" | tr '/' '-')
 FEATURE_DIR=".ralph-hybrid/${FOLDER_NAME}"
 ```
 
-**Examples:**
+**Examples (Legacy Mode):**
 | Branch | Folder (CORRECT) | Folder (WRONG) |
 |--------|------------------|----------------|
 | `384/job-processing-pipeline-step-3-video-com` | `.ralph-hybrid/384-job-processing-pipeline-step-3-video-com/` | `.ralph-hybrid/384-video-composition/` |
 | `feature/42-user-auth` | `.ralph-hybrid/feature-42-user-auth/` | `.ralph-hybrid/user-auth/` |
 | `fix/123-bug-fix` | `.ralph-hybrid/fix-123-bug-fix/` | `.ralph-hybrid/bug-fix/` |
 
-**Why this matters:** `ralph-hybrid run` derives the folder from the branch name using the same logic. If you use a different name, `ralph-hybrid run` won't find your files.
+**Why external state is recommended:** Claude cannot modify prd.json or progress files. Ralph owns all state. Claude only sees .ralph/task.md in the working tree.
 
-#### Step 2: Create directory if it doesn't exist
+**Why folder names matter:** `ralph-hybrid run` derives the folder from the branch name using the same logic. If you use a different name, `ralph-hybrid run` won't find your files.
+
+#### Step 2: Create directory and initialize state
+
+**For external state mode:** Create the state directory structure and initialize progress.log:
+
+```bash
+# Create external state directory
+mkdir -p "$STATE_DIR/logs"
+
+# Initialize progress.log
+cat > "$STATE_DIR/progress.log" << EOF
+# Progress Log
+# Initialized: $(date -Iseconds)
+# State Directory: $STATE_DIR
+EOF
+
+# Add .ralph/ to .gitignore (working tree will get task.md during run)
+if ! grep -q '^\.ralph/$' .gitignore 2>/dev/null; then
+    echo '.ralph/' >> .gitignore
+fi
+```
+
+**For legacy mode:** Create the feature directory if it doesn't exist.
 
 #### Step 3: Generate `spec.md` using template (see below)
 
@@ -871,7 +953,37 @@ github_issue: {number or null}
 
 ## Execution Guidelines
 
-**Use background agents for parallel sub-tasks.** When implementing stories, use the Task tool with `run_in_background: true` to maximize throughput without cluttering the output stream:
+### Test-Driven Development (MANDATORY)
+
+**Every story MUST follow Red-Green-Refactor:**
+
+1. **RED - Write failing tests FIRST**
+   - Before writing ANY implementation code, write tests for the story's acceptance criteria
+   - Run the tests - they MUST fail (if they pass, you're not testing new behaviour)
+   - These tests ARE your feature validation - they prove the feature works
+
+2. **GREEN - Implement to pass**
+   - Write the minimum code to make your tests pass
+   - Run tests frequently during implementation
+   - Stop when tests pass - don't add extras
+
+3. **REFACTOR - Clean up (if needed)**
+   - Improve code quality while keeping tests green
+   - Run tests after each change
+
+**For UI/browser stories:**
+- Write Playwright/E2E tests for UI behaviour
+- Tests CAN verify up to external service boundaries (e.g., OAuth redirects to IdP login page)
+- You CANNOT test past external login (no real user credentials)
+- Manual testing with real accounts happens AFTER ralph completes
+
+**Important distinction:**
+- **TDD tests** (you write): Validate the NEW feature works
+- **Regression command** (runs automatically): Checks EXISTING tests still pass
+
+### Background Agents
+
+Use the Task tool with `run_in_background: true` for parallel work:
 
 1. **Background agents for independent work:**
    - `Explore` agent - Codebase research, finding related files/patterns
@@ -996,7 +1108,139 @@ Only override individual story MCP if there's a specific reason:
 3. Add explicit test stories if needed
 4. Verify dependencies are clear
 5. **Classify each story and assign model/mcpServers as needed**
-6. Update spec.md with final stories
+6. **Derive verify criteria for each story** (see Phase 5.5)
+7. Update spec.md with final stories
+
+---
+
+## Phase 5.5: DERIVE MUST-HAVES
+
+**Goal:** Use goal-backward derivation to capture concrete must-haves that each story should deliver.
+
+### Why Must-Haves Matter
+
+Traditional planning asks: "What tasks should we do?"
+Goal-backward planning asks: "What must be true when we're done?"
+
+By deriving must-haves BEFORE implementation, we create verifiable criteria that catch:
+- Partial implementations that complete tasks but don't work end-to-end
+- Missing wiring between components
+- Stub code that technically exists but doesn't function
+
+### Derivation Process
+
+For each success criterion in spec.md, derive:
+
+#### Step 1: Observable Truths
+What a user can actually DO when this is complete.
+
+```
+Success Criterion: "Users can log in and receive a JWT token"
+
+Observable Truths:
+  - User can enter email and password into login form
+  - User sees error message for invalid credentials
+  - User is redirected to dashboard after successful login
+  - User's JWT token is stored in browser
+```
+
+#### Step 2: Required Artifacts
+What files MUST exist with minimum substance.
+
+```
+Observable Truth: "User can enter email and password into login form"
+
+Required Artifacts:
+  - src/components/LoginForm.tsx (15+ lines)
+  - src/api/auth/login.py (10+ lines)
+  - tests/test_login.py (20+ lines)
+```
+
+**Line count thresholds by type:**
+| Artifact Type | Minimum Lines |
+|---------------|---------------|
+| Component (React/Vue/Astro) | 15 |
+| API route/endpoint | 10 |
+| Hook/utility | 10 |
+| Model/schema | 5 |
+| Test file | 20 |
+| Config file | 5 |
+
+#### Step 3: Key Wiring
+What connections MUST exist between components.
+
+```
+Required Artifact: "src/components/LoginForm.tsx"
+
+Key Wiring:
+  - LoginForm → /api/auth/login (POST request on submit)
+  - LoginForm rendered in App.tsx or LoginPage
+  - LoginForm receives onSuccess callback
+```
+
+### Generate Verify Criteria Per Story
+
+For each story, create a `verify` object based on must-haves:
+
+```json
+{
+  "id": "STORY-001",
+  "title": "Implement login form",
+  "verify": {
+    "command": "npm run test:component -- --grep 'LoginForm'",
+    "expected": "Form submits credentials, handles success/error states",
+    "artifacts": ["src/components/LoginForm.tsx", "tests/LoginForm.test.tsx"],
+    "wiring": ["LoginForm rendered in LoginPage", "LoginForm calls /api/auth/login"]
+  }
+}
+```
+
+### Output
+
+Add Must-Haves section to spec.md (see spec.md.example template):
+
+```markdown
+## Must-Haves (Derived from Goals)
+
+### Observable Truths
+- [User-facing capability 1]
+- [User-facing capability 2]
+
+### Required Artifacts
+| Artifact | Purpose | Min Lines |
+|----------|---------|-----------|
+| path/to/file.ext | description | N |
+
+### Key Wiring
+| From | To | Via |
+|------|----|----|
+| Component A | Component B | mechanism |
+```
+
+Present to user for confirmation:
+
+```
+[MUST-HAVES] Derived from success criteria:
+
+Observable Truths (3):
+  ✓ User can enter email and password
+  ✓ User sees error for invalid credentials
+  ✓ User is redirected after success
+
+Required Artifacts (4):
+  ✓ src/components/LoginForm.tsx (15+ lines)
+  ✓ src/api/auth/login.py (10+ lines)
+  ✓ tests/test_login.py (20+ lines)
+  ✓ src/models/user.py (5+ lines)
+
+Key Wiring (3):
+  ✓ LoginForm → /api/auth/login
+  ✓ /api/auth/login → User model
+  ✓ LoginForm rendered in App
+
+Each story now has verify criteria derived from these must-haves.
+Does this capture the essential deliverables? [Y/n]
+```
 
 ---
 
@@ -1006,19 +1250,18 @@ Only override individual story MCP if there's a specific reason:
 
 ### Actions:
 1. Read final spec.md
-2. **Use the SAME feature folder from Phase 3** - do NOT recalculate or use a different name
-   - The folder MUST be: `.ralph-hybrid/$(git branch --show-current | tr '/' '-')/`
+2. **Use the SAME feature folder from Phase 4** - do NOT recalculate or use a different name
+   - **External state mode:** `~/.ralph/projects/{hash}/{branch}/`
+   - **Legacy mode:** `.ralph-hybrid/$(git branch --show-current | tr '/' '-')/`
 3. Generate `prd.json` in that folder:
+
+**IMPORTANT: Do NOT include successCriteria in prd.json.** Success criteria is a runtime configuration that must be set by the user directly in config.yaml or via CLI flag. This prevents misinterpretation of user input.
 
 ```json
 {
   "description": "{from spec Problem Statement}",
   "createdAt": "{ISO-8601}",
-  "profile": "{quality|balanced|budget}",  // From CLARIFY phase - controls execution model
-  "successCriteria": {                    // OPTIONAL: Only include if user provided during CLARIFY
-    "command": "{user's validation command}",
-    "timeout": {timeout_seconds}          // Default: 300
-  },
+  "profile": "{quality|balanced|budget}",  // From SETTINGS phase - controls execution model
   "userStories": [
     {
       "id": "STORY-001",
@@ -1034,7 +1277,13 @@ Only override individual story MCP if there's a specific reason:
       "passes": false,
       "notes": "",
       "model": "opus",                    // OPTIONAL: Override model (opus, sonnet, haiku)
-      "mcpServers": ["playwright"]        // OPTIONAL: MCP servers for this story
+      "mcpServers": ["playwright"],       // OPTIONAL: MCP servers for this story
+      "verify": {                         // From Phase 5.5 must-haves derivation
+        "command": "{story-specific verification command}",
+        "expected": "{what success looks like}",
+        "artifacts": ["{required files with line thresholds}"],
+        "wiring": ["{connections that must exist}"]
+      }
     }
   ]
 }
@@ -1042,31 +1291,58 @@ Only override individual story MCP if there's a specific reason:
 
 > **Note:** No `feature` or `branchName` fields - the feature is identified by the folder path, which is derived from the git branch.
 
-> **successCriteria is optional.** Only include if the user provided a validation command during CLARIFY. If omitted, Ralph will use config.yaml settings or the `--success-criteria` CLI flag at runtime.
+> **successCriteria is NOT included in prd.json.** Ralph reads success criteria from:
+> 1. CLI flag: `--success-criteria "command"`
+> 2. Feature config: `.ralph-hybrid/{branch}/config.yaml`
+> 3. Project config: `.ralph-hybrid/config.yaml`
+> 4. Global config: `~/.ralph-hybrid/config.yaml`
 
 > **Per-story config fields are optional.** Only include `model` if overriding the default. Only include `mcpServers` if the story needs specific MCP tools (or `[]` to explicitly disable MCP).
 
-4. Initialize empty `progress.txt`:
+4. Initialize progress log:
+   - **External state mode:** Creates `progress.log` (append-only format for Ralph)
+   - **Legacy mode:** Creates `progress.txt` (human-readable format)
 
 ```
-# Progress Log
+# Progress Log (legacy format)
 # Branch: {branch-name}
 # Started: {ISO-8601}
 # Spec: spec.md
 
 ```
 
-4. Create `specs/` directory (for additional detailed specs if needed)
+5. Create `specs/` directory (for additional detailed specs if needed)
 
-5. **Validate folder name** before outputting summary:
+6. **Validate folder location** before outputting summary:
    ```bash
-   # Verify the folder you created matches what ralph expects
-   EXPECTED=".ralph-hybrid/$(git branch --show-current | tr '/' '-')"
+   # External state mode
+   if [[ -n "$RALPH_HYBRID_EXTERNAL_STATE" ]]; then
+       PROJECT_HASH=$(echo "$(git rev-parse --show-toplevel)" | md5sum | cut -c1-8)
+       EXPECTED="$HOME/.ralph/projects/${PROJECT_HASH}/$(git branch --show-current | tr '/' '-')"
+   else
+       # Legacy mode
+       EXPECTED=".ralph-hybrid/$(git branch --show-current | tr '/' '-')"
+   fi
    # If your folder doesn't match $EXPECTED, you made an error - fix it!
    ```
 
-6. Output generation summary:
+7. Output generation summary:
 
+**External state mode:**
+```
+[GENERATE] Files created in external state:
+  ~/.ralph/projects/{hash}/{branch}/
+  ├── spec.md          # Feature specification
+  ├── prd.json         # {N} stories, all passes: false
+  └── progress.log     # Empty, ready for iterations
+
+Working tree remains clean (no .ralph-hybrid/ created).
+Claude will only see .ralph/task.md during execution.
+
+Proceeding to plan verification...
+```
+
+**Legacy mode:**
 ```
 [GENERATE] Files created:
   .ralph-hybrid/{branch-with-slashes-as-dashes}/
@@ -1272,6 +1548,49 @@ Save the final PLAN-REVIEW.md to the feature folder:
 
 After verification (or skip), show the final plan status:
 
+**External state mode:**
+```
+═══════════════════════════════════════════════════════════════
+PLANNING COMPLETE (External State Mode)
+═══════════════════════════════════════════════════════════════
+
+Branch: {exact branch name}
+State directory: ~/.ralph/projects/{hash}/{branch}/
+
+Files:
+  ├── spec.md          # Feature specification
+  ├── prd.json         # {N} stories, all passes: false
+  ├── progress.log     # Ready for iterations
+  └── PLAN-REVIEW.md   # Verification: {READY|NEEDS_REVISION|BLOCKED|SKIPPED}
+
+Configuration:
+  Profile: {quality|balanced|budget} ({description of what models will be used})
+  Success criteria:
+    Per-story: {perStory command}
+    Final: {final command}
+
+Plan Status: {READY ✓ | NEEDS_REVISION ⚠ | BLOCKED ✗ | NOT_VERIFIED}
+
+{status explanation as before}
+
+───────────────────────────────────────────────────────────────
+Ready to execute. Run:
+
+    ralph-hybrid run
+
+───────────────────────────────────────────────────────────────
+
+Benefits of external state:
+  - Claude cannot modify prd.json or progress files
+  - Ralph controls all state updates
+  - Working tree stays clean
+  - Commit = done signal (no explicit story completion needed)
+
+To modify: Edit spec.md in state directory, then run /ralph-hybrid-plan --regenerate
+═══════════════════════════════════════════════════════════════
+```
+
+**Legacy mode:**
 ```
 ═══════════════════════════════════════════════════════════════
 PLANNING COMPLETE
