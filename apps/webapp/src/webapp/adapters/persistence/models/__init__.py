@@ -14,10 +14,18 @@ from webapp.adapters.persistence.models.gear import (
     GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.signal_chain import (
+    BlockType,
+    Preset,
+    SignalChain,
+    SignalChainBlock,
+    SignalChainGroup,
+)
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
 __all__ = [
     "Base",
+    "BlockType",
     "EnumByValue",
     "Gear",
     "GearMake",
@@ -25,6 +33,10 @@ __all__ = [
     "GearSource",
     "GearTag",
     "OAuthProvider",
+    "Preset",
+    "SignalChain",
+    "SignalChainBlock",
+    "SignalChainGroup",
     "TimestampMixin",
     "UUIDMixin",
     "User",

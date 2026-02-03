@@ -1,11 +1,15 @@
-"""User ORM models for persistence layer."""
+from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from .signal_chain import SignalChain, SignalChainGroup
 
 
 class OAuthProvider(UUIDMixin, Base):
@@ -26,7 +30,7 @@ class OAuthProvider(UUIDMixin, Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationship to identities
-    identities: Mapped[list["UserIdentity"]] = relationship(
+    identities: Mapped[list[UserIdentity]] = relationship(
         "UserIdentity",
         back_populates="provider",
         cascade="all, delete-orphan",
@@ -56,14 +60,26 @@ class User(UUIDMixin, TimestampMixin, Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationship to identities
-    identities: Mapped[list["UserIdentity"]] = relationship(
+    identities: Mapped[list[UserIdentity]] = relationship(
         "UserIdentity",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin",  # Eager load identities by default
     )
 
-    # TODO: Add relationships to Gear, DITrack, SignalChain, Shootout, Job once those models exist
+    # Relationships to signal chains
+    signal_chains: Mapped[list[SignalChain]] = relationship(
+        "SignalChain",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    signal_chain_groups: Mapped[list[SignalChainGroup]] = relationship(
+        "SignalChainGroup",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    # TODO: Add relationships to Gear, DITrack, Shootout, Job once those models exist
 
 
 class UserIdentity(UUIDMixin, TimestampMixin, Base):
@@ -102,8 +118,8 @@ class UserIdentity(UUIDMixin, TimestampMixin, Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="identities")
-    provider: Mapped["OAuthProvider"] = relationship(
+    user: Mapped[User] = relationship("User", back_populates="identities")
+    provider: Mapped[OAuthProvider] = relationship(
         "OAuthProvider",
         back_populates="identities",
         lazy="selectin",  # Eager load provider by default
