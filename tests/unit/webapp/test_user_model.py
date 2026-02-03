@@ -1,26 +1,26 @@
 """Unit tests for User ORM models."""
 
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
 
 @pytest.fixture
-async def db_session() -> AsyncSession:
+async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create an in-memory SQLite session for testing."""
     # Use async SQLite for testing
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     session = async_session()
 
     try:
@@ -31,7 +31,7 @@ async def db_session() -> AsyncSession:
 
 
 @pytest.mark.asyncio
-async def test_user_model_creates_with_correct_fields(db_session: AsyncSession):
+async def test_user_model_creates_with_correct_fields(db_session: AsyncSession) -> None:
     """Test User model creates with all required fields."""
     user = User(
         username="test_user",
@@ -54,7 +54,7 @@ async def test_user_model_creates_with_correct_fields(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_user_identity_links_to_user(db_session: AsyncSession):
+async def test_user_identity_links_to_user(db_session: AsyncSession) -> None:
     """Test UserIdentity properly links to User."""
     # Create OAuth provider first
     provider = OAuthProvider(name="t3k", enabled=True)
@@ -86,7 +86,7 @@ async def test_user_identity_links_to_user(db_session: AsyncSession):
     await db_session.close()
 
     # Create new session
-    async_session = sessionmaker(
+    async_session = async_sessionmaker(
         db_session.bind, class_=AsyncSession, expire_on_commit=False
     )
     new_session = async_session()
@@ -102,7 +102,7 @@ async def test_user_identity_links_to_user(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_user_has_many_identities(db_session: AsyncSession):
+async def test_user_has_many_identities(db_session: AsyncSession) -> None:
     """Test User can have multiple UserIdentities."""
     # Create providers
     t3k = OAuthProvider(name="t3k", enabled=True)
@@ -139,7 +139,7 @@ async def test_user_has_many_identities(db_session: AsyncSession):
     await db_session.close()
 
     # Create new session
-    async_session = sessionmaker(
+    async_session = async_sessionmaker(
         db_session.bind, class_=AsyncSession, expire_on_commit=False
     )
     new_session = async_session()
@@ -154,7 +154,7 @@ async def test_user_has_many_identities(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_email_index_exists(db_session: AsyncSession):
+async def test_email_index_exists(db_session: AsyncSession) -> None:
     """Test email column has an index for performance."""
     # Create two users with different emails
     user1 = User(username="user1", email="user1@example.com")
@@ -170,7 +170,7 @@ async def test_email_index_exists(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_provider_lookup_index(db_session: AsyncSession):
+async def test_provider_lookup_index(db_session: AsyncSession) -> None:
     """Test provider lookups have proper indexes."""
     # Create provider and users
     provider = OAuthProvider(name="t3k", enabled=True)
@@ -211,7 +211,7 @@ async def test_provider_lookup_index(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_oauth_provider_model(db_session: AsyncSession):
+async def test_oauth_provider_model(db_session: AsyncSession) -> None:
     """Test OAuthProvider model."""
     provider = OAuthProvider(name="t3k", enabled=True)
     db_session.add(provider)

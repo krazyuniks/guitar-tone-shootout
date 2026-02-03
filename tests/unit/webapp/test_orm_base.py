@@ -140,7 +140,7 @@ class TestEnumByValue:
         class TestModel(Base):
             __tablename__ = "test_enum"
             id = Column(Integer, primary_key=True)
-            status = Column(EnumByValue(Status), nullable=False)
+            status: Status = Column(EnumByValue(Status), nullable=False)  # type: ignore[assignment]
 
         # Create in-memory database
         engine = create_engine("sqlite:///:memory:")

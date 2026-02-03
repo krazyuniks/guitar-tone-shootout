@@ -1,15 +1,11 @@
 """User ORM models for persistence layer."""
 
 import uuid
-from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, UUIDMixin
-
-if TYPE_CHECKING:
-    pass  # Will be used for forward references in relationships
 
 
 class OAuthProvider(UUIDMixin, Base):

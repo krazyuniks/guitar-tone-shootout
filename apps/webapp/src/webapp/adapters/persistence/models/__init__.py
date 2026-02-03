@@ -12,10 +12,10 @@ from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIde
 __all__ = [
     "Base",
     "EnumByValue",
+    "OAuthProvider",
     "TimestampMixin",
     "UUIDMixin",
-    "get_async_session",
-    "OAuthProvider",
     "User",
     "UserIdentity",
+    "get_async_session",
 ]
