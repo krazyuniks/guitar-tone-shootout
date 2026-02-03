@@ -98,7 +98,7 @@ tdd PATH:
 
 # Run migrations
 migrate:
-    docker compose exec -T backend alembic upgrade head
+    docker compose exec -T backend alembic -c infrastructure/migrations/alembic.ini upgrade head
 
 # Create a new migration
 migration NAME:
