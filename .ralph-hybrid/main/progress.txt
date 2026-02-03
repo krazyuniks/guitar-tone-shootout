@@ -556,3 +556,38 @@ Note:
 - CRITICAL: Always install workspace packages at session start
 - Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
 - Without this, tests cannot import modules and will fail
+
+---
+Iteration: 1
+Started: 2026-02-03T17:53:35Z
+Story: STORY-008 - Base Layout Template (Final Verification)
+Status: complete
+
+Changes made:
+- Verified STORY-008 implementation from iteration 10 (commit 29d3e3b)
+- No code changes needed - implementation is correct
+- All quality checks pass:
+  - 35 regression tests pass
+  - Linting passes (ruff)
+  - Type checking passes (mypy)
+  - Astro build succeeds
+
+Verification:
+- base.html exists at frontend/astro/dist/layouts/base.html
+- Contains all required Jinja2 blocks (title, content, scripts)
+- Includes HTMX script from unpkg CDN
+- Includes Alpine.js script from CDN
+- Includes compiled Tailwind CSS link (/_astro/*.css)
+- All acceptance criteria met
+
+Root cause of previous backpressure failures:
+- Workspace packages not installed at session start
+- Tests need packages installed: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
+- This iteration installed packages first
+- All checks now pass
+- STORY-008 confirmed complete
+
+Note:
+- CRITICAL: Always install workspace packages at session start
+- Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
+- Without this, tests cannot import modules and will fail
