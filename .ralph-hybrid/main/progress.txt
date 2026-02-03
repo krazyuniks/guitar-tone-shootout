@@ -1362,3 +1362,43 @@ Technical notes:
 
 Infrastructure:
 - Workspace packages installed at session start (uv pip install -e)
+
+---
+Iteration: 13
+Started: 2026-02-03T19:47:55Z
+Story: STORY-022 - Loudness Normalization
+Status: complete
+
+Changes made:
+- Created standalone loudness.py module in libs/audio/src/audio/processing/
+- Implemented measure_loudness() returning (integrated_lufs, peak_dbfs)
+- Implemented normalize_loudness() adjusting to target LUFS (default -14.0)
+- Silent audio detection raises LoudnessError
+- Uses pyloudnorm library for EBU R128 integrated loudness measurement
+- Refactored AudioProcessor to delegate to standalone loudness module
+- Updated __init__.py to export LoudnessError, measure_loudness, normalize_loudness
+- Created comprehensive integration tests (8 tests) in tests/integration/audio/test_loudness.py
+
+Verification:
+- All 8 integration tests for loudness pass
+- All 135 regression tests pass (unit + integration)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met:
+  - measure_loudness() returns (integrated_lufs, peak_dbfs) ✓
+  - normalize_loudness() adjusts to target LUFS ✓
+  - Default target: -14.0 LUFS ✓
+  - Silent audio detection (raises LoudnessError) ✓
+  - Uses pyloudnorm library ✓
+  - Integration tests with real audio pass ✓
+  - Typecheck passes ✓
+
+Technical notes:
+- Silent audio detected via peak < 1e-6 threshold
+- Stereo audio converted to mono via np.mean()
+- Peak dBFS calculated as 20 * log10(peak)
+- AudioProcessor.measure_loudness() and normalize_loudness() now delegate to module
+- normalize_loudness() returns (result_lufs, peak_dbfs) for verification
+
+Infrastructure:
+- Workspace packages installed at session start (uv pip install -e)
