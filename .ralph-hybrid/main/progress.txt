@@ -87,3 +87,31 @@ Technical notes:
 Infrastructure note:
 - Docker iptables issue prevents container starts (system-level, not code)
 - Does not affect story completion (tests run on host via uv)
+
+---
+Iteration: 3
+Started: 2026-02-03T02:58:08Z
+Story: STORY-005 - IR Loader
+Status: complete
+
+Changes made:
+- Implemented IR loader module (libs/audio/src/audio/processing/ir_loader.py)
+- Created comprehensive unit tests (tests/unit/audio/test_ir_loader.py)
+- Added soundfile dependency to audio package
+- Implemented format validation (WAV RIFF header, FLAC fLaC header)
+- Added WAV file validation using wave module
+- IRLoadError exception for all error cases
+- load_ir() returns Pedalboard Convolution effect
+
+Verification:
+- All 6 unit tests pass
+- Handles Path and str inputs
+- Validates file exists, is readable, and has valid format
+- Empty file detection
+- Invalid format detection
+- test-regression passes (21/21 tests)
+
+Infrastructure fix:
+- Fixed workspace package installation issue
+- Installed all workspace packages in editable mode (uv pip install -e)
+- Required for test imports to work correctly

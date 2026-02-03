@@ -132,8 +132,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Can run parallel with NAM loader",
+      "passes": true,
+      "notes": "Implemented IR loader with format validation (WAV/FLAC), Pedalboard Convolution integration, and comprehensive error handling. All 6 unit tests pass. Added soundfile dependency.",
       "verify": {
         "command": "just tdd tests/unit/audio/test_ir_loader.py",
         "expected": "IR files load as Convolution effects",
