@@ -203,9 +203,9 @@ class SQLAlchemyShootoutRepository:
             new_chain_ids = {chain.id for chain in shootout.chains}
 
             # Remove chains that are no longer in the entity
-            for chain in existing.chains:
-                if chain.id not in new_chain_ids:
-                    await self.session.delete(chain)
+            for orm_chain in existing.chains:
+                if orm_chain.id not in new_chain_ids:
+                    await self.session.delete(orm_chain)
 
             # Add or update chains
             for chain in shootout.chains:

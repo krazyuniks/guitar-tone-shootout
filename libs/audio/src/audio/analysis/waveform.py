@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from core.domain.value_objects.waveform_data import WaveformData  # type: ignore[import-untyped]
+from core.domain.value_objects.waveform_data import WaveformData
 
 
 def extract_waveform(

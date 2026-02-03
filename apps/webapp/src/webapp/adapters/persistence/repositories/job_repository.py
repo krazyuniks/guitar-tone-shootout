@@ -93,7 +93,7 @@ class SQLAlchemyJobRepository:
         if status is not None:
             stmt = stmt.where(Job.status == status)
         if job_type is not None:
-            stmt = stmt.where(Job.type == job_type)
+            stmt = stmt.where(Job.job_type == job_type)
 
         stmt = stmt.order_by(Job.created_at.desc()).limit(limit).offset(offset)
 
