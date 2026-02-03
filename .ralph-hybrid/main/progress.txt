@@ -1329,3 +1329,36 @@ Technical notes:
 
 Infrastructure note:
 - Workspace packages installed at session start (uv pip install -e)
+
+---
+Iteration: 12
+Started: 2026-02-03T19:45:18Z
+Story: STORY-021 - Error Pages (404, 500)
+Status: complete
+
+Changes made:
+- Created frontend/astro/src/pages/404.astro with Not Found page
+- Created frontend/astro/src/pages/500.astro with Internal Server Error page
+- Both pages use design tokens from Tailwind CSS (--color-bg-*, --color-text-*, --color-accent-*)
+- Consistent header/footer with existing static pages
+- Helpful error messaging and navigation links
+- Built HTML files generated in frontend/astro/dist/
+
+Verification:
+- frontend/astro/dist/404.html exists (2.4K)
+- frontend/astro/dist/500.html exists (3.0K)
+- Both pages use design system colors (404 uses accent-primary, 500 uses accent-error)
+- Astro build succeeds
+- Type checking passes (0 errors, 0 warnings)
+- All 56 regression tests pass
+- All acceptance criteria met
+
+Technical notes:
+- 404 page uses accent-primary color for error code
+- 500 page uses accent-error color for error code
+- Both pages include helpful actions (Go Home, About/Try Again buttons)
+- Pages are responsive with Tailwind utility classes
+- CSS compiled to /_astro/about.DuF-Aojq.css
+
+Infrastructure:
+- Workspace packages installed at session start (uv pip install -e)

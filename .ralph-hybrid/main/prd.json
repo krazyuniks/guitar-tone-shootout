@@ -582,8 +582,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Depends on STORY-003 (Tailwind)",
+      "passes": true,
+      "notes": "Implemented 404.astro and 500.astro with design tokens, helpful messaging, and navigation. Both pages use consistent styling with existing static pages. Build succeeds, typecheck passes, all 56 regression tests pass.",
       "verify": {
         "command": "just build-astro && test -f frontend/astro/dist/404.html",
         "expected": "Error pages exist with proper styling",
