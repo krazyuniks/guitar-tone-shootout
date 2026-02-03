@@ -9,8 +9,8 @@ defaults:
   # Maximum iterations before stopping (safety net)
   max_iterations: 20
 
-  # Timeout per iteration in minutes
-  timeout_minutes: 15
+  # Timeout per iteration in minutes (fail fast)
+  timeout_minutes: 10
 
   # API calls per hour limit
   rate_limit_per_hour: 100
@@ -70,14 +70,17 @@ profiles:
   #   verification: sonnet
 
 #=============================================================================
-# Circuit Breaker
+# Circuit Breaker (fail fast)
 #=============================================================================
 circuit_breaker:
   # Stop after N iterations with no progress (no stories completed)
-  no_progress_threshold: 3
+  no_progress_threshold: 2
 
   # Stop after N iterations with the same error
-  same_error_threshold: 5
+  same_error_threshold: 2
+
+  # Stop after N iterations stuck on same story
+  same_story_threshold: 2
 
 #=============================================================================
 # Completion Detection
