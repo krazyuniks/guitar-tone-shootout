@@ -1402,3 +1402,31 @@ Technical notes:
 
 Infrastructure:
 - Workspace packages installed at session start (uv pip install -e)
+
+---
+Iteration: 14
+Started: 2026-02-03T19:51:15Z
+Story: STORY-023 - Signal Chain Execution
+Status: complete
+
+Changes made:
+- Created chain_executor.py module with execute_signal_chain() function
+- Implemented block-by-block sequential processing with position-based ordering
+- Added constraint validation for FULL_RIG (no IR allowed) and HEAD (IR required)
+- Integrated NAM loader and IR loader for audio processing
+- Created comprehensive integration tests (7 tests) with fixture-based test data generation
+- Fixed type annotations and linting issues
+
+Verification:
+- All 7 integration tests pass
+- All 142 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Technical notes:
+- Uses NAM loader (sample-by-sample processing for compatibility)
+- Uses IR loader (Pedalboard Convolution)
+- Validates chain constraints before execution
+- Sorts blocks by position for correct ordering
+- gear_path_resolver callable maps user_gear_id to file paths
