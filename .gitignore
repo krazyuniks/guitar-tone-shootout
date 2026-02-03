@@ -29,3 +29,4 @@ venv/
 # Ralph Hybrid
 .ralph-hybrid/**/rate_limiter.state
 .ralph-hybrid/**/status.json
+.ralph-hybrid/**/logs/iteration-*.json
