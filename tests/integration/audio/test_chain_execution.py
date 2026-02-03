@@ -4,6 +4,7 @@ Tests block-by-block sequential processing with proper ordering and constraint
 enforcement (FULL_RIG vs HEAD).
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -187,7 +188,9 @@ def signal_chain_with_pre_and_post_effects() -> SignalChain:
 
 
 @pytest.fixture
-def gear_path_resolver(test_nam_model: Path, test_ir_file: Path):
+def gear_path_resolver(
+    test_nam_model: Path, test_ir_file: Path
+) -> Callable[[str, GearType], Path]:
     """Resolver that maps user_gear_id to actual file paths."""
 
     def resolver(user_gear_id: str, gear_type: GearType) -> Path:
@@ -209,8 +212,8 @@ def gear_path_resolver(test_nam_model: Path, test_ir_file: Path):
 async def test_execute_head_configuration(
     signal_chain_with_amp_and_ir: SignalChain,
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test execution of HEAD configuration (AMP + IR)."""
     audio, sample_rate = di_audio
     chain = signal_chain_with_amp_and_ir
@@ -234,8 +237,8 @@ async def test_execute_head_configuration(
 async def test_execute_full_rig_configuration(
     signal_chain_with_full_rig: SignalChain,
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test execution of FULL_RIG configuration (no IR)."""
     audio, sample_rate = di_audio
     chain = signal_chain_with_full_rig
@@ -258,8 +261,8 @@ async def test_execute_full_rig_configuration(
 async def test_execute_complete_chain(
     signal_chain_with_pre_and_post_effects: SignalChain,
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test execution of complete chain with pre/post effects."""
     audio, sample_rate = di_audio
     chain = signal_chain_with_pre_and_post_effects
@@ -281,8 +284,8 @@ async def test_execute_complete_chain(
 @pytest.mark.asyncio
 async def test_full_rig_with_ir_raises_error(
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test that FULL_RIG with IR raises ChainExecutionError."""
     audio, sample_rate = di_audio
 
@@ -326,8 +329,8 @@ async def test_full_rig_with_ir_raises_error(
 @pytest.mark.asyncio
 async def test_amp_without_ir_raises_error(
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test that AMP without IR raises ChainExecutionError."""
     audio, sample_rate = di_audio
 
@@ -361,8 +364,8 @@ async def test_amp_without_ir_raises_error(
 @pytest.mark.asyncio
 async def test_blocks_execute_in_position_order(
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test that blocks execute in position order (0, 1, 2, ...)."""
     audio, sample_rate = di_audio
 
@@ -416,8 +419,8 @@ async def test_blocks_execute_in_position_order(
 @pytest.mark.asyncio
 async def test_empty_chain_raises_error(
     di_audio: tuple[np.ndarray, int],
-    gear_path_resolver,
-):
+    gear_path_resolver: Callable[[str, GearType], Path],
+) -> None:
     """Test that empty chain raises ChainExecutionError."""
     audio, sample_rate = di_audio
 
