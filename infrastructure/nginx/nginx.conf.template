@@ -32,10 +32,10 @@ server {
 
     # Astro assets (CSS, JS bundles)
     location /_astro/ {
-        alias /usr/share/nginx/html/static/_astro/;
+        root /usr/share/nginx/html/static;
         expires 1y;
         add_header Cache-Control "public, immutable";
-        try_files $uri $uri/ =404;
+        try_files $uri =404;
     }
 
     # Static pages (home, about, login) - served from Astro dist
@@ -127,6 +127,20 @@ server {
     location /health {
         proxy_pass http://backend;
         proxy_set_header Host $host;
+    }
+
+    # Error pages
+    error_page 404 /404.html;
+    error_page 500 502 503 504 /500.html;
+
+    location = /404.html {
+        root /usr/share/nginx/html/static;
+        internal;
+    }
+
+    location = /500.html {
+        root /usr/share/nginx/html/static;
+        internal;
     }
 
     # Favicon
