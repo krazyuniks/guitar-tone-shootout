@@ -6,7 +6,6 @@ simulation and convolution processing.
 
 import wave
 from pathlib import Path
-from typing import Union
 
 from pedalboard import Convolution
 
@@ -17,7 +16,7 @@ class IRLoadError(Exception):
     pass
 
 
-def load_ir(path: Union[str, Path]) -> Convolution:
+def load_ir(path: str | Path) -> Convolution:
     """Load an impulse response file and return a Convolution effect.
 
     Args:
@@ -53,7 +52,7 @@ def load_ir(path: Union[str, Path]) -> Convolution:
     # Validate file format by attempting to read header
     # WAV files have RIFF header, FLAC files have fLaC header
     try:
-        with open(ir_path, "rb") as f:
+        with ir_path.open("rb") as f:
             header = f.read(12)
 
         # Check for WAV (RIFF...WAVE)
@@ -80,7 +79,7 @@ def load_ir(path: Union[str, Path]) -> Convolution:
                     f"Failed to load IR from {ir_path}: Invalid WAV file - {e}"
                 ) from e
 
-    except (OSError, IOError) as e:
+    except OSError as e:
         raise IRLoadError(f"Failed to load IR from {ir_path}: {e}") from e
 
     try:
