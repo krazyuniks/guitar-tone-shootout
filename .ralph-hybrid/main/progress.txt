@@ -1502,3 +1502,30 @@ Technical notes:
 
 Infrastructure:
 - Workspace packages installed at session start (uv pip install -e)
+
+---
+Iteration: 17
+Started: 2026-02-03T20:05:57Z
+Story: STORY-026 - Build Pipeline Integration
+Status: complete
+
+Changes made:
+- Verified all astro commands already exist in justfile:
+  - just build-astro (production build)
+  - just watch-astro (development mode)
+  - just verify-astro-sync (check dist/ sync)
+  - just check-astro (lint + type check)
+- All commands use Docker with --profile build
+- All commands documented with comments
+- Fixed quality check errors from previous iteration:
+  - Removed unused type: ignore comments from permutation.py, waveform.py, chain_executor.py
+  - Fixed variable shadowing in shootout_repository.py (orm_chain vs chain)
+  - Fixed Job.type -> Job.job_type in job_repository.py
+
+Verification:
+- just --list | grep astro shows all 4 commands
+- All commands work from project root
+- All 159 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
