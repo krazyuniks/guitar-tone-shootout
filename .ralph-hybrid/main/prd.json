@@ -2,6 +2,10 @@
   "description": "Phase 3: Adapter Implementation - SQLAlchemy persistence (3A), audio processing library (3B), and Astro frontend build system (3C). Three parallel sub-phases building on core domain.",
   "createdAt": "2026-02-03T03:15:00Z",
   "profile": "balanced",
+  "successCriteria": {
+    "command": "just test-regression",
+    "timeout": 300
+  },
   "userStories": [
     {
       "id": "STORY-001",
