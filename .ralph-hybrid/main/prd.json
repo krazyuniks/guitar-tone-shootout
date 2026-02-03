@@ -216,7 +216,7 @@
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Implemented using TypeScript endpoint (base.html.ts) instead of .astro to avoid Astro parsing Jinja2 syntax. Generates layouts/base.html with all required blocks and scripts. Build succeeds, type checking passes.",
+      "notes": "Implemented using TypeScript endpoint (base.html.ts) instead of .astro to avoid Jinja2 syntax conflicts. Generates layouts/base.html with all required blocks and scripts. All quality checks pass.",
       "verify": {
         "command": "just build-astro && test -f frontend/astro/dist/layouts/base.html",
         "expected": "base.html exists with Jinja2 blocks",
