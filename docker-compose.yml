@@ -73,6 +73,8 @@ services:
       - ./src:/app/src:ro
       - ./sources:/app/sources:ro
       - ./tests:/app/tests:ro
+      # Infrastructure (migrations)
+      - ./infrastructure/migrations:/app/infrastructure/migrations:ro
     depends_on:
       db:
         condition: service_healthy

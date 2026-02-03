@@ -18,7 +18,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
 # Copy workspace configuration (including README.md for hatchling)
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 COPY libs/core/pyproject.toml libs/core/README.md libs/core/
 COPY libs/audio/pyproject.toml libs/audio/README.md libs/audio/
 COPY sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
@@ -27,14 +27,22 @@ COPY apps/worker/pyproject.toml apps/worker/README.md apps/worker/
 COPY apps/scheduler/pyproject.toml apps/scheduler/README.md apps/scheduler/
 
 # Create src directory structure for workspace resolution
+# Each package needs an __init__.py for hatchling to recognize it
 RUN mkdir -p libs/core/src/core libs/audio/src/audio \
     sources/t3k/src/source_t3k \
     apps/webapp/src/webapp apps/worker/src/worker apps/scheduler/src/scheduler \
-    src/gts
+    src/gts \
+    && touch libs/core/src/core/__init__.py \
+    && touch libs/audio/src/audio/__init__.py \
+    && touch sources/t3k/src/source_t3k/__init__.py \
+    && touch apps/webapp/src/webapp/__init__.py \
+    && touch apps/worker/src/worker/__init__.py \
+    && touch apps/scheduler/src/scheduler/__init__.py \
+    && touch src/gts/__init__.py
 
-# Install all dependencies including dev
+# Install all dependencies including dev (workspace members included)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    uv sync --frozen --all-packages
 
 # Source code will be volume mounted at runtime
 # Copy placeholder __init__.py files for initial resolution

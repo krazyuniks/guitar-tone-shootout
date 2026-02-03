@@ -72,9 +72,9 @@ lint:
 test-unit:
     docker compose exec -T backend pytest tests/unit/ -v
 
-# Run regression tests - unit only (in Docker)
+# Run regression tests - validates stack connectivity (in Docker)
 test-regression:
-    docker compose exec -T backend pytest tests/unit/ -v -m "not slow"
+    docker compose exec -T backend pytest tests/regression/ -v --tb=short
 
 # Run integration tests (in Docker)
 test-integration:
