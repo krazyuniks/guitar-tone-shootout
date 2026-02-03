@@ -2171,3 +2171,101 @@
 {"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
 {"timestamp":"2026-02-03T18:59:05Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3204,"iteration":2,"story_id":""}
 {"timestamp":"2026-02-03T18:59:08Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3271,"iteration":2,"story_id":"STORY-012\nSTORY-013\nSTORY-014\nSTORY-015\nSTORY-016\nSTORY-017\nSTORY-018\nSTORY-019\nSTORY-020\nSTORY-021\nSTORY-022\nSTORY-023\nSTORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"find libs/core/src/core/domain -name \"*.py\" | xargs grep -l \"Shootout\\|DITrack\" 2>/dev/null | head -5","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run pytest tests/unit/webapp/test_shootout_model.py -v","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run pytest tests/unit/ -v --tb=short","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run mypy apps/webapp/src/webapp/adapters/persistence/models/shootout.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run mypy apps/webapp/src/webapp/adapters/persistence/models/user.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run mypy tests/unit/webapp/test_shootout_model.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run ruff check apps/webapp/src/webapp/adapters/persistence/models/shootout.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"grep -A 10 \"per-file-ignores\" pyproject.toml | head -20","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run ruff check apps/webapp/src/webapp/adapters/persistence/models/shootout.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"uv run pytest tests/unit/ --tb=short 2>&1 | tail -20","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"git add -A && git commit -m \"feat: [STORY-012] - Shootout and DITrack ORM Models","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created Shootout model with user_id, title, status, video_path, timestamps","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created ShootoutChain junction model linking shootouts to signal chains","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created DITrack model with user_id, name, file_path, duration, checksum","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created AudioSegment model for processed segments","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- ShootoutStatus enum (pending, processing, completed, failed)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All relationships configured with proper cascade delete","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Indexes on user_id, status, shootout_id, position","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Updated User model with di_tracks and shootouts relationships","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Added TC003 per-file ignore for shootout.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All 7 unit tests pass","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All 49 regression tests pass","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Type checking passes","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Linting passes\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"jq '(.userStories[] | select(.id == \"STORY-012\")) |= (.passes = true | .notes = \"Implemented with Shootout, ShootoutChain, DITrack, AudioSegment models. ShootoutStatus enum. All relationships configured with proper cascade. Indexes on user_id, status, shootout_id, position. 7 unit tests pass, all 49 regression tests pass, type checking passes, linting passes.\")' .ralph-hybrid/main/prd.json > /tmp/prd.json && mv /tmp/prd.json .ralph-hybrid/main/prd.json","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"cat >> .ralph-hybrid/main/progress.txt << 'EOF'","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"---","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"Iteration: 3","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"Started: 2026-02-03T18:59:11Z","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"Story: STORY-012 - Shootout and DITrack ORM Models","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"Status: complete","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"Changes made:","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created Shootout model with user_id, di_track_id, title, status, video_path, timestamps","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created ShootoutChain junction model linking shootouts to signal chains (position, label)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created DITrack model with user_id, name, file_path, duration, sample_rate, checksum","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created AudioSegment model for processed segments (integrated_lufs, peak_dbfs)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created ShootoutStatus enum (pending, processing, completed, failed)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All relationships configured with proper cascade delete","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Indexes on user_id, status (Shootout), user_id (DITrack), shootout_id, position (ShootoutChain)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Updated User model with di_tracks and shootouts relationships","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Added TC003 per-file ignore for shootout.py in pyproject.toml","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Created comprehensive unit tests (7 tests covering all models and relationships)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"Verification:","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All 7 unit tests for Shootout/DITrack models pass","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All 49 regression tests pass (unit + integration)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Type checking passes (mypy)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- Linting passes (ruff)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"- All acceptance criteria met:","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - Shootout model with user_id, title, status, video_path, timestamps ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - ShootoutChain junction model linking shootouts to signal chains ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - DITrack model with user_id, name, file_path, duration, checksum ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - AudioSegment model for processed segments ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - Relationships with proper cascade ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - Indexes on user_id, status ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:10Z","source":"claude_code","command":"  - Unit tests pass ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Typecheck passes ✓","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"Technical notes:","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"- Used EnumByValue for ShootoutStatus enum","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"- Eager loading configured for di_track and chains relationships (lazy=\"selectin\")","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"- Cascade delete configured for shootouts → chains → segments","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"- Used TYPE_CHECKING to avoid circular imports","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"- Added TC003 to per-file ignores (uuid is used at runtime, cannot be in TYPE_CHECKING)","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-012\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"cat << 'EOF'","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"## STORY-012 - Acceptance Criteria Verification","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ Shootout model with user_id, title, status, video_path, timestamps","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Model exists at: apps/webapp/src/webapp/adapters/persistence/models/shootout.py","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - All fields present: user_id, title, description, status, video_path, created_at, updated_at","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ ShootoutChain junction model linking shootouts to signal chains","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Model exists with shootout_id, signal_chain_id, position, label","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Junction pattern correctly implemented","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ DITrack model with user_id, name, file_path, duration, checksum","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - All fields present: user_id, name, file_path, original_filename, duration_seconds, sample_rate, checksum","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Plus optional fields: description, guitar, pickup","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ AudioSegment model for processed segments","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Model exists with shootout_chain_id, file_path, duration_seconds, integrated_lufs, peak_dbfs","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ Relationships with proper cascade","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Shootout → ShootoutChain: cascade=\"all, delete-orphan\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - ShootoutChain → AudioSegment: cascade=\"all, delete-orphan\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - DITrack → Shootout: cascade=\"all, delete-orphan\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - User → DITrack: cascade=\"all, delete-orphan\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - User → Shootout: cascade=\"all, delete-orphan\"","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ Indexes on user_id, status","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - Shootout: ix_shootouts_user_id, ix_shootouts_status","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - DITrack: ix_di_tracks_user_id","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - ShootoutChain: ix_shootout_chains_shootout_id, ix_shootout_chains_position","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - AudioSegment: ix_audio_segments_chain_id","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ Unit tests pass","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - 7 new tests for Shootout/DITrack models","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - All 49 regression tests pass","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"✓ Typecheck passes","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - mypy passes on all model files","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"  - TC003 ignore added for uuid import","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:11Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:15Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3628,"iteration":3,"story_id":""}
+{"timestamp":"2026-02-03T19:03:18Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3667,"iteration":3,"story_id":"STORY-013\nSTORY-014\nSTORY-015\nSTORY-016\nSTORY-017\nSTORY-018\nSTORY-019\nSTORY-020\nSTORY-021\nSTORY-022\nSTORY-023\nSTORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}

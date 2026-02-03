@@ -128,9 +128,11 @@ known-first-party = ["core", "audio", "source_t3k", "webapp", "worker", "schedul
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG001", "ARG002"]
+"apps/webapp/src/webapp/adapters/persistence/models/job.py" = ["TC003"]
 "apps/webapp/src/webapp/adapters/persistence/models/shootout.py" = ["TC003"]
 "apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py" = ["TC003"]
 "apps/webapp/src/webapp/adapters/persistence/models/user.py" = ["TC003"]
+"tests/unit/webapp/test_job_model.py" = ["TC003"]
 
 # =============================================================================
 # MyPy Configuration

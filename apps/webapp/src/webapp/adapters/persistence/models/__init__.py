@@ -14,6 +14,7 @@ from webapp.adapters.persistence.models.gear import (
     GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.job import AuditLog, Job
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
     DITrack,
@@ -31,6 +32,7 @@ from webapp.adapters.persistence.models.signal_chain import (
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
 __all__ = [
+    "AuditLog",
     "AudioSegment",
     "Base",
     "BlockType",
@@ -41,6 +43,7 @@ __all__ = [
     "GearModel",
     "GearSource",
     "GearTag",
+    "Job",
     "OAuthProvider",
     "Preset",
     "Shootout",
