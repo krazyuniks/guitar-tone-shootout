@@ -74,8 +74,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Depends on STORY-002 (Astro config)",
+      "passes": true,
+      "notes": "Implemented Tailwind design system with CSS custom properties. All design tokens defined: background, text, accent, block type, and gear type colors. Tailwind config extends theme with tokens. CSS compiles successfully. All acceptance criteria met.",
       "verify": {
         "command": "just build-astro",
         "expected": "CSS compiles with all design tokens",
