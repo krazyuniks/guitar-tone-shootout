@@ -276,24 +276,30 @@ gts/
 
 **Clear boundary: Unit/Integration in Docker, E2E on Host.**
 
-| Test Type | Location | Runs In | Command | Dependencies |
-|-----------|----------|---------|---------|--------------|
-| Unit | `tests/unit/` | Docker | `just test-unit` | Main workspace |
-| Integration | `tests/integration/` | Docker | `just test-integration` | Main workspace |
-| E2E (Playwright) | `tests/e2e/python/` | Host | `just test-e2e` | Own `pyproject.toml` |
+| Test Type | Location | Runs In | Command | Purpose |
+|-----------|----------|---------|---------|---------|
+| Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM → Repo → DB) |
+| Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
+| Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
+| E2E (Playwright) | `tests/e2e/python/` | Host | `just test-e2e` | Full user journey |
 
-**Why this split?**
-- Unit/Integration tests need access to the codebase and database → run in Docker where deps are installed
-- E2E tests use Playwright to hit running containers from outside → run on host
-- E2E tests have isolated dependencies (no project venv pollution)
+**Regression tests** validate the ORM → Repository → Database stack works:
+- User and Job entity round-trips
+- Uses SQLite in-memory for speed (~0.2s)
+- Run before commits to catch fundamental breaks
 
 **Commands:**
 ```bash
-just test-regression  # Unit + quick E2E (< 2 min) - run before commits
-just test             # All tests (< 5 min) - run before PRs
+just test-regression  # Stack connectivity (< 1s) - run before commits
+just test             # Unit + Integration (< 30s) - run before PRs
 just tdd <path>       # Single test during development (Docker)
 just test-e2e         # E2E only (host, requires running containers)
 ```
+
+**Why this split?**
+- Regression tests catch fundamental breaks quickly (ORM mappings, DB schema)
+- Unit/Integration tests validate business logic
+- E2E tests validate user journeys end-to-end
 
 **E2E test isolation:**
 - `tests/e2e/python/pyproject.toml` - standalone package with pytest-playwright, httpx
