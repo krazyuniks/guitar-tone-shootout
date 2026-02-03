@@ -40,11 +40,7 @@ rebuild *ARGS:
 # =============================================================================
 
 # Run all quality checks
-check: check-lint check-types check-tests check-imports
-
-# Run linting
-check-lint:
-    docker compose exec -T backend ruff check libs/ sources/ apps/
+check: lint-python check-types check-tests check-imports
 
 # Run type checking (strict on core)
 check-types:
@@ -59,15 +55,34 @@ check-imports:
     docker compose exec -T backend lint-imports
 
 # =============================================================================
-# Lint Fixing (all run in Docker)
+# Linting (all run in Docker)
 # =============================================================================
 
-# Auto-fix lint issues
-fix-lint:
+# Check all lint (Python + Astro)
+lint: lint-python lint-astro
+
+# Check Python lint only
+lint-python:
+    docker compose exec -T backend ruff check libs/ sources/ apps/
+    docker compose exec -T backend ruff format --check libs/ sources/ apps/
+
+# Check Astro lint only
+lint-astro:
+    docker compose --profile build run --rm astro pnpm lint
+
+# Fix all lint issues (Python + Astro)
+fix-lint: fix-lint-python fix-lint-astro
+
+# Fix Python lint issues
+fix-lint-python:
     docker compose exec -T backend ruff check libs/ sources/ apps/ --fix
     docker compose exec -T backend ruff format libs/ sources/ apps/
 
-# Format code only
+# Fix Astro lint issues
+fix-lint-astro:
+    docker compose --profile build run --rm astro pnpm lint --fix
+
+# Format Python code only
 format:
     docker compose exec -T backend ruff format libs/ sources/ apps/
 
@@ -134,6 +149,10 @@ watch-astro:
 # Check Astro (lint + type check)
 check-astro:
     docker compose --profile build run --rm astro pnpm check
+
+# Fix Astro lint issues
+fix-astro-lint:
+    docker compose --profile build run --rm astro pnpm lint --fix
 
 # Verify Astro dist is in sync with source
 verify-astro-sync:
