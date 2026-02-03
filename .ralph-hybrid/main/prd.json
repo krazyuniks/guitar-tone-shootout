@@ -471,8 +471,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Depends on STORY-002 (Astro config)",
+      "passes": true,
+      "notes": "Implemented template structure with pages/, fragments/, and partials/ directories. Sample .html.ts files demonstrating patterns. All templates use design tokens and testid attributes. Build outputs to correct locations. All 103 regression tests pass.",
       "verify": {
         "command": "just build-astro && test -d frontend/astro/dist/pages",
         "expected": "Template directories exist with correct structure",

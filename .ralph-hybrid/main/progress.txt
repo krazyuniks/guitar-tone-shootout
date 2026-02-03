@@ -1189,3 +1189,38 @@ Technical notes:
 
 Infrastructure:
 - Workspace packages installed at session start (uv pip install -e)
+
+---
+Iteration: 8
+Started: 2026-02-03T19:24:06Z
+Story: STORY-017 - Template Structure (Pages, Fragments, Partials)
+Status: complete
+
+Changes made:
+- Created src/pages/pages/ directory for full page templates
+- Created src/pages/fragments/ directory for HTMX response fragments
+- Created src/pages/partials/ directory for reusable header/footer
+- Implemented sample .html.ts files in each directory:
+  - pages/sample.html.ts - Full page template extending base layout
+  - fragments/sample.html.ts - HTMX response fragment with item cards
+  - partials/header.html.ts - Navigation header with auth state
+  - partials/footer.html.ts - Site footer with links and copyright
+- All templates use design tokens from Tailwind CSS
+- All interactive elements have data-testid attributes
+- Build outputs to correct locations (dist/pages/, dist/fragments/, dist/partials/)
+
+Verification:
+- just build-astro succeeds
+- All template directories exist in dist/
+- Typecheck passes (astro check - 0 errors, 0 warnings)
+- All 103 regression tests pass
+- All acceptance criteria met
+
+Technical notes:
+- Templates authored as TypeScript files (.html.ts) in src/pages/
+- Astro builds these to .html in dist/
+- FastAPI Jinja2 template loader reads from dist/
+- Pages extend layouts/base.html for consistent structure
+- Fragments are standalone HTML snippets for HTMX responses
+- Partials use {% include %} pattern for reusable components
+- All templates demonstrate proper patterns for GTS project
