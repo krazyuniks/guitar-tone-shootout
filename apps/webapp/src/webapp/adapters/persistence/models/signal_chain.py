@@ -5,13 +5,12 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from core.domain.value_objects.signal_chain_enums import (
     GearType,
     Platform,
 )
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
 

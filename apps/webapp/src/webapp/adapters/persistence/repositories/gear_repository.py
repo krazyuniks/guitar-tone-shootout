@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.orm import selectinload
-
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import GearModel as GearModelVO
 from core.domain.entities.gear import GearSource as GearSourceVO
+from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy.orm import selectinload
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearModel,
@@ -21,9 +20,8 @@ from webapp.adapters.persistence.models.gear import (
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from core.domain.value_objects.signal_chain_enums import GearType
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SQLAlchemyGearRepository:

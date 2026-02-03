@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID as PyUUID
 
+from core.domain.entities.signal_chain_group import (
+    SignalChainGroup as SignalChainGroupEntity,
+)
 from sqlalchemy import select
-
-from core.domain.entities.signal_chain_group import SignalChainGroup as SignalChainGroupEntity
 from webapp.adapters.persistence.models.signal_chain import SignalChainGroup
 
 if TYPE_CHECKING:

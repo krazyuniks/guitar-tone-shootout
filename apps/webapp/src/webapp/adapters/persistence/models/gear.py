@@ -3,15 +3,24 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Table, Text, Uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import (
     GearType,
     ModelSize,
     Platform,
 )
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Table,
+    Text,
+    Uuid,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
 

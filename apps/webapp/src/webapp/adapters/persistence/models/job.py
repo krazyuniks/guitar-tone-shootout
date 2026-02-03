@@ -6,10 +6,9 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from core.domain.value_objects.job_status import JobStatus, JobType
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from core.domain.value_objects.job_status import JobStatus, JobType
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
 

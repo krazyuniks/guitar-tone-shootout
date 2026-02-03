@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity as UserIdentityVO
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from webapp.adapters.persistence.models.user import (
     OAuthProvider,
     User,

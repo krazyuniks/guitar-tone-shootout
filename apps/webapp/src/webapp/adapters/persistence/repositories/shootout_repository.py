@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
-
 from core.domain.entities.shootout import Shootout as ShootoutEntity
 from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
-from webapp.adapters.persistence.models.shootout import Shootout, ShootoutChain, ShootoutStatus
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+from webapp.adapters.persistence.models.shootout import (
+    Shootout,
+    ShootoutChain,
+    ShootoutStatus,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
