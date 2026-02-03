@@ -1555,3 +1555,32 @@ Technical notes:
 - Tests use SQLite in-memory for speed (structure supports PostgreSQL)
 - Fixed mypy errors by renaming variables to avoid type conflicts
 - Each repository has comprehensive integration tests (12-13 tests each)
+
+---
+Iteration: 19
+Started: 2026-02-03T20:12:54Z
+Story: STORY-028 - Integration Tests - Audio
+Status: complete
+
+Changes made:
+- Fixed type annotations in test_chain_execution.py:
+  - Added Callable import from collections.abc
+  - Added return type annotations to gear_path_resolver fixture
+  - Added return type annotations to all async test functions
+- Fixed import sorting issues via ruff auto-fix
+
+Verification:
+- All 43 integration tests pass (in Docker)
+- Tests for NAM model loading (test_processor.py) ✓
+- Tests for IR loading (test_processor.py) ✓
+- Tests for full processing pipeline (test_processor.py, test_chain_execution.py) ✓
+- Tests for loudness measurement (test_loudness.py) ✓
+- just tdd tests/integration/audio/ passes ✓
+- Type checking passes (mypy) ✓
+- Linting passes (ruff) ✓
+
+Technical notes:
+- Tests generate audio files dynamically via fixtures (no static files needed)
+- Test data fixtures create sine wave audio, NAM models, and IR files on-the-fly
+- Tests use tmp_path for temporary file storage
+- All acceptance criteria met from previous iterations (STORY-009 onwards)
