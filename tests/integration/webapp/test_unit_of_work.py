@@ -70,11 +70,11 @@ async def test_uow_commit(session_factory: async_sessionmaker[AsyncSession]) -> 
     async with UnitOfWork(session_factory) as uow:
         stmt = select(User).where(User.id == user_id)
         result = await uow.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        fetched_user = result.scalar_one_or_none()
 
-        assert user is not None
-        assert user.username == "testuser"
-        assert user.email == "test@example.com"
+        assert fetched_user is not None
+        assert fetched_user.username == "testuser"
+        assert fetched_user.email == "test@example.com"
 
 
 @pytest.mark.asyncio
@@ -101,9 +101,9 @@ async def test_uow_rollback_on_exception(
     async with UnitOfWork(session_factory) as uow:
         stmt = select(User).where(User.id == user_id)
         result = await uow.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        fetched_user = result.scalar_one_or_none()
 
-        assert user is None
+        assert fetched_user is None
 
 
 @pytest.mark.asyncio
@@ -126,9 +126,9 @@ async def test_uow_explicit_rollback(
     async with UnitOfWork(session_factory) as uow:
         stmt = select(User).where(User.id == user_id)
         result = await uow.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        fetched_user = result.scalar_one_or_none()
 
-        assert user is None
+        assert fetched_user is None
 
 
 @pytest.mark.asyncio
@@ -152,9 +152,9 @@ async def test_uow_default_rollback_without_commit(
     async with UnitOfWork(session_factory) as uow:
         stmt = select(User).where(User.id == user_id)
         result = await uow.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        fetched_user = result.scalar_one_or_none()
 
-        assert user is None
+        assert fetched_user is None
 
 
 @pytest.mark.asyncio
