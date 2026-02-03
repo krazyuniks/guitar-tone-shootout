@@ -17,14 +17,14 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Copy workspace configuration
+# Copy workspace configuration (including README.md for hatchling)
 COPY pyproject.toml uv.lock ./
-COPY libs/core/pyproject.toml libs/core/
-COPY libs/audio/pyproject.toml libs/audio/
-COPY sources/t3k/pyproject.toml sources/t3k/
-COPY apps/webapp/pyproject.toml apps/webapp/
-COPY apps/worker/pyproject.toml apps/worker/
-COPY apps/scheduler/pyproject.toml apps/scheduler/
+COPY libs/core/pyproject.toml libs/core/README.md libs/core/
+COPY libs/audio/pyproject.toml libs/audio/README.md libs/audio/
+COPY sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
+COPY apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
+COPY apps/worker/pyproject.toml apps/worker/README.md apps/worker/
+COPY apps/scheduler/pyproject.toml apps/scheduler/README.md apps/scheduler/
 
 # Create src directory structure for workspace resolution
 RUN mkdir -p libs/core/src/core libs/audio/src/audio \
