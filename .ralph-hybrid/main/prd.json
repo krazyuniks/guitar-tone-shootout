@@ -555,8 +555,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Depends on all ORM models being complete",
+      "passes": true,
+      "notes": "Alembic configuration created with initial migration. Seed data for BlockType and OAuthProvider included. Migration tested with integration tests. To test against fresh database: just reset (prompts for confirmation), then just migrate.",
       "verify": {
         "command": "just migrate && just psql -c '\\dt'",
         "expected": "All tables created with indexes",

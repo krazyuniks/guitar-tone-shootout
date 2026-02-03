@@ -1295,3 +1295,37 @@ Technical notes:
 
 Infrastructure:
 - Workspace packages installed at session start (uv pip install -e)
+
+---
+Iteration: 11
+Started: 2026-02-03T20:36:00Z
+Story: STORY-020 - Alembic Migrations
+Status: complete
+
+Changes made:
+- Initialized Alembic configuration in infrastructure/migrations/
+- Created initial migration with all ORM models (b4a1fd310cb9_initial_schema.py)
+- Added seed data for BlockType and OAuthProvider
+- Added psycopg2-binary dependency for migrations
+- Updated just migrate command to use correct alembic.ini path
+- Created integration tests to verify migration artifacts
+- Added migration files to ruff and mypy ignore lists
+
+Verification:
+- All 127 regression tests pass (unit + integration)
+- Linting passes (ruff)
+- Type checking passes (mypy)
+- Migration file contains all expected tables
+- Seed data for BlockType (6 types) and OAuthProvider (tone3000) present
+- Alembic configuration files exist and are properly configured
+- All acceptance criteria met
+
+Technical notes:
+- Migration was generated against existing database schema
+- For fresh database testing, user should run: just reset, then just migrate
+- Migration handles both creating new tables and modifying existing ones
+- env.py imports all ORM models to ensure Base.metadata is complete
+- psycopg2-binary required for synchronous migrations (alembic uses sync SQLAlchemy)
+
+Infrastructure note:
+- Workspace packages installed at session start (uv pip install -e)
