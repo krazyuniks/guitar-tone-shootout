@@ -1091,3 +1091,33 @@ Technical notes:
 - AuditLog uses uuid4 for primary key (append-only, no need for time-ordering)
 - JSONB columns (changes, extra_data) documented with justification
 - User.jobs relationship added with cascade delete
+
+---
+Iteration: 5
+Started: 2026-02-03T19:08:24Z
+Story: STORY-014 - User Repository Implementation
+Status: complete
+
+Changes made:
+- Created SQLAlchemyUserRepository implementing UserRepository protocol
+- Implemented all CRUD operations: get_by_id(), get_by_email(), get_by_identity(), save(), delete()
+- Domain entity mapping (ORM User to UserEntity) with identity relationships
+- Provider auto-creation if missing
+- Identity management (add/remove/update) with proper SQLAlchemy session handling
+- Created comprehensive integration tests (13 tests covering all operations)
+- Fixed identity update logic with session refresh after deletion
+
+Verification:
+- All 13 integration tests pass
+- All 80 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Technical notes:
+- Used TYPE_CHECKING for imports to satisfy TC003 linting rule
+- Added type ignore for core.domain.entities.user import (missing py.typed marker)
+- Identity updates require session refresh after deletion to prevent stale data
+- Provider lookup by name for get_by_identity()
+- Eager loading configured with selectinload for identities and providers
+
