@@ -11,7 +11,8 @@ dependencies = [
     "scipy>=1.14.0",
     "torch>=2.5.0",
     "torchaudio>=2.5.0",
-    "neural-amp-modeler>=0.10.0",
+    # NAM removed temporarily - Python 3.12 compatibility issue with librosa/numba
+    # Will be added back when updated versions are available
     "moviepy>=2.0.0",
 ]
 
