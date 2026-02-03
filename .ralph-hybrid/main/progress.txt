@@ -26,3 +26,8 @@ Verification:
 Infrastructure note:
 - Docker iptables issue prevents new container starts (requires system-level fix)
 - Does not affect STORY-002 completion (build already succeeded)
+
+Additional fix:
+- Also marked STORY-001 as complete (was implemented in previous iteration, tests pass)
+- Both STORY-001 and STORY-002 were blocked by import-linter configuration bug
+- Now both are complete after fixing the configuration issue
