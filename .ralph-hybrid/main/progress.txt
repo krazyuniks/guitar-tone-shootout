@@ -1011,3 +1011,44 @@ Technical notes:
 - Static HTML files generated at root of dist/ (index.html, about.html, login.html)
 - CSS compiled to dist/_astro/about.CCULrn-Z.css
 - All pages include navigation header and footer for consistency
+
+
+---
+Iteration: 3
+Started: 2026-02-03T18:59:11Z
+Story: STORY-012 - Shootout and DITrack ORM Models
+Status: complete
+
+Changes made:
+- Created Shootout model with user_id, di_track_id, title, status, video_path, timestamps
+- Created ShootoutChain junction model linking shootouts to signal chains (position, label)
+- Created DITrack model with user_id, name, file_path, duration, sample_rate, checksum
+- Created AudioSegment model for processed segments (integrated_lufs, peak_dbfs)
+- Created ShootoutStatus enum (pending, processing, completed, failed)
+- All relationships configured with proper cascade delete
+- Indexes on user_id, status (Shootout), user_id (DITrack), shootout_id, position (ShootoutChain)
+- Updated User model with di_tracks and shootouts relationships
+- Added TC003 per-file ignore for shootout.py in pyproject.toml
+- Created comprehensive unit tests (7 tests covering all models and relationships)
+
+Verification:
+- All 7 unit tests for Shootout/DITrack models pass
+- All 49 regression tests pass (unit + integration)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met:
+  - Shootout model with user_id, title, status, video_path, timestamps ✓
+  - ShootoutChain junction model linking shootouts to signal chains ✓
+  - DITrack model with user_id, name, file_path, duration, checksum ✓
+  - AudioSegment model for processed segments ✓
+  - Relationships with proper cascade ✓
+  - Indexes on user_id, status ✓
+  - Unit tests pass ✓
+  - Typecheck passes ✓
+
+Technical notes:
+- Used EnumByValue for ShootoutStatus enum
+- Eager loading configured for di_track and chains relationships (lazy="selectin")
+- Cascade delete configured for shootouts → chains → segments
+- Used TYPE_CHECKING to avoid circular imports
+- Added TC003 to per-file ignores (uuid is used at runtime, cannot be in TYPE_CHECKING)

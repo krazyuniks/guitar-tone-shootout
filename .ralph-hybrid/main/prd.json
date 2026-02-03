@@ -332,8 +332,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Depends on STORY-006 (User) and STORY-010 (SignalChain)",
+      "passes": true,
+      "notes": "Implemented with Shootout, ShootoutChain, DITrack, AudioSegment models. ShootoutStatus enum. All relationships configured with proper cascade. Indexes on user_id, status, shootout_id, position. 7 unit tests pass, all 49 regression tests pass, type checking passes, linting passes.",
       "verify": {
         "command": "just tdd tests/unit/webapp/test_shootout_model.py",
         "expected": "Shootout and DITrack models work correctly",
