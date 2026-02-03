@@ -17,7 +17,7 @@
         "Unit tests pass"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": "Implemented with UUIDv7 (fallback to UUIDv4 for Python 3.12), TimestampMixin, EnumByValue, session factory. Fixed neural-amp-modeler dependency issue. All tests pass.",
       "verify": {
         "command": "just tdd tests/unit/webapp/test_orm_base.py",
@@ -44,8 +44,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "Foundation for frontend - can run parallel with STORY-001",
+      "passes": true,
+      "notes": "Implemented Astro configuration with TypeScript and Tailwind v3. Created Dockerfile for build container. Build and typecheck verified. Pre-bundled architecture - dist/ committed to git.",
       "verify": {
         "command": "just build-astro",
         "expected": "Astro builds without errors",
