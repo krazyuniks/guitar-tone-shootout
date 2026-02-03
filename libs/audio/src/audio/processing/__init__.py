@@ -6,9 +6,9 @@ from .processor import PedalboardAudioProcessor, ProcessingError
 
 __all__ = [
     "IRLoadError",
-    "load_ir",
     "NAMLoadError",
-    "load_nam_model",
     "PedalboardAudioProcessor",
     "ProcessingError",
+    "load_ir",
+    "load_nam_model",
 ]

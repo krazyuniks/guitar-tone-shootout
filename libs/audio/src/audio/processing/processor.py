@@ -6,12 +6,13 @@ for audio processing and PyLoudnorm for loudness measurement.
 
 import time
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
 import torch
-from pedalboard import Pedalboard, HighpassFilter
+from pedalboard import HighpassFilter, Pedalboard  # type: ignore[attr-defined]
 from scipy import signal
 
 from core.domain.value_objects.audio_result import AudioResult
@@ -40,7 +41,7 @@ class PedalboardAudioProcessor:
     """
 
     # Supported audio formats
-    _SUPPORTED_FORMATS = ["wav", "flac", "ogg", "mp3"]
+    _SUPPORTED_FORMATS: ClassVar[list[str]] = ["wav", "flac", "ogg", "mp3"]
 
     def __init__(self) -> None:
         """Initialize the processor."""
@@ -241,7 +242,7 @@ class PedalboardAudioProcessor:
                 effects.append(HighpassFilter(cutoff_frequency_hz=config.highpass_freq))
 
             # Create pedalboard
-            board = Pedalboard(effects)
+            board = Pedalboard(effects)  # type: ignore[arg-type]
 
             # Apply pedalboard effects
             if effects:
@@ -257,7 +258,7 @@ class PedalboardAudioProcessor:
                 sample_rate = model_sample_rate
 
             # Apply NAM model
-            audio = self._apply_nam_model(nam_model, audio, sample_rate)
+            audio = self._apply_nam_model(nam_model, audio)
 
             # Apply IR if configured
             if config.ir_path is not None:
@@ -295,14 +296,12 @@ class PedalboardAudioProcessor:
         self,
         model: torch.nn.Module,
         audio: np.ndarray,
-        sample_rate: int,
     ) -> np.ndarray:
         """Apply NAM model to audio.
 
         Args:
             model: Loaded NAM PyTorch model
             audio: Input audio samples
-            sample_rate: Sample rate in Hz
 
         Returns:
             Processed audio samples

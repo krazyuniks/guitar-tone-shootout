@@ -28,8 +28,8 @@ def test_audio_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def test_di_file(test_audio_dir: Path) -> Path:
     """Create a test DI audio file."""
-    import soundfile as sf
     import numpy as np
+    import soundfile as sf
 
     # Create a simple sine wave test file
     sample_rate = 48000
@@ -67,8 +67,8 @@ def test_nam_model(test_audio_dir: Path) -> Path:
 @pytest.fixture
 def test_ir_file(test_audio_dir: Path) -> Path:
     """Create a test IR file."""
-    import soundfile as sf
     import numpy as np
+    import soundfile as sf
 
     # Create a simple impulse response (short decay)
     sample_rate = 48000
