@@ -23,6 +23,9 @@ venv/
 .env
 .env.local
 
+# Docker Compose (Phase 7: worktree.py will generate override, then uncomment below)
+# docker-compose.override.yml
+
 # Ralph Hybrid
 .ralph-hybrid/**/rate_limiter.state
 .ralph-hybrid/**/status.json

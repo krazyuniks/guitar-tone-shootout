@@ -1,0 +1,42 @@
+# GTS Docker Compose - Main Worktree Override
+# INTERIM: This file is committed until Phase 7 (worktree.py generates it)
+#
+# After Phase 7:
+#   - This file becomes gitignored
+#   - worktree.py generates it with correct ports/names per worktree
+#
+# Port allocation (main worktree):
+#   nginx:    9000
+#   backend:  8000
+#   db:       5432
+#   redis:    6379
+
+services:
+  db:
+    container_name: gts-db-main
+    ports:
+      - "5432:5432"
+
+  redis:
+    container_name: gts-redis-main
+    ports:
+      - "6379:6379"
+
+  backend:
+    container_name: gts-backend-main
+    ports:
+      - "8000:8000"
+
+  nginx:
+    container_name: gts-nginx-main
+    ports:
+      - "9000:80"
+
+  worker:
+    container_name: gts-worker-main
+
+  scheduler:
+    container_name: gts-scheduler-main
+
+  astro:
+    container_name: gts-astro-main

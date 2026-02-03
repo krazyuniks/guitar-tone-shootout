@@ -1,0 +1,29 @@
+[project]
+name = "gts-e2e"
+version = "0.1.0"
+description = "E2E tests for Guitar Tone Shootout"
+requires-python = ">=3.12"
+dependencies = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-playwright>=0.6.2",
+    "playwright>=1.49.0",
+    "httpx>=0.28.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.30.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "regression: Golden path regression gate",
+    "e2e: All E2E tests",
+    "e2e_quick: Quick E2E tests (< 30s)",
+    "smoke: Infrastructure smoke tests",
+]
+
+[tool.uv]
+# Isolated from main workspace - this package manages its own venv
+managed = true

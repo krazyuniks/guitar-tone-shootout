@@ -1,0 +1,26 @@
+# GTS Docker Compose - Traefik Integration
+# Use for server deployment with HTTPS and subdomain routing
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.traefik.yml up -d
+#
+# Requires:
+#   - Traefik running as reverse proxy
+#   - DNS configured for subdomain
+#   - TRAEFIK_DOMAIN environment variable set
+
+services:
+  nginx:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gts-${GTS_WORKTREE:-main}.rule=Host(`${TRAEFIK_SUBDOMAIN:-gts}.${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.gts-${GTS_WORKTREE:-main}.entrypoints=websecure"
+      - "traefik.http.routers.gts-${GTS_WORKTREE:-main}.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gts-${GTS_WORKTREE:-main}.loadbalancer.server.port=80"
+    networks:
+      - default
+      - traefik
+
+networks:
+  traefik:
+    external: true

@@ -1,10 +1,19 @@
+# GTS Docker Compose - Base Configuration
+# Worktree-agnostic: no ports, no container names
+# Use with docker-compose.override.yml for local development
+#
+# Override pattern:
+#   docker-compose.yml          - Base config (this file, committed)
+#   docker-compose.override.yml - Worktree-specific (auto-generated, gitignored)
+#   docker-compose.traefik.yml  - Traefik/HTTPS (committed)
+#   docker-compose.ci.yml       - CI isolation (committed)
+
 services:
   # ==========================================================================
   # PostgreSQL - Dual database with pgmq extension
   # ==========================================================================
   db:
     image: postgres:16-alpine
-    container_name: gts-db-${GTS_WORKTREE:-main}
     environment:
       POSTGRES_USER: gts
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
@@ -13,8 +22,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
       - ./infrastructure/docker/init-pgmq.sql:/docker-entrypoint-initdb.d/02-init-pgmq.sql
-    ports:
-      - "${DB_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gts -d gts_core"]
       interval: 5s
@@ -27,12 +34,9 @@ services:
   # ==========================================================================
   redis:
     image: redis:7-alpine
-    container_name: gts-redis-${GTS_WORKTREE:-main}
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -46,8 +50,7 @@ services:
   backend:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.backend
-    container_name: gts-backend-${GTS_WORKTREE:-main}
+      dockerfile: infrastructure/docker/Dockerfile.dev
     environment:
       # Backend only has access to gts_core - NO T3K database access
       # Worker is the bridge between databases via pgmq
@@ -56,13 +59,20 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-dev_oauth_key_32_bytes_exactly!!}
       ENV: ${ENV:-development}
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/webapp:/app/apps/webapp
       - ./frontend/astro/dist:/app/static:ro
       - upload_data:/app/uploads
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      # Source code for execution
+      - ./src:/app/src:ro
+      - ./sources:/app/sources:ro
+      - ./tests:/app/tests:ro
     depends_on:
       db:
         condition: service_healthy
@@ -80,7 +90,6 @@ services:
   # ==========================================================================
   nginx:
     image: nginx:alpine
-    container_name: gts-nginx-${GTS_WORKTREE:-main}
     environment:
       BACKEND_HOST: backend
       BACKEND_PORT: 8000
@@ -88,8 +97,6 @@ services:
     volumes:
       - ./infrastructure/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./frontend/astro/dist:/usr/share/nginx/html/static:ro
-    ports:
-      - "${NGINX_PORT:-9000}:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -101,16 +108,22 @@ services:
   worker:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.worker
-    container_name: gts-worker-${GTS_WORKTREE:-main}
+      dockerfile: infrastructure/docker/Dockerfile.dev
+    command: ["taskiq", "worker", "worker.main:broker", "--workers", "1"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_t3k_source
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/worker:/app/apps/worker
+      - ./sources:/app/sources:ro
       - upload_data:/app/uploads
       - processed_data:/app/processed
     depends_on:
@@ -126,12 +139,17 @@ services:
   scheduler:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.scheduler
-    container_name: gts-scheduler-${GTS_WORKTREE:-main}
+      dockerfile: infrastructure/docker/Dockerfile.dev
+    command: ["taskiq", "scheduler", "scheduler.main:scheduler"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/scheduler:/app/apps/scheduler
@@ -151,7 +169,6 @@ services:
     build:
       context: ./frontend/astro
       dockerfile: Dockerfile
-    container_name: gts-astro-${GTS_WORKTREE:-main}
     volumes:
       - ./frontend/astro:/app
       - /app/node_modules

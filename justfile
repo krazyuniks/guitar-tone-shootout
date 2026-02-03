@@ -1,4 +1,5 @@
 # GTS Justfile - Development Commands
+# All commands run in Docker (except E2E tests and host tooling)
 # Use: just <command>
 # List all: just --list
 
@@ -12,7 +13,6 @@ default:
 
 # Start all services in detached mode
 up-d:
-    uv sync --all-packages
     docker compose up -d
 
 # Stop all services
@@ -31,24 +31,12 @@ logs *ARGS:
 status:
     docker compose ps
 
-# =============================================================================
-# Dependency Management
-# =============================================================================
-
-# Sync all uv workspace dependencies
-uv-sync:
-    uv sync --all-packages
-
-# Update all dependencies
-uv-update:
-    uv sync --all-packages --upgrade
-
-# Lock dependencies without syncing
-uv-lock:
-    uv lock
+# Rebuild and restart services
+rebuild *ARGS:
+    docker compose up -d --build {{ARGS}}
 
 # =============================================================================
-# Quality Gates
+# Quality Gates (all run in Docker)
 # =============================================================================
 
 # Run all quality checks
@@ -56,56 +44,60 @@ check: check-lint check-types check-tests check-imports
 
 # Run linting
 check-lint:
-    uv run ruff check libs/ sources/ apps/
+    docker compose exec -T backend ruff check libs/ sources/ apps/
 
 # Run type checking (strict on core)
 check-types:
-    uv run mypy libs/core/ --strict
+    docker compose exec -T backend mypy libs/core/ --strict
 
 # Run unit tests
 check-tests:
-    uv run pytest tests/unit/ -v
+    docker compose exec -T backend pytest tests/unit/ -v
 
 # Check import dependency rules
 check-imports:
-    uv run lint-imports
+    docker compose exec -T backend lint-imports
 
 # =============================================================================
-# Lint Fixing
+# Lint Fixing (all run in Docker)
 # =============================================================================
 
 # Auto-fix lint issues
 fix-lint:
-    uv run ruff check libs/ sources/ apps/ --fix
-    uv run ruff format libs/ sources/ apps/
+    docker compose exec -T backend ruff check libs/ sources/ apps/ --fix
+    docker compose exec -T backend ruff format libs/ sources/ apps/
 
 # Format code only
 format:
-    uv run ruff format libs/ sources/ apps/
+    docker compose exec -T backend ruff format libs/ sources/ apps/
 
 # =============================================================================
 # Testing
 # =============================================================================
 
-# Run all tests
-test:
-    uv run pytest tests/ -v
+# Run unit tests (in Docker)
+test-unit:
+    docker compose exec -T backend pytest tests/unit/ -v
 
-# Run regression tests (golden path)
+# Run regression tests - unit only (in Docker)
 test-regression:
-    uv run pytest tests/ -v -m "not slow and not integration"
+    docker compose exec -T backend pytest tests/unit/ -v -m "not slow"
 
-# Run integration tests
+# Run integration tests (in Docker)
 test-integration:
-    docker compose exec backend uv run pytest tests/integration/ -v
+    docker compose exec -T backend pytest tests/integration/ -v
 
-# Run E2E tests
+# Run all tests except E2E (in Docker)
+test:
+    docker compose exec -T backend pytest tests/unit/ tests/integration/ -v
+
+# Run E2E tests (on host, hits Docker containers)
 test-e2e:
-    uv run pytest tests/e2e/python/ -v
+    cd tests/e2e/python && uv run pytest tests/ -v
 
-# Run a single test file or test (TDD mode)
+# Run a single test file or test (TDD mode, in Docker)
 tdd PATH:
-    uv run pytest {{PATH}} -v --tb=short
+    docker compose exec -T backend pytest {{PATH}} -v --tb=short
 
 # =============================================================================
 # Database
@@ -113,19 +105,19 @@ tdd PATH:
 
 # Run migrations
 migrate:
-    docker compose exec backend uv run alembic upgrade head
+    docker compose exec -T backend alembic upgrade head
 
 # Create a new migration
 migration NAME:
-    docker compose exec backend uv run alembic revision --autogenerate -m "{{NAME}}"
+    docker compose exec -T backend alembic revision --autogenerate -m "{{NAME}}"
 
 # Show migration history
 migration-history:
-    docker compose exec backend uv run alembic history
+    docker compose exec -T backend alembic history
 
 # Rollback last migration
 migrate-down:
-    docker compose exec backend uv run alembic downgrade -1
+    docker compose exec -T backend alembic downgrade -1
 
 # =============================================================================
 # Frontend (Astro)
@@ -164,7 +156,7 @@ shell:
 
 # Open a Python REPL in the backend container
 repl:
-    docker compose exec backend uv run python
+    docker compose exec backend python
 
 # Open psql to gts_core database
 psql:

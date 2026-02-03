@@ -1,0 +1,67 @@
+# GTS Docker Compose - CI Configuration
+# Use for CI/CD pipelines with ephemeral volumes and test isolation
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+#
+# Features:
+#   - Ephemeral volumes (not named, auto-deleted)
+#   - No restart policy
+#   - CI-specific container naming
+#   - Faster healthcheck intervals
+
+services:
+  db:
+    container_name: gts-db-ci-${CI_JOB_ID:-local}
+    volumes:
+      - postgres_data_ci:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
+      - ./infrastructure/docker/init-pgmq.sql:/docker-entrypoint-initdb.d/02-init-pgmq.sql
+    healthcheck:
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    restart: "no"
+
+  redis:
+    container_name: gts-redis-ci-${CI_JOB_ID:-local}
+    volumes:
+      - redis_data_ci:/data
+    healthcheck:
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    restart: "no"
+
+  backend:
+    container_name: gts-backend-ci-${CI_JOB_ID:-local}
+    environment:
+      ENV: test
+    healthcheck:
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  nginx:
+    container_name: gts-nginx-ci-${CI_JOB_ID:-local}
+    restart: "no"
+
+  worker:
+    container_name: gts-worker-ci-${CI_JOB_ID:-local}
+    environment:
+      ENV: test
+    restart: "no"
+
+  scheduler:
+    container_name: gts-scheduler-ci-${CI_JOB_ID:-local}
+    environment:
+      ENV: test
+    restart: "no"
+
+# Ephemeral volumes - no name prefix, auto-deleted
+volumes:
+  postgres_data_ci:
+  redis_data_ci:
+  upload_data:
+  processed_data:

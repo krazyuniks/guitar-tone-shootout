@@ -7,13 +7,17 @@ Code patterns and quality standards.
 ## Quick Start
 
 ```bash
+# INTERIM (until Phase 7): Manual setup
+just up-d                    # Start services
+
+# FUTURE (Phase 7): worktree.py becomes the single entry point
 ./worktree.py setup main     # First-time: set up main worktree
 ./worktree.py setup <issue>  # Create feature worktree from issue
 ```
 
-**Idempotent**: Setup works for fresh checkout, existing worktree, or any state in between. Automatically starts services if not running.
+**Entry point**: http://localhost:9000 (main worktree)
 
-**Entry point**: http://localhost:{port} (9000 on main, 9010/9020/etc. on feature worktrees)
+**Note:** Phase 7 will introduce `worktree.py` as the single idempotent setup command. Until then, use `just up-d` to start services.
 
 ---
 
@@ -26,11 +30,11 @@ Commands change over time - always discover dynamically rather than memorising. 
 **Quick reference:**
 ```bash
 just --list           # Find ANY command (ALWAYS check here first)
-just uv-sync          # Sync uv workspace dependencies
-just check            # Quality gates
-just fix-lint         # Auto-fix issues
+just check            # Quality gates (runs in Docker)
+just fix-lint         # Auto-fix issues (runs in Docker)
+just test-regression  # Unit tests (runs in Docker)
+just test-e2e         # E2E tests (runs on host)
 just build-astro      # Build Astro frontend
-just verify-astro-sync # Verify dist/ matches src/
 ```
 
 **Never guess at commands.** If `just --list` doesn't have it, ask.
@@ -91,24 +95,93 @@ Single `nginx.conf.template` for all environments, processed via envsubst at con
 - SSR pages proxied to backend
 - API routes proxied to backend
 
+### Docker Compose Architecture
+
+**Overlay pattern for environment-specific configuration.**
+
+| File | Purpose | Who Creates |
+|------|---------|-------------|
+| `docker-compose.yml` | Base config (no ports, no worktree-specific values) | Committed |
+| `docker-compose.override.yml` | Worktree-specific ports, container names | Committed (INTERIM: Phase 7 will generate) |
+| `docker-compose.traefik.yml` | Traefik integration for HTTPS/subdomain routing | Committed |
+| `docker-compose.ci.yml` | CI ephemeral volumes, isolation | Committed |
+
+**Usage:**
+```bash
+# Local development (auto-loads override)
+docker compose up -d
+
+# With Traefik (public deployment)
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.traefik.yml up -d
+
+# CI
+docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+```
+
+**Key principles:**
+- `docker-compose.yml` is worktree-agnostic (no hardcoded ports)
+- `docker-compose.override.yml` is committed (INTERIM: Phase 7 will auto-generate and gitignore)
+- Profiles: `build` (astro)
+
+### Dockerfiles
+
+| File | Purpose | Has uv? |
+|------|---------|---------|
+| `Dockerfile.dev` | Development with bind mounts, live reload | Yes |
+| `Dockerfile.backend` | Production multi-stage, minimal | No (venv only) |
+| `Dockerfile.worker` | Production worker | No |
+
+**Development uses `Dockerfile.dev`** - single stage, uv installed, supports `docker compose exec backend pytest`.
+
 ---
 
 ## Development Workflow
 
+**Single path. No optional steps. Both developers and Claude follow identical workflow.**
+
 ```bash
-just uv-sync            # Sync dependencies (after git pull)
-just up-d               # Start services
-just build-astro        # Build frontend
-just watch-astro        # Auto-rebuild frontend
+# Start services (INTERIM until Phase 7)
+just up-d                   # Start all services
+
+# Development cycle
+just build-astro            # Build frontend (if changed)
+just check                  # Run quality gates (in Docker)
+just test-regression        # Run unit tests (in Docker)
+just test-e2e               # Run E2E tests (on host)
 ```
+
+**No host .venv.** All project code executes in Docker. E2E tests are the only exception (they hit Docker containers from the host).
 
 ---
 
 ## Container-First Execution
 
-**Never run dev commands on host.** Always use Docker via `just` commands.
+**All project commands run in Docker. The ONLY host execution is E2E tests.**
+
+| Command Type | Runs In | How |
+|--------------|---------|-----|
+| Lint, type check | Docker | `just check` → `docker compose exec -T backend ruff/mypy` |
+| Unit tests | Docker | `just test-unit` → `docker compose exec -T backend pytest` |
+| Integration tests | Docker | `just test-integration` → `docker compose exec -T backend pytest` |
+| E2E tests | **Host** | `just test-e2e` → `cd tests/e2e/python && uv run pytest` |
+| Astro build | Docker | `just build-astro` → `docker compose --profile build run astro` |
 
 **Astro Architecture:** `frontend/astro/dist/` is committed to git. Nginx serves static files directly. Astro container is build-only (not in runtime stack).
+
+### NEVER Run on Host
+
+These commands should NEVER be run directly on the host:
+
+```bash
+# FORBIDDEN - always use Docker equivalents via just
+uv run pytest tests/unit/     # Use: just test-unit
+uv run ruff check             # Use: just check-lint
+uv run mypy                   # Use: just check-types
+uv sync                       # Not needed - deps managed in Docker
+pytest                        # Use: just tdd <path>
+```
+
+**The ONLY `uv run` on host is in `tests/e2e/python/` for E2E tests.**
 
 ---
 
@@ -215,15 +288,47 @@ gts/
 - **Pre-bundled**: `frontend/astro/dist/` is committed to git - no Vite dev server at runtime
 - **Full docs**: See [Frontend Architecture](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Frontend-Architecture) in the wiki
 
-### Testing
+### Testing Strategy
 
+**Clear boundary: Unit/Integration in Docker, E2E on Host.**
+
+| Test Type | Location | Runs In | Command | Dependencies |
+|-----------|----------|---------|---------|--------------|
+| Unit | `tests/unit/` | Docker | `just test-unit` | Main workspace |
+| Integration | `tests/integration/` | Docker | `just test-integration` | Main workspace |
+| E2E (Playwright) | `tests/e2e/python/` | Host | `just test-e2e` | Own `pyproject.toml` |
+
+**Why this split?**
+- Unit/Integration tests need access to the codebase and database → run in Docker where deps are installed
+- E2E tests use Playwright to hit running containers from outside → run on host
+- E2E tests have isolated dependencies (no project venv pollution)
+
+**Commands:**
 ```bash
-just test-regression  # Golden path (< 2 min) - run before commits
-just test             # All E2E tests (< 3 min) - run before PRs
-just tdd <path>       # Single test during development
+just test-regression  # Unit + quick E2E (< 2 min) - run before commits
+just test             # All tests (< 5 min) - run before PRs
+just tdd <path>       # Single test during development (Docker)
+just test-e2e         # E2E only (host, requires running containers)
 ```
 
+**E2E test isolation:**
+- `tests/e2e/python/pyproject.toml` - standalone package with pytest-playwright, httpx
+- `cd tests/e2e/python && uv run pytest` - uv creates isolated venv automatically
+- No dependency on main workspace `.venv`
+
 See `tests/AGENTS.md` for test structure and patterns.
+
+### Dependency Management
+
+**Three isolation boundaries:**
+
+| Tool | Dependency Source | Where Runs | Notes |
+|------|-------------------|------------|-------|
+| Project code | uv workspace (`pyproject.toml`) | Docker | `docker compose exec backend pytest` |
+| E2E tests | `tests/e2e/python/pyproject.toml` | Host | Isolated from workspace |
+| `worktree.py` | PEP 723 inline deps | Host | Self-contained, no venv needed |
+
+**No host .venv.** There should be no `.venv` directory at project root. All project code executes in Docker.
 
 ---
 
@@ -305,7 +410,33 @@ Is this a **duplicate** of #42, or a **separate issue**?
 
 ## Rules
 
-1. **Run in containers** - Not on host
+### CRITICAL: Do Not Assume - Always Ask
+
+**Never assume. Always ask.** This is the most important rule.
+
+When uncertain about ANY of the following, STOP and ask the user:
+- Project conventions or patterns
+- Which tool/approach to use
+- Whether something should run on host vs Docker
+- File locations or naming conventions
+- Configuration values or settings
+- Whether a feature exists or how it works
+
+**Bad behaviour:**
+- "I'll assume this runs on host since it's a Python script"
+- "I'll use approach X since it's common"
+- "This probably works like Y"
+
+**Good behaviour:**
+- "Should this run on host or in Docker?"
+- "I see two possible approaches. Which do you prefer?"
+- "I'm not sure where this config goes. Can you clarify?"
+
+**The cost of asking is low. The cost of wrong assumptions is high.**
+
+### Other Rules
+
+1. **Run in containers** - Not on host (except explicit host tools like worktree.py)
 2. **Review auto-fixes after commit** - Pre-commit auto-fixes lint/format
 3. **Use `/merge` when done** - Single command: pre-merge checks → PR → auto-merge
 4. **Follow existing patterns** - Check skills for examples
@@ -322,19 +453,24 @@ Is this a **duplicate** of #42, or a **separate issue**?
 |------|----------|----------|
 | Start services | `just up-d` | `docker compose up -d` |
 | Stop services | `just down` | `docker compose down` |
-| Sync dependencies | `just uv-sync` | `uv sync` directly |
-| Fix issues | `./worktree.py setup <name>` | Ad-hoc docker commands |
-| Clean up | `./worktree.py teardown` | `docker volume rm` |
+| Run unit tests | `just test-unit` | `uv run pytest` on host |
+| Run E2E tests | `just test-e2e` | - |
+| Run lint/types | `just check` | `ruff check` on host |
+| TDD single test | `just tdd <path>` | `pytest <path>` on host |
 | Reset data | Ask user to run `just reset` | `docker compose down -v` |
 | Build Astro | `just build-astro` | `cd frontend/astro && pnpm build` |
 | Watch Astro | `just watch-astro` | `cd frontend/astro && pnpm dev` |
-| Check Astro | `just check-astro` | `cd frontend/astro && pnpm lint` |
-| Verify sync | `just verify-astro-sync` | Manual git diff |
 
 **Why?** The provided tooling has guardrails. Ad-hoc commands don't.
 
+**NEVER run these on host:**
+- `uv run pytest` (except in `tests/e2e/python/`)
+- `uv run ruff`, `uv run mypy`
+- `uv sync`
+- `pytest` directly
+
 **If tooling is missing:**
-1. Ask if the user wants to add it to `worktree.py` or `justfile`
+1. Ask if the user wants to add it to `justfile`
 2. Or ask the user to run the raw command manually
 3. Do NOT run ad-hoc infrastructure commands yourself
 
@@ -421,6 +557,7 @@ MCP **not required** for: planning, backend work, documentation, admin tasks.
 2. **Get network logs via MCP** - See actual failed requests
 3. **Check docker logs** - Backend errors
 4. **Do NOT guess** - Use the tools
+5. **Ask the user** - If tools don't reveal the cause, ASK rather than hypothesise
 
 ### After Implementation
 
