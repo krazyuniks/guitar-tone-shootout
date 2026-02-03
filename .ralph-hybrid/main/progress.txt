@@ -1154,3 +1154,38 @@ Technical notes:
 - Source tracking works via GearSource relationship
 - Eager loading configured with selectinload for all relationships
 
+
+---
+Iteration: 7
+Started: 2026-02-03T19:19:07Z
+Story: STORY-016 - SignalChain Repository Implementation
+Status: complete
+
+Changes made:
+- Created SQLAlchemySignalChainRepository implementing SignalChainRepository protocol
+- Implemented all CRUD operations: get_by_id(), get_by_user_id(), count_by_user_id(), save(), delete()
+- get_by_id() loads chain with all blocks using selectinload
+- get_by_user_id() with pagination (limit/offset), ordered by created_at desc
+- save() handles chain and blocks together, including updates and deletions
+- delete() cascades to blocks via ORM relationship
+- Domain entity mapping (ORM SignalChain to SignalChainEntity, ORM SignalChainBlock to BlockEntity)
+- All methods are async
+- Created 11 comprehensive integration tests covering all operations
+- Fixed session caching issue by refreshing existing chain before update
+
+Verification:
+- All 11 integration tests pass
+- All 103 regression tests pass (unit + integration)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Technical notes:
+- Blocks sorted by position in _to_entity conversion
+- Session refresh before update to ensure fresh state (fixes caching issue with expire_on_commit=False)
+- Block updates handled via comparison of existing vs new IDs
+- Cascade delete configured in ORM model (on_delete="CASCADE")
+- Used selectinload for eager loading blocks relationship
+
+Infrastructure:
+- Workspace packages installed at session start (uv pip install -e)
