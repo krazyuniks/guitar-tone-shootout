@@ -1257,3 +1257,41 @@ Technical notes:
 - AuditRepository logs events to AuditLog table
 - SignalChainGroupRepository converts gear_options between UUID and string dicts (JSON storage)
 - All repositories use async patterns with selectinload for eager loading
+
+---
+Iteration: 10
+Started: 2026-02-03T19:32:41Z
+Story: STORY-019 - Unit of Work Pattern
+Status: complete
+
+Changes made:
+- Created UnitOfWork class with async context manager
+- Implemented commit() and rollback() methods
+- Session factory configuration via constructor parameter
+- Transaction scoping with auto-rollback on exception or exit
+- Created 10 comprehensive integration tests covering all scenarios
+- Added TC002 ignore for unit_of_work.py in pyproject.toml
+
+Verification:
+- All 10 integration tests pass
+- All 125 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met:
+  - UnitOfWork class with async context manager ✓
+  - commit() and rollback() methods ✓
+  - Session factory configuration ✓
+  - Separate factory for worker (dual-database) ✓
+  - Transaction scoping works correctly ✓
+  - Integration tests pass ✓
+  - Typecheck passes ✓
+
+Technical notes:
+- UnitOfWork takes async_sessionmaker as constructor parameter
+- Supports dual-database architecture by passing different factories
+- Auto-rollback on exception or if commit() not called
+- Session property raises error if accessed outside context manager
+- All operations (commit, rollback) raise error outside context manager
+
+Infrastructure:
+- Workspace packages installed at session start (uv pip install -e)
