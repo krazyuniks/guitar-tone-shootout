@@ -415,3 +415,37 @@ Infrastructure note:
 - Workspace packages must be installed at session start (uv pip install -e)
 - This ensures tests can import modules correctly
 - Transient failures can occur if packages not installed
+
+---
+Iteration: 13
+Started: 2026-02-03T03:32:05Z
+Story: STORY-008 - Base Layout Template (Final Verification)
+Status: complete
+
+Changes made:
+- No code changes needed - STORY-008 implementation from iteration 10 is correct
+- All quality checks pass:
+  - 35 regression tests pass
+  - Type checking passes (mypy)
+  - Linting passes (ruff)
+- Marked STORY-008 as complete in prd.json
+
+Verification:
+- base.html exists at frontend/astro/dist/layouts/base.html
+- Contains all required Jinja2 blocks (title, content, scripts)
+- Includes HTMX script from unpkg CDN
+- Includes Alpine.js script from CDN
+- Includes compiled Tailwind CSS link
+- All acceptance criteria met
+
+Root cause of previous failures:
+- Iterations 11 and 12 both reported verification failures
+- Root cause: workspace packages not installed at session start
+- This iteration installed packages first (uv pip install -e)
+- All checks now pass
+- STORY-008 confirmed complete
+
+Note:
+- CRITICAL: Always install workspace packages at session start
+- Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
+- Without this, tests cannot import modules and will fail
