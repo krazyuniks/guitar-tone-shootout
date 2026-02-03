@@ -627,3 +627,39 @@ Note:
 - CRITICAL: Always install workspace packages at session start
 - Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
 - Without this, tests cannot import modules and will fail
+
+---
+Iteration: 3
+Started: 2026-02-03T17:57:33Z
+Story: STORY-009 - Audio Processor Implementation
+Status: complete
+
+Changes made:
+- Created PedalboardAudioProcessor implementing AudioProcessor protocol
+- Implemented all async methods wrapping sync pedalboard/pyloudnorm calls
+- process_di_track() - Full DI processing through NAM, IR, normalization
+- extract_waveform() - Waveform visualization data with configurable peaks
+- measure_loudness() - EBU R128 LUFS and peak dBFS measurement
+- normalize_loudness() - Loudness normalization to target LUFS
+- get_supported_formats() and is_format_supported() - Format queries
+- Sample-by-sample NAM processing (simplified approach for testing)
+- Created comprehensive integration tests with fixtures for audio, NAM models, IR files
+- Updated audio.processing __init__ to export processor classes
+
+Verification:
+- All 11 integration tests pass
+- All 35 regression tests pass (unit + integration)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Technical notes:
+- NAM processing uses sample-by-sample iteration for compatibility with test models
+- Production would use batch processing for efficiency
+- Uses scipy.signal.resample for sample rate conversion
+- PyLoudnorm for EBU R128 integrated loudness measurement
+- All methods are async to support future async operations
+
+Infrastructure:
+- Workspace packages installed at session start (uv pip install -e)
+- Critical for tests to import modules correctly

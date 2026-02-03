@@ -246,8 +246,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Depends on STORY-004 and STORY-005 (NAM + IR loaders)",
+      "passes": true,
+      "notes": "Implemented PedalboardAudioProcessor with all protocol methods. Uses PyTorch for NAM models, Pedalboard for effects/IR, PyLoudnorm for loudness. All 11 integration tests pass. Sample-by-sample NAM processing (simplified for testing - production would use batching).",
       "verify": {
         "command": "just tdd tests/integration/audio/test_processor.py",
         "expected": "AudioProcessor implements protocol, processes audio correctly",
