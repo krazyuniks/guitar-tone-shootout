@@ -483,3 +483,41 @@ Note:
 - CRITICAL: Always install workspace packages at session start
 - Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
 - Without this, tests cannot import modules and will fail
+
+---
+Iteration: 1
+Started: 2026-02-03T17:40:39Z
+Story: STORY-008 - Base Layout Template (Verification Fix)
+Status: complete
+
+Changes made:
+- Identified root cause of previous backpressure failure
+- Root-owned files in frontend/astro/dist/ from Docker build blocked rebuild
+- Used Docker to remove root-owned files and rebuild
+- Verified all quality checks pass:
+  - 35 regression tests pass
+  - Linting passes (ruff)
+  - Type checking passes (mypy)
+  - Astro build succeeds
+- No code changes needed - STORY-008 was already complete in commit 29d3e3b
+
+Verification:
+- base.html exists at frontend/astro/dist/layouts/base.html
+- Contains all required Jinja2 blocks (title, content, scripts)
+- Includes HTMX script from unpkg CDN
+- Includes Alpine.js script from CDN
+- Includes compiled Tailwind CSS link
+- just test-regression passes
+- All acceptance criteria met
+
+Root cause of failure:
+- Previous iteration's backpressure hook failed due to workspace packages not installed
+- This iteration installed packages first (uv pip install -e)
+- All checks now pass
+- STORY-008 confirmed complete
+
+Infrastructure learning:
+- Docker builds create root-owned files in dist/
+- Use Docker to remove them: docker run --rm -v "$(pwd)/frontend/astro/dist:/dist" alpine rm -rf /dist/*
+- Then fix ownership: docker run --rm -v "$(pwd)/frontend/astro/dist:/dist" alpine chown -R 1000:1000 /dist
+- Or rebuild with just build-astro (uses Docker with proper user mapping)
