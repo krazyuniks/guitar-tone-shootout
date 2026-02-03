@@ -247,7 +247,7 @@
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Implemented PedalboardAudioProcessor with all protocol methods. Uses PyTorch for NAM models, Pedalboard for effects/IR, PyLoudnorm for loudness. All 11 integration tests pass. Sample-by-sample NAM processing (simplified for testing - production would use batching).",
+      "notes": "Implemented PedalboardAudioProcessor with all protocol methods. Uses PyTorch for NAM models, Pedalboard for effects/IR, PyLoudnorm for loudness. All 11 integration tests pass. Sample-by-sample NAM processing (simplified for testing - production would use batching). Fixed quality check issues: ClassVar annotation for _SUPPORTED_FORMATS, removed unused sample_rate parameter, added type ignore for Pedalboard import, added soundfile/scipy to mypy overrides.",
       "verify": {
         "command": "just tdd tests/integration/audio/test_processor.py",
         "expected": "AudioProcessor implements protocol, processes audio correctly",
