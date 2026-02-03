@@ -1052,3 +1052,42 @@ Technical notes:
 - Cascade delete configured for shootouts → chains → segments
 - Used TYPE_CHECKING to avoid circular imports
 - Added TC003 to per-file ignores (uuid is used at runtime, cannot be in TYPE_CHECKING)
+---
+Iteration: 4
+Started: 2026-02-03T19:03:21Z
+Story: STORY-013 - Job and Audit ORM Models
+Status: complete
+
+Changes made:
+- Created Job ORM model with all fields from domain entity
+- Added parent_job_id for parent/child job relationships
+- Created AuditLog model for event logging
+- Job status and type enums stored by value using EnumByValue
+- Added indexes on user_id, status, entity_id, task_id
+- Added depends_on field (JSON array of UUIDs for job dependencies)
+- Updated User model with jobs relationship
+- Created comprehensive unit tests (7 tests)
+- Fixed duplicate index declarations (removed index=True from columns, kept in __table_args__)
+- Added type ignore comments for core domain imports
+- Added TC003 per-file ignores for job.py and test_job_model.py
+
+Verification:
+- All 7 unit tests for Job and AuditLog pass
+- All 56 regression tests pass (unit tests across all models)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met:
+  - Job model with all fields from domain entity ✓
+  - Parent/child job relationships (parent_job_id) ✓
+  - AuditLog model for event logging ✓
+  - Job status enum stored by value ✓
+  - Indexes on user_id, status, entity_id, task_id ✓
+  - Unit tests pass ✓
+  - Typecheck passes ✓
+
+Technical notes:
+- Used EnumByValue for JobStatus and JobType enums
+- depends_on stored as JSON array (compatible with SQLite and PostgreSQL)
+- AuditLog uses uuid4 for primary key (append-only, no need for time-ordering)
+- JSONB columns (changes, extra_data) documented with justification
+- User.jobs relationship added with cascade delete

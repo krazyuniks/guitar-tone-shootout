@@ -359,8 +359,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Depends on STORY-001 (ORM base)",
+      "passes": true,
+      "notes": "Implemented with Job and AuditLog models. Parent/child relationships via parent_job_id. depends_on stored as JSON array. All indexes configured. 7 unit tests pass, all 56 regression tests pass, type checking passes, linting passes.",
       "verify": {
         "command": "just tdd tests/unit/webapp/test_job_model.py",
         "expected": "Job model with parent/child relationships works",
