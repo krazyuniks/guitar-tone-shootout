@@ -21,11 +21,12 @@ Code patterns and quality standards.
 
 **Use `just` for ALL commands. Use `just --list` for discovery.**
 
-Commands change over time - always discover dynamically rather than memorising. Before constructing any ad-hoc Docker, pip, or pnpm command, check if `just` already provides it.
+Commands change over time - always discover dynamically rather than memorising. Before constructing any ad-hoc Docker, uv, or pnpm command, check if `just` already provides it.
 
 **Quick reference:**
 ```bash
 just --list           # Find ANY command (ALWAYS check here first)
+just uv-sync          # Sync uv workspace dependencies
 just check            # Quality gates
 just fix-lint         # Auto-fix issues
 just build-astro      # Build Astro frontend
@@ -40,12 +41,14 @@ just verify-astro-sync # Verify dist/ matches src/
 
 | Layer | Technology |
 |-------|------------|
-| **Backend** | FastAPI, SQLAlchemy 2.0, PostgreSQL, Redis, TaskIQ |
+| **Package Management** | uv workspaces (monorepo) |
+| **Backend** | FastAPI, SQLAlchemy 2.0, PostgreSQL (dual DB), Redis, TaskIQ, pgmq |
 | **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
 | **Testing** | pytest, Playwright |
+| **Quality** | ruff, mypy, import-linter |
 | **Infrastructure** | Docker (db, redis, backend, nginx, worker, scheduler), worktrees |
 
-**Note:** Astro is pre-bundled (`astro/dist/` committed to git). No Vite dev server at runtime.
+**Note:** Astro is pre-bundled (`frontend/astro/dist/` committed to git). No Vite dev server at runtime.
 
 ---
 
@@ -55,9 +58,18 @@ just verify-astro-sync # Verify dist/ matches src/
 
 | Concern | What It Is | Runtime Reference |
 |---------|------------|-------------------|
-| Build system | Astro, Tailwind, `astro/` dir | **None** - implementation detail |
-| Static assets | HTML/CSS/JS in `astro/dist/` | "static" or "assets" |
+| Build system | Astro, Tailwind, `frontend/astro/` dir | **None** - implementation detail |
+| Static assets | HTML/CSS/JS in `frontend/astro/dist/` | "static" or "assets" |
 | SSR pages | Jinja2 templates via FastAPI | "backend" |
+
+### Dual Database Architecture
+
+| Database | Purpose | Access |
+|----------|---------|--------|
+| `gts_core` | Application data (users, shootouts, chains) | Webapp, worker |
+| `gts_t3k_source` | T3K source data (packs, models, presets) | Worker only |
+
+**Critical**: Webapp has NO direct access to T3K source database. Worker bridges the two databases via pgmq message queues.
 
 ### Runtime Stack (ALL environments)
 ```
@@ -75,7 +87,7 @@ just watch-astro        # Starts astro, watches for changes
 
 ### nginx Configuration
 Single `nginx.conf.template` for all environments, processed via envsubst at container startup.
-- Static files served from `/static` (bind-mounted `astro/dist/`)
+- Static files served from `/static` (bind-mounted `frontend/astro/dist/`)
 - SSR pages proxied to backend
 - API routes proxied to backend
 
@@ -84,6 +96,7 @@ Single `nginx.conf.template` for all environments, processed via envsubst at con
 ## Development Workflow
 
 ```bash
+just uv-sync            # Sync dependencies (after git pull)
 just up-d               # Start services
 just build-astro        # Build frontend
 just watch-astro        # Auto-rebuild frontend
@@ -95,74 +108,111 @@ just watch-astro        # Auto-rebuild frontend
 
 **Never run dev commands on host.** Always use Docker via `just` commands.
 
-**Astro Architecture:** `astro/dist/` is committed to git. Nginx serves static files directly. Astro container is build-only (not in runtime stack).
+**Astro Architecture:** `frontend/astro/dist/` is committed to git. Nginx serves static files directly. Astro container is build-only (not in runtime stack).
 
 ---
 
 ## Project Structure
 
 ```
-backend/
-└── app/
-    ├── api/           # REST endpoints, page routes
-    ├── services/      # Business logic
-    ├── domain/        # Entities, value objects
-    ├── adapters/      # Ports/Adapters (persistence, external, processing)
-    ├── core/          # Config, database, security, templates
-    ├── middleware/    # Request/response middleware
-    ├── models/        # SQLAlchemy ORM
-    ├── schemas/       # Pydantic validation
-    └── tasks/         # TaskIQ background jobs
-
-astro/
-├── src/
-│   ├── pages/         # Template sources (.html.ts, .astro)
-│   │   ├── layouts/   # Base layout (base.astro)
-│   │   ├── pages/     # Full page templates (.html.ts)
-│   │   ├── fragments/ # HTMX fragments (.html.ts)
-│   │   ├── partials/  # Header, footer (.html.ts)
-│   │   └── *.astro    # Static pages (index, about, login)
-│   ├── components/    # React islands
-│   └── lib/           # Utilities, hooks
-└── dist/              # Build output (COMMITTED TO GIT)
-    ├── layouts/       # Built base.html wrapper
-    ├── pages/         # Built page templates
-    ├── fragments/     # Built HTMX fragments
-    ├── partials/      # Built header, footer
-    └── _astro/        # Compiled CSS/JS
-
-tests/                 # Unified test directory
-├── unit/
-│   ├── backend/       # Fast unit tests (no DB/Redis)
-│   └── worktree/      # Worktree CLI tests
-├── integration/
-│   └── backend/       # Integration tests (real services)
-├── e2e/
-│   ├── python/        # E2E tests (pytest + Playwright, UI + DB verification)
-│   │   └── tests/     # test_smoke.py, test_navigation.py, etc.
-│   └── smoke/         # Infrastructure smoke tests
-├── fixtures/          # Shared test fixtures (browser, db, auth, etc.)
-└── data/              # Test data files
+gts/
+├── pyproject.toml              # Workspace root (uv workspaces)
+├── libs/
+│   ├── core/                   # Domain (zero framework deps)
+│   │   └── src/core/
+│   │       ├── domain/
+│   │       │   ├── entities/   # User, Gear, SignalChain, Shootout, Job
+│   │       │   └── value_objects/  # Enums, frozen dataclasses
+│   │       ├── ports/          # Repository protocols, processor protocols
+│   │       ├── records/        # Sync record schemas (GearSyncRecord)
+│   │       └── services/       # Domain services (validation, calculation)
+│   └── audio/                  # Audio processing
+│       └── src/audio/
+│           ├── processing/     # NAM, IR, pedalboard processing
+│           ├── video/          # Video composition
+│           └── analysis/       # Audio analysis (loudness, waveform)
+├── sources/
+│   └── t3k/                    # T3K source adapter
+│       └── src/source_t3k/
+│           ├── domain/         # T3K-specific entities (Pack, Model)
+│           ├── adapters/
+│           │   ├── inbound/    # API client, OAuth
+│           │   └── outbound/   # pgmq publisher
+│           └── services/       # Sync service
+├── apps/
+│   ├── webapp/                 # FastAPI
+│   │   └── src/webapp/
+│   │       ├── api/            # REST endpoints, page routes
+│   │       ├── auth/           # Session, OAuth
+│   │       ├── services/       # Application services
+│   │       └── adapters/       # Repository implementations
+│   ├── worker/                 # TaskIQ + pgmq consumer
+│   │   └── src/worker/
+│   │       ├── consumers/      # pgmq message handlers
+│   │       └── jobs/           # Background job definitions
+│   └── scheduler/              # TaskIQ scheduler
+│       └── src/scheduler/
+│           └── schedules/      # Cron definitions
+├── frontend/
+│   └── astro/                  # Build system (pre-bundled)
+│       ├── src/
+│       │   ├── pages/          # Template sources (.html.ts, .astro)
+│       │   ├── components/     # React islands
+│       │   └── lib/            # Utilities, hooks
+│       └── dist/               # Build output (COMMITTED TO GIT)
+├── infrastructure/
+│   ├── docker/                 # Dockerfiles, init scripts
+│   ├── migrations/             # Alembic migrations (gts_core)
+│   └── nginx/                  # nginx.conf.template
+└── tests/
+    ├── unit/
+    │   ├── core/               # Domain unit tests
+    │   ├── audio/              # Audio processing tests
+    │   └── worktree/           # Worktree CLI tests
+    ├── integration/
+    │   ├── webapp/             # Webapp integration tests
+    │   └── worker/             # Worker integration tests
+    ├── e2e/
+    │   ├── python/             # E2E tests (pytest + Playwright)
+    │   └── smoke/              # Infrastructure smoke tests
+    ├── fixtures/               # Shared test fixtures
+    └── data/                   # Test data files
 ```
 
-**Templates:** Edit `.html.ts` files in `astro/src/pages/`, build with `just build-astro`. Output to `astro/dist/` is committed to git.
+**Templates:** Edit `.html.ts` files in `frontend/astro/src/pages/`, build with `just build-astro`. Output to `frontend/astro/dist/` is committed to git.
 
 ---
 
 ## Key Patterns
 
+### Dependency Rules
+
+| Module | Can depend on | Cannot depend on |
+|--------|---------------|------------------|
+| `core` | (none) | audio, sources, apps |
+| `audio` | core | sources, apps |
+| `source_*` | core | audio, other sources, apps |
+| `webapp` | core, audio | sources |
+| `worker` | core, audio | sources |
+| `scheduler` | core | audio, sources |
+
+**Critical**: Webapp has NO dependency on sources. Worker is the bridge between gts_core and gts_t3k_source databases.
+
+**Enforcement**: `import-linter` contracts in root `pyproject.toml` enforce these rules.
+
 ### Backend
 - **Services own transactions**: Use `async with session.begin():`
 - **Ports/Adapters pattern**: Services use injected adapters (persistence, external, processing)
 - **Pydantic for validation**: All API input/output via schemas
+- **Domain isolation**: `libs/core/` has zero framework dependencies
 
 ### Frontend (Astro Build System)
-- **Astro SSG**: Static pages (`/`, `/about`, `/login`) pre-built to `astro/dist/`, served by nginx
+- **Astro SSG**: Static pages (`/`, `/about`, `/login`) pre-built to `frontend/astro/dist/`, served by nginx
 - **Jinja2 SSR**: Dynamic pages (`/shootouts`, `/library/*`, `/shootout/*`) served by FastAPI
 - **HTMX + Alpine.js**: Interactivity on SSR pages
 - **React island**: SignalChainBuilder only (`/library/chains/build`)
 - **Tailwind for styling**: Utility classes, design tokens compiled at build time
-- **Pre-bundled**: `astro/dist/` is committed to git - no Vite dev server at runtime
+- **Pre-bundled**: `frontend/astro/dist/` is committed to git - no Vite dev server at runtime
 - **Full docs**: See [Frontend Architecture](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Frontend-Architecture) in the wiki
 
 ### Testing
@@ -262,21 +312,23 @@ Is this a **duplicate** of #42, or a **separate issue**?
 5. **Test against real services** - No mocking internal systems
 6. **Commit working code** - Don't commit if tests fail
 7. **Use provided tooling for infrastructure** - See below
+8. **Respect dependency rules** - Webapp never imports from sources
 
 ### Infrastructure Management Policy
 
-**Use `worktree.py` and `just` commands. Never run ad-hoc Docker/pnpm commands.**
+**Use `worktree.py` and `just` commands. Never run ad-hoc Docker/uv commands.**
 
 | Need | Use This | NOT This |
 |------|----------|----------|
 | Start services | `just up-d` | `docker compose up -d` |
 | Stop services | `just down` | `docker compose down` |
+| Sync dependencies | `just uv-sync` | `uv sync` directly |
 | Fix issues | `./worktree.py setup <name>` | Ad-hoc docker commands |
 | Clean up | `./worktree.py teardown` | `docker volume rm` |
 | Reset data | Ask user to run `just reset` | `docker compose down -v` |
-| Build Astro | `just build-astro` | `cd astro && pnpm build` |
-| Watch Astro | `just watch-astro` | `cd astro && pnpm dev` |
-| Check Astro | `just check-astro` | `cd astro && pnpm lint` |
+| Build Astro | `just build-astro` | `cd frontend/astro && pnpm build` |
+| Watch Astro | `just watch-astro` | `cd frontend/astro && pnpm dev` |
+| Check Astro | `just check-astro` | `cd frontend/astro && pnpm lint` |
 | Verify sync | `just verify-astro-sync` | Manual git diff |
 
 **Why?** The provided tooling has guardrails. Ad-hoc commands don't.

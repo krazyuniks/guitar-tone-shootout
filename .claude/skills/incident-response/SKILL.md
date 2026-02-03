@@ -44,7 +44,7 @@ nginx (entry point, port 80/443)
 | Compose (dev) | `docker-compose.yml` |
 | Compose (prod) | `docker-compose.prod.yml` |
 | nginx config | `nginx.conf.template` |
-| Backend code | `backend/app/` |
+| Backend code | `apps/webapp/src/webapp/` |
 | Static assets | `astro/dist/` |
 | Migrations | `backend/alembic/` |
 | Secrets (prod) | `./secrets/` (file-based Docker secrets) |

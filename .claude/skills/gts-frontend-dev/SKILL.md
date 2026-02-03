@@ -137,7 +137,7 @@ FastAPI uses `astro/dist` for all templates:
 - Pages, fragments, and partials (built from `astro/src/pages/`)
 
 ```python
-# backend/app/core/templates.py
+# apps/webapp/src/webapp/core/templates.py
 templates.env.loader = ChoiceLoader([
     FileSystemLoader(str(_FRONTEND_DIST_DIR)),   # layouts/base.html
     FileSystemLoader(str(_BACKEND_TEMPLATE_DIR)), # pages/, fragments/, partials/
@@ -595,8 +595,8 @@ just build-astro
 just watch-templates
 
 # Backend checks
-docker compose exec backend ruff check app/
-docker compose exec backend mypy app/
+docker compose exec backend ruff check src/webapp/
+docker compose exec backend mypy src/webapp/
 
 # All checks
 just check

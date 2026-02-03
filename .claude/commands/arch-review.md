@@ -110,21 +110,18 @@ API Layer → Service Layer → Domain Layer
 ## Verification Commands
 
 ```bash
-# Import boundary violations (all should be empty)
-grep -r "from app.services" backend/app/domain/
-grep -r "from app.adapters" backend/app/domain/
-grep -r "from app.models" backend/app/domain/
-grep -r "from app.services" backend/app/adapters/
+# Core isolation (libs/core should have no framework imports)
+grep -r "sqlalchemy\|fastapi\|redis" libs/core/
 
-# Services creating adapters directly (violation)
-grep -rn "SQLAlchemy.*Repository(" backend/app/services/
+# Import boundary violations (use import-linter for full check)
+uv run lint-imports
 
 # Aggregate identity equality
-grep -n "__eq__\|__hash__" backend/app/domain/entities/*.py
+grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/*.py
 
-# Transaction ownership
-grep -rn "session.begin()" backend/app/services/  # Should exist
-grep -rn "\.commit()" backend/app/adapters/       # Should be empty
+# Transaction ownership in webapp services
+grep -rn "session.begin()" apps/webapp/src/webapp/services/  # Should exist
+grep -rn "\.commit()" apps/webapp/src/webapp/adapters/       # Should be empty
 ```
 
 ---
@@ -132,9 +129,10 @@ grep -rn "\.commit()" backend/app/adapters/       # Should be empty
 ## Usage
 
 ```bash
-/arch-review              # Review recent changes
-/arch-review backend/app/ # Review specific directory
-/arch-review --full       # Full project review
+/arch-review                    # Review recent changes
+/arch-review apps/webapp/       # Review specific directory
+/arch-review libs/core/         # Review core domain
+/arch-review --full             # Full project review
 ```
 
 ---

@@ -158,11 +158,11 @@ Check for these anti-patterns:
 
 | Pattern | How to Find | Severity |
 |---------|-------------|----------|
-| Bare `except:` | `grep -rn "except:" backend/app/` | Medium |
+| Bare `except:` | `grep -rn "except:" apps/webapp/src/webapp/` | Medium |
 | Magic numbers | Manual review | Low |
 | N+1 queries | Check ORM usage in loops | Medium |
 | Large functions (>50 lines) | `radon raw app/ -s` | Medium |
-| Global state | `grep -rn "^[A-Z_].*=.*{" backend/app/` | Medium |
+| Global state | `grep -rn "^[A-Z_].*=.*{" apps/webapp/src/webapp/` | Medium |
 | Missing type hints | `mypy --disallow-untyped-defs app/` | Low |
 
 ### Code Quality Checklist
@@ -267,26 +267,21 @@ curl -I http://localhost:9000 2>/dev/null | grep -E "(X-Frame|X-Content|Content-
 
 **Manual Review:** Use `/arch-review` for design decisions and pattern guidance.
 
-### 5.1 Import Boundary Verification (Hexagonal Architecture)
+### 5.1 Import Boundary Verification (Workspace Architecture)
 
-**CRITICAL:** Domain layer must not import from outer layers.
+**CRITICAL:** Use import-linter to verify module boundaries.
 
 ```bash
-# These should all return EMPTY - violations are critical
-echo "=== Domain importing services (VIOLATION) ==="
-grep -r "from app.services" backend/app/domain/ 2>/dev/null || echo "None found (good)"
+# Run import-linter to check all boundary violations
+uv run lint-imports
 
-echo "=== Domain importing adapters (VIOLATION) ==="
-grep -r "from app.adapters" backend/app/domain/ 2>/dev/null || echo "None found (good)"
+# Quick check: core should have NO framework imports
+echo "=== Core framework imports (VIOLATION) ==="
+grep -r "sqlalchemy\|fastapi\|redis\|httpx" libs/core/ 2>/dev/null || echo "None found (good)"
 
-echo "=== Domain importing ORM models (VIOLATION) ==="
-grep -r "from app.models" backend/app/domain/ 2>/dev/null || echo "None found (good)"
-
-echo "=== Adapters importing services (VIOLATION) ==="
-grep -r "from app.services" backend/app/adapters/ 2>/dev/null || echo "None found (good)"
-
-echo "=== Adapters importing API (VIOLATION) ==="
-grep -r "from app.api" backend/app/adapters/ 2>/dev/null || echo "None found (good)"
+# Quick check: webapp should not import sources
+echo "=== Webapp importing sources (VIOLATION) ==="
+grep -r "from source_" apps/webapp/ 2>/dev/null || echo "None found (good)"
 ```
 
 **Severity:** Import violations are High.
@@ -295,33 +290,33 @@ grep -r "from app.api" backend/app/adapters/ 2>/dev/null || echo "None found (go
 
 ```bash
 # Verify aggregate roots have identity equality
-grep -n "__eq__\|__hash__" backend/app/domain/entities/shootout.py
-grep -n "__eq__\|__hash__" backend/app/domain/entities/signal_chain.py
-grep -n "__eq__\|__hash__" backend/app/domain/entities/user.py
-grep -n "__eq__\|__hash__" backend/app/domain/entities/t3k_pack.py
+grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/shootout.py
+grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/signal_chain.py
+grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/user.py
+grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/gear.py
 ```
 
 **Aggregate Roots:**
 
 | Aggregate | File | Child Entities |
 |-----------|------|----------------|
-| Shootout | `domain/entities/shootout.py` | ToneSelections |
-| SignalChain | `domain/entities/signal_chain.py` | SignalChainBlocks |
-| User | `domain/entities/user.py` | - |
-| T3KPack | `domain/entities/t3k_pack.py` | T3KModels |
+| Shootout | `libs/core/.../entities/shootout.py` | ShootoutChain |
+| SignalChain | `libs/core/.../entities/signal_chain.py` | SignalChainBlock |
+| User | `libs/core/.../entities/user.py` | UserIdentity |
+| Gear | `libs/core/.../entities/gear.py` | GearModel, GearSource |
 
 ### 5.3 Transaction Boundary Audit
 
 ```bash
 # Services should use session.begin() or begin_nested()
-grep -rn "async with.*session.begin" backend/app/services/ | head -10
+grep -rn "async with.*session.begin" apps/webapp/src/webapp/services/ | head -10
 
 # API handlers should NOT start transactions
-grep -rn "session.begin" backend/app/api/ | grep -v "\.pyc"
+grep -rn "session.begin" apps/webapp/src/webapp/api/ | grep -v "\.pyc"
 # Should return empty
 
 # Adapters should use flush(), not commit()
-grep -rn "\.commit()" backend/app/adapters/
+grep -rn "\.commit()" apps/webapp/src/webapp/adapters/
 # Should return empty
 ```
 
@@ -334,13 +329,14 @@ grep -rn "\.commit()" backend/app/adapters/
 | Adapters | `session.commit()` | ✗ Forbidden |
 | Adapters | `session.flush()` | ✓ Allowed |
 
-### 5.4 Bounded Context Audit
+### 5.4 Workspace Dependency Audit
 
 ```bash
-# Check for cross-context imports
-grep -r "from app.domain.entities.shootout" backend/app/domain/entities/signal_chain.py
-grep -r "from app.domain.entities.signal_chain" backend/app/domain/entities/shootout.py
-# Should return empty
+# Verify dependency rules via import-linter
+uv run lint-imports --verbose
+
+# Check pyproject.toml contracts are defined
+grep -A5 "importlinter.contracts" pyproject.toml
 ```
 
 ### 5.5 SOLID Principles Verification
@@ -348,12 +344,12 @@ grep -r "from app.domain.entities.signal_chain" backend/app/domain/entities/shoo
 ```bash
 # Dependency Inversion: Services should NOT directly instantiate adapters
 echo "=== Services instantiating adapters directly (VIOLATION) ==="
-grep -rn "SQLAlchemy.*Repository(" backend/app/services/ 2>/dev/null || echo "None found (good)"
-grep -rn "= .*Adapter(" backend/app/services/ 2>/dev/null || echo "None found (good)"
+grep -rn "SQLAlchemy.*Repository(" apps/webapp/src/webapp/services/ 2>/dev/null || echo "None found (good)"
+grep -rn "= .*Adapter(" apps/webapp/src/webapp/services/ 2>/dev/null || echo "None found (good)"
 
 # Interface Segregation: Ports should be minimal
 echo "=== Port method counts ==="
-for f in backend/app/domain/ports/*.py; do
+for f in libs/core/src/core/ports/*.py; do
   echo "$f: $(grep -c 'def ' "$f" 2>/dev/null || echo 0) methods"
 done
 
@@ -456,7 +452,7 @@ grep -rn '<input\|<select\|<textarea' astro/src/pages/ | grep -v 'data-testid'
 
 ```bash
 # List all HTML fragment endpoints
-grep -n '@router\.\(get\|post\|put\|delete\)' backend/app/api/v1/html.py | head -30
+grep -n '@router\.\(get\|post\|put\|delete\)' apps/webapp/src/webapp/api/v1/html.py | head -30
 
 # List all fragment templates
 ls -la astro/dist/fragments/

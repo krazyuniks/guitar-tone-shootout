@@ -1,0 +1,79 @@
+# syntax=docker/dockerfile:1
+# GTS Worker - TaskIQ background jobs and pgmq consumer with uv workspaces
+
+# =============================================================================
+# Build stage - Install dependencies
+# =============================================================================
+FROM python:3.12-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (pinned version for reproducibility)
+COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /uvx /bin/
+
+# Set up environment for production builds
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_DEV=1
+
+WORKDIR /app
+
+# Copy workspace configuration first for layer caching
+COPY pyproject.toml uv.lock ./
+COPY libs/core/pyproject.toml libs/core/
+COPY libs/audio/pyproject.toml libs/audio/
+COPY apps/worker/pyproject.toml apps/worker/
+
+# Create empty src directories for workspace resolution
+RUN mkdir -p libs/core/src/core libs/audio/src/audio apps/worker/src/worker src/gts && \
+    touch libs/core/src/core/__init__.py libs/audio/src/audio/__init__.py \
+          apps/worker/src/worker/__init__.py src/gts/__init__.py
+
+# Install dependencies only (no project yet for better caching)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --package gts-worker
+
+# Copy source code
+COPY libs/core/src libs/core/src/
+COPY libs/audio/src libs/audio/src/
+COPY apps/worker/src apps/worker/src/
+COPY src/gts src/gts/
+
+# Install project (non-editable for production)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-editable --package gts-worker
+
+# =============================================================================
+# Runtime stage - Minimal production image
+# =============================================================================
+FROM python:3.12-slim
+
+# Install runtime dependencies for audio processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash gts
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+
+# Create directories for file processing
+RUN mkdir -p /app/uploads /app/processed && \
+    chown -R gts:gts /app
+
+# Add venv to PATH
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Switch to non-root user
+USER gts
+
+# Run TaskIQ worker
+CMD ["taskiq", "worker", "worker.main:broker"]

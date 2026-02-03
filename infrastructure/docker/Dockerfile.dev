@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+# GTS Development - Unified dev container with hot reload
+
+FROM python:3.12-slim
+
+# Install system dependencies for development
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    libsndfile1 \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (latest for development)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+# Copy workspace configuration
+COPY pyproject.toml uv.lock ./
+COPY libs/core/pyproject.toml libs/core/
+COPY libs/audio/pyproject.toml libs/audio/
+COPY sources/t3k/pyproject.toml sources/t3k/
+COPY apps/webapp/pyproject.toml apps/webapp/
+COPY apps/worker/pyproject.toml apps/worker/
+COPY apps/scheduler/pyproject.toml apps/scheduler/
+
+# Create src directory structure for workspace resolution
+RUN mkdir -p libs/core/src/core libs/audio/src/audio \
+    sources/t3k/src/source_t3k \
+    apps/webapp/src/webapp apps/worker/src/worker apps/scheduler/src/scheduler \
+    src/gts
+
+# Install all dependencies including dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+# Source code will be volume mounted at runtime
+# Copy placeholder __init__.py files for initial resolution
+COPY src/gts src/gts/
+
+# Environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH"
+
+EXPOSE 8000
+
+# Default to running backend with hot reload
+CMD ["uvicorn", "webapp.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -28,13 +28,13 @@ Run lint and type checks to identify issues. Report findings clearly so they can
 
 ```bash
 # Lint (style and errors)
-docker compose exec -T backend ruff check app/
+docker compose exec -T backend ruff check src/webapp/
 
 # Format check (whitespace, line length)
-docker compose exec -T backend ruff format --check app/
+docker compose exec -T backend ruff format --check src/webapp/
 
 # Type check
-docker compose exec -T backend mypy app/
+docker compose exec -T backend mypy src/webapp/
 ```
 
 ### Frontend
@@ -85,8 +85,8 @@ just check-quick
 
 | File:Line | Code | Message |
 |-----------|------|---------|
-| app/api/routes.py:42 | E501 | Line too long |
-| app/services/auth.py:15 | F401 | Unused import |
+| src/webapp/api/routes.py:42 | E501 | Line too long |
+| src/webapp/services/auth.py:15 | F401 | Unused import |
 
 #### Ruff Format
 - Status: [PASS | FAIL]
@@ -98,7 +98,7 @@ just check-quick
 
 | File:Line | Error |
 |-----------|-------|
-| app/models/user.py:23 | Incompatible return type |
+| src/webapp/models/user.py:23 | Incompatible return type |
 
 ### Frontend
 

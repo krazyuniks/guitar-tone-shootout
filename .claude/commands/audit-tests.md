@@ -140,7 +140,7 @@ find astro/dist/pages astro/dist/fragments -name "*.html" -type f | \
   sed 's|astro/dist/||' | sort > /tmp/all-templates.txt
 
 # Get templates referenced in backend (name="..." pattern from TemplateResponse)
-grep -roh 'name="[^"]*\.html"' backend/app/api/ --include="*.py" | \
+grep -roh 'name="[^"]*\.html"' apps/webapp/src/webapp/api/ --include="*.py" | \
   grep -oE '"[^"]+"' | tr -d '"' | sort -u > /tmp/used-templates.txt
 
 # Find dead templates (in dist but not used)
@@ -182,7 +182,7 @@ grep -roh "page\.goto.*['\"][^'\"]*['\"]" tests/e2e/python/tests/ --include="*.p
   grep -v 'http\|frontend_url' | sort -u > /tmp/test-routes.txt
 
 # Get defined routes from backend
-grep -roh "@router\.\(get\|post\|put\|delete\)(['\"][^'\"]*['\"]" backend/app/api/ --include="*.py" | \
+grep -roh "@router\.\(get\|post\|put\|delete\)(['\"][^'\"]*['\"]" apps/webapp/src/webapp/api/ --include="*.py" | \
   grep -oE "['\"][^'\"]+['\"]" | tr -d "'" | tr -d '"' | sort -u > /tmp/backend-routes.txt
 
 # Compare (note: test routes may have variables like {id})

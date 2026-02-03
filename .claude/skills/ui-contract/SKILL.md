@@ -33,7 +33,7 @@ Define and maintain API contracts between FastAPI backend and React frontend. En
 ### Complex Mapping Examples
 
 ```python
-# backend/app/schemas/shootout.py
+# apps/webapp/src/webapp/schemas/shootout.py
 from pydantic import BaseModel, Field
 from datetime import datetime
 from uuid import UUID
@@ -106,7 +106,7 @@ const shootout: ShootoutRead = await fetchJSON<ShootoutRead>(`/shootouts/${id}`)
 ### Success Response (List with Pagination)
 
 ```python
-# backend/app/schemas/common.py
+# apps/webapp/src/webapp/schemas/common.py
 from pydantic import BaseModel
 from typing import Generic, TypeVar
 
@@ -141,7 +141,7 @@ type ShootoutListResponse = PaginatedResponse<ShootoutRead>;
 ### Error Response Contract
 
 ```python
-# backend/app/schemas/error.py
+# apps/webapp/src/webapp/schemas/error.py
 from pydantic import BaseModel
 
 class ErrorDetail(BaseModel):
@@ -191,9 +191,9 @@ export const ErrorCode = {
 ### Backend: Consistent Error Responses
 
 ```python
-# backend/app/api/deps.py
+# apps/webapp/src/webapp/api/deps.py
 from fastapi import HTTPException, status
-from app.schemas.error import ErrorResponse, ErrorCode
+from webapp.schemas.error import ErrorResponse, ErrorCode
 
 def raise_not_found(resource: str, id: str) -> None:
     raise HTTPException(
@@ -274,7 +274,7 @@ export async function fetchJSON<T>(path: string): Promise<T> {
 ### Query Parameters
 
 ```python
-# backend/app/schemas/common.py
+# apps/webapp/src/webapp/schemas/common.py
 from pydantic import BaseModel, Field
 
 class PaginationParams(BaseModel):
@@ -302,7 +302,7 @@ export interface SortParams {
 ### Usage in API
 
 ```python
-# backend/app/api/shootouts.py
+# apps/webapp/src/webapp/api/shootouts.py
 @router.get("/", response_model=ShootoutListResponse)
 async def list_shootouts(
     limit: int = Query(default=20, ge=1, le=100),
@@ -357,7 +357,7 @@ export function useShootouts(params: PaginationParams & SortParams = {}) {
 ## Filter Contract
 
 ```python
-# backend/app/schemas/shootout.py
+# apps/webapp/src/webapp/schemas/shootout.py
 class ShootoutFilters(BaseModel):
     status: ShootoutStatus | None = None
     is_public: bool | None = None
@@ -380,7 +380,7 @@ export interface ShootoutFilters {
 ## WebSocket Contract
 
 ```python
-# backend/app/schemas/ws.py
+# apps/webapp/src/webapp/schemas/ws.py
 from pydantic import BaseModel
 from typing import Literal
 
@@ -499,7 +499,7 @@ When defining a new API endpoint:
 
 1. **Backend Schema** (Pydantic)
 ```python
-# backend/app/schemas/{entity}.py
+# apps/webapp/src/webapp/schemas/{entity}.py
 class {Entity}Create(BaseModel): ...
 class {Entity}Read(BaseModel): ...
 class {Entity}Update(BaseModel): ...

@@ -102,7 +102,7 @@ fi
 
 ```bash
 # Touch a Python file
-touch backend/app/main.py
+touch apps/webapp/src/webapp/main.py
 
 # Check logs for reload
 sleep 3

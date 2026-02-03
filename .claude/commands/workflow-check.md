@@ -89,7 +89,7 @@ fi
 ### 4. Python Backend
 
 ```bash
-touch backend/app/main.py
+touch apps/webapp/src/webapp/main.py
 sleep 3
 if docker compose logs backend --tail=15 2>&1 | grep -qiE "reload|restart|restarting|detected change"; then
   echo "PASS: Backend auto-reload"
@@ -113,7 +113,7 @@ fi
 Revert touched files (no actual content changes):
 
 ```bash
-git checkout -- astro/src/pages/index.astro astro/src/styles/global.css astro/src/islands/signal-chain-builder.tsx backend/app/main.py 2>/dev/null || true
+git checkout -- astro/src/pages/index.astro astro/src/styles/global.css astro/src/islands/signal-chain-builder.tsx apps/webapp/src/webapp/main.py 2>/dev/null || true
 ```
 
 ## Output Format

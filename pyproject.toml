@@ -1,0 +1,195 @@
+[project]
+name = "gts"
+version = "0.1.0"
+description = "Guitar Tone Shootout - Tone comparison platform"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gts"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.0",
+    "mypy>=1.14.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "import-linter>=2.1",
+]
+
+[tool.uv.workspace]
+members = ["libs/*", "sources/*", "apps/*"]
+
+# =============================================================================
+# Import Linter - Dependency Enforcement
+# =============================================================================
+
+[tool.importlinter]
+root_packages = ["core", "audio", "source_t3k", "webapp", "worker", "scheduler"]
+
+# Core has zero dependencies on other packages
+[[tool.importlinter.contracts]]
+name = "core-isolation"
+type = "forbidden"
+source_modules = ["core"]
+forbidden_modules = ["audio", "source_t3k", "webapp", "worker", "scheduler"]
+
+# Core must not import any framework libraries
+[[tool.importlinter.contracts]]
+name = "core-no-frameworks"
+type = "forbidden"
+source_modules = ["core"]
+forbidden_modules = [
+    "sqlalchemy",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "redis",
+    "taskiq",
+    "httpx",
+    "pedalboard",
+    "torch",
+]
+
+# Audio can only depend on core
+[[tool.importlinter.contracts]]
+name = "audio-dependencies"
+type = "forbidden"
+source_modules = ["audio"]
+forbidden_modules = ["source_t3k", "webapp", "worker", "scheduler"]
+
+# Source adapters can only depend on core
+[[tool.importlinter.contracts]]
+name = "source-dependencies"
+type = "forbidden"
+source_modules = ["source_t3k"]
+forbidden_modules = ["audio", "webapp", "worker", "scheduler"]
+
+# Webapp cannot depend on sources (worker is the bridge)
+[[tool.importlinter.contracts]]
+name = "webapp-no-sources"
+type = "forbidden"
+source_modules = ["webapp"]
+forbidden_modules = ["source_t3k"]
+
+# Worker cannot depend on sources directly (uses pgmq messages)
+[[tool.importlinter.contracts]]
+name = "worker-no-sources"
+type = "forbidden"
+source_modules = ["worker"]
+forbidden_modules = ["source_t3k"]
+
+# Scheduler can only depend on core
+[[tool.importlinter.contracts]]
+name = "scheduler-dependencies"
+type = "forbidden"
+source_modules = ["scheduler"]
+forbidden_modules = ["audio", "source_t3k", "webapp", "worker"]
+
+# =============================================================================
+# Ruff Configuration
+# =============================================================================
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
+    "B904",   # raise from err (too noisy)
+    "ARG001", # unused function argument (common in protocols/interfaces)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "audio", "source_t3k", "webapp", "worker", "scheduler"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ARG001", "ARG002"]
+
+# =============================================================================
+# MyPy Configuration
+# =============================================================================
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pedalboard.*",
+    "nam.*",
+    "pyloudnorm.*",
+    "torch.*",
+    "taskiq.*",
+    "pgmq.*",
+]
+ignore_missing_imports = true
+
+# =============================================================================
+# Pytest Configuration
+# =============================================================================
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "-q",
+    "--strict-markers",
+]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks tests as integration tests",
+    "e2e: marks tests as end-to-end tests",
+    "smoke: marks tests as smoke tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["libs", "sources", "apps"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+]

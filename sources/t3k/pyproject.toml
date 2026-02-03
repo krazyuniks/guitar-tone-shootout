@@ -1,0 +1,24 @@
+[project]
+name = "gts-source-t3k"
+version = "0.1.0"
+description = "GTS T3K Source Adapter - Syncs gear data from Tone3000 API"
+requires-python = ">=3.12"
+dependencies = [
+    "gts-core",
+    "httpx>=0.28.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "pgmq-sqlalchemy>=0.1.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+]
+
+[tool.uv.sources]
+gts-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/source_t3k"]

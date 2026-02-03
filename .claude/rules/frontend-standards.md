@@ -390,7 +390,7 @@ Examples:
 ### Fragment Response Pattern
 
 ```python
-# backend/app/api/v1/html.py
+# apps/webapp/src/webapp/api/v1/html.py
 @router.get("/library/items", response_class=HTMLResponse)
 async def get_items_fragment(
     request: Request,
@@ -419,7 +419,7 @@ Fragment: fragments/library/my_gear.html
 
 1. Create template in `astro/src/pages/fragments/{domain}/{name}.html.ts`
 2. Run `just build-astro` to compile to `astro/dist/fragments/{domain}/{name}.html`
-3. Create backend endpoint in `backend/app/api/v1/html.py`
+3. Create backend endpoint in `apps/webapp/src/webapp/api/v1/html.py`
 4. Add `data-testid` attributes to all interactive elements
 5. Wire up HTMX attributes in the parent page
 
