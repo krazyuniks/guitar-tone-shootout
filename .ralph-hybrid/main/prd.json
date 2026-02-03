@@ -663,8 +663,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Uses core domain PermutationCalculator",
+      "passes": true,
+      "notes": "Implemented with Cartesian product generation, null handling, limit enforcement via domain PermutationCalculator. All 9 integration tests pass.",
       "verify": {
         "command": "just tdd tests/integration/audio/test_permutation.py",
         "expected": "Permutations expand correctly with limits",

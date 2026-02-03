@@ -1430,3 +1430,35 @@ Technical notes:
 - Validates chain constraints before execution
 - Sorts blocks by position for correct ordering
 - gear_path_resolver callable maps user_gear_id to file paths
+
+---
+Iteration: 15
+Started: 2026-02-03T19:57:51Z
+Story: STORY-024 - Permutation Processing
+Status: complete
+
+Changes made:
+- Created libs/audio/src/audio/processing/permutation.py
+- Implemented expand_signal_chain_group() using domain PermutationCalculator
+- Implemented generate_permutation_labels() for human-readable labels
+- Created comprehensive integration tests (9 tests)
+- All tests verify Cartesian product generation, null handling, and limit enforcement
+
+Verification:
+- All 9 integration tests pass
+- Cartesian product generation works correctly (2x2 = 4 permutations)
+- Null gear handling works (with/without effect comparisons)
+- Limit enforcement at 27 permutations works (3x3x3 = 27)
+- Groups exceeding limits raise PermutationError
+- Uses domain PermutationCalculator as required
+- All 151 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+
+Technical notes:
+- expand_signal_chain_group() delegates to domain PermutationCalculator.calculate_permutations()
+- generate_permutation_labels() delegates to domain PermutationCalculator.generate_labels()
+- PermutationError wraps ValueError from domain layer
+- Added type ignore comments for core domain imports (missing py.typed marker)
+- Added explicit type annotations to satisfy mypy no-any-return checks
+
