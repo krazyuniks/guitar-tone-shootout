@@ -159,8 +159,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Depends on STORY-001 (ORM base)",
+      "passes": true,
+      "notes": "Implemented User, UserIdentity, and OAuthProvider ORM models. All relationships work correctly. Email and provider indexes configured. All 6 unit tests pass. Type checking passes.",
       "verify": {
         "command": "just tdd tests/unit/webapp/test_user_model.py",
         "expected": "User model creates with correct fields and relationships",

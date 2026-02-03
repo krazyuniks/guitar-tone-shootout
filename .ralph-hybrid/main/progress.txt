@@ -166,3 +166,31 @@ Root cause:
 Fix for future iterations:
 - Document in progress.txt: Always install workspace packages at session start
 - Consider adding this to a session startup script
+
+---
+Iteration: 5
+Started: 2026-02-03T03:05:33Z
+Story: STORY-006 - User ORM Model
+Status: complete
+
+Changes made:
+- Created User ORM model with id, username, email, avatar_url, timestamps
+- Created UserIdentity model linking users to OAuth providers
+- Created OAuthProvider model (id, name, enabled)
+- Implemented relationships: User has many UserIdentities, UserIdentity belongs to User and OAuthProvider
+- Added indexes: email (User table), provider_id + external_id composite (UserIdentity table)
+- Used UUIDMixin and TimestampMixin from base models
+- All 6 unit tests pass
+- Selectin eager loading for identities and provider relationships
+
+Verification:
+- All 6 acceptance criteria met
+- Unit tests verify: model creation, relationships, indexes, multiple identities
+- All 27 regression tests pass
+- Type checking passes
+
+Technical notes:
+- Used lazy="selectin" for eager loading identities and provider
+- Tests use fresh session after commit to verify relationship loading
+- Email index configured for fast user lookups
+- Composite index on (provider_id, external_id) for identity lookups
