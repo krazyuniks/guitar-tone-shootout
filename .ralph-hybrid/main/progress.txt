@@ -115,3 +115,30 @@ Infrastructure fix:
 - Fixed workspace package installation issue
 - Installed all workspace packages in editable mode (uv pip install -e)
 - Required for test imports to work correctly
+
+---
+Iteration: 4
+Started: 2026-02-03T03:03:58Z
+Story: Fix STORY-005 verification failure
+Status: complete
+
+Changes made:
+- Fixed workspace package installation issue
+- Installed all workspace packages in editable mode (uv pip install -e)
+- Fixed PTH123 lint issue in ir_loader.py (use Path.open() instead of open())
+
+Verification:
+- All 21 regression tests pass
+- All lint checks pass (ruff)
+- All type checks pass (mypy)
+- STORY-005 verified complete with all acceptance criteria met
+
+Root cause:
+- Previous iteration's tests passed in that session's environment
+- Workspace packages were not installed persistently
+- Fresh context iterations need explicit package installation
+- This has been documented in progress.txt for future reference
+
+Infrastructure note:
+- Added workspace package installation step to ensure tests can import modules
+- This should be done at session start for fresh context iterations
