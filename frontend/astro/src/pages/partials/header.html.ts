@@ -1,0 +1,104 @@
+/**
+ * Header Partial Template
+ *
+ * This demonstrates the pattern for reusable partial templates.
+ * Partials are included in other templates using Jinja2 include statements.
+ *
+ * Build output: frontend/astro/dist/partials/header.html
+ * Usage: {% include "partials/header.html" %}
+ */
+
+export async function GET() {
+  const html = `<!-- Navigation Header -->
+<header
+  data-testid="site-header"
+  class="bg-[var(--color-bg-elevated)] border-b border-[var(--color-border)]"
+>
+  <nav class="container mx-auto px-4 py-4">
+    <div class="flex items-center justify-between">
+      <!-- Logo -->
+      <a
+        href="/"
+        data-testid="nav-logo"
+        class="text-[var(--color-text-primary)] text-xl font-bold"
+      >
+        Guitar Tone Shootout
+      </a>
+
+      <!-- Navigation Links -->
+      <div class="flex gap-6">
+        <!-- Static pages (no reload needed) -->
+        <a
+          href="/"
+          data-testid="nav-home"
+          class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          Home
+        </a>
+
+        <a
+          href="/about"
+          data-testid="nav-about"
+          class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          About
+        </a>
+
+        <!-- SSR pages (require data-astro-reload) -->
+        <a
+          href="/gear"
+          data-astro-reload
+          data-testid="nav-gear"
+          class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          Gear
+        </a>
+
+        <a
+          href="/shootouts"
+          data-astro-reload
+          data-testid="nav-shootouts"
+          class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          Shootouts
+        </a>
+
+        {% if user %}
+        <a
+          href="/library/my-gear"
+          data-astro-reload
+          data-testid="nav-library"
+          class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          My Library
+        </a>
+
+        <a
+          href="/logout"
+          data-testid="nav-logout"
+          class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          Logout
+        </a>
+        {% else %}
+        <a
+          href="/login"
+          data-testid="nav-login"
+          class="bg-[var(--color-accent-primary)] text-white px-4 py-2 rounded-lg"
+        >
+          Login
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+</header>
+`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}

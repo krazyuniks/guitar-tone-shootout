@@ -1,0 +1,61 @@
+/**
+ * Sample Page Template
+ *
+ * This demonstrates the pattern for full page templates that extend the base layout.
+ * These are complete pages served by FastAPI's Jinja2 renderer.
+ *
+ * Build output: frontend/astro/dist/pages/sample.html
+ * FastAPI route: templates.TemplateResponse(request, "pages/sample.html", {...})
+ */
+
+export async function GET() {
+  const html = `{% extends "layouts/base.html" %}
+
+{% block title %}Sample Page - Guitar Tone Shootout{% endblock %}
+
+{% block content %}
+<div
+  data-testid="sample-page"
+  class="container mx-auto px-4 py-8"
+  x-data="{ loading: true }"
+>
+  <h1 class="text-[var(--color-text-primary)] text-3xl font-bold mb-6">
+    Sample Page
+  </h1>
+
+  <!-- HTMX container with loading skeleton -->
+  <div
+    id="content-container"
+    data-testid="content-container"
+    hx-get="/api/v1/html/sample/content"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+    @htmx:after-request="loading = false"
+  >
+    <div class="animate-pulse">
+      <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-3/4 mb-2"></div>
+      <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-1/2"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle auth errors from HTMX requests
+  document.body.addEventListener('htmx:responseError', (event) => {
+    if (event.detail?.xhr?.status === 401) {
+      window.location.href = \`/login?next=\${encodeURIComponent(window.location.pathname)}\`;
+    }
+  });
+</script>
+{% endblock %}
+`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}

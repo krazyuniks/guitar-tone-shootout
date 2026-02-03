@@ -1,0 +1,115 @@
+/**
+ * Footer Partial Template
+ *
+ * This demonstrates the pattern for reusable partial templates.
+ * Partials are included in other templates using Jinja2 include statements.
+ *
+ * Build output: frontend/astro/dist/partials/footer.html
+ * Usage: {% include "partials/footer.html" %}
+ */
+
+export async function GET() {
+  const html = `<!-- Site Footer -->
+<footer
+  data-testid="site-footer"
+  class="bg-[var(--color-bg-elevated)] border-t border-[var(--color-border)] mt-auto"
+>
+  <div class="container mx-auto px-4 py-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <!-- About Section -->
+      <div>
+        <h3 class="text-[var(--color-text-primary)] font-bold mb-4">
+          Guitar Tone Shootout
+        </h3>
+        <p class="text-[var(--color-text-secondary)] text-sm">
+          Compare guitar tones side-by-side with blind A/B testing.
+          Build your ideal signal chain from NAM models and impulse responses.
+        </p>
+      </div>
+
+      <!-- Links Section -->
+      <div>
+        <h3 class="text-[var(--color-text-primary)] font-bold mb-4">
+          Quick Links
+        </h3>
+        <ul class="space-y-2">
+          <li>
+            <a
+              href="/"
+              data-testid="footer-home"
+              class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm"
+            >
+              Home
+            </a>
+          </li>
+          <li>
+            <a
+              href="/about"
+              data-testid="footer-about"
+              class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm"
+            >
+              About
+            </a>
+          </li>
+          <li>
+            <a
+              href="/gear"
+              data-astro-reload
+              data-testid="footer-gear"
+              class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm"
+            >
+              Browse Gear
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Community Section -->
+      <div>
+        <h3 class="text-[var(--color-text-primary)] font-bold mb-4">
+          Community
+        </h3>
+        <ul class="space-y-2">
+          <li>
+            <a
+              href="https://github.com/krazyuniks/guitar-tone-shootout"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="footer-github"
+              class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm"
+            >
+              GitHub
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://tone3000.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="footer-tone3000"
+              class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm"
+            >
+              Tone3000
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Copyright -->
+    <div class="mt-8 pt-8 border-t border-[var(--color-border)]">
+      <p class="text-center text-[var(--color-text-muted)] text-sm">
+        © {{ current_year }} Guitar Tone Shootout. Open source software.
+      </p>
+    </div>
+  </div>
+</footer>
+`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}
