@@ -1584,3 +1584,42 @@ Technical notes:
 - Test data fixtures create sine wave audio, NAM models, and IR files on-the-fly
 - Tests use tmp_path for temporary file storage
 - All acceptance criteria met from previous iterations (STORY-009 onwards)
+
+---
+Iteration: 20
+Started: 2026-02-03T20:17:56Z
+Story: STORY-029 - nginx Static File Serving
+Status: complete
+
+Changes made:
+- Fixed /_astro/ location to use root instead of alias (was causing 404 for CSS assets)
+- Added error page configuration for 404.html and 500.html
+- All static routes (/, /about, /login) serve HTML correctly from frontend/astro/dist/
+- CSS/JS assets served from /_astro/ with proper cache headers (1 year expiry, immutable)
+- SSR routes correctly proxy to backend (verified with /health endpoint)
+- Security headers configured (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, CSP)
+
+Verification:
+- All 7 acceptance criteria met:
+  - nginx serves files from frontend/astro/dist/ ✓
+  - Static routes (/, /about, /login) serve HTML ✓
+  - CSS/JS assets served from /_astro/ ✓
+  - SSR routes proxy to backend ✓
+  - Security headers configured ✓
+  - just up-d starts nginx correctly ✓
+  - Pages load in browser ✓
+- 157 regression tests pass (unit + integration)
+- nginx serves static files with correct cache headers
+- Story verification command passes: curl -s http://localhost:9000/ returns HTML
+
+Technical notes:
+- The key fix was changing /_astro/ location from alias to root
+- Using alias caused nginx to look for files at /usr/share/nginx/html/static/_astro/_astro/
+- Using root correctly resolves to /usr/share/nginx/html/static/_astro/
+- Error pages configured with internal directive to prevent direct access
+- All configuration follows nginx best practices
+
+Infrastructure note:
+- One test failure in test_migration.py (pre-existing, not related to nginx changes)
+- Migrations directory not mounted in Docker container
+- This doesn't affect STORY-029 completion

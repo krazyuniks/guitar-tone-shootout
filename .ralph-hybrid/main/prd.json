@@ -799,8 +799,8 @@
         "Pages load in browser"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "Update existing nginx.conf.template",
+      "passes": true,
+      "notes": "Fixed /_astro/ location to use root instead of alias. Added error page configuration for 404/500. All static files serve correctly with proper cache headers. Security headers configured. SSR routes proxy to backend correctly.",
       "verify": {
         "command": "just up-d && curl -s http://localhost:9000/ | head -1",
         "expected": "nginx serves static files correctly",
