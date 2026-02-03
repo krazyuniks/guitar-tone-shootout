@@ -3,21 +3,21 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from core.domain.entities.user import User as UserEntity  # type: ignore[import-untyped]
+from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
 from webapp.adapters.persistence.repositories.user_repository import (
     SQLAlchemyUserRepository,
 )
-
-if TYPE_CHECKING:
-    pass
 
 
 @pytest.fixture

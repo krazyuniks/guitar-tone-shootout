@@ -32,8 +32,8 @@ from webapp.adapters.persistence.models.signal_chain import (
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
 __all__ = [
-    "AuditLog",
     "AudioSegment",
+    "AuditLog",
     "Base",
     "BlockType",
     "DITrack",
