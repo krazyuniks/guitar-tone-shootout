@@ -727,3 +727,48 @@ Note:
 - CRITICAL: Always install workspace packages at session start
 - Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
 - Without this, tests cannot import modules and will fail
+
+---
+Iteration: 3
+Started: 2026-02-03T18:09:25Z
+Story: STORY-009 - Audio Processor Implementation
+Status: complete
+
+Changes made:
+- No code changes needed - STORY-009 implementation from iteration 2 (commit 7662f0b) is correct
+- Installed workspace packages at session start (uv pip install -e)
+- Verified all quality checks pass
+
+Verification:
+- All 46 regression tests pass (unit + integration)
+- All 11 integration tests for PedalboardAudioProcessor pass
+- Linting passes (ruff)
+- Type checking passes (mypy)
+- All acceptance criteria met
+
+Root cause of previous backpressure failure:
+- Previous iteration's backpressure hook failed (likely transient or packages not installed)
+- This iteration installed packages first (uv pip install -e)
+- All checks now pass
+- STORY-009 confirmed complete
+
+Implementation details (from iteration 2):
+- PedalboardAudioProcessor implements AudioProcessor protocol
+- All async methods wrapping sync pedalboard/pyloudnorm calls
+- process_di_track() - Full DI processing through NAM, IR, normalization
+- extract_waveform() - Waveform visualization with configurable peaks
+- measure_loudness() - EBU R128 LUFS and peak dBFS measurement
+- normalize_loudness() - Loudness normalization to target LUFS
+- get_supported_formats() and is_format_supported() - Format queries
+
+Technical notes:
+- NAM processing uses sample-by-sample iteration (simplified for testing)
+- Uses PyTorch for NAM models, Pedalboard for effects/IR, PyLoudnorm for loudness
+- ClassVar annotation for _SUPPORTED_FORMATS
+- Type ignore for Pedalboard import (library doesn't export Pedalboard in __init__)
+- soundfile and scipy added to mypy overrides
+
+Note:
+- CRITICAL: Always install workspace packages at session start
+- Command: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
+- Without this, tests cannot import modules and will fail
