@@ -1,0 +1,208 @@
+# Ralph Hybrid Configuration
+# Copy to ~/.ralph-hybrid/config.yaml for global settings
+# Copy to .ralph-hybrid/config.yaml for project-specific overrides
+
+#=============================================================================
+# Default Settings
+#=============================================================================
+defaults:
+  # Maximum iterations before stopping (safety net)
+  max_iterations: 20
+
+  # Timeout per iteration in minutes
+  timeout_minutes: 15
+
+  # API calls per hour limit
+  rate_limit_per_hour: 100
+
+  # Default prompt template (from ~/.ralph-hybrid/templates/)
+  prompt_template: "prompt-tdd.md"
+
+  # Default model profile (quality, balanced, budget)
+  profile: balanced
+
+#=============================================================================
+# AI Command Profiles
+#=============================================================================
+# Profiles define which AI command (shell alias/wrapper) to use for each phase.
+#
+# Supported commands:
+#   - Claude wrappers: opus, sonnet, haiku, glm (or custom wrappers)
+#   - OpenAI Codex: codex
+#   - Google Gemini: gemini
+#
+# Built-in profiles:
+#   - quality:  opus for all phases (best quality, highest cost)
+#   - balanced: opus for planning, sonnet for execution (good balance)
+#   - budget:   sonnet for planning/execution, haiku for research (lowest cost)
+#
+# You can override built-in profiles or define custom ones:
+profiles:
+  quality:
+    planning: opus
+    execution: opus
+    research: opus
+    verification: opus
+
+  balanced:
+    planning: opus
+    execution: sonnet
+    research: sonnet
+    verification: sonnet
+
+  budget:
+    planning: sonnet
+    execution: sonnet
+    research: haiku
+    verification: haiku
+
+  glm:
+    planning: glm
+    execution: glm
+    research: glm
+    verification: glm
+
+  # Example mixed profile with different AI tools:
+  # mixed:
+  #   planning: opus
+  #   execution: codex
+  #   research: gemini
+  #   verification: sonnet
+
+#=============================================================================
+# Circuit Breaker
+#=============================================================================
+circuit_breaker:
+  # Stop after N iterations with no progress (no stories completed)
+  no_progress_threshold: 3
+
+  # Stop after N iterations with the same error
+  same_error_threshold: 5
+
+#=============================================================================
+# Completion Detection
+#=============================================================================
+completion:
+  # String that signals task is complete
+  promise: "<promise>COMPLETE</promise>"
+
+  # Backup: stop after N consecutive "done" signals from Claude
+  consecutive_done_signals: 2
+
+  # Backup: stop after N consecutive test-only iterations
+  consecutive_test_loops: 3
+
+#=============================================================================
+# Claude Code Settings
+#=============================================================================
+claude:
+  # Skip permission prompts (use with caution)
+  dangerously_skip_permissions: false
+
+  # Tools Claude is allowed to use
+  allowed_tools: "Write,Bash(git *),Read,Grep,Glob"
+
+#=============================================================================
+# Git Settings
+#=============================================================================
+git:
+  # Branch name prefix (used with auto-generated names)
+  branch_prefix: "feature/"
+
+#=============================================================================
+# Archive Settings
+#=============================================================================
+archive:
+  # Automatically archive completed features
+  auto_archive: true
+
+  # Archive directory (relative to .ralph-hybrid/)
+  directory: "archive"
+
+  # Archive format: {date}-{feature}
+  name_format: "{date}-{feature}"
+
+#=============================================================================
+# Display Settings
+#=============================================================================
+display:
+  # Theme for UI colors: default, dracula, nord
+  theme: "default"
+
+#=============================================================================
+# Logging Settings
+#=============================================================================
+logging:
+  # Log verbosity level for iteration log files
+  # - full: Log everything (default, useful for debugging)
+  # - compact: Filter large tool results (>500 chars truncated)
+  # - minimal: Only errors, tool names, completion signals
+  verbosity: "full"
+
+#=============================================================================
+# Callbacks Settings
+#=============================================================================
+callbacks:
+  # Global callback timeout in seconds (default: 300)
+  timeout: 300
+
+  # Post-iteration callback configuration
+  # This callback runs after each iteration when Claude signals story completion.
+  # It provides "backpressure" by verifying tests/lint pass before accepting.
+  post_iteration:
+    # Enable/disable post_iteration callback (default: true if callback exists)
+    enabled: true
+
+#=============================================================================
+# Memory Settings
+#=============================================================================
+# Memory files persist learnings across context resets.
+# - Project-wide: .ralph-hybrid/memories.md
+# - Feature-specific: .ralph-hybrid/{branch}/memories.md
+memory:
+  # Token budget for memory injection (default: 2000)
+  # Memories are truncated to fit within this budget.
+  token_budget: 2000
+
+  # Injection mode controls when memories are included in prompts:
+  # - auto: Automatically inject memories into iteration prompts (default)
+  # - manual: Only inject when explicitly requested with --memories flag
+  # - none: Never inject memories
+  injection: auto
+
+#=============================================================================
+# Success Criteria (mandatory gate before story completion)
+#=============================================================================
+# Success criteria is a command that MUST pass before a story can be marked
+# as complete. This is more strict than quality_checks and runs first.
+#
+# Use this for critical acceptance tests (e.g., E2E tests, integration tests).
+# Quality checks are for linting/formatting; success criteria is for correctness.
+#
+# successCriteria:
+#   # Command that must pass for story completion
+#   command: "pytest tests/e2e"
+#
+#   # Timeout in seconds (default: 300)
+#   timeout: 600
+
+#=============================================================================
+# Project-Specific Quality Checks (override in project config)
+#=============================================================================
+# IMPORTANT: Quality checks should be READ-ONLY verification commands.
+# Ralph never modifies source code - only Claude does.
+# If checks fail, Ralph shows Claude the errors and Claude fixes them.
+#
+# quality_checks:
+#   # Single command that verifies everything (recommended)
+#   all: "just check"
+#
+#   # Or separate commands for different parts
+#   backend: "docker compose exec backend pytest tests/ && ruff check ."
+#   frontend: "docker compose exec frontend pnpm check"
+#
+#   # Examples by language/framework:
+#   # Python: "ruff check . && mypy ."
+#   # TypeScript: "npm run lint && npm run typecheck"
+#   # Rust: "cargo check && cargo clippy && cargo fmt --check"
+#   # Go: "go test ./... && golangci-lint run"

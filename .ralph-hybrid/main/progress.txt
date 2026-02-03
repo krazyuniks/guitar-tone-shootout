@@ -1,0 +1,34 @@
+# Progress Log
+# Branch: main
+# Started: 2026-02-03T03:15:00Z
+# Spec: spec.md
+# Stories: 30
+
+
+---
+Iteration: 1
+Started: 2026-02-03T02:26:33Z
+Story: STORY-001 - ORM Base Infrastructure
+Status: complete
+
+Changes made:
+- Created Base declarative base class with naming conventions
+- Implemented UUIDMixin with UUIDv7 support (Python 3.13+) and UUIDv4 fallback (Python 3.12)
+- Implemented TimestampMixin with created_at and updated_at fields
+- Created EnumByValue TypeDecorator for storing enums by value
+- Implemented get_async_session() factory with PostgreSQL pooling
+- Fixed infrastructure issue: removed neural-amp-modeler dependency (Python 3.12 incompatibility)
+- Added aiosqlite for async SQLite testing
+- Created comprehensive unit tests (9 tests, all passing)
+
+Verification:
+- All unit tests pass (9/9)
+- Type checking passes (mypy --strict)
+- Linting passes (ruff)
+- All acceptance criteria met
+
+Learnings:
+- uuid.uuid7() only available in Python 3.13+, needed fallback for 3.12
+- SQLAlchemy insert_default/onupdate need callable objects, not lambda
+- EnumByValue requires class-level impl attribute
+- datetime.UTC preferred over timezone.utc (ruff UP017)
