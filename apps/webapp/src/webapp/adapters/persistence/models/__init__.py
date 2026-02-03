@@ -7,6 +7,7 @@ from webapp.adapters.persistence.models.base import (
     UUIDMixin,
     get_async_session,
 )
+from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
 __all__ = [
     "Base",
@@ -14,4 +15,7 @@ __all__ = [
     "TimestampMixin",
     "UUIDMixin",
     "get_async_session",
+    "OAuthProvider",
+    "User",
+    "UserIdentity",
 ]
