@@ -825,8 +825,8 @@
         "No stale documentation"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": "Final story - document what was built",
+      "passes": true,
+      "notes": "Created wiki/Frontend-Architecture.md (600 lines covering Astro SSG, Jinja2 SSR, Tailwind design tokens, HTMX patterns, navigation between static/SSR pages). Created wiki/Audio-Processing.md (430 lines covering PedalboardAudioProcessor, NAM loading, IR loading, loudness normalization, signal chain execution, permutation processing). Updated AGENTS.md removing all phase references, focusing on code-level instructions and workflow only.",
       "verify": {
         "command": "test -f ../wiki/Frontend-Architecture.md && test -f ../wiki/Audio-Processing.md",
         "expected": "Wiki pages exist and are current",

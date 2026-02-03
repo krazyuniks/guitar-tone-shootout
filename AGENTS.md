@@ -1,21 +1,15 @@
 # Guitar Tone Shootout - Development Guide
 
-Code patterns and quality standards.
+Code patterns and quality standards for GTS development.
 
 ## Quick Start
 
 ```bash
-# INTERIM (until Phase 7): Manual setup
 just up-d                    # Start services
-
-# FUTURE (Phase 7): worktree.py becomes the single entry point
-./worktree.py setup main     # First-time: set up main worktree
-./worktree.py setup <issue>  # Create feature worktree from issue
+just build-astro             # Build frontend (if changed)
 ```
 
-**Entry point**: http://localhost:9000 (main worktree)
-
-**Note:** Phase 7 will introduce `worktree.py` as the single idempotent setup command. Until then, use `just up-d` to start services.
+**Entry point:** http://localhost:9000
 
 ## How to Run Commands
 
@@ -28,7 +22,7 @@ Commands change over time - always discover dynamically rather than memorising. 
 just --list           # Find ANY command (ALWAYS check here first)
 just check            # Quality gates (runs in Docker)
 just fix-lint         # Auto-fix issues (runs in Docker)
-just test-regression  # Unit tests (runs in Docker)
+just test-regression  # Stack tests (runs in Docker)
 just test-e2e         # E2E tests (runs on host)
 just build-astro      # Build Astro frontend
 ```
@@ -44,7 +38,7 @@ just build-astro      # Build Astro frontend
 | **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
 | **Testing** | pytest, Playwright |
 | **Quality** | ruff, mypy, import-linter |
-| **Infrastructure** | Docker (db, redis, backend, nginx, worker, scheduler), worktrees |
+| **Infrastructure** | Docker (db, redis, backend, nginx, worker, scheduler) |
 
 **Note:** Astro is pre-bundled (`frontend/astro/dist/` committed to git). No Vite dev server at runtime.
 
@@ -67,7 +61,7 @@ just build-astro      # Build Astro frontend
 
 **Critical**: Webapp has NO direct access to T3K source database. Worker bridges the two databases via pgmq message queues.
 
-### Runtime Stack (ALL environments)
+### Runtime Stack
 ```
 db, redis, backend, nginx, worker, scheduler
 ```
@@ -91,12 +85,12 @@ Single `nginx.conf.template` for all environments, processed via envsubst at con
 
 **Overlay pattern for environment-specific configuration.**
 
-| File | Purpose | Who Creates |
-|------|---------|-------------|
-| `docker-compose.yml` | Base config (no ports, no worktree-specific values) | Committed |
-| `docker-compose.override.yml` | Worktree-specific ports, container names | Committed (INTERIM: Phase 7 will generate) |
-| `docker-compose.traefik.yml` | Traefik integration for HTTPS/subdomain routing | Committed |
-| `docker-compose.ci.yml` | CI ephemeral volumes, isolation | Committed |
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Base config (no ports, no worktree-specific values) |
+| `docker-compose.override.yml` | Worktree-specific ports, container names |
+| `docker-compose.traefik.yml` | Traefik integration for HTTPS/subdomain routing |
+| `docker-compose.ci.yml` | CI ephemeral volumes, isolation |
 
 **Usage:**
 ```bash
@@ -109,11 +103,6 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 # CI
 docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 ```
-
-**Key principles:**
-- `docker-compose.yml` is worktree-agnostic (no hardcoded ports)
-- `docker-compose.override.yml` is committed (INTERIM: Phase 7 will auto-generate and gitignore)
-- Profiles: `build` (astro)
 
 ### Dockerfiles
 
@@ -130,13 +119,13 @@ docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 **Single path. No optional steps. Both developers and Claude follow identical workflow.**
 
 ```bash
-# Start services (INTERIM until Phase 7)
+# Start services
 just up-d                   # Start all services
 
 # Development cycle
 just build-astro            # Build frontend (if changed)
 just check                  # Run quality gates (in Docker)
-just test-regression        # Run unit tests (in Docker)
+just test-regression        # Run stack tests (in Docker)
 just test-e2e               # Run E2E tests (on host)
 ```
 
@@ -205,6 +194,9 @@ gts/
 │   │       ├── auth/           # Session, OAuth
 │   │       ├── services/       # Application services
 │   │       └── adapters/       # Repository implementations
+│   │           └── persistence/
+│   │               ├── models/     # SQLAlchemy ORM models
+│   │               └── repositories/  # Repository implementations
 │   ├── worker/                 # TaskIQ + pgmq consumer
 │   │   └── src/worker/
 │   │       ├── consumers/      # pgmq message handlers
@@ -216,24 +208,25 @@ gts/
 │   └── astro/                  # Build system (pre-bundled)
 │       ├── src/
 │       │   ├── pages/          # Template sources (.html.ts, .astro)
-│       │   ├── components/     # React islands
-│       │   └── lib/            # Utilities, hooks
+│       │   ├── layouts/        # Base layout wrapper
+│       │   ├── styles/         # Tailwind, design tokens
+│       │   └── components/     # React islands
 │       └── dist/               # Build output (COMMITTED TO GIT)
 ├── infrastructure/
 │   ├── docker/                 # Dockerfiles, init scripts
 │   ├── migrations/             # Alembic migrations (gts_core)
 │   └── nginx/                  # nginx.conf.template
 └── tests/
+    ├── regression/             # Stack connectivity tests (SQLite)
     ├── unit/
     │   ├── core/               # Domain unit tests
     │   ├── audio/              # Audio processing tests
-    │   └── worktree/           # Worktree CLI tests
+    │   └── webapp/             # ORM and service tests
     ├── integration/
-    │   ├── webapp/             # Webapp integration tests
-    │   └── worker/             # Worker integration tests
+    │   ├── webapp/             # Repository integration tests
+    │   └── audio/              # Audio processing integration tests
     ├── e2e/
-    │   ├── python/             # E2E tests (pytest + Playwright)
-    │   └── smoke/              # Infrastructure smoke tests
+    │   └── python/             # E2E tests (pytest + Playwright)
     ├── fixtures/               # Shared test fixtures
     └── data/                   # Test data files
 ```
@@ -295,11 +288,6 @@ just test             # Unit + Integration (< 30s) - run before PRs
 just tdd <path>       # Single test during development (Docker)
 just test-e2e         # E2E only (host, requires running containers)
 ```
-
-**Why this split?**
-- Regression tests catch fundamental breaks quickly (ORM mappings, DB schema)
-- Unit/Integration tests validate business logic
-- E2E tests validate user journeys end-to-end
 
 **E2E test isolation:**
 - `tests/e2e/python/pyproject.toml` - standalone package with pytest-playwright, httpx
@@ -431,7 +419,7 @@ When uncertain about ANY of the following, STOP and ask the user:
 
 ### Infrastructure Management Policy
 
-**Use `worktree.py` and `just` commands. Never run ad-hoc Docker/uv commands.**
+**Use `just` commands. Never run ad-hoc Docker/uv commands.**
 
 | Need | Use This | NOT This |
 |------|----------|----------|
@@ -558,14 +546,12 @@ MCP **not required** for: planning, backend work, documentation, admin tasks.
 
 ```bash
 # Never commit to main directly
-# Always work in feature branches via worktrees
+# Always work in feature branches
 
 # Before PR
 just check
 git push
 ```
-
-For workflow (issue tracking, worktree setup, planning): `./worktree.py start`
 
 ## GitHub-First Workflow
 
@@ -576,27 +562,18 @@ For workflow (issue tracking, worktree setup, planning): `./worktree.py start`
 ```
 GitHub Issue (source of truth)
     ↓
-Worktree (created from GH issue number)
+Feature Branch (from issue number)
+    ↓
+Implementation
+    ↓
+PR (references issue)
 ```
 
 ### Rules
 
 1. **Create GH issue first** - Before any work, ensure a GitHub issue exists
-2. **Setup from GH issue number** - `./worktree.py setup 42`
+2. **Branch from issue** - `git checkout -b 42-feature-name`
 3. **Use GitHub dependencies** - Use `is:blocked` / `is:blocking` for dependencies
-
-### Commands
-
-```bash
-# Setup worktree from GitHub issue
-./worktree.py setup 413
-
-# Find available work (unblocked issues)
-/next-issue
-
-# View issue dependencies
-/issue-deps 413
-```
 
 ## Session Context Management
 
@@ -619,7 +596,7 @@ Worktree (created from GH issue number)
 After exploration/planning, provide:
 ```
 Issue #XXX created with N tasks.
-To execute: /ralph-hybrid-plan XXX (in fresh session)
+Start fresh session for implementation.
 ```
 
 ## Landing the Plane (Session Completion)
@@ -640,32 +617,14 @@ To execute: /ralph-hybrid-plan XXX (in fresh session)
 5. **Verify** - All changes committed AND pushed
 6. **Hand off** - Provide context for next session
 
-**Note:** Worktree cleanup is automatic. After PR merge, hooks handle teardown.
-
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
-## Workflow Loops
-
-Development follows two loops:
-
-| Loop | Tool | Scope |
-|------|------|-------|
-| **Outer** | GitHub Issues | Planning, epics, dependencies |
-| **Inner** | Ralph Hybrid | Story execution, TDD |
-
-**Outer loop** (planning): `/next-issue`, `/plan`, `gh-workflow` skill
-**Inner loop** (execution): `/ralph-hybrid-plan`, `ralph-hybrid run`
-
-For conceptual overview, see [Workflow Loops](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Workflow-Loops) in the wiki.
-For Ralph Hybrid details, see [Ralph Hybrid](https://github.com/krazyuniks/ralph-hybrid).
-
 ---
 
-<!-- RALPH_HYBRID_START -->
 ## Ralph Hybrid (Autonomous Development)
 
 For complex features, use Ralph Hybrid to run autonomous development loops.
@@ -698,19 +657,6 @@ For complex features, use Ralph Hybrid to run autonomous development loops.
 | `ralph-hybrid verify` | Terminal | Run goal-backward verification manually |
 | `ralph-hybrid status` | Terminal | Show feature progress |
 
-### Example: GitHub Issue to Implementation
-
-```bash
-# 1. Create branch from issue number
-git checkout -b 42-user-authentication
-
-# 2. Plan (Claude auto-fetches issue #42 context)
-/ralph-hybrid-plan
-
-# 3. Run autonomous loop
-ralph-hybrid run
-```
-
 ### Key Concepts
 
 - **Fresh context per iteration**: Each loop iteration starts Claude fresh
@@ -718,7 +664,6 @@ ralph-hybrid run
 - **Branch = feature folder**: `.ralph-hybrid/{branch-name}/` holds all state
 - **Fail fast**: Circuit breaker trips after 2 same errors or no progress
 - **Goal-backward verification**: After stories complete, verifies feature actually works
-<!-- RALPH_HYBRID_END -->
 
 ### GTS Customizations
 
@@ -753,7 +698,7 @@ Memories are automatically injected into each iteration prompt.
 
 #### Customized Skills
 
-GTS-specific skills for specialised tasks. Also uses global skills:
+GTS-specific skills for specialised tasks:
 
 | Skill | When to Use | Location |
 |-------|-------------|----------|
