@@ -20,6 +20,8 @@ from core.domain.value_objects.tone_config import ToneConfig
 from core.domain.value_objects.waveform_data import WaveformData
 
 from .ir_loader import load_ir
+from .loudness import measure_loudness as _measure_loudness
+from .loudness import normalize_loudness as _normalize_loudness
 from .nam_loader import load_nam_model
 
 
@@ -131,22 +133,8 @@ class PedalboardAudioProcessor:
         Returns:
             Tuple of (integrated_lufs, peak_dbfs)
         """
-        # Load audio file
-        audio, sample_rate = sf.read(audio_path)
-
-        # Convert stereo to mono if needed
-        if audio.ndim == 2:
-            audio = np.mean(audio, axis=1)
-
-        # Measure integrated loudness using pyloudnorm
-        meter = pyln.Meter(sample_rate)
-        lufs = meter.integrated_loudness(audio)
-
-        # Calculate peak level in dBFS
-        peak = np.max(np.abs(audio))
-        peak_dbfs = 20 * np.log10(peak) if peak > 0 else -np.inf
-
-        return (float(lufs), float(peak_dbfs))
+        # Delegate to standalone loudness module
+        return _measure_loudness(audio_path)
 
     async def normalize_loudness(
         self,
@@ -166,27 +154,14 @@ class PedalboardAudioProcessor:
         """
         start_time = time.time()
 
-        # Load audio file
-        audio, sample_rate = sf.read(input_path)
+        # Delegate to standalone loudness module
+        result_lufs, peak_dbfs = _normalize_loudness(
+            input_path, output_path, target_lufs
+        )
 
-        # Convert stereo to mono if needed
-        if audio.ndim == 2:
-            audio = np.mean(audio, axis=1)
-
-        # Measure current loudness
-        meter = pyln.Meter(sample_rate)
-        current_lufs = meter.integrated_loudness(audio)
-
-        # Normalize to target LUFS
-        normalized_audio = pyln.normalize.loudness(audio, current_lufs, target_lufs)
-
-        # Write output file
-        sf.write(output_path, normalized_audio, sample_rate)
-
-        # Calculate output metrics
-        duration = float(len(normalized_audio)) / sample_rate
-        peak = np.max(np.abs(normalized_audio))
-        peak_dbfs = 20 * np.log10(peak) if peak > 0 else -np.inf
+        # Load output file to get duration and sample rate
+        audio, sample_rate = sf.read(output_path)
+        duration = float(len(audio)) / sample_rate
 
         processing_time = time.time() - start_time
 
@@ -194,8 +169,8 @@ class PedalboardAudioProcessor:
             output_path=output_path,
             duration_seconds=duration,
             sample_rate=sample_rate,
-            peak_dbfs=float(peak_dbfs),
-            lufs_integrated=target_lufs,
+            peak_dbfs=peak_dbfs,
+            lufs_integrated=result_lufs,
             processing_time_seconds=processing_time,
         )
 

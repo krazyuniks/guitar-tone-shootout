@@ -3064,3 +3064,66 @@
 {"timestamp":"2026-02-03T19:45:06Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-020\"","exit_code":0,"duration_ms":0,"iteration":11,"story_id":""}
 {"timestamp":"2026-02-03T19:45:10Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3853,"iteration":11,"story_id":""}
 {"timestamp":"2026-02-03T19:45:14Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":4014,"iteration":11,"story_id":"STORY-021\nSTORY-022\nSTORY-023\nSTORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler 2>&1 | head -20","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"find frontend/astro/src/pages -name \"*404*\" -o -name \"*500*\" 2>/dev/null","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"ls -la frontend/astro/dist/ 2>/dev/null | grep -E \"(404|500)\"","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"cd frontend/astro && pnpm build 2>&1","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"ls -lh frontend/astro/dist/*.html | grep -E \"(404|500)\"","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"ls -lh frontend/astro/dist/ | head -20","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"ls -la frontend/astro/ | grep dist","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"cd frontend/astro && find . -name \"404.html\" -o -name \"500.html\" 2>/dev/null","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && pwd","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"sudo ls -la frontend/astro/dist/ 2>&1 | head -20","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"stat frontend/astro/dist 2>&1","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"ls -lh frontend/astro/dist/","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"head -50 frontend/astro/dist/404.html","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"grep -o \"text-9xl font-bold text-\\[var(--color-accent-error)\\]\" frontend/astro/dist/500.html","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"cd frontend/astro && pnpm astro check 2>&1","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && just test-regression 2>&1","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"git add -A && git status","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"git commit -m \"feat: [STORY-021] - Error Pages (404, 500)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Created 404.astro for 'Not Found' error page","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Created 500.astro for 'Internal Server Error' page","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Both pages use design tokens from Tailwind CSS","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Consistent styling with existing static pages","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Helpful messaging and navigation links","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Built HTML files generated in dist/ directory","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- All 56 regression tests pass","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Type checking passes (0 errors, 0 warnings)\"","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"PRD_FILE=\".ralph-hybrid/main/prd.json\"","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"jq '(.userStories[] | select(.id == \"STORY-021\")) |= (.passes = true | .notes = \"Implemented 404.astro and 500.astro with design tokens, helpful messaging, and navigation. Both pages use consistent styling with existing static pages. Build succeeds, typecheck passes, all 56 regression tests pass.\")' \\","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"  \"$PRD_FILE\" > /tmp/prd.json && mv /tmp/prd.json \"$PRD_FILE\"","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"jq '.userStories[] | select(.id == \"STORY-021\") | {id, title, passes, notes}' .ralph-hybrid/main/prd.json","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"cat >> .ralph-hybrid/main/progress.txt << 'EOF'","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"---","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Iteration: 12","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Started: 2026-02-03T19:45:18Z","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Story: STORY-021 - Error Pages (404, 500)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Status: complete","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Changes made:","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Created frontend/astro/src/pages/404.astro with Not Found page","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Created frontend/astro/src/pages/500.astro with Internal Server Error page","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Both pages use design tokens from Tailwind CSS (--color-bg-*, --color-text-*, --color-accent-*)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Consistent header/footer with existing static pages","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Helpful error messaging and navigation links","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Built HTML files generated in frontend/astro/dist/","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Verification:","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- frontend/astro/dist/404.html exists (2.4K)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- frontend/astro/dist/500.html exists (3.0K)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Both pages use design system colors (404 uses accent-primary, 500 uses accent-error)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Astro build succeeds","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Type checking passes (0 errors, 0 warnings)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- All 56 regression tests pass","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- All acceptance criteria met","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"Technical notes:","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- 404 page uses accent-primary color for error code","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- 500 page uses accent-error color for error code","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Both pages include helpful actions (Go Home, About/Try Again buttons)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:44Z","source":"claude_code","command":"- Pages are responsive with Tailwind utility classes","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:45Z","source":"claude_code","command":"- CSS compiled to /_astro/about.DuF-Aojq.css","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:45Z","source":"claude_code","command":"Infrastructure:","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:45Z","source":"claude_code","command":"- Workspace packages installed at session start (uv pip install -e)","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:45Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:45Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-021\"","exit_code":0,"duration_ms":0,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:49Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3918,"iteration":12,"story_id":""}
+{"timestamp":"2026-02-03T19:47:52Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3848,"iteration":12,"story_id":"STORY-022\nSTORY-023\nSTORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}
