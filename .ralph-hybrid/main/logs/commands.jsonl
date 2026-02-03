@@ -2072,3 +2072,102 @@
 {"timestamp":"2026-02-03T18:54:30Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-010\"","exit_code":0,"duration_ms":0,"iteration":1,"story_id":""}
 {"timestamp":"2026-02-03T18:54:33Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3180,"iteration":1,"story_id":""}
 {"timestamp":"2026-02-03T18:54:36Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3183,"iteration":1,"story_id":"STORY-011\nSTORY-012\nSTORY-013\nSTORY-014\nSTORY-015\nSTORY-016\nSTORY-017\nSTORY-018\nSTORY-019\nSTORY-020\nSTORY-021\nSTORY-022\nSTORY-023\nSTORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}
+{"timestamp":"2026-02-03T18:59:00Z","source":"claude_code","command":"uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler 2>&1 | head -20","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:00Z","source":"claude_code","command":"cd frontend/astro && pnpm build 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:00Z","source":"claude_code","command":"ls -lh frontend/astro/dist/*.html","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:00Z","source":"claude_code","command":"find frontend/astro/dist -name \"*.html\" -type f","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"ls -lah frontend/astro/dist/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"just build-astro 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"test -f frontend/astro/dist/index.html && test -f frontend/astro/dist/about.html && test -f frontend/astro/dist/login.html && echo \"All HTML files exist\" || echo \"Missing files\"","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"ls -lah frontend/astro/dist/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"docker run --rm -v \"$(pwd)/frontend/astro:/app\" -w /app node:20-alpine sh -c \"corepack enable && pnpm install && pnpm build\" 2>&1 | tail -30","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"ls -lah frontend/astro/dist/ 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd frontend/astro && docker run --rm -v \"$(pwd):/src\" -w /src node:20-alpine sh -c \"corepack enable && pnpm install --frozen-lockfile && pnpm build && ls -la dist/\" 2>&1 | tail -40","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd frontend/astro && rm -rf dist && pnpm build 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"pwd && ls -la","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && rm -rf frontend/astro/dist && pnpm --dir frontend/astro build 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && sudo rm -rf frontend/astro/dist && mkdir -p frontend/astro/dist && pnpm --dir frontend/astro build 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && docker run --rm -v \"$(pwd)/frontend/astro/dist:/dist\" alpine rm -rf /dist/* && pnpm --dir frontend/astro build 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && docker run --rm -v \"$(pwd)/frontend/astro/dist:/dist\" alpine chown -R 1000:1000 /dist && docker run --rm -v \"$(pwd)/frontend/astro/dist:/dist\" alpine rm -rf /dist/* && pnpm --dir frontend/astro build 2>&1 | tail -25","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"ls -lah frontend/astro/dist/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"find frontend/astro/dist -name \"*.html\" -type f","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"ls -lah frontend/astro/dist/pages/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"pnpm --dir frontend/astro build 2>&1 | grep -A 5 \"generating static routes\"","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"find frontend/astro/dist -type f | head -20","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"test -f frontend/astro/dist/index.html && test -f frontend/astro/dist/about.html && test -f frontend/astro/dist/login.html && echo \"SUCCESS: All three HTML files exist\"","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd frontend/astro && pnpm astro check 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cd /home/ryan/Work/guitar-tone-worktrees/main && just test-regression 2>&1 | tail -50","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"git add -A && git commit -m \"feat: [STORY-011] - Static Pages (Index, About, Login)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Created index.astro with hero section and feature highlights","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Created about.astro with project information and how-it-works","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Created login.astro with OAuth buttons (Tone3000 primary)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All pages use design tokens from Tailwind CSS","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All pages render without errors","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Astro build produces HTML files at dist/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Type checking passes (0 errors)\" 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"PRD_FILE=\".ralph-hybrid/main/prd.json\" && jq '(.userStories[] | select(.id == \"STORY-011\")) |= (.passes = true | .notes = \"Implemented with comprehensive pages. index.astro has hero section and features. about.astro has project info and how-it-works. login.astro has Tone3000 OAuth button. All pages use design tokens. Build succeeds, typecheck passes, all 42 tests pass.\")' \"$PRD_FILE\" > /tmp/prd.json && mv /tmp/prd.json \"$PRD_FILE\"","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cat >> .ralph-hybrid/main/progress.txt << 'EOF'","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"---","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Iteration: 2","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Started: 2026-02-03T18:54:39Z","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Story: STORY-011 - Static Pages (Index, About, Login)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Status: complete","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Changes made:","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Created index.astro with hero section, features, navigation, and footer","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Created about.astro with project information, features, how-it-works, and technology section","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Created login.astro with OAuth buttons (Tone3000 primary, GitHub/Google disabled)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All pages use design tokens from Tailwind CSS (--color-bg-*, --color-text-*, --color-accent-*)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All pages have responsive layout with Tailwind utility classes","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Fixed Docker volume permission issues with root-owned files in dist/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Verification:","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- frontend/astro/dist/index.html exists","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- frontend/astro/dist/about.html exists","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- frontend/astro/dist/login.html exists","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All pages use design tokens from global.css","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- just build-astro succeeds","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- pnpm astro check passes (0 errors, 0 warnings)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- just test-regression passes (42 tests)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All acceptance criteria met","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"Technical notes:","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Docker builds create root-owned files in dist/","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Used Docker to fix permissions: docker run --rm -v \"$(pwd)/frontend/astro/dist:/dist\" alpine chown -R 1000:1000 /dist","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- Static HTML files generated at root of dist/ (index.html, about.html, login.html)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- CSS compiled to dist/_astro/about.CCULrn-Z.css","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"- All pages include navigation header and footer for consistency","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"git add .ralph-hybrid/ && git commit -m \"chore: Update progress for STORY-011\" 2>&1","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"cat << 'EOF'","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"STORY-011 Acceptance Criteria Verification:","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ index.astro - Home page with hero section","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - File: frontend/astro/src/pages/index.astro","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Hero section with title, description, CTA buttons","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Features section with 3 features","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ about.astro - About page with project info","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - File: frontend/astro/src/pages/about.astro","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Project description, key features, how-it-works, technology","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ login.astro - Login page with OAuth buttons","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - File: frontend/astro/src/pages/login.astro","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Tone3000 OAuth button (primary)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - GitHub/Google buttons (disabled, coming soon)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ All pages use design tokens from Tailwind","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - All use var(--color-bg-*), var(--color-text-*), var(--color-accent-*)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Consistent styling across all pages","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ All pages render without errors","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Astro build succeeded","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - Type checking passed (0 errors)","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ just build-astro produces HTML files","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - frontend/astro/dist/index.html exists","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - frontend/astro/dist/about.html exists  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - frontend/astro/dist/login.html exists","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  ","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"✓ Typecheck passes","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"  - pnpm astro check: 0 errors, 0 warnings","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"All acceptance criteria met!","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:01Z","source":"claude_code","command":"EOF","exit_code":0,"duration_ms":0,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:05Z","source":"success_criteria","command":"just test-regression","exit_code":0,"duration_ms":3204,"iteration":2,"story_id":""}
+{"timestamp":"2026-02-03T18:59:08Z","source":"callback","command":"callback:post_iteration (/home/ryan/Work/guitar-tone-worktrees/main/.ralph-hybrid/callbacks/post_iteration.sh)","exit_code":0,"duration_ms":3271,"iteration":2,"story_id":"STORY-012\nSTORY-013\nSTORY-014\nSTORY-015\nSTORY-016\nSTORY-017\nSTORY-018\nSTORY-019\nSTORY-020\nSTORY-021\nSTORY-022\nSTORY-023\nSTORY-024\nSTORY-025\nSTORY-026\nSTORY-027\nSTORY-028\nSTORY-029\nSTORY-030"}

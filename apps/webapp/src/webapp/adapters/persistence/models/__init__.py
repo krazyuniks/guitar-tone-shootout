@@ -14,6 +14,13 @@ from webapp.adapters.persistence.models.gear import (
     GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.shootout import (
+    AudioSegment,
+    DITrack,
+    Shootout,
+    ShootoutChain,
+    ShootoutStatus,
+)
 from webapp.adapters.persistence.models.signal_chain import (
     BlockType,
     Preset,
@@ -24,8 +31,10 @@ from webapp.adapters.persistence.models.signal_chain import (
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
 __all__ = [
+    "AudioSegment",
     "Base",
     "BlockType",
+    "DITrack",
     "EnumByValue",
     "Gear",
     "GearMake",
@@ -34,6 +43,9 @@ __all__ = [
     "GearTag",
     "OAuthProvider",
     "Preset",
+    "Shootout",
+    "ShootoutChain",
+    "ShootoutStatus",
     "SignalChain",
     "SignalChainBlock",
     "SignalChainGroup",

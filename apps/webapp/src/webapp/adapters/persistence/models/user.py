@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from .shootout import DITrack, Shootout
     from .signal_chain import SignalChain, SignalChainGroup
 
 
@@ -79,7 +80,19 @@ class User(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
 
-    # TODO: Add relationships to Gear, DITrack, Shootout, Job once those models exist
+    # Relationships to DI tracks and shootouts
+    di_tracks: Mapped[list[DITrack]] = relationship(
+        "DITrack",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    shootouts: Mapped[list[Shootout]] = relationship(
+        "Shootout",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+    # TODO: Add relationships to Gear, Job once those models exist
 
 
 class UserIdentity(UUIDMixin, TimestampMixin, Base):

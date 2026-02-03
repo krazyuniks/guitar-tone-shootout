@@ -150,10 +150,6 @@ watch-astro:
 check-astro:
     docker compose --profile build run --rm astro pnpm check
 
-# Fix Astro lint issues
-fix-astro-lint:
-    docker compose --profile build run --rm astro pnpm lint --fix
-
 # Verify Astro dist is in sync with source
 verify-astro-sync:
     @echo "Building Astro and checking for uncommitted changes..."
@@ -208,3 +204,62 @@ reset:
     @read -p "Type 'yes' to confirm: " confirm && [ "$$confirm" = "yes" ]
     docker compose down -v
     just up-d
+
+# =============================================================================
+# Infrastructure (host tools)
+# =============================================================================
+
+# Install host development tools (prek, playwright, etc)
+infra:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Installing host development tools..."
+    echo ""
+    # --- prek (pre-commit in Rust) ---
+    if command -v prek &>/dev/null; then
+        echo "✓ prek: $(prek --version | cut -d' ' -f2)"
+    else
+        echo "→ Installing prek..."
+        if command -v cargo &>/dev/null; then
+            cargo install prek
+            echo "✓ prek installed"
+        elif command -v pipx &>/dev/null; then
+            pipx install pre-commit
+            echo "✓ pre-commit installed (prek alternative)"
+        else
+            echo "ERROR: Need cargo or pipx to install prek/pre-commit"
+            echo "  Install cargo: https://rustup.rs"
+            echo "  Or pipx: pip install pipx"
+            exit 1
+        fi
+    fi
+    echo ""
+    # --- Playwright browser ---
+    echo "→ Checking Playwright browser..."
+    if ls ~/.cache/ms-playwright/chromium-*/INSTALLATION_COMPLETE &>/dev/null 2>&1; then
+        echo "✓ Playwright browser installed"
+    else
+        echo "→ Installing Playwright browser..."
+        (cd tests/e2e/python && uv sync && uv run playwright install chromium)
+        echo "✓ Playwright browser installed"
+    fi
+    echo ""
+    echo "Done. Run 'just install-hooks' to enable pre-commit hooks."
+
+# =============================================================================
+# Git Hooks (prek)
+# =============================================================================
+
+# Install prek hooks
+install-hooks:
+    prek install
+    @echo "✓ prek hooks installed"
+
+# Run prek hooks on all files
+run-hooks:
+    prek run --all-files
+
+# Uninstall prek hooks
+uninstall-hooks:
+    prek uninstall
+    @echo "✓ prek hooks uninstalled"

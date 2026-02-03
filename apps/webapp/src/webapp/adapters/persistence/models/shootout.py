@@ -1,0 +1,239 @@
+"""Shootout and DITrack ORM models for persistence layer."""
+
+from __future__ import annotations
+
+import uuid
+from enum import Enum
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from .signal_chain import SignalChain
+    from .user import User
+
+
+class ShootoutStatus(str, Enum):
+    """Status enum for shootout processing."""
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class DITrack(UUIDMixin, TimestampMixin, Base):
+    """DITrack model for user-uploaded DI recordings.
+
+    Represents a clean guitar recording that can be processed
+    through various signal chains for comparison.
+
+    Attributes:
+        id: Primary key (UUIDv7)
+        user_id: Foreign key to users table
+        name: Display name for the track
+        file_path: Path to the audio file
+        original_filename: Original uploaded filename
+        duration_seconds: Track duration in seconds
+        sample_rate: Audio sample rate in Hz
+        description: Optional description
+        guitar: Guitar used for recording (optional)
+        pickup: Pickup position/type (optional)
+        checksum: Audio file checksum for integrity (optional)
+        created_at: When uploaded
+        updated_at: When last updated
+        user: Reference to the User
+        shootouts: Shootouts using this DI track
+    """
+
+    __tablename__ = "di_tracks"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    sample_rate: Mapped[int] = mapped_column(Integer, nullable=False, default=44100)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    guitar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pickup: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    # Relationships
+    user: Mapped[User] = relationship(
+        "User",
+        back_populates="di_tracks",
+    )
+    shootouts: Mapped[list[Shootout]] = relationship(
+        "Shootout",
+        back_populates="di_track",
+        cascade="all, delete-orphan",
+    )
+
+    # Indexes
+    __table_args__ = (Index("ix_di_tracks_user_id", "user_id"),)
+
+
+class Shootout(UUIDMixin, TimestampMixin, Base):
+    """Shootout model for tone comparison sessions.
+
+    Represents a comparison of multiple signal chains using a common
+    DI track. Manages the collection of chains and processing state.
+
+    Attributes:
+        id: Primary key (UUIDv7)
+        user_id: Foreign key to users table
+        di_track_id: Foreign key to di_tracks table
+        title: Display title for the shootout
+        description: Optional description
+        status: Processing status (pending, processing, completed, failed)
+        video_path: Path to output video (after processing)
+        created_at: When created
+        updated_at: When last updated
+        user: Reference to the User
+        di_track: Reference to the DITrack
+        chains: List of chain links in this shootout
+    """
+
+    __tablename__ = "shootouts"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    di_track_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("di_tracks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[ShootoutStatus] = mapped_column(
+        EnumByValue(ShootoutStatus),
+        nullable=False,
+        default=ShootoutStatus.PENDING,
+    )
+    video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # Relationships
+    user: Mapped[User] = relationship(
+        "User",
+        back_populates="shootouts",
+    )
+    di_track: Mapped[DITrack] = relationship(
+        "DITrack",
+        back_populates="shootouts",
+        lazy="selectin",  # Eager load di_track
+    )
+    chains: Mapped[list[ShootoutChain]] = relationship(
+        "ShootoutChain",
+        back_populates="shootout",
+        cascade="all, delete-orphan",
+        order_by="ShootoutChain.position",
+        lazy="selectin",  # Eager load chains
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_shootouts_user_id", "user_id"),
+        Index("ix_shootouts_status", "status"),
+    )
+
+
+class ShootoutChain(UUIDMixin, Base):
+    """Junction model linking shootouts to signal chains.
+
+    Represents a signal chain included in a shootout, with positioning
+    and labelling for display.
+
+    Attributes:
+        id: Primary key (UUIDv7)
+        shootout_id: Foreign key to shootouts table
+        signal_chain_id: Foreign key to signal_chains table
+        position: Order in the shootout (0-indexed)
+        label: Display label for this chain in the shootout
+        shootout: Reference to the Shootout
+        signal_chain: Reference to the SignalChain
+        segments: Processed audio segments for this chain
+    """
+
+    __tablename__ = "shootout_chains"
+
+    shootout_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("shootouts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    signal_chain_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("signal_chains.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # Relationships
+    shootout: Mapped[Shootout] = relationship(
+        "Shootout",
+        back_populates="chains",
+    )
+    signal_chain: Mapped[SignalChain] = relationship(
+        "SignalChain",
+    )
+    segments: Mapped[list[AudioSegment]] = relationship(
+        "AudioSegment",
+        back_populates="shootout_chain",
+        cascade="all, delete-orphan",
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_shootout_chains_shootout_id", "shootout_id"),
+        Index("ix_shootout_chains_position", "shootout_id", "position"),
+    )
+
+
+class AudioSegment(UUIDMixin, Base):
+    """AudioSegment model for processed audio segments.
+
+    Represents a processed audio segment from a shootout chain,
+    with loudness measurement data.
+
+    Attributes:
+        id: Primary key (UUIDv7)
+        shootout_chain_id: Foreign key to shootout_chains table
+        file_path: Path to the processed audio file
+        duration_seconds: Segment duration in seconds
+        integrated_lufs: Integrated loudness (LUFS)
+        peak_dbfs: Peak level (dBFS)
+        shootout_chain: Reference to the ShootoutChain
+    """
+
+    __tablename__ = "audio_segments"
+
+    shootout_chain_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("shootout_chains.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    integrated_lufs: Mapped[float] = mapped_column(Float, nullable=False)
+    peak_dbfs: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # Relationship
+    shootout_chain: Mapped[ShootoutChain] = relationship(
+        "ShootoutChain",
+        back_populates="segments",
+    )
+
+    # Index
+    __table_args__ = (Index("ix_audio_segments_chain_id", "shootout_chain_id"),)
