@@ -40,7 +40,7 @@ rebuild *ARGS:
 # =============================================================================
 
 # Run all quality checks
-check: lint-python check-types check-tests check-imports
+check: lint check-types check-tests check-imports
 
 # Run type checking (strict on core)
 check-types:
@@ -58,33 +58,11 @@ check-imports:
 # Linting (all run in Docker)
 # =============================================================================
 
-# Check all lint (Python + Astro)
-lint: lint-python lint-astro
-
-# Check Python lint only
-lint-python:
-    docker compose exec -T backend ruff check libs/ sources/ apps/
-    docker compose exec -T backend ruff format --check libs/ sources/ apps/
-
-# Check Astro lint only
-lint-astro:
-    docker compose --profile build run --rm astro pnpm lint
-
 # Fix all lint issues (Python + Astro)
-fix-lint: fix-lint-python fix-lint-astro
-
-# Fix Python lint issues
-fix-lint-python:
-    docker compose exec -T backend ruff check libs/ sources/ apps/ --fix
-    docker compose exec -T backend ruff format libs/ sources/ apps/
-
-# Fix Astro lint issues
-fix-lint-astro:
+lint:
+    docker compose exec -T backend ruff check libs/ sources/ apps/ tests/ --fix
+    docker compose exec -T backend ruff format libs/ sources/ apps/ tests/
     docker compose --profile build run --rm astro pnpm lint --fix
-
-# Format Python code only
-format:
-    docker compose exec -T backend ruff format libs/ sources/ apps/
 
 # =============================================================================
 # Testing

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Astro lint hook - graceful if Docker not running
-# Auto-fixes lint issues via just command
+# Ruff hooks handle Python; this handles Astro only
 
-if just fix-lint-astro 2>/dev/null; then
+if docker compose --profile build run --rm astro pnpm lint --fix 2>/dev/null; then
     exit 0
 else
     echo "Warning: Could not run astro lint (Docker not running?), skipping"
