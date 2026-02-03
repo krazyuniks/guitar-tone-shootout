@@ -415,8 +415,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Depends on STORY-007 (Gear ORM)",
+      "passes": true,
+      "notes": "Implemented with all CRUD operations. Search supports filters (query, gear_type, manufacturer, tags). Tag search uses AND logic via subquery. Domain entity mapping works correctly. All 12 integration tests pass. Type checking and linting pass. All 92 regression tests pass.",
       "verify": {
         "command": "just tdd tests/integration/webapp/test_gear_repository.py",
         "expected": "GearRepository search and CRUD work against real DB",
