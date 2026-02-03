@@ -275,8 +275,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "Depends on STORY-001 (ORM base) and STORY-007 (Gear)",
+      "passes": true,
+      "notes": "Implemented with SignalChain, SignalChainBlock, SignalChainGroup, BlockType, Preset models. All relationships configured with proper cascade. Indexes on user_id, block positions. 7 unit tests pass, all 53 regression tests pass, type checking passes, linting passes.",
       "verify": {
         "command": "just tdd tests/unit/webapp/test_signal_chain_model.py",
         "expected": "SignalChain with blocks and relationships works",

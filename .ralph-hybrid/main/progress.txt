@@ -936,3 +936,47 @@ Technical notes:
 - ClassVar annotation for _SUPPORTED_FORMATS
 - Type ignore for Pedalboard import (library doesn't export Pedalboard in __init__)
 - soundfile and scipy added to mypy overrides
+
+---
+Iteration: 1
+Started: 2026-02-03T18:48:05Z
+Story: STORY-010 - SignalChain ORM Models
+Status: complete
+
+Changes made:
+- Created SignalChain model with user_id, name, description, platform, timestamps
+- Created SignalChainBlock model for individual blocks in chain (position, user_gear_id, gear_type)
+- Created SignalChainGroup model for permutation groups (slot_positions, gear_options, include_null)
+- Created BlockType model for built-in processor definitions (name, category, default_params)
+- Created Preset model for parameter values linked to blocks (name, params JSON)
+- Updated User model to add signal_chains and signal_chain_groups relationships
+- Used from __future__ import annotations to resolve circular import issues
+- Used TYPE_CHECKING for forward references
+- Configured all relationships with proper cascade delete
+- Added indexes on user_id, signal_chain_id, and block positions
+- Created comprehensive unit tests (7 tests covering all models and relationships)
+- Fixed TC003 lint warnings by adding per-file ignores in pyproject.toml
+
+Verification:
+- All 7 unit tests for signal chain models pass
+- All 53 regression tests pass (unit + integration)
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- All acceptance criteria met:
+  - SignalChain model with user_id, name, description, timestamps ✓
+  - SignalChainBlock model for individual blocks ✓
+  - SignalChainGroup model for permutation groups ✓
+  - BlockType model for built-in processor definitions ✓
+  - Preset model for parameter values ✓
+  - Relationships with proper cascade delete ✓
+  - Indexes on user_id, block positions ✓
+  - Unit tests pass ✓
+  - Typecheck passes ✓
+
+Technical notes:
+- Used from __future__ import annotations to enable forward references
+- Used TYPE_CHECKING to avoid circular imports between User and SignalChain
+- Removed module docstrings to avoid F404/E402 lint errors
+- Added TC003 to per-file ignores (uuid is used at runtime, cannot be in TYPE_CHECKING)
+- JSON type used for default_params, params, slot_positions, gear_options
+- EnumByValue used for Platform and GearType enums
