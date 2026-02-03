@@ -32,6 +32,7 @@ members = ["libs/*", "sources/*", "apps/*"]
 
 [tool.importlinter]
 root_packages = ["core", "audio", "source_t3k", "webapp", "worker", "scheduler"]
+include_external_packages = true
 
 # Core has zero dependencies on other packages
 [[tool.importlinter.contracts]]
