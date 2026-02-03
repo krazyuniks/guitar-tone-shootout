@@ -194,3 +194,35 @@ Technical notes:
 - Tests use fresh session after commit to verify relationship loading
 - Email index configured for fast user lookups
 - Composite index on (provider_id, external_id) for identity lookups
+
+---
+Iteration: 6
+Started: 2026-02-03T03:10:07Z
+Story: STORY-006 - User ORM Model (Quality Check Fixes)
+Status: complete
+
+Changes made:
+- Fixed type errors in test_user_model.py:
+  - Changed async generator return type from AsyncSession to AsyncGenerator[AsyncSession, None]
+  - Replaced sessionmaker with async_sessionmaker for async sessions
+  - Added return type annotations (-> None) to all test functions
+- Fixed type error in test_orm_base.py:
+  - Added type annotation for status field in test model
+- Fixed linting issues:
+  - Sorted __all__ in models/__init__.py
+  - Removed empty TYPE_CHECKING block from user.py
+
+Verification:
+- All 27 regression tests pass
+- Type checking passes (mypy)
+- Linting passes (ruff)
+- STORY-006 fully complete with all acceptance criteria met
+
+Root cause:
+- Previous iteration (5) implemented STORY-006 correctly
+- Quality checks failed due to missing type annotations and use of deprecated sessionmaker
+- SQLAlchemy 2.0 requires async_sessionmaker for async sessions
+- Fixed all quality check failures in this iteration
+
+Infrastructure note:
+- Always install workspace packages at session start: uv pip install -e libs/core -e libs/audio -e apps/webapp -e apps/worker -e apps/scheduler
