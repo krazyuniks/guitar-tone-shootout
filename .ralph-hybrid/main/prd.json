@@ -215,8 +215,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Depends on STORY-002 and STORY-003 (Astro + Tailwind)",
+      "passes": true,
+      "notes": "Implemented using TypeScript endpoint (base.html.ts) instead of .astro to avoid Astro parsing Jinja2 syntax. Generates layouts/base.html with all required blocks and scripts. Build succeeds, type checking passes.",
       "verify": {
         "command": "just build-astro && test -f frontend/astro/dist/layouts/base.html",
         "expected": "base.html exists with Jinja2 blocks",

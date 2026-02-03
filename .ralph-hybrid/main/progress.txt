@@ -317,3 +317,34 @@ Infrastructure note:
   - Temporary file system issues
 - Always re-verify in fresh context if verification fails
 
+
+---
+Iteration: 10
+Started: 2026-02-03T03:22:58Z
+Story: STORY-008 - Base Layout Template
+Status: complete
+
+Changes made:
+- Created base.html.ts endpoint to generate Jinja2-compatible layout
+- Avoided .astro files due to Jinja2 syntax conflicts with Astro parser
+- Generated layouts/base.html with HTML structure and Jinja2 blocks
+- Included Tailwind CSS link (/_astro/*.css)
+- Included HTMX script from unpkg CDN
+- Included Alpine.js script from CDN
+- Provided Jinja2 blocks: {% block title %}, {% block content %}, {% block scripts %}
+
+Verification:
+- Build succeeds (pnpm build)
+- Type checking passes (astro check)
+- All 35 regression tests pass
+- Linting passes (ruff)
+- Type checking passes (mypy)
+- base.html generated at frontend/astro/dist/layouts/base.html
+
+Technical notes:
+- Used TypeScript endpoint pattern instead of .astro component
+- This avoids Astro trying to parse Jinja2 template syntax as JavaScript
+- Output is identical - pure HTML template with Jinja2 blocks
+- Docker infrastructure issue persists (iptables) - used pnpm directly on host
+
+All acceptance criteria met.
