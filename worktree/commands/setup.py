@@ -846,6 +846,13 @@ def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:
         f"postgresql+asyncpg://gts:{db_password}@localhost:{worktree.ports.db}/gts_core"
     )
 
+    # If Traefik is running, wait for SSL endpoint to be routable
+    # Traefik may need time to detect new containers after restart
+    if traefik_running and public_url:
+        status.update("[bold green]Waiting for Traefik routing...")
+        if not _wait_for_ssl_endpoint(public_url, timeout=30):
+            console.print("  [yellow]⚠[/yellow] SSL endpoint slow to respond, continuing anyway")
+
     # Run regression tests
     import os
 
@@ -988,22 +995,48 @@ def _ensure_compose_file_includes_traefik(worktree_path: Path) -> None:
 
 
 def _setup_traefik(worktree_path: Path, status) -> None:
-    """Set up Traefik reverse proxy for server deployments.
+    """Set up Traefik integration for server deployments.
 
-    Only runs if deploy/traefik/.env exists (configured server deployment).
-    - Creates traefik-public network if needed
-    - Ensures COMPOSE_FILE includes traefik overlay
-    - Starts Traefik containers
+    If Traefik is already running (from any location), configure this worktree
+    to use it by:
+    - Ensuring COMPOSE_FILE includes traefik overlay
+    - Ensuring traefik-public network exists
+
+    If Traefik is not running but deploy/traefik/.env exists in the worktree,
+    attempt to start it.
     """
     import subprocess
+
+    from ..docker import is_traefik_running
 
     traefik_dir = worktree_path / "deploy" / "traefik"
     traefik_env = traefik_dir / ".env"
 
-    if not traefik_env.exists():
-        return  # Not a configured server deployment
+    # Check if Traefik is already running (from any location)
+    traefik_running = is_traefik_running()
 
-    status.update("[bold green]Setting up Traefik reverse proxy...")
+    if traefik_running:
+        status.update("[bold green]Configuring Traefik integration...")
+
+        # Ensure COMPOSE_FILE includes traefik overlay
+        _ensure_compose_file_includes_traefik(worktree_path)
+
+        # Ensure traefik-public network exists
+        with contextlib.suppress(Exception):
+            subprocess.run(
+                ["docker", "network", "create", "traefik-public"],
+                capture_output=True,
+                check=False,  # OK if already exists
+            )
+
+        console.print("  [green]✓[/green] Traefik integration configured")
+        return
+
+    # Traefik not running - check if we can start it from this worktree
+    if not traefik_env.exists():
+        return  # No Traefik config, nothing to do
+
+    status.update("[bold green]Starting Traefik reverse proxy...")
 
     # Ensure COMPOSE_FILE includes traefik overlay
     _ensure_compose_file_includes_traefik(worktree_path)
@@ -1015,26 +1048,6 @@ def _setup_traefik(worktree_path: Path, status) -> None:
             capture_output=True,
             check=False,  # OK if already exists
         )
-
-    # Check if traefik is already running
-    result = subprocess.run(
-        ["docker", "ps", "-q", "-f", "name=traefik"],
-        capture_output=True,
-        text=True,
-    )
-    if result.stdout.strip():
-        console.print("  [green]✓[/green] Traefik already running")
-        return
-
-    # Check for .env file
-    env_file = traefik_dir / ".env"
-    if not env_file.exists():
-        status.stop()
-        print_warning("Traefik .env not found")
-        console.print(f"  Copy {traefik_dir / '.env.example'} to {env_file}")
-        console.print("  and fill in CF_DNS_API_TOKEN")
-        status.start()
-        return
 
     # Start traefik
     try:
@@ -1055,6 +1068,46 @@ def _setup_traefik(worktree_path: Path, status) -> None:
         status.stop()
         print_warning("Traefik start timed out")
         status.start()
+
+
+def _wait_for_ssl_endpoint(url: str, timeout: int = 30) -> bool:
+    """Wait for SSL endpoint to respond via Traefik.
+
+    After container restart, Traefik needs time to detect the new container
+    and route traffic to it. This function waits until the endpoint responds.
+
+    Args:
+        url: The HTTPS URL to check (e.g., https://1.tone-shootout.com)
+        timeout: Maximum wait time in seconds
+
+    Returns:
+        True if endpoint responded within timeout, False otherwise
+    """
+    import urllib.error
+    import urllib.request
+    from http.client import RemoteDisconnected
+
+    health_url = f"{url.rstrip('/')}/health"
+    start = time.time()
+    delay = 1.0
+
+    while time.time() - start < timeout:
+        try:
+            with urllib.request.urlopen(health_url, timeout=5) as response:
+                if response.status == 200:
+                    return True
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ConnectionError,
+            RemoteDisconnected,
+            OSError,
+        ):
+            pass
+        time.sleep(delay)
+        delay = min(delay * 1.5, 3.0)
+
+    return False
 
 
 def _check_development_requirements(worktree_path: Path, status) -> None:
