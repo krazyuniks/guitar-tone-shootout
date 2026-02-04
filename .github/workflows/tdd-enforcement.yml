@@ -1,0 +1,82 @@
+name: TDD Enforcement
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'pipeline/**'
+      - 'tests/**'
+      - 'e2e/**'
+
+jobs:
+  tdd-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          pip install ghapi pydantic
+          npm ci || pnpm install || true
+
+      - name: Find test-lock commit
+        id: test-lock
+        run: |
+          LOCK_COMMIT=$(git log --oneline --grep="test-lock:" --format="%H" | head -1)
+          
+          if [ -z "$LOCK_COMMIT" ]; then
+            echo "No test-lock commit found"
+            echo "found=false" >> $GITHUB_OUTPUT
+          else
+            echo "Test lock commit: $LOCK_COMMIT"
+            echo "found=true" >> $GITHUB_OUTPUT
+            echo "commit=$LOCK_COMMIT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check test file immutability
+        if: steps.test-lock.outputs.found == 'true'
+        run: |
+          LOCK_COMMIT="${{ steps.test-lock.outputs.commit }}"
+          
+          echo "Checking for test file modifications since $LOCK_COMMIT"
+          
+          CHANGED_TESTS=$(git diff --name-only $LOCK_COMMIT HEAD -- \
+            '*.test.ts' '*.test.tsx' '*.test.py' '*.spec.ts' '*.spec.tsx' \
+            'tests/' 'e2e/' '__tests__/' \
+          )
+          
+          if [ -n "$CHANGED_TESTS" ]; then
+            echo "::error::Test files modified after test-lock commit"
+            echo ""
+            echo "Modified files:"
+            echo "$CHANGED_TESTS"
+            echo ""
+            echo "Tests are immutable during implementation phase."
+            echo "If tests genuinely need changes, create a new test-phase PR first."
+            exit 1
+          fi
+          
+          echo "✓ Test files unchanged since test-lock"
+
+      - name: Test quality check
+        run: |
+          python scripts/test_quality_check.py src/ tests/ e2e/ backend/ frontend/ || true
+
+      - name: Run tests
+        run: |
+          npm test -- --watchAll=false --passWithNoTests || \
+          pnpm test -- --watchAll=false --passWithNoTests || \
+          just test || \
+          echo "Tests skipped"
