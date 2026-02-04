@@ -223,10 +223,10 @@ build_mcp_config() {
 
         case "$server" in
             playwright)
-                config+='"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}'
+                config+='"playwright":{"command":"npx","args":["-y","@playwright/mcp@latest"]}'
                 ;;
             chrome|chrome-devtools)
-                config+='"chrome-devtools":{"command":"npx","args":["chrome-devtools-mcp@latest","--isolated"]}'
+                config+='"chrome-devtools":{"command":"npx","args":["-y","chrome-devtools-mcp@latest","--isolated"]}'
                 ;;
             *)
                 echo "Warning: Unknown MCP server '$server', skipping" >&2
