@@ -16,41 +16,49 @@ GTS integrates via OAuth2:
 
 ## API Authentication Architecture
 
-The backend separates internal admin operations from user-facing APIs.
+GTS separates user-facing APIs from internal admin operations. Admin APIs are decentralised — each component owns its own admin endpoints.
+
+### User API (Webapp — port 8000)
 
 | Route Prefix | Purpose | Auth Required |
 |--------------|---------|---------------|
-| `/admin/` | Internal infrastructure | **None** (nginx-blocked) |
 | `/api/v1/jobs` | User's own jobs | `CurrentUser` |
 | `/api/v1/auth` | Auth operations | Varies by endpoint |
-
-### Internal Admin API (`/admin/`)
-
-Admin endpoints have NO authentication. Access is controlled at the network level:
-- Nginx blocks `/admin/` externally (returns 404)
-- Only accessible via direct backend port (8000)
-- Used by: scheduler, `gts-admin` CLI, internal services
-
-**Endpoints:**
-```
-/admin/jobs/           # Job queue management (list, get, retry)
-/admin/t3k/sync/       # T3K sync (status, trigger)
-/admin/t3k/auth/status # T3K auth credentials check
-```
-
-**CLI Tool:**
-```bash
-gts-admin t3k-status   # Sync status
-gts-admin jobs         # List all jobs
-gts-admin auth-status  # T3K auth check
-```
-
-### User API (`/api/v1/`)
+| `/api/v1/*` | All user operations | `CurrentUser` |
 
 User endpoints require `CurrentUser` authentication via session cookie.
 Users can only access their own resources.
 
-**Reference:** [Job-Scheduling-and-Processing Wiki](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Job-Scheduling-and-Processing#admin-api-architecture)
+### Internal Admin API (Worker — port 8001)
+
+Admin endpoints have NO authentication. Access is controlled at the network level — port not exposed publicly.
+
+All admin endpoints served by the worker container:
+
+```
+/admin/jobs/              # Job list with status filter
+/admin/jobs/{id}          # Job details
+/admin/jobs/dead-lettered # Dead-lettered jobs
+/admin/jobs/{id}/retry    # Retry failed job
+/admin/t3k/sync/status    # Current sync state
+/admin/t3k/sync           # Trigger catalog sync (POST)
+/admin/t3k/sync/stats     # Pack/model counts
+/admin/t3k/auth/status    # T3K OAuth token validity
+/health                   # Composite health check
+```
+
+**Why worker serves T3K endpoints:** Worker already connects to `gts_t3k_source` for the pgmq consumer, so it can query sync status from the same database.
+
+**CLI Tool:**
+```bash
+# All commands → Worker (port 8001)
+gts-admin jobs            # List all jobs
+gts-admin job <id>        # Get job details
+gts-admin t3k-status      # Sync status
+gts-admin auth-status     # T3K auth check
+```
+
+**Reference:** [GTS-Technical-Architecture Wiki](https://github.com/krazyuniks/guitar-tone-shootout/wiki/GTS-Technical-Architecture#admin-api-architecture)
 
 ---
 
