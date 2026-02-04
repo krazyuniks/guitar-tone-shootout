@@ -159,9 +159,7 @@ $PROMPT_CONTENT"
 # Build claude command
 CLAUDE_ARGS=()
 
-if [ -n "$PRINT_MODE" ]; then
-    CLAUDE_ARGS+=("-p")
-fi
+# Note: -p flag added at end with stdin marker
 
 if [ -n "$CONTINUE_MODE" ]; then
     CLAUDE_ARGS+=("--continue")
@@ -242,5 +240,11 @@ build_mcp_config() {
 MCP_CONFIG=$(build_mcp_config "$MCP_SERVERS")
 CLAUDE_ARGS+=("--strict-mcp-config" "--mcp-config" "$MCP_CONFIG")
 
-# Execute claude with combined prompt
-exec claude "${CLAUDE_ARGS[@]}" "$FULL_PROMPT"
+# Execute claude with prompt via stdin (avoids command line length issues)
+# -p - at end tells claude to read prompt from stdin
+if [ -n "$PRINT_MODE" ]; then
+    echo "$FULL_PROMPT" | claude "${CLAUDE_ARGS[@]}" -p -
+else
+    # Interactive mode - just pass the prompt directly
+    exec claude "${CLAUDE_ARGS[@]}" "$FULL_PROMPT"
+fi
