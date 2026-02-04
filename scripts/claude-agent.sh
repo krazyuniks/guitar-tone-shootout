@@ -182,30 +182,65 @@ if [ -n "$ALLOWED_TOOLS" ]; then
 fi
 
 # MCP server configuration
-# Default: orchestrator/planner get no MCP, others use project defaults (which include playwright)
+# Default: orchestrator/planner get no MCP, others get playwright only
 # "none" = explicitly disable all MCP servers
-# "default" or unset for non-orchestrator = use project's configured MCP servers
+# "playwright" = only playwright MCP (for browser access without other servers)
 if [ -z "$MCP_SERVERS" ]; then
     case "$AGENT_NAME" in
         orchestrator|planner)
             MCP_SERVERS="none"
             ;;
         *)
-            MCP_SERVERS="default"
+            MCP_SERVERS="playwright"
             ;;
     esac
 fi
 
-# Configure MCP based on setting
-if [ "$MCP_SERVERS" = "none" ]; then
-    # Explicitly disable all MCP servers
-    CLAUDE_ARGS+=("--strict-mcp-config" "--mcp-config" '{"mcpServers":{}}')
-elif [ "$MCP_SERVERS" != "default" ]; then
-    # Custom MCP servers specified - would need to look up from .mcp.json or claude mcp get
-    # For now, warn and use default
-    echo "Warning: Custom MCP servers '$MCP_SERVERS' not yet supported, using project defaults" >&2
-fi
-# If "default", don't pass --strict-mcp-config - let Claude use project's MCP servers
+# Build MCP config - always use --strict-mcp-config to avoid loading unwanted servers
+build_mcp_config() {
+    local servers="$1"
+
+    if [ "$servers" = "none" ]; then
+        echo '{"mcpServers":{}}'
+        return
+    fi
+
+    # For built-in servers, we still need to specify them explicitly with --strict-mcp-config
+    # to avoid loading other globally configured servers (like zai-mcp-server)
+    local config='{"mcpServers":{'
+    local first=true
+
+    IFS=',' read -ra SERVER_LIST <<< "$servers"
+    for server in "${SERVER_LIST[@]}"; do
+        server=$(echo "$server" | xargs)  # trim whitespace
+        [ -z "$server" ] && continue
+
+        if [ "$first" = true ]; then
+            first=false
+        else
+            config+=','
+        fi
+
+        case "$server" in
+            playwright)
+                config+='"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}'
+                ;;
+            chrome|chrome-devtools)
+                config+='"chrome-devtools":{"command":"npx","args":["chrome-devtools-mcp@latest","--isolated"]}'
+                ;;
+            *)
+                echo "Warning: Unknown MCP server '$server', skipping" >&2
+                continue
+                ;;
+        esac
+    done
+
+    config+='}}'
+    echo "$config"
+}
+
+MCP_CONFIG=$(build_mcp_config "$MCP_SERVERS")
+CLAUDE_ARGS+=("--strict-mcp-config" "--mcp-config" "$MCP_CONFIG")
 
 # Execute claude with combined prompt
 exec claude "${CLAUDE_ARGS[@]}" "$FULL_PROMPT"
