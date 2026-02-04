@@ -2,11 +2,15 @@
 
 Code patterns and quality standards for GTS development.
 
+> **Full technical documentation:** See [DEVELOPMENT.md](./DEVELOPMENT.md) for stack details, architecture, and troubleshooting.
+
 ## Quick Start
 
 ```bash
+./worktree.py setup main     # First-time setup (idempotent)
 just up-d                    # Start services
 just build-astro             # Build frontend (if changed)
+./worktree.py status         # Check current worktree status
 ```
 
 **Entry point:** http://localhost:9000

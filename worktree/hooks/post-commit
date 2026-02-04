@@ -1,0 +1,45 @@
+#!/bin/bash
+# Auto-sync: rebase current branch onto origin/main after commit
+# Runs in background, non-blocking, conflict-safe
+#
+# This hook keeps feature branches up-to-date with main automatically.
+# After each commit, it fetches origin/main and rebases if behind.
+#
+# To disable temporarily: GTS_NO_AUTO_SYNC=1 git commit -m "message"
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+# Skip main branch (main is updated via pull --ff-only only)
+[ "$BRANCH" = "main" ] && exit 0
+
+# Skip if auto-sync is disabled
+[ -n "$GTS_NO_AUTO_SYNC" ] && exit 0
+
+# Run sync in background (non-blocking - commit returns immediately)
+(
+    # Small delay to ensure commit is fully written
+    sleep 1
+
+    # Fetch origin/main quietly
+    git fetch origin main --quiet 2>/dev/null || exit 0
+
+    # Check if origin/main exists and we're behind
+    if ! git rev-parse origin/main >/dev/null 2>&1; then
+        exit 0
+    fi
+
+    BEHIND=$(git rev-list --count HEAD..origin/main 2>/dev/null)
+    [ "$BEHIND" = "0" ] || [ -z "$BEHIND" ] && exit 0
+
+    # Attempt rebase
+    if ! git rebase origin/main --quiet 2>/dev/null; then
+        # Conflict detected - abort cleanly and warn
+        git rebase --abort 2>/dev/null
+        echo ""
+        echo "[auto-sync] Rebase conflict detected."
+        echo "[auto-sync] Run 'git rebase origin/main' manually to resolve."
+        echo ""
+    fi
+) &
+
+exit 0

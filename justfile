@@ -31,6 +31,10 @@ logs *ARGS:
 status:
     docker compose ps
 
+# Check service health (used by worktree.py)
+health:
+    @docker compose ps --format 'table {{{{.Service}}}}\t{{{{.Status}}}}' | grep -E 'healthy|running' || echo "No healthy services found"
+
 # Rebuild and restart services
 rebuild *ARGS:
     docker compose up -d --build {{ARGS}}
