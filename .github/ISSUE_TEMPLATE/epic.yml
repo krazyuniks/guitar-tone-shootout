@@ -1,0 +1,74 @@
+name: Epic
+description: A collection of related tasks forming a feature
+title: "[Epic]: "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Epics group related tasks. The planner agent will break this into tasks.
+
+  - type: textarea
+    id: overview
+    attributes:
+      label: Overview
+      description: What does this epic deliver? Who benefits?
+      placeholder: |
+        Add a contact form feature allowing site visitors to send inquiries.
+        This improves lead generation and provides a direct communication channel.
+    validations:
+      required: true
+
+  - type: textarea
+    id: user-stories
+    attributes:
+      label: User Stories
+      description: Who needs what and why?
+      placeholder: |
+        - As a visitor, I want to submit an inquiry so that I can get more information
+        - As an admin, I want to receive notifications so that I can respond promptly
+        - As an admin, I want to view submissions so that I can track inquiries
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What's included and excluded?
+      placeholder: |
+        **In scope:**
+        - Contact form UI
+        - Form validation
+        - Database storage
+        - Email notifications
+        
+        **Out of scope:**
+        - Admin dashboard (separate epic)
+        - Auto-response emails (future enhancement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-context
+    attributes:
+      label: Technical Context
+      description: Architecture decisions, constraints, existing patterns to follow.
+      placeholder: |
+        - Follow existing form patterns in src/components/forms/
+        - Use Prisma for database access
+        - Email via existing Resend integration
+    validations:
+      required: false
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks (Auto-generated)
+      description: Leave empty - planner agent will populate this.
+      placeholder: |
+        Tasks will be created by the planner agent and linked here:
+        - [ ] #__ Task 1
+        - [ ] #__ Task 2
+    validations:
+      required: false
