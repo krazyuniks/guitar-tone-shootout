@@ -8,6 +8,7 @@
 ## Status
 - state: pending
 - phase: -
+- project: -
 - locked_at: -
 
 ## Dependencies

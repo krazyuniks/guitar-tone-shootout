@@ -44,14 +44,29 @@ WHILE epic not complete:
 
 ## Task Dispatch
 
-Based on task phase, spawn the correct agent:
+Based on task phase, spawn the correct agent. Read the task's `project` field from the status table.
+
+**Project values:** core, audio, t3k, webapp, worker, scheduler
+**MCP rule:** Only `webapp` needs Playwright MCP for browser testing.
+
+When invoking via wrapper script, pass `--project` to enable MCP appropriately:
+
+```bash
+# For webapp tasks (gets Playwright MCP)
+./scripts/claude-agent.sh implementer --project webapp -p "Implement T43..."
+
+# For non-webapp tasks (no MCP)
+./scripts/claude-agent.sh implementer --project core -p "Implement T44..."
+```
+
+When using Claude Code's Task() tool internally:
 
 ```javascript
 // Test phase
 Task({
   subagent_type: "test-author",
   description: `Write tests for ${task.title}`,
-  prompt: buildPrompt(task, "test"),
+  prompt: buildPrompt(task, "test", task.project),
   run_in_background: false
 })
 
@@ -59,7 +74,7 @@ Task({
 Task({
   subagent_type: "implementer",
   description: `Implement ${task.title}`,
-  prompt: buildPrompt(task, "impl"),
+  prompt: buildPrompt(task, "impl", task.project),
   run_in_background: true
 })
 
@@ -67,7 +82,7 @@ Task({
 Task({
   subagent_type: "validator",
   description: `Validate ${task.title}`,
-  prompt: buildPrompt(task, "validate"),
+  prompt: buildPrompt(task, "validate", task.project),
   run_in_background: false
 })
 ```

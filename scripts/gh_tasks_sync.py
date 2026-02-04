@@ -13,8 +13,34 @@ import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Optional
+
+
+class WorkspaceProject(str, Enum):
+    """UV workspace project members. Only WEBAPP needs browser MCP."""
+    CORE = "core"
+    AUDIO = "audio"
+    T3K = "t3k"
+    WEBAPP = "webapp"
+    WORKER = "worker"
+    SCHEDULER = "scheduler"
+
+    @classmethod
+    def from_label(cls, label: str) -> Optional["WorkspaceProject"]:
+        """Parse project from GitHub label (e.g., 'project:webapp')."""
+        if label.startswith("project:"):
+            try:
+                return cls(label.split(":")[1])
+            except ValueError:
+                return None
+        return None
+
+    @property
+    def needs_mcp(self) -> bool:
+        """Only webapp needs browser automation."""
+        return self == WorkspaceProject.WEBAPP
 
 try:
     from ghapi.all import GhApi
@@ -35,7 +61,7 @@ class ValidationResult:
         return len(self.errors) == 0
 
 
-@dataclass 
+@dataclass
 class Issue:
     number: int
     title: str
@@ -43,13 +69,23 @@ class Issue:
     state: str
     labels: list[str]
     blocked_by: list[int] = field(default_factory=list)
-    
+    project: Optional[WorkspaceProject] = None
+
     # Parsed sections
     objective: str = ""
     acceptance_criteria: list[str] = field(default_factory=list)
     scope_create: list[str] = field(default_factory=list)
     scope_modify: list[str] = field(default_factory=list)
     technical_notes: str = ""
+
+    def __post_init__(self):
+        """Extract project from labels if not set."""
+        if self.project is None:
+            for label in self.labels:
+                proj = WorkspaceProject.from_label(label)
+                if proj:
+                    self.project = proj
+                    break
 
 
 def parse_issue_body(issue: Issue) -> Issue:
@@ -215,6 +251,7 @@ class TasksWriter:
 |-------|-------|
 | State | {"complete" if task.state == "closed" else "pending"} |
 | Phase | - |
+| Project | {task.project.value if task.project else "-"} |
 | Blocked By | {blocked_by} |
 | Locked At | - |
 

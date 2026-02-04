@@ -30,8 +30,9 @@ usage() {
     echo "  -c, --continue       Continue last conversation"
     echo "  --interactive        Disable autonomous mode (prompt for permissions)"
     echo "  --allowed-tools <t>  Comma-separated list of allowed tools"
-    echo "  --mcp <servers>      Enable MCP servers (playwright, chrome, or comma-separated)"
-    echo "                       Default: none for orchestrator/planner, playwright for others"
+    echo "  --project <name>     Workspace project (core, audio, t3k, webapp, worker, scheduler)"
+    echo "                       Only 'webapp' enables Playwright MCP for browser testing"
+    echo "  --mcp <servers>      Override MCP servers (playwright, chrome, none)"
     echo ""
     echo "Available agents:"
     if [ -d "$AGENTS_DIR" ]; then
@@ -81,6 +82,7 @@ CONTINUE_MODE=""
 INTERACTIVE_MODE=""
 ALLOWED_TOOLS=""
 MCP_SERVERS=""
+PROJECT=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -110,6 +112,10 @@ while [ $# -gt 0 ]; do
             ;;
         --mcp)
             MCP_SERVERS="$2"
+            shift 2
+            ;;
+        --project)
+            PROJECT="$2"
             shift 2
             ;;
         -*)
@@ -179,17 +185,31 @@ if [ -n "$ALLOWED_TOOLS" ]; then
     CLAUDE_ARGS+=("--allowedTools" "$ALLOWED_TOOLS")
 fi
 
+# Validate project if specified
+VALID_PROJECTS="core audio t3k webapp worker scheduler"
+if [ -n "$PROJECT" ]; then
+    if ! echo "$VALID_PROJECTS" | grep -qw "$PROJECT"; then
+        echo "Error: Invalid project '$PROJECT'. Must be one of: $VALID_PROJECTS" >&2
+        exit 1
+    fi
+fi
+
 # MCP server configuration
-# Default: orchestrator/planner get no MCP, others get playwright only
-# "none" = explicitly disable all MCP servers
-# "playwright" = only playwright MCP (for browser access without other servers)
+# - orchestrator/planner: never need MCP
+# - other agents: only need MCP for webapp project (browser testing)
+# --mcp flag overrides automatic detection
 if [ -z "$MCP_SERVERS" ]; then
     case "$AGENT_NAME" in
         orchestrator|planner)
             MCP_SERVERS="none"
             ;;
         *)
-            MCP_SERVERS="playwright"
+            # Only webapp needs browser automation
+            if [ "$PROJECT" = "webapp" ]; then
+                MCP_SERVERS="playwright"
+            else
+                MCP_SERVERS="none"
+            fi
             ;;
     esac
 fi
