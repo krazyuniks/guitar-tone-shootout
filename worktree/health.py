@@ -3,12 +3,30 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from .config import get_main_worktree_path
 from .docker import (
     check_backend_health,
     check_nginx_health,
     get_service_status,
 )
 from .registry import get_worktree_by_path
+
+
+def _get_expected_services(worktree_path: Path) -> set[str]:
+    """Get expected services based on worktree type.
+
+    Main worktree runs jobs profile (redis, worker, scheduler).
+    Feature worktrees only run core services (nginx, backend, db).
+    """
+    # Core services for all worktrees
+    expected = {"nginx", "backend", "db"}
+
+    # Main worktree includes jobs profile services
+    main_path = get_main_worktree_path()
+    if worktree_path.resolve() == main_path.resolve():
+        expected.update({"redis", "worker", "scheduler"})
+
+    return expected
 
 
 @dataclass
@@ -20,6 +38,7 @@ class HealthCheckResult:
     nginx_responding: bool
     backend_responding: bool
     issues: list[str]
+    worktree_path: Path | None = None
 
     @property
     def status_emoji(self) -> str:
@@ -28,7 +47,11 @@ class HealthCheckResult:
     @property
     def containers_running(self) -> bool:
         """Check if all runtime containers are running."""
-        expected_services = {"nginx", "backend", "db", "redis", "worker", "scheduler"}
+        if self.worktree_path:
+            expected_services = _get_expected_services(self.worktree_path)
+        else:
+            # Fallback for backwards compatibility
+            expected_services = {"nginx", "backend", "db"}
         return all(self.services.get(svc) == "running" for svc in expected_services)
 
 
@@ -65,8 +88,8 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
     # Check service status
     services = get_service_status(worktree_path)
 
-    # Runtime services (frontend is build-only with --profile build)
-    expected_services = {"nginx", "backend", "db", "redis", "worker", "scheduler"}
+    # Expected services based on worktree type
+    expected_services = _get_expected_services(worktree_path)
     for service in expected_services:
         if service not in services:
             issues.append(f"Service not found: {service}")
@@ -91,6 +114,7 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
         nginx_responding=nginx_responding,
         backend_responding=backend_responding,
         issues=issues,
+        worktree_path=worktree_path,
     )
 
 
@@ -104,7 +128,6 @@ def quick_health_check(worktree_path: Path) -> bool:
         True if all expected runtime services are running
     """
     services = get_service_status(worktree_path)
-    # Runtime services (frontend is build-only with --profile build)
-    expected = {"nginx", "backend", "db", "redis", "worker", "scheduler"}
+    expected = _get_expected_services(worktree_path)
 
     return all(services.get(service) == "running" for service in expected)

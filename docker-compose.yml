@@ -30,9 +30,12 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Redis - Session, cache, and job broker
+  # Redis - Job broker for worker/scheduler (jobs profile only)
+  # Feature worktrees don't need Redis - only main runs background jobs
   # ==========================================================================
   redis:
+    profiles:
+      - jobs
     image: redis:7-alpine
     command: redis-server --appendonly yes
     volumes:
@@ -55,7 +58,7 @@ services:
       # Backend only has access to gts_core - NO T3K database access
       # Worker is the bridge between databases via pgmq
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
-      REDIS_URL: redis://redis:6379
+      # No REDIS_URL - backend doesn't need Redis (T3K rate limiting is worker's domain)
       SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-dev_oauth_key_32_bytes_exactly!!}
       ENV: ${ENV:-development}
@@ -77,8 +80,6 @@ services:
       - ./infrastructure/migrations:/app/infrastructure/migrations:ro
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -108,6 +109,8 @@ services:
   # Worker - TaskIQ background jobs and pgmq consumer
   # ==========================================================================
   worker:
+    profiles:
+      - jobs
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev
@@ -139,6 +142,8 @@ services:
   # Scheduler - TaskIQ cron job scheduler
   # ==========================================================================
   scheduler:
+    profiles:
+      - jobs
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev

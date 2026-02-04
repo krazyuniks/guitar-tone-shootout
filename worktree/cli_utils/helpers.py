@@ -154,8 +154,15 @@ def print_worktree_info(worktree, health_result=None, show_services: bool = True
   Astro:       {worktree.ports.astro} (build-only)
   Backend:     {worktree.ports.backend}
   Database:    {worktree.ports.db}
+  CloudBeaver: {worktree.ports.cloudbeaver}"""
+
+    # Only show Redis and Observability for main worktree (jobs profile)
+    is_main = worktree.branch == "main"
+    if is_main:
+        content += f"""
+
+[bold]Jobs Profile (main only):[/bold]
   Redis:       {worktree.ports.redis}
-  CloudBeaver: {worktree.ports.cloudbeaver}
 
 [bold cyan]Observability (--profile observability):[/bold cyan]
   Grafana:     http://localhost:{worktree.ports.grafana}

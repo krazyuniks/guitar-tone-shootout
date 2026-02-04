@@ -45,7 +45,8 @@ def _get_compose_files(cwd: Path, args: list[str]) -> list[str]:
         List of -f arguments to prepend to command
     """
     # Only add Traefik for 'up' commands (starting services)
-    if not args or args[0] != "up":
+    # Check if 'up' is anywhere in args (could be after --profile jobs)
+    if not args or "up" not in args:
         return []
 
     traefik_file = cwd / "docker-compose.traefik.yml"
@@ -295,13 +296,13 @@ def is_healthy(worktree_path: Path) -> bool:
     """
     status = get_service_status(worktree_path)
 
-    # Core runtime services (frontend is build-only with --profile build)
-    expected_services = {"nginx", "backend", "db", "redis"}
+    # Core runtime services for feature worktrees (no Redis - it's in jobs profile)
+    expected_services = {"nginx", "backend", "db"}
 
-    # Worker and scheduler only run on main worktree (via --profile jobs)
+    # Worker, scheduler, and Redis only run on main worktree (via --profile jobs)
     main_path = get_main_worktree_path()
     if worktree_path.resolve() == main_path.resolve():
-        expected_services.update({"worker", "scheduler"})
+        expected_services.update({"worker", "scheduler", "redis"})
 
     for service in expected_services:
         if service not in status:
@@ -593,15 +594,20 @@ def collect_container_logs(
 
     Args:
         worktree_path: Path to the worktree
-        services: List of service names (default: all core services)
+        services: List of service names (default: based on worktree type)
         lines: Number of lines to retrieve per service
 
     Returns:
         Dict mapping service name to log content
     """
     if services is None:
-        # Runtime services (frontend is build-only with --profile build)
-        services = ["nginx", "backend", "db", "redis", "worker", "scheduler"]
+        # Core services for feature worktrees
+        services = ["nginx", "backend", "db"]
+
+        # Main worktree includes jobs profile services (redis, worker, scheduler)
+        main_path = get_main_worktree_path()
+        if worktree_path.resolve() == main_path.resolve():
+            services.extend(["redis", "worker", "scheduler"])
 
     logs = {}
     for service in services:

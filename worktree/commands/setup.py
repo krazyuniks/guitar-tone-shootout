@@ -281,7 +281,10 @@ def _run_setup(
         if not resuming:
             status.update("[bold green]Checking port availability...")
             port_status = check_ports_available(worktree.ports)
-            core_services = ["backend", "db", "redis"]
+            # Core services: main needs redis (jobs profile), feature worktrees don't
+            core_services = ["backend", "db"]
+            if is_main:
+                core_services.append("redis")
             core_unavailable = [name for name in core_services if not port_status.get(name, True)]
             if core_unavailable:
                 delete_worktree(worktree_name)
@@ -512,9 +515,13 @@ def _start_and_configure_services(
             print_warning(f"Image build failed: {e}")
 
     # Step 7: Start database services first
+    # Main worktree needs redis for jobs profile; feature worktrees don't
     status.update("[bold green]Starting database services...")
     try:
-        run_compose(["up", "-d", "db", "redis"], cwd=worktree_path)
+        db_services = ["db"]
+        if is_main:
+            db_services.append("redis")
+        run_compose(["up", "-d", *db_services], cwd=worktree_path)
     except Exception as e:
         print_error(f"Failed to start database services: {e}")
         raise typer.Exit(1) from None
@@ -704,7 +711,7 @@ def _handle_resume_path(
 
     This does the same steps as fresh setup:
     1. Export database from main
-    2. Start db/redis
+    2. Start db (and redis for main worktree only)
     3. Import database
     4. Start remaining services
     5. Wait for healthy
@@ -722,9 +729,13 @@ def _handle_resume_path(
             raise typer.Exit(1)
 
     # Step 2: Start database services
+    # Main worktree needs redis for jobs profile; feature worktrees don't
     status.update("[bold green]Starting database services...")
     try:
-        run_compose(["up", "-d", "db", "redis"], cwd=worktree_path)
+        db_services = ["db"]
+        if is_main:
+            db_services.append("redis")
+        run_compose(["up", "-d", *db_services], cwd=worktree_path)
     except Exception as e:
         print_error(f"Failed to start database services: {e}")
         raise typer.Exit(1) from None

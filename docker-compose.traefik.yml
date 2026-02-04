@@ -1,26 +1,58 @@
-# GTS Docker Compose - Traefik Integration
-# Use for server deployment with HTTPS and subdomain routing
+# docker-compose.traefik.yml
+# Traefik integration overlay for public internet deployment
 #
-# Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.traefik.yml up -d
+# Usage: docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.traefik.yml up -d
 #
-# Requires:
-#   - Traefik running as reverse proxy
-#   - DNS configured for subdomain
-#   - TRAEFIK_DOMAIN environment variable set
+# This connects GTS to the server-wide Traefik reverse proxy for:
+# - SSL termination (Let's Encrypt wildcard cert)
+# - Subdomain routing (*.tone-shootout.com)
+#
+# Environment variables (set in .env.local by worktree.py):
+#   GTS_SUBDOMAIN - Subdomain for this worktree (e.g., "dev", "526", "pr42")
+#   GTS_ROUTER_NAME - Unique router name (e.g., "gts-main", "gts-526")
 
 services:
   nginx:
+    # Keep localhost binding for local testing, Traefik handles external traffic
+    # ports inherited from docker-compose.override.yml (e.g., 127.0.0.1:9000:80)
+    # Fix healthcheck - use 127.0.0.1 instead of localhost (IPv6 issue with wget)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 30s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.gts-${GTS_WORKTREE:-main}.rule=Host(`${TRAEFIK_SUBDOMAIN:-gts}.${TRAEFIK_DOMAIN}`)"
-      - "traefik.http.routers.gts-${GTS_WORKTREE:-main}.entrypoints=websecure"
-      - "traefik.http.routers.gts-${GTS_WORKTREE:-main}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.gts-${GTS_WORKTREE:-main}.loadbalancer.server.port=80"
+      # HTTPS router - serve the app
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}.rule=Host(`${GTS_SUBDOMAIN:-dev}.tone-shootout.com`)"
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}.entrypoints=websecure"
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}.tls=true"
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}.tls.certResolver=cloudflare"
+      # Use wildcard cert instead of per-subdomain certs (all worktrees share one cert)
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}.tls.domains[0].main=tone-shootout.com"
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}.tls.domains[0].sans=*.tone-shootout.com"
+      - "traefik.http.services.${GTS_ROUTER_NAME:-gts-main}.loadbalancer.server.port=80"
+      # HTTP router - redirect to HTTPS
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}-http.rule=Host(`${GTS_SUBDOMAIN:-dev}.tone-shootout.com`)"
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}-http.entrypoints=web"
+      - "traefik.http.routers.${GTS_ROUTER_NAME:-gts-main}-http.middlewares=${GTS_ROUTER_NAME:-gts-main}-redirect-https"
+      - "traefik.http.middlewares.${GTS_ROUTER_NAME:-gts-main}-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.${GTS_ROUTER_NAME:-gts-main}-redirect-https.redirectscheme.permanent=true"
     networks:
       - default
-      - traefik
+      - traefik-public
+
+  backend:
+    # Port binding is handled by docker-compose.override.yml
+    # Only override environment vars for public domain URLs
+    environment:
+      # Update URLs for public domain
+      - APP_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
+      - FRONTEND_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
+      - PUBLIC_API_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
+      - CORS_ORIGINS=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
 
 networks:
-  traefik:
+  traefik-public:
     external: true

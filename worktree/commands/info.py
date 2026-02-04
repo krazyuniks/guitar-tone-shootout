@@ -102,9 +102,8 @@ def register_info_commands(app: typer.Typer) -> None:
         if public_url:
             public_url_line = f"\n  [bold green]Public:[/bold green]     {public_url}"
 
-        console.print(
-            Panel(
-                f"""[bold]Worktree:[/bold] {worktree.worktree_name}
+        # Build content - base info for all worktrees
+        content = f"""[bold]Worktree:[/bold] {worktree.worktree_name}
 [bold]Branch:[/bold] {worktree.branch}
 [bold]Path:[/bold] {worktree.worktree_path}
 [bold]Status:[/bold] {"[green]Healthy[/green]" if health.healthy else "[red]Unhealthy[/red]"}
@@ -131,14 +130,21 @@ def register_info_commands(app: typer.Typer) -> None:
   Frontend:    Docker internal (4321)
   Backend:     {worktree.ports.backend} (internal)
   Database:    {worktree.ports.db}
-  Redis:       {worktree.ports.redis}
   CloudBeaver: {worktree.ports.cloudbeaver}
 
 [bold]Volumes:[/bold]
   PostgreSQL:  {worktree.volumes.postgres}
-  Redis:       {worktree.volumes.redis}
   Uploads:     {worktree.volumes.uploads}
-  CloudBeaver: {worktree.volumes.cloudbeaver}
+  CloudBeaver: {worktree.volumes.cloudbeaver}"""
+
+        # Add jobs profile sections for main worktree only
+        is_main = worktree.branch == "main"
+        if is_main:
+            content += f"""
+
+[bold cyan]Jobs Profile (main only):[/bold cyan]
+  Redis:       {worktree.ports.redis}
+  Redis Vol:   {worktree.volumes.redis}
 
 [bold cyan]Observability (--profile observability):[/bold cyan]
   Grafana:     http://localhost:{worktree.ports.grafana}
@@ -151,19 +157,14 @@ def register_info_commands(app: typer.Typer) -> None:
   Grafana:     {worktree.volumes.grafana}
   Loki:        {worktree.volumes.loki}
   Tempo:       {worktree.volumes.tempo}
-  Prometheus:  {worktree.volumes.prometheus}
+  Prometheus:  {worktree.volumes.prometheus}"""
 
-[bold]Services:[/bold]
-"""
-                + "\n".join(f"  {svc}: {state}" for svc, state in health.services.items())
-                + (
-                    "\n\n[bold]Issues:[/bold]\n" + "\n".join(f"  - {i}" for i in health.issues)
-                    if health.issues
-                    else ""
-                ),
-                title=f"Worktree Status: {worktree.worktree_name}",
-            )
-        )
+        content += "\n\n[bold]Services:[/bold]\n"
+        content += "\n".join(f"  {svc}: {state}" for svc, state in health.services.items())
+        if health.issues:
+            content += "\n\n[bold]Issues:[/bold]\n" + "\n".join(f"  - {i}" for i in health.issues)
+
+        console.print(Panel(content, title=f"Worktree Status: {worktree.worktree_name}"))
 
     @app.command()
     def health(
