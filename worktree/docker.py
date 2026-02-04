@@ -32,39 +32,25 @@ def is_traefik_running() -> bool:
 def _get_compose_files(cwd: Path, args: list[str]) -> list[str]:
     """Get compose file arguments based on context.
 
-    Automatically includes docker-compose.traefik.yml when:
-    - Traefik is running
-    - The file exists in the worktree
-    - The command is 'up' (starting services)
+    This function returns an empty list - compose file configuration is handled
+    via the COMPOSE_FILE environment variable in .env, which is set by
+    _ensure_compose_file_includes_traefik() during setup when Traefik is configured.
+
+    Previously this function automatically included docker-compose.traefik.yml
+    when Traefik was running, but this caused conflicts with the COMPOSE_FILE
+    env var approach and made the logic non-idempotent.
 
     Args:
         cwd: Working directory (worktree path)
         args: docker compose arguments
 
     Returns:
-        List of -f arguments to prepend to command
+        Empty list - compose files are configured via COMPOSE_FILE env var
     """
-    # Only add Traefik for 'up' commands (starting services)
-    # Check if 'up' is anywhere in args (could be after --profile jobs)
-    if not args or "up" not in args:
-        return []
-
-    traefik_file = cwd / "docker-compose.traefik.yml"
-    if not traefik_file.exists():
-        return []
-
-    if not is_traefik_running():
-        return []
-
-    # Include all compose files explicitly for Traefik integration
-    return [
-        "-f",
-        "docker-compose.yml",
-        "-f",
-        "docker-compose.override.yml",
-        "-f",
-        "docker-compose.traefik.yml",
-    ]
+    # Compose file configuration is now handled entirely via COMPOSE_FILE in .env
+    # This is set by _ensure_compose_file_includes_traefik() in setup.py when
+    # Traefik is properly configured (deploy/traefik/.env exists)
+    return []
 
 
 def run_compose(
@@ -164,7 +150,9 @@ def start_services(worktree_path: Path, detach: bool = True, cleanup: bool = Tru
     if detach:
         args.append("-d")
 
-    run_compose(args, cwd=worktree_path)
+    # Use longer timeout for up -d since it may trigger image builds
+    # Docker builds can take several minutes (especially the chown step)
+    run_compose(args, cwd=worktree_path, timeout=600)
 
 
 def stop_services(worktree_path: Path, timeout: int = 30) -> None:

@@ -210,30 +210,61 @@ def is_main_behind_remote(cwd: Path | None = None) -> bool:
 def rebase_on_main(cwd: Path) -> bool:
     """Rebase current branch on origin/main.
 
-    Fetches from origin first, then rebases.
+    Fetches from origin first, then rebases. Handles uncommitted changes
+    by stashing them before rebase and restoring after.
 
     Args:
         cwd: Working directory (worktree path)
 
     Returns:
-        True if rebase succeeded, False if conflicts or errors
+        True if rebase succeeded or no rebase needed, False if conflicts or errors
     """
     # Fetch latest
     fetch_origin(cwd)
 
-    # Rebase on origin/main
+    # Check if we're already up to date with origin/main
+    # This avoids unnecessary rebases and the issues that come with them
     result = run_git(
-        ["rebase", "origin/main"],
+        ["rev-list", "--count", "HEAD..origin/main"],
         cwd=cwd,
         check=False,
     )
+    if result.returncode == 0 and result.stdout.strip() == "0":
+        # No commits to rebase - we're already up to date
+        return True
 
-    if result.returncode != 0:
-        # Abort the failed rebase
-        run_git(["rebase", "--abort"], cwd=cwd, check=False)
-        return False
+    # Check for uncommitted changes
+    status_result = run_git(["status", "--porcelain"], cwd=cwd, check=False)
+    has_changes = bool(status_result.stdout.strip())
 
-    return True
+    # Stash any uncommitted changes
+    stashed = False
+    if has_changes:
+        stash_result = run_git(
+            ["stash", "push", "-m", "worktree-setup-rebase"],
+            cwd=cwd,
+            check=False,
+        )
+        stashed = stash_result.returncode == 0
+
+    try:
+        # Rebase on origin/main
+        result = run_git(
+            ["rebase", "origin/main"],
+            cwd=cwd,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            # Abort the failed rebase
+            run_git(["rebase", "--abort"], cwd=cwd, check=False)
+            return False
+
+        return True
+    finally:
+        # Restore stashed changes if we stashed them
+        if stashed:
+            run_git(["stash", "pop"], cwd=cwd, check=False)
 
 
 def create_worktree(
