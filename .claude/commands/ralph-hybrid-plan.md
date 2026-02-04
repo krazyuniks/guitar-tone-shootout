@@ -651,7 +651,19 @@ Present all settings in a single prompt for quick batch answers:
    NOTE: If you don't have a regression suite yet, enter "skip" and
    Ralph will rely on TDD tests only.
 
-Your choices (e.g., "1B, 2: 20, 3: chrome-devtools, playwright, 4: just test-regression"):
+5. **Health Check** - What command proves the system is healthy enough for tests to run?
+   This runs BEFORE verification to ensure infrastructure is ready.
+
+   Common options:
+   - docker compose up -d --build && curl -f http://localhost:8000/health
+   - just up && just health
+   - npm run dev & sleep 5 && curl -f http://localhost:3000
+   - skip (no health check - not recommended for containerised projects)
+
+   NOTE: If your project uses Docker/containers, a health check prevents
+   verification from failing due to stopped containers.
+
+Your choices (e.g., "1B, 2: 20, 3: chrome-devtools, playwright, 4: just test-regression, 5: docker compose up -d"):
 ```
 
 ### Store Settings:
@@ -679,6 +691,17 @@ successCriteria:
   timeout: 300
 ```
 
+Also store healthCheck in prd.json (used by Ralph during verification):
+
+```json
+{
+  "healthCheck": {
+    "command": "docker compose up -d --build && curl -f http://localhost:8000/health",
+    "timeout": 120
+  }
+}
+```
+
 ### Output:
 
 ```
@@ -688,6 +711,7 @@ successCriteria:
   Max iterations:     20
   MCP Servers:        chrome-devtools, playwright
   Regression Command: just test-regression
+  Health Check:       docker compose up -d --build && curl -f localhost:8000/health
 
 Testing Strategy:
   ┌─────────────────────────────────────────────────────────────┐
@@ -696,6 +720,11 @@ Testing Strategy:
   │   → Tests fail initially (Red)                              │
   │   → Implement to make them pass (Green)                     │
   │   → These ARE the feature validation                        │
+  ├─────────────────────────────────────────────────────────────┤
+  │ Health Check Gate (runs before verification)                │
+  │   → Ensures system is healthy before testing                │
+  │   → Starts containers, waits for services                   │
+  │   → Prevents false failures from infrastructure issues      │
   ├─────────────────────────────────────────────────────────────┤
   │ Regression Command (runs after each story)                  │
   │   → Runs: just test-regression                              │
