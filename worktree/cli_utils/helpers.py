@@ -18,7 +18,7 @@ def is_traefik_available() -> bool:
 
     Traefik is considered available when:
     - Running on Linux (server deployment)
-    - deploy/traefik/.env exists (configured)
+    - Traefik container is running
 
     Returns:
         True if Traefik routing is available.
@@ -26,10 +26,19 @@ def is_traefik_available() -> bool:
     if platform.system() != "Linux":
         return False
 
-    # Check if any worktree has traefik configured
-    worktree_root = get_worktree_root()
-    main_traefik_env = worktree_root / "main" / "deploy" / "traefik" / ".env"
-    return main_traefik_env.exists()
+    # Check if Traefik container is running
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "-f", "name=traefik"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return bool(result.stdout.strip())
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
 
 
 def get_traefik_subdomain(branch: str) -> str:
