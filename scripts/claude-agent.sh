@@ -221,7 +221,8 @@ build_mcp_config() {
 
         case "$server" in
             playwright)
-                config+='"playwright":{"command":"npx","args":["-y","@playwright/mcp@latest"]}'
+                # Use system chromium, run headless
+                config+='"playwright":{"command":"npx","args":["-y","@playwright/mcp@latest","--headless","--executable-path","/usr/bin/chromium"]}'
                 ;;
             chrome|chrome-devtools)
                 config+='"chrome-devtools":{"command":"npx","args":["-y","chrome-devtools-mcp@latest","--isolated"]}'
