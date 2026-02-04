@@ -112,7 +112,7 @@ class NoAvailableOffsetError(RegistryError):
     """No available port offset found."""
 
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.3"
 
 SCHEMA_SQL = """
 -- Schema versioning
@@ -233,6 +233,25 @@ def _migrate_1_1_to_1_2(conn: sqlite3.Connection) -> None:
         )
 
 
+def _migrate_1_2_to_1_3(conn: sqlite3.Connection) -> None:
+    """Migrate schema from 1.2 to 1.3 (fix volume naming pattern).
+
+    Changes volume naming from gts-{worktree}-{type} to gts-{type}-{worktree}
+    to match docker-compose.yml base pattern.
+    """
+    # Update volume names to correct pattern: gts-{type}-{worktree}
+    conn.execute(
+        """
+        UPDATE worktrees
+        SET
+            volume_postgres = 'gts-postgres-' || LOWER(REPLACE(worktree_name, '/', '-')),
+            volume_redis = 'gts-redis-' || LOWER(REPLACE(worktree_name, '/', '-')),
+            volume_uploads = 'gts-uploads-' || LOWER(REPLACE(worktree_name, '/', '-')),
+            volume_cloudbeaver = 'gts-cloudbeaver-' || LOWER(REPLACE(worktree_name, '/', '-'))
+        """
+    )
+
+
 def init_registry(registry_path: Path | None = None) -> None:
     """Initialize the registry database with schema.
 
@@ -263,6 +282,10 @@ def init_registry(registry_path: Path | None = None) -> None:
 
         if current_version == "1.1":
             _migrate_1_1_to_1_2(conn)
+            current_version = "1.2"
+
+        if current_version == "1.2":
+            _migrate_1_2_to_1_3(conn)
 
         # Insert or update schema version
         now = datetime.now(UTC).isoformat()

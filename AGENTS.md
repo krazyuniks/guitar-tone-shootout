@@ -423,12 +423,20 @@ When uncertain about ANY of the following, STOP and ask the user:
 
 ### Infrastructure Management Policy
 
-**Use `just` commands. Never run ad-hoc Docker/uv commands.**
+**CRITICAL: NEVER run ad-hoc Docker commands or manually edit generated files.**
+
+This project has declarative infrastructure. Generated files (docker-compose.override.yml, .env.local) are output, not input. Manual patches break idempotency - the next `worktree.py setup` will overwrite them.
+
+**The rule is absolute:**
+1. **Fix source code** (`worktree/*.py`, `justfile`, templates) - NOT generated output
+2. **Use `just` commands** - NOT raw Docker commands
+3. **Use `worktree.py`** - NOT manual file edits
 
 | Need | Use This | NOT This |
 |------|----------|----------|
 | Start services | `just up-d` | `docker compose up -d` |
 | Stop services | `just down` | `docker compose down` |
+| Fix infra issues | `./worktree.py setup <name>` | Manual file edits |
 | Run unit tests | `just test-unit` | `uv run pytest` on host |
 | Run E2E tests | `just test-e2e` | - |
 | Run lint/types | `just check` | `ruff check` on host |
@@ -437,20 +445,25 @@ When uncertain about ANY of the following, STOP and ask the user:
 | Build Astro | `just build-astro` | `cd frontend/astro && pnpm build` |
 | Watch Astro | `just watch-astro` | `cd frontend/astro && pnpm dev` |
 
-**Why?** The provided tooling has guardrails. Ad-hoc commands don't.
+**NEVER do these:**
+- Edit `docker-compose.override.yml` directly (it's auto-generated)
+- Edit `.env.local` directly (it's auto-generated)
+- Run `docker compose` commands directly (use `just`)
+- Run `uv run pytest` on host (except in `tests/e2e/python/`)
+- Manually patch ANY generated file
 
-**NEVER run these on host:**
-- `uv run pytest` (except in `tests/e2e/python/`)
-- `uv run ruff`, `uv run mypy`
-- `uv sync`
-- `pytest` directly
+**If tooling is missing or broken:**
+1. **STOP** - Don't work around it
+2. **Fix the source** - `worktree/*.py`, `justfile`, templates
+3. Or **ask the user** to run a command manually
 
-**If tooling is missing:**
-1. Ask if the user wants to add it to `justfile`
-2. Or ask the user to run the raw command manually
-3. Do NOT run ad-hoc infrastructure commands yourself
+**Why this matters:**
+- Manual patches get overwritten on next setup
+- Inconsistent state between worktrees
+- Breaks reproducibility
+- Creates hidden dependencies on manual steps
 
-**Destructive commands are blocked** by `.claude/hooks/block-volume-deletion.sh`. Even if you try to run `docker volume rm` or `down -v`, it will be blocked.
+**Destructive commands are blocked** by `.claude/hooks/block-volume-deletion.sh`.
 
 See `.claude/rules/infrastructure-protection.md` for details.
 

@@ -205,16 +205,18 @@ def calculate_volumes(worktree_name: str) -> VolumeConfig:
     # Sanitize name for Docker volume naming
     safe_name = worktree_name.replace("/", "-").lower()
 
+    # Volume naming pattern: gts-{type}-{worktree}
+    # Must match docker-compose.yml base pattern for compatibility
     return VolumeConfig(
-        postgres=f"{prefix}-{safe_name}-postgres",
-        redis=f"{prefix}-{safe_name}-redis",
-        uploads=f"{prefix}-{safe_name}-uploads",
-        cloudbeaver=f"{prefix}-{safe_name}-cloudbeaver",
+        postgres=f"{prefix}-postgres-{safe_name}",
+        redis=f"{prefix}-redis-{safe_name}",
+        uploads=f"{prefix}-uploads-{safe_name}",
+        cloudbeaver=f"{prefix}-cloudbeaver-{safe_name}",
         # Observability stack volumes
-        grafana=f"{prefix}-{safe_name}-grafana",
-        loki=f"{prefix}-{safe_name}-loki",
-        tempo=f"{prefix}-{safe_name}-tempo",
-        prometheus=f"{prefix}-{safe_name}-prometheus",
+        grafana=f"{prefix}-grafana-{safe_name}",
+        loki=f"{prefix}-loki-{safe_name}",
+        tempo=f"{prefix}-tempo-{safe_name}",
+        prometheus=f"{prefix}-prometheus-{safe_name}",
     )
 
 
