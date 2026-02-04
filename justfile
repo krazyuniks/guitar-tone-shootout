@@ -100,6 +100,85 @@ tdd PATH:
 # Database
 # =============================================================================
 
+# Export database to custom format dump file
+# Usage: just db-export backup.dump
+db-export file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    file="{{file}}"
+
+    # Validate file extension
+    if [[ ! "$file" == *.dump ]]; then
+        echo "✗ File must have .dump extension"
+        exit 1
+    fi
+
+    # Check if db container is running
+    if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
+        echo "✗ Database container is not running"
+        exit 1
+    fi
+
+    echo "→ Exporting database to $file..."
+    docker compose exec -T db pg_dump -Fc -U gts gts_core > "$file"
+
+    # Verify file was created and has content
+    if [ ! -f "$file" ]; then
+        echo "✗ Export file was not created"
+        exit 1
+    fi
+
+    size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
+    if [ "$size" -lt 100 ]; then
+        rm -f "$file"
+        echo "✗ Export file is too small (database may be empty)"
+        exit 1
+    fi
+
+    echo "✓ Database exported: $file ($size bytes)"
+
+# Import database from custom format dump file
+# WARNING: This drops and recreates the database!
+# Usage: just db-import backup.dump
+db-import file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    file="{{file}}"
+
+    # Validate file exists
+    if [ ! -f "$file" ]; then
+        echo "✗ File not found: $file"
+        exit 1
+    fi
+
+    # Validate file extension
+    if [[ ! "$file" == *.dump ]]; then
+        echo "✗ File must have .dump extension (pg_dump -Fc format)"
+        exit 1
+    fi
+
+    # Check if db container is running
+    if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
+        echo "✗ Database container is not running"
+        exit 1
+    fi
+
+    echo "→ Terminating existing connections..."
+    docker compose exec -T db psql -U gts -d postgres -c \
+        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='gts_core' AND pid <> pg_backend_pid();" \
+        > /dev/null 2>&1 || true
+
+    echo "→ Dropping database..."
+    docker compose exec -T db dropdb -U gts --if-exists gts_core
+
+    echo "→ Creating database..."
+    docker compose exec -T db createdb -U gts gts_core
+
+    echo "→ Restoring from $file..."
+    docker compose exec -T db pg_restore -U gts -d gts_core --no-owner --no-privileges < "$file" 2>&1 || true
+
+    echo "✓ Database imported from $file"
+
 # Run migrations
 migrate:
     docker compose exec -T backend alembic -c infrastructure/migrations/alembic.ini upgrade head

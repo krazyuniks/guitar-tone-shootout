@@ -119,7 +119,7 @@ def register_info_commands(app: typer.Typer) -> None:
 
 [bold cyan]Database Access:[/bold cyan]
   Host: localhost:{worktree.ports.db}
-  User: shootout
+  User: gts
   Pass: {db_password}
 
 [bold cyan]CloudBeaver Login:[/bold cyan]
@@ -364,7 +364,7 @@ def _display_expanded_list(worktrees, orphans, current_name) -> None:
   App: http://localhost:{wt.ports.nginx}  |  CloudBeaver: http://localhost:{wt.ports.cloudbeaver}
 [bold cyan]Internal:[/bold cyan] fe:Docker  be:{wt.ports.backend}
 
-[bold cyan]Database:[/bold cyan] localhost:{wt.ports.db}  User: [green]shootout[/green]  Pass: [green]{db_password}[/green]
+[bold cyan]Database:[/bold cyan] localhost:{wt.ports.db}  User: [green]gts[/green]  Pass: [green]{db_password}[/green]
 
 [bold cyan]CloudBeaver:[/bold cyan] User: [green]cbadmin[/green]  Pass: [green]{db_password}[/green]
 

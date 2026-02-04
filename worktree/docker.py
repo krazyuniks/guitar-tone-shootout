@@ -904,14 +904,13 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
         container_id, container_name, ports, status = parts
 
         # Extract compose project from container name
-        # Format: gts-<project>-<service>-<number> or similar
-        # e.g., gts-345-implement-holist-redis-1 -> gts-345-implement-holist
+        # Format: gts-<service>-<worktree> (e.g., gts-db-main, gts-backend-612-epic-di)
+        # We need to extract compose_project as gts-<worktree>
         name_parts = container_name.split("-")
         if len(name_parts) < 3:
             continue
 
-        # Find the service name (last meaningful part before the number)
-        # Known services: all runtime services plus build-only (astro) and tools (cloudbeaver)
+        # Known services
         known_services = {
             "db",
             "redis",
@@ -922,20 +921,26 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
             "astro",
             "cloudbeaver",  # Build-only and tool services
         }
-        service = None
-        project_end_idx = len(name_parts)
 
+        # Find service name (should be at index 1 after "gts")
+        service = None
+        service_idx = None
         for i, part in enumerate(name_parts):
             if part in known_services:
                 service = part
-                project_end_idx = i
+                service_idx = i
                 break
 
-        if not service:
+        if not service or service_idx is None:
             continue
 
-        # Reconstruct compose project name
-        compose_project = "-".join(name_parts[:project_end_idx])
+        # Reconstruct compose project name: gts-<everything-after-service>
+        # e.g., gts-db-main -> gts-main
+        # e.g., gts-backend-612-epic-di -> gts-612-epic-di
+        worktree_suffix = "-".join(name_parts[service_idx + 1 :])
+        if not worktree_suffix:
+            continue
+        compose_project = f"gts-{worktree_suffix}"
 
         # Check if this project is registered
         if compose_project not in registered_projects:

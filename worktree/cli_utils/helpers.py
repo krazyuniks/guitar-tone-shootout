@@ -141,9 +141,9 @@ def print_worktree_info(worktree, health_result=None, show_services: bool = True
 
 [bold cyan]Database Access:[/bold cyan]
   Host: localhost:{worktree.ports.db}
-  User: shootout
+  User: gts
   Pass: {db_password}
-  DB:   shootout
+  DB:   gts_core
 
 [bold cyan]CloudBeaver Login:[/bold cyan]
   User: cbadmin

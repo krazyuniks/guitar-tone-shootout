@@ -534,9 +534,9 @@ def _start_and_configure_services(
                     "db",
                     "pg_isready",
                     "-U",
-                    "shootout",
+                    "gts",
                     "-d",
-                    "shootout",
+                    "gts_core",
                 ],
                 cwd=worktree_path,
                 capture_output=True,
@@ -744,9 +744,9 @@ def _handle_resume_path(
                     "db",
                     "pg_isready",
                     "-U",
-                    "shootout",
+                    "gts",
                     "-d",
-                    "shootout",
+                    "gts_core",
                 ],
                 cwd=worktree_path,
                 capture_output=True,
@@ -824,7 +824,7 @@ def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:
 
     # Get database password from .env
     env_file = worktree_path / ".env"
-    db_password = "shootout"  # Default
+    db_password = "gts_dev_password"  # Default
     if env_file.exists():
         for line in env_file.read_text().splitlines():
             if line.startswith("DB_PASSWORD="):
@@ -832,7 +832,7 @@ def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:
                 break
 
     env["E2E_DATABASE_URL"] = (
-        f"postgresql+asyncpg://shootout:{db_password}@localhost:{worktree.ports.db}/shootout"
+        f"postgresql+asyncpg://gts:{db_password}@localhost:{worktree.ports.db}/gts_core"
     )
 
     # Run regression tests
@@ -920,7 +920,7 @@ def _display_setup_success(
   App: http://localhost:{worktree.ports.nginx}  |  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
 [bold cyan]Internal:[/bold cyan] fe:Docker  be:{worktree.ports.backend}
 
-[bold cyan]Database:[/bold cyan] localhost:{worktree.ports.db}  User: [green]shootout[/green]  Pass: [green]{db_password}[/green]
+[bold cyan]Database:[/bold cyan] localhost:{worktree.ports.db}  User: [green]gts[/green]  Pass: [green]{db_password}[/green]
 
 [bold cyan]CloudBeaver:[/bold cyan] User: [green]cbadmin[/green]  Pass: [green]{db_password}[/green]
 
