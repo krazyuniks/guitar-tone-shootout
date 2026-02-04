@@ -30,6 +30,8 @@ usage() {
     echo "  -c, --continue       Continue last conversation"
     echo "  --interactive        Disable autonomous mode (prompt for permissions)"
     echo "  --allowed-tools <t>  Comma-separated list of allowed tools"
+    echo "  --mcp <servers>      Enable MCP servers (playwright, chrome, or comma-separated)"
+    echo "                       Default: none for orchestrator/planner, playwright for others"
     echo ""
     echo "Available agents:"
     if [ -d "$AGENTS_DIR" ]; then
@@ -78,6 +80,7 @@ PRINT_MODE=""
 CONTINUE_MODE=""
 INTERACTIVE_MODE=""
 ALLOWED_TOOLS=""
+MCP_SERVERS=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -103,6 +106,10 @@ while [ $# -gt 0 ]; do
             ;;
         --allowed-tools)
             ALLOWED_TOOLS="$2"
+            shift 2
+            ;;
+        --mcp)
+            MCP_SERVERS="$2"
             shift 2
             ;;
         -*)
@@ -173,6 +180,60 @@ fi
 if [ -n "$ALLOWED_TOOLS" ]; then
     CLAUDE_ARGS+=("--allowedTools" "$ALLOWED_TOOLS")
 fi
+
+# MCP server configuration
+# Default: orchestrator/planner get no MCP, others get playwright
+if [ -z "$MCP_SERVERS" ]; then
+    case "$AGENT_NAME" in
+        orchestrator|planner)
+            MCP_SERVERS="none"
+            ;;
+        *)
+            MCP_SERVERS="playwright"
+            ;;
+    esac
+fi
+
+# Build MCP config JSON
+build_mcp_config() {
+    local servers="$1"
+    local config='{"mcpServers":{'
+    local first=true
+
+    if [ "$servers" = "none" ]; then
+        echo '{"mcpServers":{}}'
+        return
+    fi
+
+    # Split comma-separated servers
+    IFS=',' read -ra SERVER_LIST <<< "$servers"
+    for server in "${SERVER_LIST[@]}"; do
+        server=$(echo "$server" | xargs)  # trim whitespace
+        if [ "$first" = true ]; then
+            first=false
+        else
+            config+=','
+        fi
+
+        case "$server" in
+            playwright)
+                config+='"playwright":{"command":"npx","args":["-y","@playwright/mcp@latest"]}'
+                ;;
+            chrome)
+                config+='"chrome-devtools":{"command":"npx","args":["-y","chrome-devtools-mcp@latest"]}'
+                ;;
+            *)
+                echo "Warning: Unknown MCP server '$server', skipping" >&2
+                ;;
+        esac
+    done
+
+    config+='}}'
+    echo "$config"
+}
+
+MCP_CONFIG=$(build_mcp_config "$MCP_SERVERS")
+CLAUDE_ARGS+=("--strict-mcp-config" "--mcp-config" "$MCP_CONFIG")
 
 # Execute claude with combined prompt
 exec claude "${CLAUDE_ARGS[@]}" "$FULL_PROMPT"
