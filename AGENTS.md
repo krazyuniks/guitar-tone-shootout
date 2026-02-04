@@ -642,6 +642,71 @@ Start fresh session for implementation.
 
 ---
 
+## AI Development Workflow (Optional)
+
+Automated TDD workflow for epic/feature development. Use alongside existing patterns for larger features.
+
+See [Wiki: AI-Development-Workflow](https://github.com/krazyuniks/guitar-tone-shootout/wiki/AI-Development-Workflow) for full documentation.
+
+### Quick Start
+
+```bash
+just epic-sync 42      # Sync epic from GitHub to .tasks/
+just epic-start 42     # Start orchestration
+just epic-status 42    # Check status
+```
+
+### TDD Phases
+
+Every task goes through 5 phases:
+
+| Phase | Command | Agent |
+|-------|---------|-------|
+| 1. Test | `just tdd-test-phase T43` | test-author |
+| 2. Red | `just tdd-red T43` | - |
+| 3. Lock | `just tdd-lock T43` | - |
+| 4. Impl | `just tdd-impl-phase T43` | implementer |
+| 5. Validate | `just tdd-complete T43` | validator |
+
+### Agent Invocation
+
+Use the wrapper script to invoke agents:
+
+```bash
+./scripts/claude-agent.sh planner "Plan epic #42"
+./scripts/claude-agent.sh test-author "Write tests for T43"
+./scripts/claude-agent.sh implementer "Implement T43"
+```
+
+### Agents
+
+| Agent | Role | Constraints |
+|-------|------|-------------|
+| orchestrator | Coordinates tasks | No implementation |
+| planner | Breaks epics into tasks | Creates GitHub issues |
+| test-author | Writes pytest tests | No implementation files |
+| implementer | Makes tests pass | No test files |
+| validator | Verifies completion | Read-only |
+
+### State Location
+
+```
+.tasks/projects/guitar-tone-shootout/epics/E{n}/
+├── index.md      # Dependency graph, status table
+├── tasks/        # Individual task specs
+├── snapshots/    # Test file hashes (TDD enforcement)
+└── logs/         # Execution logs
+```
+
+### Key Rules
+
+1. **Tests are immutable** during implementation phase
+2. **All state in `.tasks/`** - read index.md for current status
+3. **Orchestrator is stateless** - exits and restarts with fresh context
+4. **Docker-first** - all test commands run via `docker compose exec`
+
+---
+
 ## Ralph Hybrid (Autonomous Development)
 
 For complex features, use Ralph Hybrid to run autonomous development loops.

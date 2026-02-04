@@ -16,14 +16,12 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+# GTS Python test patterns
 TEST_PATTERNS = [
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "tests/**/*.spec.ts",
-    "tests/**/*.spec.tsx",
-    "**/__tests__/**/*.ts",
-    "**/__tests__/**/*.tsx",
-    "e2e/**/*.spec.ts",
+    "tests/unit/**/*.py",
+    "tests/integration/**/*.py",
+    "tests/regression/**/*.py",
+    "tests/e2e/python/tests/**/*.py",
 ]
 
 
@@ -57,11 +55,18 @@ def hash_file(path: Path) -> str:
 
 
 def collect_test_files() -> list[Path]:
+    """Collect all test files matching GTS patterns."""
     files = []
     for pattern in TEST_PATTERNS:
         files.extend(Path(".").glob(pattern))
-    # Exclude node_modules
-    files = [f for f in files if "node_modules" not in str(f)]
+    # Exclude __pycache__, .venv, conftest.py (fixtures, not tests)
+    files = [
+        f for f in files
+        if "__pycache__" not in str(f)
+        and ".venv" not in str(f)
+        and f.name != "conftest.py"
+        and f.name.startswith("test_")  # Only actual test files
+    ]
     return sorted(set(files))
 
 

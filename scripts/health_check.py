@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Health checks to verify system actually works.
+Health checks to verify GTS system actually works.
+
+Runs quality gates (lint, types, tests) to verify epic completion.
 
 Usage:
     python scripts/health_check.py E42
@@ -26,26 +28,34 @@ class HealthChecker:
         self.results: list[HealthResult] = []
 
     def run_all(self) -> bool:
-        self.check_build()
+        """Run all health checks. Returns True if all pass."""
+        self.check_lint()
         self.check_typecheck()
         self.check_tests()
+        self.check_regression()
         self.check_e2e()
         return all(r.passed for r in self.results)
 
     def _run(self, cmd: list[str], timeout: int = 300) -> subprocess.CompletedProcess:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        """Run a command with timeout."""
+        try:
+            return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(cmd, 1, "", f"Command timed out after {timeout}s")
 
-    def check_build(self):
-        result = self._run(["just", "build"])
+    def check_lint(self):
+        """Run linting via Docker."""
+        result = self._run(["just", "lint"])
         self.results.append(HealthResult(
-            check="build",
+            check="lint",
             passed=result.returncode == 0,
-            message="Build succeeded" if result.returncode == 0 else "Build failed",
-            details={"stderr": result.stderr[-1000:]} if result.returncode != 0 else {}
+            message="Lint passed" if result.returncode == 0 else "Lint errors",
+            details={"output": result.stdout[-1000:]} if result.returncode != 0 else {}
         ))
 
     def check_typecheck(self):
-        result = self._run(["just", "typecheck"])
+        """Run type checking via Docker."""
+        result = self._run(["just", "check-types"])
         self.results.append(HealthResult(
             check="typecheck",
             passed=result.returncode == 0,
@@ -54,6 +64,7 @@ class HealthChecker:
         ))
 
     def check_tests(self):
+        """Run unit + integration tests via Docker."""
         result = self._run(["just", "test"])
         self.results.append(HealthResult(
             check="tests",
@@ -62,8 +73,19 @@ class HealthChecker:
             details={"output": result.stderr[-1000:]} if result.returncode != 0 else {}
         ))
 
+    def check_regression(self):
+        """Run regression tests (stack connectivity)."""
+        result = self._run(["just", "test-regression"])
+        self.results.append(HealthResult(
+            check="regression",
+            passed=result.returncode == 0,
+            message="Regression passed" if result.returncode == 0 else "Regression failed",
+            details={"output": result.stderr[-1000:]} if result.returncode != 0 else {}
+        ))
+
     def check_e2e(self):
-        result = self._run(["just", "e2e"])
+        """Run E2E tests (on host, hits Docker containers)."""
+        result = self._run(["just", "test-e2e"], timeout=600)
         self.results.append(HealthResult(
             check="e2e",
             passed=result.returncode == 0,

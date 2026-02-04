@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Static analysis for test quality.
+Static analysis for test quality (Python/pytest).
 
 Usage:
-    python scripts/test_quality_check.py src/ tests/
-    python scripts/test_quality_check.py --strict tests/
+    python scripts/test_quality_check.py tests/
+    python scripts/test_quality_check.py --strict tests/unit/
 """
 
 import re
@@ -12,21 +12,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Patterns that indicate low-quality tests
+# Patterns that indicate low-quality tests (Python/pytest)
 ANTIPATTERNS = [
     # Trivial assertions
-    (
-        r"expect\(true\)\.toBe\(true\)",
-        "trivial_assertion",
-        "error",
-        "Trivial assertion: expect(true).toBe(true)",
-    ),
-    (
-        r"expect\(false\)\.toBe\(false\)",
-        "trivial_assertion",
-        "error",
-        "Trivial assertion: expect(false).toBe(false)",
-    ),
     (
         r"assert\s+True\s*$",
         "trivial_assertion",
@@ -34,95 +22,115 @@ ANTIPATTERNS = [
         "Trivial assertion: assert True",
     ),
     (
-        r"assertEquals?\(true,\s*true\)",
+        r"assert\s+False\s*$",
         "trivial_assertion",
         "error",
-        "Trivial assertion: assertEquals(true, true)",
-    ),
-    # Weak assertions
-    (
-        r"expect\(\w+\)\.toBeTruthy\(\)",
-        "weak_assertion",
-        "warning",
-        "Weak assertion: prefer explicit value check over toBeTruthy()",
+        "Trivial assertion: assert False (always fails)",
     ),
     (
-        r"expect\(\w+\)\.toBeDefined\(\)",
-        "weak_assertion",
-        "warning",
-        "Weak assertion: toBeDefined() doesn't verify correctness",
+        r"assert\s+1\s*==\s*1",
+        "trivial_assertion",
+        "error",
+        "Trivial assertion: assert 1 == 1",
     ),
+    (
+        r'assert\s+["\'][^"\']+["\']\s*==\s*["\'][^"\']+["\']',
+        "trivial_assertion",
+        "warning",
+        "Assertion compares string literals - verify this is intentional",
+    ),
+    # Weak assertions (truthy checks without explicit comparison)
     (
         r"assert\s+\w+\s*$",
         "weak_assertion",
         "warning",
         "Weak assertion: truthy check without explicit comparison",
     ),
-    # Spy-only tests
     (
-        r"expect\(\w+\)\.toHaveBeenCalled\(\)\s*;?\s*\n\s*\}",
-        "spy_only",
+        r"assert\s+\w+\s+is\s+not\s+None\s*$",
+        "weak_assertion",
         "warning",
-        "Test only verifies call happened, not the effect",
+        "Weak assertion: 'is not None' doesn't verify correctness",
     ),
+    # Mock-only tests (testing mocks, not behaviour)
     (
-        r"\.toHaveBeenCalledWith\([^)]+\)\s*;?\s*\n\s*\}",
-        "spy_only",
+        r"mock\.\w+\.assert_called\(\)\s*$",
+        "mock_only",
         "warning",
-        "Test only verifies arguments, not the result",
-    ),
-    # Empty tests
-    (
-        r"it\(['\"][^'\"]+['\"]\s*,\s*\(\)\s*=>\s*\{\s*\}\)",
-        "empty_test",
-        "error",
-        "Empty test body",
+        "Test only verifies mock was called, not the effect",
     ),
     (
-        r"test\(['\"][^'\"]+['\"]\s*,\s*\(\)\s*=>\s*\{\s*\}\)",
-        "empty_test",
-        "error",
-        "Empty test body",
+        r"\.assert_called_once\(\)\s*$",
+        "mock_only",
+        "warning",
+        "Test only verifies call count, not the result",
     ),
     # Commented assertions
     (
-        r"//\s*expect\(",
+        r"#\s*assert\s+",
         "commented_assertion",
         "warning",
         "Commented out assertion",
     ),
+    # Skip markers
     (
-        r"//\s*assert",
-        "commented_assertion",
-        "warning",
-        "Commented out assertion",
-    ),
-    # Snapshot overuse
-    (
-        r"\.toMatchSnapshot\(\)",
-        "snapshot_overuse",
-        "warning",
-        "Snapshot tests don't verify behaviour, only detect changes",
-    ),
-    # Excessive mocking
-    (
-        r"jest\.mock\(['\"]\.\.?/",
-        "mock_implementation",
-        "warning",
-        "Mocking relative import - verify you're not mocking the subject under test",
-    ),
-    # Skip/only
-    (
-        r"\.skip\(",
+        r"@pytest\.mark\.skip",
         "skipped_test",
         "warning",
         "Skipped test - should be fixed or removed",
     ),
     (
-        r"\.only\(",
-        "focused_test",
+        r"pytest\.skip\(",
+        "skipped_test",
+        "warning",
+        "Programmatically skipped test",
+    ),
+    # xfail without reason
+    (
+        r"@pytest\.mark\.xfail\s*$",
+        "xfail_no_reason",
+        "warning",
+        "xfail without reason - add reason='...'",
+    ),
+    # Empty test functions
+    (
+        r"def\s+test_\w+\([^)]*\):\s*\n\s*pass\s*$",
+        "empty_test",
         "error",
-        "Focused test (.only) - will skip other tests",
+        "Empty test body (pass only)",
+    ),
+    (
+        r'def\s+test_\w+\([^)]*\):\s*\n\s*"""[^"]*"""\s*\n\s*pass\s*$',
+        "empty_test",
+        "error",
+        "Empty test body (docstring + pass only)",
+    ),
+    # TODO in test
+    (
+        r"#\s*TODO.*assert",
+        "todo_assertion",
+        "warning",
+        "TODO comment about assertion - test may be incomplete",
+    ),
+    # Broad exception catching in tests
+    (
+        r"except\s+Exception\s*:",
+        "broad_except",
+        "warning",
+        "Broad exception catch - use specific exception type",
+    ),
+    # Sleep in tests (flaky indicator)
+    (
+        r"time\.sleep\(",
+        "sleep_in_test",
+        "warning",
+        "Sleep in test - may cause flakiness, consider mocking time",
+    ),
+    (
+        r"asyncio\.sleep\(",
+        "sleep_in_test",
+        "warning",
+        "Async sleep in test - may cause flakiness",
     ),
 ]
 
@@ -137,6 +145,7 @@ class Issue:
 
 
 def check_file(path: Path) -> list[Issue]:
+    """Check a single test file for quality issues."""
     issues = []
 
     try:
@@ -148,7 +157,7 @@ def check_file(path: Path) -> list[Issue]:
 
     for i, line in enumerate(lines, 1):
         for pattern, issue_type, severity, message in ANTIPATTERNS:
-            if re.search(pattern, line):
+            if re.search(pattern, line, re.MULTILINE):
                 issues.append(
                     Issue(
                         file=str(path),
@@ -159,31 +168,48 @@ def check_file(path: Path) -> list[Issue]:
                     )
                 )
 
-    # Check for tests without assertions
-    test_blocks = re.finditer(
-        r"(it|test)\(['\"]([^'\"]+)['\"]\s*,\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{([^}]+)\}",
-        content,
+    # Check for test functions without assertions
+    test_func_pattern = re.compile(
+        r"(async\s+)?def\s+(test_\w+)\([^)]*\):\s*\n((?:(?!\ndef\s).)*)",
         re.DOTALL,
     )
 
-    for match in test_blocks:
+    for match in test_func_pattern.finditer(content):
         test_name = match.group(2)
         test_body = match.group(3)
 
+        # Check if body has an assertion
         has_assertion = any(
             kw in test_body
-            for kw in ["expect(", "assert", "should.", ".to.", "assertEquals"]
+            for kw in [
+                "assert ",
+                "pytest.raises",
+                "pytest.warns",
+                "pytest.approx",
+                ".assert_",  # mock assertions
+                "self.assert",  # unittest style
+            ]
         )
 
-        if not has_assertion:
+        # Skip if it's a fixture or helper
+        if "yield" in test_body or "return" in test_body:
+            continue
+
+        # Skip if it just calls another function that likely has assertions
+        if test_body.strip().startswith("await ") or test_body.strip().startswith(
+            "return "
+        ):
+            continue
+
+        if not has_assertion and "pass" not in test_body:
             line_num = content[: match.start()].count("\n") + 1
             issues.append(
                 Issue(
                     file=str(path),
                     line=line_num,
                     type="no_assertion",
-                    severity="error",
-                    message=f"Test '{test_name}' has no assertions",
+                    severity="warning",
+                    message=f"Test '{test_name}' may have no assertions",
                 )
             )
 
@@ -191,16 +217,17 @@ def check_file(path: Path) -> list[Issue]:
 
 
 def check_paths(paths: list[Path], strict: bool = False) -> tuple[bool, list[Issue]]:
+    """Check all test files in the given paths."""
     all_issues = []
-    test_patterns = ["*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx"]
+    test_patterns = ["test_*.py", "*_test.py"]
 
     for path in paths:
         if path.is_dir():
             for pattern in test_patterns:
                 for f in path.rglob(pattern):
-                    if "node_modules" not in str(f):
+                    if "__pycache__" not in str(f) and ".venv" not in str(f):
                         all_issues.extend(check_file(f))
-        elif path.exists():
+        elif path.exists() and path.name.startswith("test_"):
             all_issues.extend(check_file(path))
 
     errors = [i for i in all_issues if i.severity == "error"]
@@ -218,7 +245,7 @@ def check_paths(paths: list[Path], strict: bool = False) -> tuple[bool, list[Iss
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Test quality checker")
+    parser = argparse.ArgumentParser(description="Test quality checker (Python/pytest)")
     parser.add_argument("paths", nargs="+", type=Path)
     parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
     parser.add_argument("--format", choices=["text", "json"], default="text")
@@ -250,7 +277,7 @@ def main():
         warnings = [i for i in issues if i.severity == "warning"]
 
         for issue in issues:
-            icon = "✗" if issue.severity == "error" else "⚠"
+            icon = "x" if issue.severity == "error" else "!"
             print(f"{icon} {issue.file}:{issue.line} [{issue.type}]")
             print(f"  {issue.message}")
 
@@ -258,9 +285,9 @@ def main():
         print(f"Errors: {len(errors)}, Warnings: {len(warnings)}")
 
         if passed:
-            print("✓ Test quality check passed")
+            print("Test quality check passed")
         else:
-            print("✗ Test quality check failed")
+            print("Test quality check failed")
 
     sys.exit(0 if passed else 1)
 

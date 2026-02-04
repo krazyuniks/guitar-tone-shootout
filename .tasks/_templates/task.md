@@ -20,7 +20,7 @@
 criteria:
   - id: AC1
     description: "TODO: Add acceptance criteria"
-    validation: "echo 'TODO: Add validation command'"
+    validation: "docker compose exec -T webapp pytest tests/ -k 'test_name' -v"
 ```
 
 ## Description
@@ -31,18 +31,17 @@ criteria:
 
 ```yaml
 allowed_paths:
-  - "TODO: Add implementation paths"
+  - "libs/**/*.py"
+  - "apps/**/*.py"
 forbidden_paths:
-  - "**/*.test.ts"
-  - "**/*.test.tsx"
-  - "**/*.test.py"
+  - "tests/**"
 ```
 
-## TDD Phase Commands
+## TDD Phase Commands (GTS Docker-first)
 
 ```bash
 # Phase 1: Write tests
-just tdd-test {task_id}
+just tdd-test-phase {task_id}
 
 # Phase 2: Verify tests fail
 just tdd-red {task_id}
@@ -51,7 +50,7 @@ just tdd-red {task_id}
 just tdd-lock {task_id}
 
 # Phase 4: Implement
-just tdd-impl {task_id}
+just tdd-impl-phase {task_id}
 
 # Phase 5: Validate
 just tdd-complete {task_id}
