@@ -35,6 +35,45 @@ def strip_macos_acls(path: Path) -> None:
         )
 
 
+def fix_docker_ownership(path: Path) -> bool:
+    """Fix ownership of files created by Docker containers.
+
+    Docker containers often create files as root, which prevents normal users
+    from deleting them. This function uses a lightweight Alpine container to
+    recursively change ownership back to the current user.
+
+    Args:
+        path: Directory to fix ownership on
+
+    Returns:
+        True if ownership was fixed, False if it failed or wasn't needed
+    """
+    import os
+
+    if not path.exists():
+        return True
+
+    uid = os.getuid()
+    gid = os.getgid()
+
+    # Use Docker to chown all files back to current user
+    with contextlib.suppress(Exception):
+        result = subprocess.run(
+            [
+                "docker", "run", "--rm",
+                "-v", f"{path}:/work",
+                "alpine",
+                "chown", "-R", f"{uid}:{gid}", "/work"
+            ],
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+        return result.returncode == 0
+
+    return False
+
+
 class GitError(Exception):
     """Git operation failed."""
 
@@ -214,6 +253,9 @@ def create_worktree(
     """
     bare_repo = get_bare_repo_path()
 
+    # Always fetch latest before creating worktree
+    run_git(["fetch", "origin"], cwd=bare_repo, check=False)
+
     if create_branch:
         # Check if branch exists
         result = run_git(
@@ -222,8 +264,8 @@ def create_worktree(
             check=False,
         )
         if not result.stdout.strip():
-            # Create branch from main
-            run_git(["branch", branch, "main"], cwd=bare_repo)
+            # Create branch from origin/main (not local main which may be behind)
+            run_git(["branch", branch, "origin/main"], cwd=bare_repo)
 
     # Create worktree
     run_git(["worktree", "add", str(worktree_path), branch], cwd=bare_repo)
@@ -253,6 +295,9 @@ def remove_worktree(worktree_path: Path, force: bool = False) -> None:
     """
     bare_repo = get_bare_repo_path()
 
+    # Fix ownership of root-owned files from Docker before removal
+    fix_docker_ownership(worktree_path)
+
     # Strip macOS ACLs before attempting removal - Docker sets these on bind mounts
     strip_macos_acls(worktree_path)
 
@@ -265,24 +310,24 @@ def remove_worktree(worktree_path: Path, force: bool = False) -> None:
 
     # Clean up leftover directory if it still exists
     # git worktree remove may leave behind non-git files
-    cleanup_leftover_worktree_directory(worktree_path)
+    # Use force=True since we're in teardown mode
+    cleanup_leftover_worktree_directory(worktree_path, force=True)
 
 
-def cleanup_leftover_worktree_directory(worktree_path: Path) -> bool:
+def cleanup_leftover_worktree_directory(worktree_path: Path, force: bool = False) -> bool:
     """Clean up a worktree directory after git worktree remove.
 
-    Safely removes leftover directories that git worktree remove may leave behind.
-    Only removes if the directory:
-    - Still exists
-    - Is NOT a git worktree (already removed)
-    - Contains only known safe-to-delete files (.git file, etc.)
+    Removes leftover directories that git worktree remove may leave behind.
+    Handles root-owned files created by Docker containers.
 
     Args:
         worktree_path: Path to the worktree directory
+        force: If True, delete regardless of contents (use after teardown).
+               If False, only delete if directory is empty or has safe-to-delete items.
 
     Returns:
         True if directory was cleaned up or didn't exist
-        False if directory exists but has unknown files (safety stop)
+        False if directory exists but couldn't be removed
     """
     import shutil
 
@@ -295,27 +340,41 @@ def cleanup_leftover_worktree_directory(worktree_path: Path) -> bool:
         # .git file indicates it's still a worktree
         return False
 
-    # Known safe-to-delete items in worktree directories
-    safe_items = {".git", ".DS_Store", ".worktree-state"}
+    if not force:
+        # Known safe-to-delete items in worktree directories
+        safe_items = {".git", ".DS_Store", ".worktree-state"}
 
-    # Check all items in the directory
-    try:
-        items = set(item.name for item in worktree_path.iterdir())
-    except PermissionError:
-        return False
+        # Check all items in the directory
+        try:
+            items = set(item.name for item in worktree_path.iterdir())
+        except PermissionError:
+            # Can't even list the directory - try fixing ownership
+            fix_docker_ownership(worktree_path)
+            try:
+                items = set(item.name for item in worktree_path.iterdir())
+            except PermissionError:
+                return False
 
-    # Check for unknown items
-    unknown_items = items - safe_items
-    if unknown_items:
-        # There are unknown files - don't delete, might be work in progress
-        return False
+        # Check for unknown items
+        unknown_items = items - safe_items
+        if unknown_items:
+            # There are unknown files - don't delete without force
+            return False
 
-    # Safe to delete - only known system files
+    # Try to delete - handle root-owned files from Docker
     try:
         # Remove macOS ACLs that Docker sets on bind-mounted directories
         strip_macos_acls(worktree_path)
         shutil.rmtree(worktree_path)
         return True
+    except PermissionError:
+        # Files likely owned by root from Docker - fix ownership and retry
+        fix_docker_ownership(worktree_path)
+        try:
+            shutil.rmtree(worktree_path)
+            return True
+        except Exception:
+            return False
     except Exception:
         return False
 
