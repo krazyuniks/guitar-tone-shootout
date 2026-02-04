@@ -28,6 +28,8 @@ usage() {
     echo "  --max-turns <n>      Maximum conversation turns"
     echo "  --print              Print mode (non-interactive)"
     echo "  -c, --continue       Continue last conversation"
+    echo "  --interactive        Disable autonomous mode (prompt for permissions)"
+    echo "  --allowed-tools <t>  Comma-separated list of allowed tools"
     echo ""
     echo "Available agents:"
     if [ -d "$AGENTS_DIR" ]; then
@@ -74,6 +76,8 @@ PROMPT_FILE=""
 MAX_TURNS=""
 PRINT_MODE=""
 CONTINUE_MODE=""
+INTERACTIVE_MODE=""
+ALLOWED_TOOLS=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -92,6 +96,14 @@ while [ $# -gt 0 ]; do
         -c|--continue)
             CONTINUE_MODE="1"
             shift
+            ;;
+        --interactive)
+            INTERACTIVE_MODE="1"
+            shift
+            ;;
+        --allowed-tools)
+            ALLOWED_TOOLS="$2"
+            shift 2
             ;;
         -*)
             echo "Unknown option: $1" >&2
@@ -150,6 +162,16 @@ fi
 
 if [ -n "$MAX_TURNS" ]; then
     CLAUDE_ARGS+=("--max-turns" "$MAX_TURNS")
+fi
+
+# Autonomous mode (skip permissions) is the default for agent invocation
+# Use --interactive to prompt for permissions instead
+if [ -z "$INTERACTIVE_MODE" ]; then
+    CLAUDE_ARGS+=("--dangerously-skip-permissions")
+fi
+
+if [ -n "$ALLOWED_TOOLS" ]; then
+    CLAUDE_ARGS+=("--allowedTools" "$ALLOWED_TOOLS")
 fi
 
 # Execute claude with combined prompt
