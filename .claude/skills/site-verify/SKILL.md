@@ -106,7 +106,7 @@ Look for non-2xx status codes.
 ### Verify DB State
 
 ```bash
-docker compose exec backend python -c "
+docker compose exec webapp python -c "
 import asyncio
 from app.core.database import async_session
 from sqlalchemy import text

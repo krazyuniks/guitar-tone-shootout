@@ -31,7 +31,7 @@ just up-d                   # Start services (existing worktree)
 | **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
 | **Testing** | pytest, Playwright |
 | **Quality** | ruff, mypy, import-linter |
-| **Infrastructure** | Docker (db, redis, backend, nginx, worker, scheduler) |
+| **Infrastructure** | Docker (db, redis, webapp, nginx, worker, scheduler) |
 
 ---
 
@@ -150,7 +150,7 @@ gts/
 ### Runtime Stack
 
 ```
-db, redis, backend, nginx, worker, scheduler
+db, redis, webapp, nginx, worker, scheduler
 ```
 
 ### Build-Only Services
@@ -205,7 +205,7 @@ Parallel development with isolated Docker environments.
 | Service | Main (offset 0) | Feature (offset 1) | Formula |
 |---------|-----------------|-------------------|---------|
 | nginx | 9000 | 9010 | 9000 + (offset * 10) |
-| backend | 8000 | 8010 | 8000 + (offset * 10) |
+| webapp | 8000 | 8010 | 8000 + (offset * 10) |
 | PostgreSQL | 5432 | 5433 | 5432 + (offset * 1) |
 | Redis | 6379 | 6380 | 6379 + (offset * 1) |
 | Astro | 4321 | 4331 | 4321 + (offset * 10) |

@@ -17,7 +17,7 @@ Generate test boilerplate for pytest (backend) and Playwright E2E tests. Follows
 >
 > Backend test commands run in Docker, E2E runs on host:
 > ```bash
-> docker compose exec backend pytest /tests/unit/backend/
+> docker compose exec webapp pytest /tests/unit/backend/
 > pytest -m e2e tests/e2e/python/
 > ```
 

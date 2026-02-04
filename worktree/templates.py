@@ -158,7 +158,7 @@ COMPOSE_PROJECT_NAME={worktree.compose_project}
 # Port overrides (external ports)
 # Note: Frontend port not exposed to host - access only through nginx
 NGINX_PORT={worktree.ports.nginx}
-BACKEND_PORT={worktree.ports.backend}
+WEBAPP_PORT={worktree.ports.webapp}
 DB_PORT={worktree.ports.db}
 REDIS_PORT={worktree.ports.redis}
 CLOUDBEAVER_PORT={worktree.ports.cloudbeaver}
@@ -168,7 +168,7 @@ PUBLIC_API_URL=http://localhost:{worktree.ports.nginx}
 
 # URLs for Playwright E2E tests (run on host, not in Docker)
 BASE_URL=http://localhost:{worktree.ports.nginx}
-BACKEND_URL=http://localhost:{worktree.ports.backend}
+WEBAPP_URL=http://localhost:{worktree.ports.webapp}
 
 # Volume names (isolated per worktree)
 POSTGRES_VOLUME={worktree.volumes.postgres}
@@ -212,7 +212,7 @@ def _render_compose_override_inline(worktree: Worktree) -> str:
 # This file provides worktree-specific port bindings and volume names.
 # Ports are bound to 127.0.0.1 (localhost only) for security.
 #
-# Entry point: http://localhost:{ports.nginx} (nginx serves static files + proxies to backend)
+# Entry point: http://localhost:{ports.nginx} (nginx serves static files + proxies to webapp)
 
 services:
   nginx:
@@ -220,10 +220,10 @@ services:
     ports:
       - "127.0.0.1:{ports.nginx}:80"
 
-  backend:
-    container_name: {worktree.compose_project}-backend
+  webapp:
+    container_name: {worktree.compose_project}-webapp
     ports:
-      - "127.0.0.1:{ports.backend}:8000"
+      - "127.0.0.1:{ports.webapp}:8000"
     volumes:
       # App code (new uv workspace layout)
       - ./libs:/app/libs:ro

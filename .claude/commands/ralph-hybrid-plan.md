@@ -227,7 +227,7 @@ User may respond:
 - "Yes, that's correct" → Store findings
 - "Use `just test-regression` instead" → Store user's command
 - "We use make, not just" → Re-discover with user's tool
-- "The test command is `docker compose exec backend pytest`" → Store custom command
+- "The test command is `docker compose exec webapp pytest`" → Store custom command
 
 ### Output:
 

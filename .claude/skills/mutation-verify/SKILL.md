@@ -53,7 +53,7 @@ mcp__chrome-devtools__get_network_logs
 Query database directly to verify persistence:
 
 ```bash
-docker compose exec -T backend python -c "
+docker compose exec -T webapp python -c "
 import asyncio
 from sqlalchemy import select
 from app.core.database import async_session_factory
@@ -88,7 +88,7 @@ asyncio.run(check())
 ### Check if gear pack exists
 
 ```bash
-docker compose exec -T backend python -c "
+docker compose exec -T webapp python -c "
 import asyncio
 from sqlalchemy import select
 from app.core.database import async_session_factory
@@ -109,7 +109,7 @@ asyncio.run(check())
 ### Check if user gear was saved
 
 ```bash
-docker compose exec -T backend python -c "
+docker compose exec -T webapp python -c "
 import asyncio
 from sqlalchemy import select
 from app.core.database import async_session_factory
@@ -133,7 +133,7 @@ asyncio.run(check())
 ### List recent entries
 
 ```bash
-docker compose exec -T backend python -c "
+docker compose exec -T webapp python -c "
 import asyncio
 from sqlalchemy import select
 from app.core.database import async_session_factory
@@ -197,7 +197,7 @@ await expect(page.getByTestId('item-name')).toContainText('My Item');
 
 ```bash
 # Check any model by ID
-docker compose exec -T backend python -c "
+docker compose exec -T webapp python -c "
 from app.models import MODEL_NAME
 # ... query code
 "

@@ -48,15 +48,15 @@ check: lint check-types check-tests check-imports
 
 # Run type checking (strict on core)
 check-types:
-    docker compose exec -T backend mypy libs/core/ --strict
+    docker compose exec -T webapp mypy libs/core/ --strict
 
 # Run unit tests
 check-tests:
-    docker compose exec -T backend pytest tests/unit/ -v
+    docker compose exec -T webapp pytest tests/unit/ -v
 
 # Check import dependency rules
 check-imports:
-    docker compose exec -T backend lint-imports
+    docker compose exec -T webapp lint-imports
 
 # =============================================================================
 # Linting (all run in Docker)
@@ -64,8 +64,8 @@ check-imports:
 
 # Fix all lint issues (Python + Astro)
 lint:
-    docker compose exec -T backend ruff check libs/ sources/ apps/ tests/ --fix
-    docker compose exec -T backend ruff format libs/ sources/ apps/ tests/
+    docker compose exec -T webapp ruff check libs/ sources/ apps/ tests/ --fix
+    docker compose exec -T webapp ruff format libs/ sources/ apps/ tests/
     docker compose --profile build run --rm astro pnpm lint --fix
 
 # =============================================================================
@@ -74,19 +74,19 @@ lint:
 
 # Run unit tests (in Docker)
 test-unit:
-    docker compose exec -T backend pytest tests/unit/ -v
+    docker compose exec -T webapp pytest tests/unit/ -v
 
 # Run regression tests - validates stack connectivity (in Docker)
 test-regression:
-    docker compose exec -T backend pytest tests/regression/ -v --tb=short
+    docker compose exec -T webapp pytest tests/regression/ -v --tb=short
 
 # Run integration tests (in Docker)
 test-integration:
-    docker compose exec -T backend pytest tests/integration/ -v
+    docker compose exec -T webapp pytest tests/integration/ -v
 
 # Run all tests except E2E (in Docker)
 test:
-    docker compose exec -T backend pytest tests/unit/ tests/integration/ -v
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
 
 # Run E2E tests (on host, hits Docker containers)
 test-e2e:
@@ -94,7 +94,7 @@ test-e2e:
 
 # Run a single test file or test (TDD mode, in Docker)
 tdd PATH:
-    docker compose exec -T backend pytest {{PATH}} -v --tb=short
+    docker compose exec -T webapp pytest {{PATH}} -v --tb=short
 
 # =============================================================================
 # Database
@@ -181,19 +181,19 @@ db-import file:
 
 # Run migrations
 migrate:
-    docker compose exec -T backend alembic -c infrastructure/migrations/alembic.ini upgrade head
+    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini upgrade head
 
 # Create a new migration
 migration NAME:
-    docker compose exec -T backend alembic revision --autogenerate -m "{{NAME}}"
+    docker compose exec -T webapp alembic revision --autogenerate -m "{{NAME}}"
 
 # Show migration history
 migration-history:
-    docker compose exec -T backend alembic history
+    docker compose exec -T webapp alembic history
 
 # Rollback last migration
 migrate-down:
-    docker compose exec -T backend alembic downgrade -1
+    docker compose exec -T webapp alembic downgrade -1
 
 # =============================================================================
 # Frontend (Astro)
@@ -228,11 +228,11 @@ verify-astro-sync:
 
 # Open a shell in the backend container
 shell:
-    docker compose exec backend bash
+    docker compose exec webapp bash
 
 # Open a Python REPL in the backend container
 repl:
-    docker compose exec backend python
+    docker compose exec webapp python
 
 # Open psql to gts_core database
 psql:

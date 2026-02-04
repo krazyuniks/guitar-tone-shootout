@@ -199,7 +199,7 @@ def check_auth_status() -> AuthStatus:
     )
 
 
-def start_login_flow(backend_url: str = "http://localhost:8000") -> bool:
+def start_login_flow(webapp_url: str = "http://localhost:8000") -> bool:
     """Start the OAuth login flow by opening Chrome browser.
 
     This opens the T3K OAuth login page in Chrome (required for proxy setup).
@@ -207,7 +207,7 @@ def start_login_flow(backend_url: str = "http://localhost:8000") -> bool:
     the shared auth file.
 
     Args:
-        backend_url: Backend URL to use for OAuth (default: localhost:8000).
+        webapp_url: Webapp URL to use for OAuth (default: localhost:8000).
 
     Returns:
         True if browser was opened successfully, False otherwise.
@@ -215,7 +215,7 @@ def start_login_flow(backend_url: str = "http://localhost:8000") -> bool:
     import subprocess
     import sys
 
-    login_url = f"{backend_url}/api/v1/auth/login"
+    login_url = f"{webapp_url}/api/v1/auth/login"
 
     try:
         # Use Chrome explicitly (required for proxy setup on dev machines)
@@ -248,14 +248,14 @@ def start_login_flow(backend_url: str = "http://localhost:8000") -> bool:
             return False
 
 
-def restore_session(backend_url: str = "http://localhost:8000") -> tuple[bool, str]:
-    """Restore session from saved auth file via backend API.
+def restore_session(webapp_url: str = "http://localhost:8000") -> tuple[bool, str]:
+    """Restore session from saved auth file via webapp API.
 
-    Calls the backend's restore-session endpoint which reads the auth file
+    Calls the webapp's restore-session endpoint which reads the auth file
     and creates a local user/session.
 
     Args:
-        backend_url: Backend URL to call (default: localhost:8000).
+        webapp_url: Webapp URL to call (default: localhost:8000).
 
     Returns:
         Tuple of (success: bool, message: str).
@@ -268,7 +268,7 @@ def restore_session(backend_url: str = "http://localhost:8000") -> tuple[bool, s
     # Call the restore-session endpoint
     try:
         with httpx.Client(timeout=10.0) as client:
-            response = client.post(f"{backend_url}/api/v1/auth/restore-session")
+            response = client.post(f"{webapp_url}/api/v1/auth/restore-session")
 
             if response.status_code == 200:
                 data = response.json()
@@ -281,7 +281,7 @@ def restore_session(backend_url: str = "http://localhost:8000") -> tuple[bool, s
                 return False, f"Restore failed: {response.status_code}"
 
     except httpx.ConnectError:
-        return False, f"Cannot connect to backend at {backend_url}. Is it running?"
+        return False, f"Cannot connect to webapp at {webapp_url}. Is it running?"
     except httpx.RequestError as e:
         return False, f"Request failed: {e}"
 
@@ -323,8 +323,8 @@ def restore_session_browser(frontend_url: str = "http://localhost:4341") -> bool
             return False
 
 
-def get_backend_url_for_worktree(worktree_path: Path | None = None) -> str:
-    """Get the backend URL for a worktree.
+def get_webapp_url_for_worktree(worktree_path: Path | None = None) -> str:
+    """Get the webapp URL for a worktree.
 
     Reads the port from the worktree's environment or registry.
 
@@ -332,7 +332,7 @@ def get_backend_url_for_worktree(worktree_path: Path | None = None) -> str:
         worktree_path: Path to worktree, or None for current directory.
 
     Returns:
-        Backend URL (e.g., "http://localhost:8030").
+        Webapp URL (e.g., "http://localhost:8030").
     """
     from .registry import get_worktree_by_path
 
@@ -342,7 +342,7 @@ def get_backend_url_for_worktree(worktree_path: Path | None = None) -> str:
     try:
         worktree = get_worktree_by_path(worktree_path)
         if worktree:
-            return f"http://localhost:{worktree.ports.backend}"
+            return f"http://localhost:{worktree.ports.webapp}"
     except Exception:
         pass
 
@@ -357,21 +357,21 @@ def get_backend_url_for_worktree(worktree_path: Path | None = None) -> str:
     return "http://localhost:8000"
 
 
-def check_auth_from_api(backend_url: str) -> AuthStatus:
-    """Check auth status via backend API.
+def check_auth_from_api(webapp_url: str) -> AuthStatus:
+    """Check auth status via webapp API.
 
     This hits the /auth/status endpoint which reads from the auth file
     and returns detailed status information.
 
     Args:
-        backend_url: Backend URL to query.
+        webapp_url: Webapp URL to query.
 
     Returns:
         AuthStatus with validity info.
     """
     try:
         with httpx.Client(timeout=10.0) as client:
-            response = client.get(f"{backend_url}/api/v1/auth/status")
+            response = client.get(f"{webapp_url}/api/v1/auth/status")
 
             if response.status_code == 200:
                 data = response.json()

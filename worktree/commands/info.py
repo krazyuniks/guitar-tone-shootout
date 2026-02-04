@@ -114,7 +114,7 @@ def register_info_commands(app: typer.Typer) -> None:
 
 [bold cyan]Internal Services (for debugging):[/bold cyan]
   Frontend:    Docker internal (4321)
-  Backend:     http://localhost:{worktree.ports.backend}
+  Webapp:     http://localhost:{worktree.ports.webapp}
 
 [bold cyan]Database Access:[/bold cyan]
   Host: localhost:{worktree.ports.db}
@@ -128,7 +128,7 @@ def register_info_commands(app: typer.Typer) -> None:
 [bold]Ports:[/bold]
   Nginx:       {worktree.ports.nginx} (user entry point)
   Frontend:    Docker internal (4321)
-  Backend:     {worktree.ports.backend} (internal)
+  Webapp:     {worktree.ports.webapp} (internal)
   Database:    {worktree.ports.db}
   CloudBeaver: {worktree.ports.cloudbeaver}
 
@@ -192,9 +192,9 @@ def register_info_commands(app: typer.Typer) -> None:
             if public_url:
                 console.print(f"  [bold green]Public: {public_url}[/bold green]")
             nginx_status = "[green]OK[/green]" if result.nginx_responding else "[red]DOWN[/red]"
-            be_status = "[green]OK[/green]" if result.backend_responding else "[red]DOWN[/red]"
+            be_status = "[green]OK[/green]" if result.webapp_responding else "[red]DOWN[/red]"
             console.print(f"  App (nginx): http://localhost:{worktree.ports.nginx} {nginx_status}")
-            console.print(f"  Backend:     http://localhost:{worktree.ports.backend} {be_status}")
+            console.print(f"  Webapp:     http://localhost:{worktree.ports.webapp} {be_status}")
             console.print(f"  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}")
             console.print()
             console.print(
@@ -222,7 +222,7 @@ def register_info_commands(app: typer.Typer) -> None:
         table.add_column("Worktree", style="cyan")
         table.add_column("Offset")
         table.add_column("Nginx", style="green")
-        table.add_column("Backend")
+        table.add_column("Webapp")
         table.add_column("PostgreSQL")
         table.add_column("Redis")
         table.add_column("CloudBeaver")
@@ -232,7 +232,7 @@ def register_info_commands(app: typer.Typer) -> None:
                 wt.worktree_name,
                 str(wt.offset),
                 str(wt.ports.nginx),
-                str(wt.ports.backend),
+                str(wt.ports.webapp),
                 str(wt.ports.db),
                 str(wt.ports.redis),
                 str(wt.ports.cloudbeaver),
@@ -363,7 +363,7 @@ def _display_expanded_list(worktrees, orphans, current_name) -> None:
 
 [bold cyan]URLs:[/bold cyan]{public_url_line}
   App: http://localhost:{wt.ports.nginx}  |  CloudBeaver: http://localhost:{wt.ports.cloudbeaver}
-[bold cyan]Internal:[/bold cyan] fe:Docker  be:{wt.ports.backend}
+[bold cyan]Internal:[/bold cyan] fe:Docker  wa:{wt.ports.webapp}
 
 [bold cyan]Database:[/bold cyan] localhost:{wt.ports.db}  User: [green]gts[/green]  Pass: [green]{db_password}[/green]
 

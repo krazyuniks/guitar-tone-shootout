@@ -58,9 +58,9 @@ Validate code changes meet quality standards:
 ### Backend Checks
 ```bash
 # All backend checks (run these)
-docker compose exec backend ruff check app/
-docker compose exec backend mypy app/
-docker compose exec backend pytest /tests/unit/backend/ /tests/integration/backend/ -v
+docker compose exec webapp ruff check app/
+docker compose exec webapp mypy app/
+docker compose exec webapp pytest /tests/unit/webapp/ /tests/integration/webapp/ -v
 ```
 
 ### Frontend Checks

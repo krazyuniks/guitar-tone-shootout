@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .config import get_main_worktree_path
 from .docker import (
-    check_backend_health,
+    check_webapp_health,
     check_nginx_health,
     get_service_status,
 )
@@ -16,10 +16,10 @@ def _get_expected_services(worktree_path: Path) -> set[str]:
     """Get expected services based on worktree type.
 
     Main worktree runs jobs profile (redis, worker, scheduler).
-    Feature worktrees only run core services (nginx, backend, db).
+    Feature worktrees only run core services (nginx, webapp, db).
     """
     # Core services for all worktrees
-    expected = {"nginx", "backend", "db"}
+    expected = {"nginx", "webapp", "db"}
 
     # Main worktree includes jobs profile services
     main_path = get_main_worktree_path()
@@ -36,7 +36,7 @@ class HealthCheckResult:
     healthy: bool
     services: dict[str, str]
     nginx_responding: bool
-    backend_responding: bool
+    webapp_responding: bool
     issues: list[str]
     worktree_path: Path | None = None
 
@@ -51,7 +51,7 @@ class HealthCheckResult:
             expected_services = _get_expected_services(self.worktree_path)
         else:
             # Fallback for backwards compatibility
-            expected_services = {"nginx", "backend", "db"}
+            expected_services = {"nginx", "webapp", "db"}
         return all(self.services.get(svc) == "running" for svc in expected_services)
 
 
@@ -61,7 +61,7 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
     Checks:
     1. Docker container status (runtime services must be running)
     2. Nginx HTTP response (user-facing entry point)
-    3. Backend HTTP health endpoint (/health)
+    3. Webapp HTTP health endpoint (/health)
 
     Note: Frontend is build-only (--profile build), not part of runtime stack.
 
@@ -81,7 +81,7 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
             healthy=False,
             services={},
             nginx_responding=False,
-            backend_responding=False,
+            webapp_responding=False,
             issues=[f"Worktree not registered: {e}"],
         )
 
@@ -101,10 +101,10 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
     if not nginx_responding:
         issues.append(f"Nginx not responding at {worktree.nginx_url}")
 
-    # Check backend health endpoint
-    backend_responding = check_backend_health(worktree)
-    if not backend_responding:
-        issues.append(f"Backend not responding at {worktree.backend_url}/health")
+    # Check webapp health endpoint
+    webapp_responding = check_webapp_health(worktree)
+    if not webapp_responding:
+        issues.append(f"Webapp not responding at {worktree.webapp_url}/health")
 
     healthy = len(issues) == 0
 
@@ -112,7 +112,7 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
         healthy=healthy,
         services=services,
         nginx_responding=nginx_responding,
-        backend_responding=backend_responding,
+        webapp_responding=webapp_responding,
         issues=issues,
         worktree_path=worktree_path,
     )

@@ -1,6 +1,6 @@
 ---
 description: Comprehensive codebase review for security, dead code, complexity, and design patterns
-allowed-tools: Bash(docker compose exec backend:*), Bash(docker compose exec astro:*), Bash(gh issue create:*)
+allowed-tools: Bash(docker compose exec webapp:*), Bash(docker compose exec astro:*), Bash(gh issue create:*)
 argument-hint: "[--section=<name>] [--severity=<level>] [--no-issue]"
 model: claude-opus-4-5-20251101
 context: fork
@@ -65,7 +65,7 @@ curl -s http://localhost:8000/health | jq .
 ### 1.4 Install Analysis Tools
 
 ```bash
-docker compose exec backend pip install vulture bandit radon pip-audit -q
+docker compose exec webapp pip install vulture bandit radon pip-audit -q
 ```
 
 ### Preflight Checklist
@@ -119,7 +119,7 @@ docker compose exec backend pip install vulture bandit radon pip-audit -q
 Find unused functions, variables, and imports:
 
 ```bash
-docker compose exec backend vulture app/ --min-confidence 80
+docker compose exec webapp vulture app/ --min-confidence 80
 ```
 
 **Severity:** Low (unless dead code is security-sensitive)
@@ -130,10 +130,10 @@ Identify overly complex functions:
 
 ```bash
 # Cyclomatic complexity
-docker compose exec backend radon cc app/ -s -a
+docker compose exec webapp radon cc app/ -s -a
 
 # Maintainability index
-docker compose exec backend radon mi app/ -s
+docker compose exec webapp radon mi app/ -s
 ```
 
 **Thresholds:**
@@ -146,8 +146,8 @@ docker compose exec backend radon mi app/ -s
 ### 3.3 Test Coverage
 
 ```bash
-docker compose exec backend coverage run -m pytest /tests/unit/backend/ /tests/integration/backend/ -q --tb=no
-docker compose exec backend coverage report --skip-covered --fail-under=70
+docker compose exec webapp coverage run -m pytest /tests/unit/backend/ /tests/integration/backend/ -q --tb=no
+docker compose exec webapp coverage report --skip-covered --fail-under=70
 ```
 
 **Threshold:** Minimum 70% coverage required.
@@ -185,7 +185,7 @@ Check for these anti-patterns:
 ### 4.1 Static Analysis (Bandit)
 
 ```bash
-docker compose exec backend bandit -r app/ -ll -f txt
+docker compose exec webapp bandit -r app/ -ll -f txt
 ```
 
 **Severity:** Findings are pre-classified by Bandit (High/Medium/Low).
@@ -194,7 +194,7 @@ docker compose exec backend bandit -r app/ -ll -f txt
 
 ```bash
 # Python dependencies
-docker compose exec backend pip-audit --strict
+docker compose exec webapp pip-audit --strict
 
 # NPM dependencies (if astro container running)
 docker compose --profile build exec astro npm audit --audit-level=high
@@ -571,7 +571,7 @@ curl -s http://localhost:8000/metrics | grep -E "^t3k_circuit_breaker"
 curl -s http://localhost:8000/health/circuit-breaker | jq .
 
 # Verify configuration
-docker compose exec backend python -c "
+docker compose exec webapp python -c "
 from app.core.circuit_breaker import get_circuit_breaker
 cb = get_circuit_breaker()
 state = cb.get_state()
@@ -587,7 +587,7 @@ print(f'Recovery: {state[\"recovery_timeout\"]}s')
 
 ```bash
 # Check JSON logging
-docker compose exec backend env LOG_FORMAT=json python -c "
+docker compose exec webapp env LOG_FORMAT=json python -c "
 from app.core.logging import setup_logging, get_logger
 setup_logging()
 logger = get_logger('test')
@@ -595,7 +595,7 @@ logger.info('Test message', extra={'key': 'value'})
 "
 
 # Verify sensitive data filtering
-docker compose exec backend python -c "
+docker compose exec webapp python -c "
 from app.core.logging import sanitize_dict
 print(sanitize_dict({'user': 'bob', 'password': 'secret123'}))
 "
@@ -605,7 +605,7 @@ print(sanitize_dict({'user': 'bob', 'password': 'secret123'}))
 ### 8.4 Error Handling Verification
 
 ```bash
-docker compose exec backend python -c "
+docker compose exec webapp python -c "
 from app.core.exceptions import *
 print('AppException subclasses:')
 for cls in [NotFoundError, BadRequestError, ValidationError, AuthenticationError,

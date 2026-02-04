@@ -199,7 +199,7 @@ def _handle_existing_worktree(interactive: bool) -> bool:
             if health.containers_running:
                 console.print("[green]✓[/green] Services are running")
                 console.print(f"  Frontend: {current_worktree.frontend_url}")
-                console.print(f"  Backend: {current_worktree.backend_url}")
+                console.print(f"  Webapp: {current_worktree.webapp_url}")
             else:
                 console.print("[yellow]![/yellow] Services are not running")
                 if interactive:
@@ -214,7 +214,7 @@ def _handle_existing_worktree(interactive: bool) -> bool:
                             if wait_for_healthy(current_path):
                                 print_success("Services started and healthy")
                                 console.print(f"  Frontend: {current_worktree.frontend_url}")
-                                console.print(f"  Backend: {current_worktree.backend_url}")
+                                console.print(f"  Webapp: {current_worktree.webapp_url}")
                             else:
                                 print_warning("Services started but may not be fully healthy")
                 else:

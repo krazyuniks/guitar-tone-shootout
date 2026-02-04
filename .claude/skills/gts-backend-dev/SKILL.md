@@ -22,8 +22,8 @@ context: fork
 > ruff check app/
 >
 > # RIGHT - use Docker
-> docker compose exec backend pytest tests/
-> docker compose exec backend ruff check app/
+> docker compose exec webapp pytest tests/
+> docker compose exec webapp ruff check app/
 > ```
 > See `.claude/rules/container-execution.md` for full details.
 
@@ -259,13 +259,13 @@ async def create_item(db: DbSession, ...):
 
 ```bash
 # Create migration
-docker compose exec backend alembic revision --autogenerate -m "add jobs table"
+docker compose exec webapp alembic revision --autogenerate -m "add jobs table"
 
 # Apply migrations
-docker compose exec backend alembic upgrade head
+docker compose exec webapp alembic upgrade head
 
 # Rollback
-docker compose exec backend alembic downgrade -1
+docker compose exec webapp alembic downgrade -1
 ```
 
 ## Error Handling
@@ -318,16 +318,16 @@ Pre-commit auto-fixes formatting, imports, and simple refactors via `ruff --fix`
 
 ```bash
 # Lint (check only)
-docker compose exec backend ruff check app/
+docker compose exec webapp ruff check app/
 
 # Lint (auto-fix)
-docker compose exec backend ruff check --fix app/
+docker compose exec webapp ruff check --fix app/
 
 # Type check
-docker compose exec backend mypy app/
+docker compose exec webapp mypy app/
 
 # Test
-docker compose exec backend pytest tests/
+docker compose exec webapp pytest tests/
 
 # All checks
 just check-backend

@@ -14,7 +14,7 @@ The goal is to replace the current unit-only `test-regression` command with a me
 **Current state:**
 - Phase 3 (Adapters) is nearly complete: ORM models, repositories, audio processing
 - Phase 4 (Webapp) hasn't started: no FastAPI app, no services, no API
-- Docker services are running (db, redis, backend, nginx)
+- Docker services are running (db, redis, webapp, nginx)
 - Integration tests exist for repositories and work against real PostgreSQL
 
 **Archive reference:**
@@ -79,7 +79,7 @@ Create:
 
 3. **Update justfile** - Change `test-regression` to run:
    ```
-   docker compose exec -T backend pytest tests/regression/ -v --tb=short
+   docker compose exec -T webapp pytest tests/regression/ -v --tb=short
    ```
 
 4. **Update prd.json successCriteria** - Point to the new test:

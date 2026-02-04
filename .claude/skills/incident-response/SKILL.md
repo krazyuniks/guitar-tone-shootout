@@ -282,16 +282,16 @@ curl -sf http://localhost:8000/health/ready
 
 ```bash
 # 1. Check current revision
-docker compose exec backend alembic current
+docker compose exec webapp alembic current
 
 # 2. Downgrade one step
-docker compose exec backend alembic downgrade -1
+docker compose exec webapp alembic downgrade -1
 
 # 3. Or downgrade to specific revision
-docker compose exec backend alembic downgrade <revision>
+docker compose exec webapp alembic downgrade <revision>
 
 # 4. Verify
-docker compose exec backend alembic current
+docker compose exec webapp alembic current
 ```
 
 ### Full System Rollback
@@ -314,7 +314,7 @@ git checkout <last-known-good-sha>
 docker compose up -d
 
 # 5. Run migrations (if needed)
-docker compose exec backend alembic upgrade head
+docker compose exec webapp alembic upgrade head
 
 # 6. Verify all services
 docker compose ps
@@ -376,7 +376,7 @@ docker compose up -d --scale worker=2
 **Symptoms:** Shootout creation fails, audio not processing
 ```bash
 # Check storage mount
-docker compose exec backend ls -la /app/storage/
+docker compose exec webapp ls -la /app/storage/
 
 # Check disk space
 df -h

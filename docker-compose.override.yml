@@ -7,7 +7,7 @@
 #
 # Port allocation (main worktree):
 #   nginx:    9000
-#   backend:  8000
+#   webapp:   8000
 #   db:       5432
 #   redis:    6379
 
@@ -22,8 +22,8 @@ services:
     ports:
       - "6379:6379"
 
-  backend:
-    container_name: gts-backend-main
+  webapp:
+    container_name: gts-webapp-main
     ports:
       - "8000:8000"
 

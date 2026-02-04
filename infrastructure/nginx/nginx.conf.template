@@ -1,5 +1,5 @@
-upstream backend {
-    server ${BACKEND_HOST}:${BACKEND_PORT};
+upstream webapp {
+    server ${WEBAPP_HOST}:${WEBAPP_PORT};
 }
 
 server {
@@ -61,7 +61,7 @@ server {
 
     # API routes - proxy to backend
     location /api/ {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -75,7 +75,7 @@ server {
 
     # Auth routes - proxy to backend
     location /auth/ {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -84,7 +84,7 @@ server {
 
     # SSR pages (gear, shootouts, library, etc.) - proxy to backend
     location /gear {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -92,7 +92,7 @@ server {
     }
 
     location /shootouts {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -100,7 +100,7 @@ server {
     }
 
     location /shootout/ {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -108,7 +108,7 @@ server {
     }
 
     location /library/ {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -116,7 +116,7 @@ server {
     }
 
     location /chain/ {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -125,7 +125,7 @@ server {
 
     # Health check endpoint
     location /health {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
     }
 
@@ -151,7 +151,7 @@ server {
 
     # Fallback - proxy everything else to backend
     location / {
-        proxy_pass http://backend;
+        proxy_pass http://webapp;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

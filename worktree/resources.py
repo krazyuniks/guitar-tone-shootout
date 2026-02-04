@@ -30,12 +30,12 @@ COMPOSE_PROJECT_NAME={worktree.compose_project}
 
 # Port overrides (external ports)
 # FRONTEND_PORT not exposed - access via nginx at port {worktree.ports.nginx}
-BACKEND_PORT={worktree.ports.backend}
+WEBAPP_PORT={worktree.ports.webapp}
 DB_PORT={worktree.ports.db}
 REDIS_PORT={worktree.ports.redis}
 
-# API URL for frontend (must use external backend port)
-PUBLIC_API_URL=http://localhost:{worktree.ports.backend}
+# API URL for frontend (must use external webapp port)
+PUBLIC_API_URL=http://localhost:{worktree.ports.webapp}
 
 # Volume names (isolated per worktree)
 POSTGRES_VOLUME={worktree.volumes.postgres}
@@ -64,16 +64,16 @@ def generate_compose_override(worktree: Worktree, output_path: Path) -> None:
             "generated_at": datetime.now(UTC).isoformat(),
         },
         "services": {
-            "backend": {
-                "container_name": f"{worktree.compose_project}-backend",
-                "ports": [f"127.0.0.1:{ports.backend}:8000"],
+            "webapp": {
+                "container_name": f"{worktree.compose_project}-webapp",
+                "ports": [f"127.0.0.1:{ports.webapp}:8000"],
                 "volumes": [
-                    "./backend:/app",
+                    "./webapp:/app",
                     "./pipeline:/pipeline:ro",
                     f"{volumes.uploads}:/data/uploads",
                 ],
                 "environment": [
-                    f"PUBLIC_API_URL=http://localhost:{ports.backend}",
+                    f"PUBLIC_API_URL=http://localhost:{ports.webapp}",
                 ],
             },
             "astro": {
@@ -138,7 +138,7 @@ def check_ports_available(ports: PortConfig) -> dict[str, bool]:
     # Core services (frontend not exposed - Docker internal only)
     core_ports = [
         ("nginx", ports.nginx),  # User-facing entry point
-        ("backend", ports.backend),
+        ("webapp", ports.webapp),
         ("db", ports.db),
         ("redis", ports.redis),
         ("cloudbeaver", ports.cloudbeaver),
@@ -176,7 +176,7 @@ def format_ports_display(ports: PortConfig) -> str:
         Formatted string like "nginx:9000/be:8000/db:5432/redis:6379/cb:8978"
     """
     return (
-        f"nginx:{ports.nginx}/be:{ports.backend}/"
+        f"nginx:{ports.nginx}/wa:{ports.webapp}/"
         f"db:{ports.db}/redis:{ports.redis}/cb:{ports.cloudbeaver}"
     )
 

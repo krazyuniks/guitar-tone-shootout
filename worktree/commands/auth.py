@@ -78,8 +78,8 @@ def register_auth_commands(app: typer.Typer) -> None:
 
     @app.command("auth-login")
     def auth_login_cmd(
-        backend_port: int = typer.Option(
-            8000, "--port", "-p", help="Backend port for OAuth callback"
+        webapp_port: int = typer.Option(
+            8000, "--port", "-p", help="Webapp port for OAuth callback"
         ),
     ) -> None:
         """Open browser to login via T3K OAuth.
@@ -91,56 +91,56 @@ def register_auth_commands(app: typer.Typer) -> None:
         All worktrees will then be able to use these credentials.
 
         Args:
-            backend_port: Port of the backend to use for OAuth callback.
+            webapp_port: Port of the webapp to use for OAuth callback.
         """
         from ..auth import get_auth_file_path, start_login_flow
 
-        backend_url = f"http://localhost:{backend_port}"
+        webapp_url = f"http://localhost:{webapp_port}"
         auth_path = get_auth_file_path()
 
         console.print("[bold]Starting OAuth login flow...[/bold]")
-        console.print(f"Backend: {backend_url}")
+        console.print(f"Webapp: {webapp_url}")
         console.print(f"Auth will be saved to: {auth_path}")
         console.print()
 
-        if start_login_flow(backend_url):
+        if start_login_flow(webapp_url):
             print_success("Browser opened. Complete login in your browser.")
             console.print()
             console.print("[dim]After login, tokens will be saved automatically.[/dim]")
             console.print("[dim]Then run 'auth-restore' in any worktree to activate.[/dim]")
         else:
             print_error("Failed to open browser.")
-            console.print(f"Manually open: {backend_url}/api/v1/auth/login")
+            console.print(f"Manually open: {webapp_url}/api/v1/auth/login")
             raise typer.Exit(1)
 
     @app.command("auth-restore")
     def auth_restore_cmd(
-        backend_port: int = typer.Option(
-            None, "--port", "-p", help="Backend port (auto-detected if not specified)"
+        webapp_port: int = typer.Option(
+            None, "--port", "-p", help="Webapp port (auto-detected if not specified)"
         ),
     ) -> None:
         """Restore session from saved auth file.
 
         Reads T3K tokens from the shared auth file and creates a session in
-        the current worktree's backend. This is automatically called during
+        the current worktree's webapp. This is automatically called during
         worktree setup if valid auth exists.
 
         Run this after 'auth-login' to activate auth in the current worktree.
         """
         from ..auth import (
             check_auth_status,
-            get_backend_url_for_worktree,
+            get_webapp_url_for_worktree,
             restore_session,
         )
 
-        # Determine backend URL
-        if backend_port:
-            backend_url = f"http://localhost:{backend_port}"
+        # Determine webapp URL
+        if webapp_port:
+            webapp_url = f"http://localhost:{webapp_port}"
         else:
-            backend_url = get_backend_url_for_worktree()
+            webapp_url = get_webapp_url_for_worktree()
 
         console.print("[bold]Restoring session...[/bold]")
-        console.print(f"Backend: {backend_url}")
+        console.print(f"Webapp: {webapp_url}")
         console.print()
 
         # Check auth status first
@@ -152,7 +152,7 @@ def register_auth_commands(app: typer.Typer) -> None:
         console.print(f"Found valid auth for: {status.username}")
 
         # Call restore endpoint
-        success, message = restore_session(backend_url)
+        success, message = restore_session(webapp_url)
 
         if success:
             print_success(message)

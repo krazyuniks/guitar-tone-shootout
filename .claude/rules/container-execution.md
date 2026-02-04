@@ -9,9 +9,9 @@ just up-d                  # Start services (existing worktree)
 
 **Idempotent**: `./worktree.py setup` works for any state - fresh checkout, existing worktree, or already running.
 
-**Entry point**: http://localhost:9000 (nginx routes to static files and backend API)
+**Entry point**: http://localhost:9000 (nginx routes to static files and webapp API)
 
-**Runtime containers**: db, redis, backend, nginx, worker, scheduler
+**Runtime containers**: db, redis, webapp, nginx, worker, scheduler
 
 **Build-only containers**: astro (starts with `--profile build`)
 
@@ -19,13 +19,13 @@ just up-d                  # Start services (existing worktree)
 
 **NEVER run development commands directly on the host.** The host may not have the correct versions of Node, Python, or other tools installed (e.g., Volta errors, missing dependencies).
 
-**ALWAYS use Docker containers** for backend and astro commands. Use `just` commands when available.
+**ALWAYS use Docker containers** for webapp and astro commands. Use `just` commands when available.
 
 ## Execution Matrix
 
 | Component | Run Location | Command Pattern |
 |-----------|--------------|-----------------|
-| **Backend** (Python) | Docker | `docker compose exec backend <command>` |
+| **Webapp** (Python) | Docker | `docker compose exec webapp <command>` |
 | **Frontend** (Node/pnpm) | Docker (build profile) | `just build-astro` or `docker compose --profile build exec astro <command>` |
 | **Pipeline** | Host | `cd pipeline && uv run <command>` |
 | **E2E Tests** (Playwright) | Host | `just tdd tests/e2e/python/...` |

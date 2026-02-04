@@ -58,8 +58,8 @@ class Worktree:
         return f"http://localhost:{self.ports.astro}"
 
     @property
-    def backend_url(self) -> str:
-        return f"http://localhost:{self.ports.backend}"
+    def webapp_url(self) -> str:
+        return f"http://localhost:{self.ports.webapp}"
 
     @property
     def cloudbeaver_url(self) -> str:
@@ -356,7 +356,7 @@ def register_worktree(
                     offset,
                     now,
                     ports.astro,  # DB column is port_frontend for compatibility
-                    ports.backend,
+                    ports.webapp,  # DB column is port_backend for compatibility
                     ports.db,
                     ports.redis,
                     ports.cloudbeaver,
@@ -637,7 +637,7 @@ def _row_to_worktree(row: sqlite3.Row) -> Worktree:
         ports=PortConfig(
             nginx=row["port_nginx"],  # User-facing entry point
             astro=row["port_frontend"],  # DB column kept as port_frontend for compatibility
-            backend=row["port_backend"],
+            webapp=row["port_backend"],  # DB column kept as port_backend for compatibility
             db=row["port_db"],
             redis=row["port_redis"],
             cloudbeaver=row["port_cloudbeaver"],

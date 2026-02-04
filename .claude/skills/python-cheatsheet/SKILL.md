@@ -366,13 +366,13 @@ async def process_shootout(job_id: str, shootout_id: int) -> str:
 
 ```bash
 # Create migration
-docker compose exec backend alembic revision --autogenerate -m "add jobs table"
+docker compose exec webapp alembic revision --autogenerate -m "add jobs table"
 
 # Apply migrations
-docker compose exec backend alembic upgrade head
+docker compose exec webapp alembic upgrade head
 
 # Rollback
-docker compose exec backend alembic downgrade -1
+docker compose exec webapp alembic downgrade -1
 ```
 
 ---
@@ -383,16 +383,16 @@ docker compose exec backend alembic downgrade -1
 
 ```bash
 # Lint (check only)
-docker compose exec backend ruff check app/
+docker compose exec webapp ruff check app/
 
 # Lint (auto-fix)
-docker compose exec backend ruff check --fix app/
+docker compose exec webapp ruff check --fix app/
 
 # Type check
-docker compose exec backend mypy app/
+docker compose exec webapp mypy app/
 
 # Test
-docker compose exec backend pytest tests/
+docker compose exec webapp pytest tests/
 
 # All checks
 just check-backend

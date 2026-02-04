@@ -201,7 +201,7 @@ memory:
 #   all: "just check"
 #
 #   # Or separate commands for different parts
-#   backend: "docker compose exec backend pytest tests/ && ruff check ."
+#   webapp: "docker compose exec webapp pytest tests/ && ruff check ."
 #   frontend: "docker compose exec frontend pnpm check"
 #
 #   # Examples by language/framework:

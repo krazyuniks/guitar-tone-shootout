@@ -6,7 +6,7 @@
 #
 # This file overrides docker-compose.yml with worktree-specific ports and volumes.
 #
-# Entry point: http://localhost:{{ worktree.ports.nginx }} (nginx routes to backend)
+# Entry point: http://localhost:{{ worktree.ports.nginx }} (nginx routes to webapp)
 
 services:
   nginx:
@@ -14,10 +14,10 @@ services:
     ports:
       - "127.0.0.1:{{ worktree.ports.nginx }}:80"
 
-  backend:
-    container_name: {{ worktree.compose_project }}-backend
+  webapp:
+    container_name: {{ worktree.compose_project }}-webapp
     ports:
-      - "127.0.0.1:{{ worktree.ports.backend }}:8000"
+      - "127.0.0.1:{{ worktree.ports.webapp }}:8000"
     volumes:
       # App code (new uv workspace layout)
       - ./libs:/app/libs:ro

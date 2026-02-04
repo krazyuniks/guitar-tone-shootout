@@ -46,7 +46,7 @@ docker compose up backend
 docker compose logs -f backend worker
 
 # Shell into container
-docker compose exec backend bash
+docker compose exec webapp bash
 docker compose exec astro sh
 
 # Stop all
@@ -344,13 +344,13 @@ docker compose build --no-cache backend
 
 ```bash
 # Verify volume mount
-docker compose exec backend ls -la /app
+docker compose exec webapp ls -la /app
 
 # Check file permissions
-docker compose exec backend stat /app/app/main.py
+docker compose exec webapp stat /app/app/main.py
 
 # Restart service (only if uvicorn --reload isn't picking up changes)
-docker compose restart backend
+docker compose restart webapp
 ```
 
 ### Frontend Templates Not Updating
@@ -390,10 +390,10 @@ docker compose ps db
 docker compose logs db
 
 # Verify network
-docker compose exec backend ping db
+docker compose exec webapp ping db
 
 # Test connection
-docker compose exec backend python -c "
+docker compose exec webapp python -c "
 import asyncpg
 import asyncio
 asyncio.run(asyncpg.connect('postgresql://postgres:postgres@db:5432/shootout'))

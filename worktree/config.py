@@ -10,9 +10,9 @@ from pydantic_settings import BaseSettings
 class PortConfig(NamedTuple):
     """Port configuration for a worktree."""
 
-    nginx: int  # User-facing entry point (routes to backend)
+    nginx: int  # User-facing entry point (routes to webapp)
     astro: int  # Astro dev server (internal, build-only)
-    backend: int
+    webapp: int
     db: int
     redis: int
     cloudbeaver: int
@@ -48,7 +48,7 @@ class Settings(BaseSettings):
         default=9000, description="Base nginx port (user-facing entry point)"
     )
     base_port_astro: int = Field(default=4321, description="Base Astro port (internal, build-only)")
-    base_port_backend: int = Field(default=8000, description="Base backend port (internal)")
+    base_port_webapp: int = Field(default=8000, description="Base webapp port (internal)")
     base_port_db: int = Field(default=5432, description="Base PostgreSQL port")
     base_port_redis: int = Field(default=6379, description="Base Redis port")
     base_port_cloudbeaver: int = Field(default=8978, description="Base CloudBeaver port")
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
 
     # Port offset multipliers
     offset_multiplier_http: int = Field(
-        default=10, description="Multiplier for HTTP ports (astro, backend)"
+        default=10, description="Multiplier for HTTP ports (astro, webapp)"
     )
     offset_multiplier_db: int = Field(
         default=1, description="Multiplier for DB ports (postgres, redis)"
@@ -177,7 +177,7 @@ def calculate_ports(offset: int) -> PortConfig:
     return PortConfig(
         nginx=settings.base_port_nginx + http_offset,  # User-facing entry point
         astro=settings.base_port_astro + http_offset,  # Internal (Astro dev server, build-only)
-        backend=settings.base_port_backend + http_offset,  # Internal (FastAPI)
+        webapp=settings.base_port_webapp + http_offset,  # Internal (FastAPI)
         db=settings.base_port_db + db_offset,
         redis=settings.base_port_redis + db_offset,
         cloudbeaver=settings.base_port_cloudbeaver + http_offset,

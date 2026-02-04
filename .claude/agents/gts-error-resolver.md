@@ -46,13 +46,13 @@ Fix errors methodically:
 
 **Ruff (Lint)**
 ```bash
-docker compose exec backend ruff check app/
-docker compose exec backend ruff check app/ --fix  # Auto-fix
+docker compose exec webapp ruff check app/
+docker compose exec webapp ruff check app/ --fix  # Auto-fix
 ```
 
 **Mypy (Types)**
 ```bash
-docker compose exec backend mypy app/
+docker compose exec webapp mypy app/
 ```
 Common fixes:
 - Add type annotations
@@ -62,8 +62,8 @@ Common fixes:
 
 **Pytest (Tests)**
 ```bash
-docker compose exec backend pytest tests/ -v
-docker compose exec backend pytest tests/test_file.py -v  # Specific
+docker compose exec webapp pytest tests/ -v
+docker compose exec webapp pytest tests/test_file.py -v  # Specific
 ```
 
 ### TypeScript (Frontend)

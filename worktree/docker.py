@@ -297,7 +297,7 @@ def is_healthy(worktree_path: Path) -> bool:
     status = get_service_status(worktree_path)
 
     # Core runtime services for feature worktrees (no Redis - it's in jobs profile)
-    expected_services = {"nginx", "backend", "db"}
+    expected_services = {"nginx", "webapp", "db"}
 
     # Worker, scheduler, and Redis only run on main worktree (via --profile jobs)
     main_path = get_main_worktree_path()
@@ -352,7 +352,7 @@ def check_nginx_health(worktree: Worktree) -> bool:
     import urllib.request
     from http.client import RemoteDisconnected
 
-    # Check nginx by requesting /health (which it proxies to backend)
+    # Check nginx by requesting /health (which it proxies to webapp)
     url = f"{worktree.nginx_url}/health"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
@@ -367,20 +367,20 @@ def check_nginx_health(worktree: Worktree) -> bool:
         return False
 
 
-def check_backend_health(worktree: Worktree) -> bool:
-    """Check if backend health endpoint responds.
+def check_webapp_health(worktree: Worktree) -> bool:
+    """Check if webapp health endpoint responds.
 
     Args:
         worktree: Worktree configuration
 
     Returns:
-        True if backend is healthy
+        True if webapp is healthy
     """
     import urllib.error
     import urllib.request
     from http.client import RemoteDisconnected
 
-    url = f"{worktree.backend_url}/health"
+    url = f"{worktree.webapp_url}/health"
     try:
         with urllib.request.urlopen(url, timeout=5) as response:
             return bool(response.status == 200)
@@ -462,7 +462,7 @@ def wait_for_services_ready(
 
     This is a comprehensive health check that:
     1. Waits for Docker containers to be running
-    2. Waits for backend HTTP endpoint to respond
+    2. Waits for webapp HTTP endpoint to respond
 
     Note: Frontend is build-only (--profile build), not part of runtime stack.
 
@@ -488,22 +488,22 @@ def wait_for_services_ready(
         issues.append("Timeout waiting for Docker")
         return False, issues
 
-    # Phase 2: Wait for backend HTTP
-    if not wait_for_backend(worktree, timeout=min(int(remaining), 30)):
-        issues.append(f"Backend not responding at {worktree.backend_url}/health")
+    # Phase 2: Wait for webapp HTTP
+    if not wait_for_webapp(worktree, timeout=min(int(remaining), 30)):
+        issues.append(f"Backend not responding at {worktree.webapp_url}/health")
         return False, issues
 
     return True, []
 
 
-def wait_for_backend(
+def wait_for_webapp(
     worktree: Worktree,
     timeout: int = 60,
     initial_delay: float = 1.0,
     max_delay: float = 5.0,
     backoff_factor: float = 1.5,
 ) -> bool:
-    """Wait for backend to become healthy with exponential backoff.
+    """Wait for webapp to become healthy with exponential backoff.
 
     Args:
         worktree: Worktree configuration
@@ -513,13 +513,13 @@ def wait_for_backend(
         backoff_factor: Factor to multiply delay by after each retry
 
     Returns:
-        True if backend became healthy within timeout, False otherwise
+        True if webapp became healthy within timeout, False otherwise
     """
     start = time.time()
     delay = initial_delay
 
     while time.time() - start < timeout:
-        if check_backend_health(worktree):
+        if check_webapp_health(worktree):
             return True
         time.sleep(delay)
         delay = min(delay * backoff_factor, max_delay)
@@ -538,7 +538,7 @@ def run_migrations(worktree_path: Path) -> bool:
     """
     try:
         run_compose(
-            ["exec", "-T", "backend", "alembic", "upgrade", "head"],
+            ["exec", "-T", "webapp", "alembic", "upgrade", "head"],
             cwd=worktree_path,
         )
         return True
@@ -602,7 +602,7 @@ def collect_container_logs(
     """
     if services is None:
         # Core services for feature worktrees
-        services = ["nginx", "backend", "db"]
+        services = ["nginx", "webapp", "db"]
 
         # Main worktree includes jobs profile services (redis, worker, scheduler)
         main_path = get_main_worktree_path()
@@ -910,7 +910,7 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
         container_id, container_name, ports, status = parts
 
         # Extract compose project from container name
-        # Format: gts-<service>-<worktree> (e.g., gts-db-main, gts-backend-612-epic-di)
+        # Format: gts-<service>-<worktree> (e.g., gts-db-main, gts-webapp-612-epic-di)
         # We need to extract compose_project as gts-<worktree>
         name_parts = container_name.split("-")
         if len(name_parts) < 3:
@@ -920,7 +920,7 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
         known_services = {
             "db",
             "redis",
-            "backend",
+            "webapp",
             "nginx",
             "worker",
             "scheduler",  # Runtime services
@@ -942,7 +942,7 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
 
         # Reconstruct compose project name: gts-<everything-after-service>
         # e.g., gts-db-main -> gts-main
-        # e.g., gts-backend-612-epic-di -> gts-612-epic-di
+        # e.g., gts-webapp-612-epic-di -> gts-612-epic-di
         worktree_suffix = "-".join(name_parts[service_idx + 1 :])
         if not worktree_suffix:
             continue

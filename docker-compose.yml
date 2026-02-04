@@ -48,17 +48,17 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Backend - FastAPI web application
+  # Webapp - FastAPI web application
   # ==========================================================================
-  backend:
+  webapp:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev
     environment:
-      # Backend only has access to gts_core - NO T3K database access
+      # Webapp only has access to gts_core - NO T3K database access
       # Worker is the bridge between databases via pgmq
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
-      # No REDIS_URL - backend doesn't need Redis (T3K rate limiting is worker's domain)
+      # No REDIS_URL - webapp doesn't need Redis (T3K rate limiting is worker's domain)
       SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-dev_oauth_key_32_bytes_exactly!!}
       ENV: ${ENV:-development}
@@ -94,14 +94,14 @@ services:
   nginx:
     image: nginx:alpine
     environment:
-      BACKEND_HOST: backend
-      BACKEND_PORT: 8000
+      WEBAPP_HOST: webapp
+      WEBAPP_PORT: 8000
       NGINX_PORT: ${NGINX_PORT:-9000}
     volumes:
       - ./infrastructure/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./frontend/astro/dist:/usr/share/nginx/html/static:ro
     depends_on:
-      backend:
+      webapp:
         condition: service_healthy
     restart: unless-stopped
 
@@ -181,7 +181,20 @@ services:
       - /app/node_modules
     working_dir: /app
 
+  # ==========================================================================
+  # CloudBeaver - Web-based database management (tools profile only)
+  # ==========================================================================
+  cloudbeaver:
+    profiles:
+      - tools
+    image: dbeaver/cloudbeaver:latest
+    volumes:
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    restart: unless-stopped
+
 volumes:
+  cloudbeaver_data:
+    name: gts-cloudbeaver-${GTS_WORKTREE:-main}
   postgres_data:
     name: gts-postgres-${GTS_WORKTREE:-main}
   redis_data:

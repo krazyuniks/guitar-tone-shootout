@@ -43,7 +43,7 @@ services:
       - default
       - traefik-public
 
-  backend:
+  webapp:
     # Port binding is handled by docker-compose.override.yml
     # Only override environment vars for public domain URLs
     environment:

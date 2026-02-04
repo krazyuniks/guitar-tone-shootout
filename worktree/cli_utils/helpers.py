@@ -136,7 +136,7 @@ def print_worktree_info(worktree, health_result=None, show_services: bool = True
 [bold cyan]Service URLs:[/bold cyan]{public_url_line}
   App (nginx): http://localhost:{worktree.ports.nginx}
   Astro:       http://localhost:{worktree.ports.astro} (build-only)
-  Backend:     http://localhost:{worktree.ports.backend}
+  Webapp:      http://localhost:{worktree.ports.webapp}
   CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
 
 [bold cyan]Database Access:[/bold cyan]
@@ -152,7 +152,7 @@ def print_worktree_info(worktree, health_result=None, show_services: bool = True
 [bold]Ports:[/bold]
   Nginx:       {worktree.ports.nginx}
   Astro:       {worktree.ports.astro} (build-only)
-  Backend:     {worktree.ports.backend}
+  Webapp:      {worktree.ports.webapp}
   Database:    {worktree.ports.db}
   CloudBeaver: {worktree.ports.cloudbeaver}"""
 

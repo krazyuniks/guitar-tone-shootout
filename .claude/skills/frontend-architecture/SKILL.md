@@ -235,8 +235,8 @@ docker compose --profile build exec astro pnpm lint
 docker compose --profile build exec astro pnpm check
 
 # Backend checks (templates served by FastAPI)
-docker compose exec backend mypy app/
-docker compose exec backend pytest /tests/integration/backend/ -k page
+docker compose exec webapp mypy app/
+docker compose exec webapp pytest /tests/integration/backend/ -k page
 
 # Full check
 just check

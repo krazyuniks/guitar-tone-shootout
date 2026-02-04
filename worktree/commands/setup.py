@@ -282,7 +282,7 @@ def _run_setup(
             status.update("[bold green]Checking port availability...")
             port_status = check_ports_available(worktree.ports)
             # Core services: main needs redis (jobs profile), feature worktrees don't
-            core_services = ["backend", "db"]
+            core_services = ["webapp", "db"]
             if is_main:
                 core_services.append("redis")
             core_unavailable = [name for name in core_services if not port_status.get(name, True)]
@@ -687,8 +687,8 @@ def _restore_auth(status, worktree) -> None:
 
     auth_status = check_auth_status()
     if auth_status.valid:
-        backend_url = f"http://localhost:{worktree.ports.backend}"
-        success, message = restore_session(backend_url)
+        webapp_url = f"http://localhost:{worktree.ports.webapp}"
+        success, message = restore_session(webapp_url)
         if success:
             console.print(f"  [green]✓[/green] Auth restored for {auth_status.username}")
         else:
@@ -830,7 +830,7 @@ def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:
         "E2E_BASE_URL": public_url
         if public_url and traefik_running
         else f"http://localhost:{worktree.ports.nginx}",
-        "E2E_API_URL": f"http://localhost:{worktree.ports.backend}",
+        "E2E_API_URL": f"http://localhost:{worktree.ports.webapp}",
     }
 
     # Get database password from .env
@@ -929,7 +929,7 @@ def _display_setup_success(
 
 [bold cyan]URLs:[/bold cyan]{public_url_line}
   App: http://localhost:{worktree.ports.nginx}  |  CloudBeaver: http://localhost:{worktree.ports.cloudbeaver}
-[bold cyan]Internal:[/bold cyan] fe:Docker  be:{worktree.ports.backend}
+[bold cyan]Internal:[/bold cyan] fe:Docker  be:{worktree.ports.webapp}
 
 [bold cyan]Database:[/bold cyan] localhost:{worktree.ports.db}  User: [green]gts[/green]  Pass: [green]{db_password}[/green]
 

@@ -28,13 +28,13 @@ Run lint and type checks to identify issues. Report findings clearly so they can
 
 ```bash
 # Lint (style and errors)
-docker compose exec -T backend ruff check src/webapp/
+docker compose exec -T webapp ruff check src/webapp/
 
 # Format check (whitespace, line length)
-docker compose exec -T backend ruff format --check src/webapp/
+docker compose exec -T webapp ruff format --check src/webapp/
 
 # Type check
-docker compose exec -T backend mypy src/webapp/
+docker compose exec -T webapp mypy src/webapp/
 ```
 
 ### Frontend

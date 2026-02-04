@@ -72,7 +72,7 @@ Archive code at `../../guitar-tone-worktrees-archive-20260202/main/` provides re
 ### Container Execution
 
 All commands run in containers via `just`:
-- Backend: `docker compose exec backend <command>`
+- Webapp: `docker compose exec webapp <command>`
 - Astro: `just build-astro` or `just watch-astro`
 - Tests: `just tdd <path>`
 

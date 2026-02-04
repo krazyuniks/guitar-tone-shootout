@@ -175,7 +175,7 @@ Run before every release and in CI:
 
 ```bash
 # Python dependencies
-docker compose exec backend pip-audit --strict
+docker compose exec webapp pip-audit --strict
 
 # NPM dependencies
 docker compose --profile build exec astro npm audit --audit-level=high
@@ -193,7 +193,7 @@ gitleaks detect --source . --config .gitleaks.toml --verbose
 **Update commands:**
 ```bash
 # Update Python dependencies
-docker compose exec backend pip install --upgrade <package>
+docker compose exec webapp pip install --upgrade <package>
 # Then update requirements.txt
 
 # Update NPM dependencies
@@ -249,12 +249,12 @@ Quick reference for security verification:
 
 ```bash
 # Full security scan
-docker compose exec backend pip-audit --strict
+docker compose exec webapp pip-audit --strict
 docker compose --profile build exec astro npm audit --audit-level=high
 gitleaks detect --source . --config .gitleaks.toml --verbose
 
 # Code security analysis
-docker compose exec backend bandit -r app/ -ll -f txt
+docker compose exec webapp bandit -r app/ -ll -f txt
 
 # Verify security headers
 curl -I http://localhost:9000 | grep -E "(X-Frame|X-Content|Content-Security|Strict-Transport)"

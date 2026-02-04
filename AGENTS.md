@@ -42,7 +42,7 @@ just build-astro      # Build Astro frontend
 | **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
 | **Testing** | pytest, Playwright |
 | **Quality** | ruff, mypy, import-linter |
-| **Infrastructure** | Docker (db, redis, backend, nginx, worker, scheduler) |
+| **Infrastructure** | Docker (db, redis, webapp, nginx, worker, scheduler) |
 
 **Note:** Astro is pre-bundled (`frontend/astro/dist/` committed to git). No Vite dev server at runtime.
 
@@ -54,7 +54,7 @@ just build-astro      # Build Astro frontend
 |---------|------------|-------------------|
 | Build system | Astro, Tailwind, `frontend/astro/` dir | **None** - implementation detail |
 | Static assets | HTML/CSS/JS in `frontend/astro/dist/` | "static" or "assets" |
-| SSR pages | Jinja2 templates via FastAPI | "backend" |
+| SSR pages | Jinja2 templates via FastAPI | "webapp" |
 
 ### Dual Database Architecture
 
@@ -67,7 +67,7 @@ just build-astro      # Build Astro frontend
 
 ### Runtime Stack
 ```
-db, redis, backend, nginx, worker, scheduler
+db, redis, webapp, nginx, worker, scheduler
 ```
 No astro container at runtime.
 
@@ -82,8 +82,8 @@ just watch-astro        # Starts astro, watches for changes
 ### nginx Configuration
 Single `nginx.conf.template` for all environments, processed via envsubst at container startup.
 - Static files served from `/static` (bind-mounted `frontend/astro/dist/`)
-- SSR pages proxied to backend
-- API routes proxied to backend
+- SSR pages proxied to webapp
+- API routes proxied to webapp
 
 ### Docker Compose Architecture
 
@@ -113,10 +113,10 @@ docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 | File | Purpose | Has uv? |
 |------|---------|---------|
 | `Dockerfile.dev` | Development with bind mounts, live reload | Yes |
-| `Dockerfile.backend` | Production multi-stage, minimal | No (venv only) |
+| `Dockerfile.webapp` | Production multi-stage, minimal | No (venv only) |
 | `Dockerfile.worker` | Production worker | No |
 
-**Development uses `Dockerfile.dev`** - single stage, uv installed, supports `docker compose exec backend pytest`.
+**Development uses `Dockerfile.dev`** - single stage, uv installed, supports `docker compose exec webapp pytest`.
 
 ## Development Workflow
 
@@ -141,9 +141,9 @@ just test-e2e               # Run E2E tests (on host)
 
 | Command Type | Runs In | How |
 |--------------|---------|-----|
-| Lint, type check | Docker | `just check` → `docker compose exec -T backend ruff/mypy` |
-| Unit tests | Docker | `just test-unit` → `docker compose exec -T backend pytest` |
-| Integration tests | Docker | `just test-integration` → `docker compose exec -T backend pytest` |
+| Lint, type check | Docker | `just check` → `docker compose exec -T webapp ruff/mypy` |
+| Unit tests | Docker | `just test-unit` → `docker compose exec -T webapp pytest` |
+| Integration tests | Docker | `just test-integration` → `docker compose exec -T webapp pytest` |
 | E2E tests | **Host** | `just test-e2e` → `cd tests/e2e/python && uv run pytest` |
 | Astro build | Docker | `just build-astro` → `docker compose --profile build run astro` |
 
@@ -306,7 +306,7 @@ See `tests/AGENTS.md` for test structure and patterns.
 
 | Tool | Dependency Source | Where Runs | Notes |
 |------|-------------------|------------|-------|
-| Project code | uv workspace (`pyproject.toml`) | Docker | `docker compose exec backend pytest` |
+| Project code | uv workspace (`pyproject.toml`) | Docker | `docker compose exec webapp pytest` |
 | E2E tests | `tests/e2e/python/pyproject.toml` | Host | Isolated from workspace |
 | `worktree.py` | PEP 723 inline deps | Host | Self-contained, no venv needed |
 

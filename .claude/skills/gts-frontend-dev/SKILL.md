@@ -595,8 +595,8 @@ just build-astro
 just watch-templates
 
 # Backend checks
-docker compose exec backend ruff check src/webapp/
-docker compose exec backend mypy src/webapp/
+docker compose exec webapp ruff check src/webapp/
+docker compose exec webapp mypy src/webapp/
 
 # All checks
 just check
