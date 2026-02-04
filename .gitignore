@@ -30,3 +30,7 @@ venv/
 .ralph-hybrid/**/rate_limiter.state
 .ralph-hybrid/**/status.json
 .ralph-hybrid/**/logs/iteration-*.json
+
+
+# dynamic ports override
+docker-compose.override.yml
