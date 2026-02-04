@@ -178,7 +178,7 @@ services:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
     environment:
-      - PUBLIC_API_URL=http://localhost:9000
+      - PUBLIC_URL=http://localhost:9000
 
   worker:
     build:
@@ -244,7 +244,7 @@ POSTGRES_DB=shootout
 REDIS_URL=redis://redis:6379
 
 # Frontend
-PUBLIC_API_URL=http://localhost:8000
+PUBLIC_URL=http://localhost:8000
 
 # Note: T3K auth uses passwordless OAuth - no client credentials needed.
 # Tokens saved to .gts-auth.json via ./worktree.py auth-login

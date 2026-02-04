@@ -35,7 +35,7 @@ DB_PORT={worktree.ports.db}
 REDIS_PORT={worktree.ports.redis}
 
 # API URL for frontend (must use external webapp port)
-PUBLIC_API_URL=http://localhost:{worktree.ports.webapp}
+PUBLIC_URL=http://localhost:{worktree.ports.webapp}
 
 # Volume names (isolated per worktree)
 POSTGRES_VOLUME={worktree.volumes.postgres}
@@ -73,14 +73,14 @@ def generate_compose_override(worktree: Worktree, output_path: Path) -> None:
                     f"{volumes.uploads}:/data/uploads",
                 ],
                 "environment": [
-                    f"PUBLIC_API_URL=http://localhost:{ports.webapp}",
+                    f"PUBLIC_URL=http://localhost:{ports.webapp}",
                 ],
             },
             "astro": {
                 "container_name": f"{worktree.compose_project}-astro",
                 # No port exposed - access via nginx at port {ports.nginx}
                 "environment": [
-                    f"PUBLIC_API_URL=http://localhost:{ports.nginx}",
+                    f"PUBLIC_URL=http://localhost:{ports.nginx}",
                 ],
             },
             "worker": {

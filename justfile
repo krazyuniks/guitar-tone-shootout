@@ -94,9 +94,44 @@ lint:
 test-unit:
     docker compose exec -T webapp pytest tests/unit/ -v
 
-# Run regression tests - validates stack connectivity (in Docker)
+# Run regression tests - validates stack connectivity
+# Tests both internal Docker stack and external URL (Traefik SSL if available)
 test-regression:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Run internal stack tests in Docker
+    echo "→ Running internal stack regression tests..."
     docker compose exec -T webapp pytest tests/regression/ -v --tb=short
+
+    # Source E2E environment (uses PUBLIC_URL from .env.local)
+    source scripts/e2e-env.sh
+    echo ""
+    echo "→ Testing external endpoint: $E2E_BASE_URL"
+
+    # Check if Traefik is running and we're using HTTPS
+    if docker ps -q -f name=traefik 2>/dev/null | grep -q . && [[ "$E2E_BASE_URL" == https://* ]]; then
+        echo "→ Traefik detected: Testing SSL endpoint..."
+        if curl -sf --max-time 10 "$E2E_BASE_URL/health" > /dev/null 2>&1; then
+            echo "  ✓ SSL endpoint responding: $E2E_BASE_URL"
+        else
+            echo "  ✗ SSL endpoint not responding: $E2E_BASE_URL"
+            echo "    Check Traefik logs: cd deploy/traefik && docker compose logs"
+            exit 1
+        fi
+    else
+        # Test localhost endpoint
+        if curl -sf --max-time 10 "$E2E_BASE_URL/health" > /dev/null 2>&1; then
+            echo "  ✓ Endpoint responding: $E2E_BASE_URL"
+        else
+            echo "  ✗ Endpoint not responding: $E2E_BASE_URL"
+            echo "    Check Docker logs: docker compose logs"
+            exit 1
+        fi
+    fi
+
+    echo ""
+    echo "✓ All regression tests passed"
 
 # Run integration tests (in Docker)
 test-integration:

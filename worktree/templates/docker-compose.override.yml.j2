@@ -33,17 +33,18 @@ services:
       - ../:/worktrees
     environment:
       # All URLs point to nginx for consistent auth cookie handling
-      - APP_URL=http://localhost:{{ worktree.ports.nginx }}
-      - FRONTEND_URL=http://localhost:{{ worktree.ports.nginx }}
-      - PUBLIC_API_URL=http://localhost:{{ worktree.ports.nginx }}
-      - CORS_ORIGINS=http://localhost:{{ worktree.ports.nginx }}
+      # Uses Traefik HTTPS URL on server, localhost for local development
+      - APP_URL={{ public_url }}
+      - FRONTEND_URL={{ public_url }}
+      - PUBLIC_URL={{ public_url }}
+      - CORS_ORIGINS={{ public_url }}
 
   astro:
     container_name: {{ worktree.compose_project }}-astro
     ports:
       - "127.0.0.1:{{ worktree.ports.astro }}:4321"
     environment:
-      - PUBLIC_API_URL=http://localhost:{{ worktree.ports.nginx }}
+      - PUBLIC_URL={{ public_url }}
 
   worker:
     container_name: {{ worktree.compose_project }}-worker
