@@ -54,6 +54,9 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     environment:
       # Webapp only has access to gts_core - NO T3K database access
       # Worker is the bridge between databases via pgmq
@@ -114,6 +117,9 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     command: ["taskiq", "worker", "worker.main:broker", "--workers", "1"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
@@ -147,6 +153,9 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     command: ["taskiq", "scheduler", "scheduler.main:scheduler"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
