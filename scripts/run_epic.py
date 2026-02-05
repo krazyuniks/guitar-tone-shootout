@@ -212,6 +212,8 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
         "3. Run tests to verify they compile and FAIL (not error)",
         "4. Do NOT create any implementation files",
         "5. Do NOT update any .tasks/ state files",
+        "6. Do NOT modify any existing test files — only create new ones",
+        "7. Check if a test file exists before writing. If it does, use a different filename",
     ]
 
     if retry_context:
@@ -674,21 +676,22 @@ def run_state_machine(
                     if not ok:
                         stop_epic(epic_dir, task.task_id, "green_failed", output)
 
-                # Auto-commit implementation work
-                print(f"  Committing implementation for T{task.task_id}...")
+                # Auto-commit implementation files
+                print(f"\n  Committing implementation...")
+                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/"]
                 subprocess.run(
-                    ["git", "add", "libs/", "apps/", "sources/", "infrastructure/"],
-                    capture_output=True,
+                    ["git", "add", *impl_paths],
+                    cwd=PROJECT_ROOT, capture_output=True, text=True,
                 )
                 subprocess.run(
-                    ["git", "commit", "-m", f"impl: T{task.task_id} make tests pass"],
-                    capture_output=True,
+                    ["git", "commit", "-m", f"feat({task.project or 'impl'}): Implement {task_id_str} — {task.title}"],
+                    cwd=PROJECT_ROOT, capture_output=True, text=True,
                 )
 
                 update_task_state(epic_dir, task.task_id, "validating")
             else:
                 print(f"  [dry-run] Would run: tdd-green {task_id_str}")
-                print(f"  [dry-run] Would commit implementation")
+                print(f"  [dry-run] Would commit implementation files")
                 print(f"  [dry-run] Would update state: locked → validating")
 
         elif task.state == "validating":
