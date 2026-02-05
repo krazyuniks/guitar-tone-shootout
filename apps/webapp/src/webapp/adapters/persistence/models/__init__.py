@@ -30,6 +30,7 @@ from webapp.adapters.persistence.models.signal_chain import (
     SignalChainGroup,
 )
 from webapp.adapters.persistence.models.user import OAuthProvider, User
+from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.models.user_identity import UserIdentity
 
 __all__ = [
@@ -56,6 +57,7 @@ __all__ = [
     "TimestampMixin",
     "UUIDMixin",
     "User",
+    "UserGear",
     "UserIdentity",
     "get_async_session",
 ]

@@ -5,9 +5,10 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, TypeVar
 
-from sqlalchemy import DateTime, MetaData, String, TypeDecorator, Uuid
+from sqlalchemy import DateTime, MetaData, String, TypeDecorator, Uuid, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
+from sqlalchemy.pool import Pool
 
 # Naming conventions for database constraints
 NAMING_CONVENTION = {
@@ -23,6 +24,26 @@ class Base(DeclarativeBase):
     """Declarative base class with naming conventions."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+# Enable foreign key constraints for SQLite
+# This ensures foreign keys are enforced in both development and testing
+@event.listens_for(Pool, "connect")
+def _set_sqlite_pragma(dbapi_conn: Any, _connection_record: Any) -> None:
+    """Enable foreign key constraints for SQLite connections.
+
+    SQLite does not enforce foreign key constraints by default.
+    This event listener ensures they are enabled for all connections.
+    """
+    # Only apply to SQLite connections
+    if hasattr(dbapi_conn, "execute"):
+        try:
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+        except Exception:
+            # Silently ignore errors (e.g., if not SQLite)
+            pass
 
 
 class _UUIDv7Generator:

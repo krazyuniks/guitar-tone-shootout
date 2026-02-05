@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .job import Job
     from .shootout import DITrack, Shootout
     from .signal_chain import SignalChain, SignalChainGroup
+    from .user_gear import UserGear
 
 
 class OAuthProvider(UUIDMixin, Base):
@@ -109,4 +110,9 @@ class User(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
 
-    # TODO: Add relationship to Gear once that model exists
+    # Relationship to user gear library
+    user_gear: Mapped[list[UserGear]] = relationship(
+        "UserGear",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

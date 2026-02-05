@@ -1,7 +1,10 @@
 """Gear ORM models for persistence layer."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from sqlalchemy import (
@@ -20,6 +23,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
 from .gear_model import GearModel
 from .gear_source import GearSource
+
+if TYPE_CHECKING:
+    from .user_gear import UserGear
 
 # Junction table for gear-tag many-to-many relationship
 gear_tags_table = Table(
@@ -142,6 +148,11 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         secondary=gear_tags_table,
         back_populates="gear_items",
         lazy="selectin",  # Eager load tags
+    )
+    user_gear: Mapped[list["UserGear"]] = relationship(
+        "UserGear",
+        back_populates="gear",
+        cascade="all, delete-orphan",
     )
 
     # Indexes for common query patterns
