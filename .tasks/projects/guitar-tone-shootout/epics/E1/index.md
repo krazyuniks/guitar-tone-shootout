@@ -39,7 +39,7 @@ T26 → T31
 
 | Task | Title | State | Phase | Blocked By |
 |------|-------|-------|-------|------------|
-| T4 | [Task]: FastAPI Application Skeleto | pending | - | - |
+| T4 | [Task]: FastAPI Application Skeleto | complete | done | - |
 | T5 | [Task]: Health Endpoints | pending | - | T4 |
 | T6 | [Task]: User ORM Model | pending | - | T4 |
 | T7 | [Task]: OAuthProvider ORM Model | pending | - | T4 |
