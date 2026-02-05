@@ -39,7 +39,7 @@ T6 → T9
 |------|-------|-------|---------|------------|
 | T10 | [Task]: DITrack Model and Service | complete | webapp | T6 |
 | T11 | [Task]: Generic OAuth Handler | complete | webapp | T8 |
-| T12 | [Task]: GearSource ORM Model | pending | webapp | T9 |
+| T12 | [Task]: GearSource ORM Model | complete | webapp | T9 |
 | T13 | [Task]: UserGear Model and Reposito | pending | webapp | T9 |
 | T14 | [Task]: SignalChain and SignalChain | pending | webapp | T9 |
 | T15 | [Task]: T3K Provider Implementation | pending | webapp | T11 |
