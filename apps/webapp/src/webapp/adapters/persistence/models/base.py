@@ -70,14 +70,17 @@ class _UTCNow:
 
 
 class TimestampMixin:
-    """Mixin for created_at and updated_at timestamp columns."""
+    """Mixin for created_at and updated_at timestamp columns.
+
+    On insert, both created_at and updated_at are set to the same timestamp.
+    On update, only updated_at is changed.
+    """
 
     @declared_attr
     def created_at(cls) -> Mapped[datetime]:
         """Timestamp when record was created."""
         return mapped_column(
             DateTime(timezone=True),
-            insert_default=_UTCNow(),
             nullable=False,
         )
 
@@ -86,10 +89,26 @@ class TimestampMixin:
         """Timestamp when record was last updated."""
         return mapped_column(
             DateTime(timezone=True),
-            insert_default=_UTCNow(),
             onupdate=_UTCNow(),
             nullable=False,
         )
+
+    @declared_attr
+    def __mapper_args__(cls) -> dict[str, Any]:
+        """Configure mapper to set timestamps on insert."""
+        # Import here to avoid issues with mapper configuration
+        from sqlalchemy import event
+        from sqlalchemy.orm import object_mapper
+
+        # Use a before_insert listener to set both timestamps to the same value
+        @event.listens_for(cls, "before_insert", propagate=True)
+        def set_timestamps(_mapper: Any, _connection: Any, target: Any) -> None:
+            """Set created_at and updated_at to the same value on insert."""
+            now = datetime.now(UTC)
+            target.created_at = now
+            target.updated_at = now
+
+        return {}
 
 
 E = TypeVar("E", bound=Enum)

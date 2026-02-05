@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
 from .gear_model import GearModel
+from .gear_source import GearSource
 
 # Junction table for gear-tag many-to-many relationship
 gear_tags_table = Table(
@@ -73,40 +74,6 @@ class GearMake(UUIDMixin, Base):
     gear_items: Mapped[list["Gear"]] = relationship(
         "Gear",
         back_populates="make",
-    )
-
-
-class GearSource(UUIDMixin, TimestampMixin, Base):
-    """Source tracking for gear data.
-
-    Tracks where gear came from (T3K, user upload, etc.) for sync
-    and attribution purposes.
-
-    Attributes:
-        id: Primary key (UUIDv7)
-        source_name: Name of source (e.g., 't3k', 'user_upload')
-        source_record_id: ID in the source system
-        source_updated_at: Last update time in source system
-        created_at: When source record was created
-        updated_at: When source record was last updated
-        gear: The gear item this source belongs to
-    """
-
-    __tablename__ = "gear_sources"
-
-    source_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    source_updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-
-    # Relationship to gear (one-to-one)
-    gear: Mapped["Gear"] = relationship("Gear", back_populates="source", uselist=False)
-
-    # Composite index for source lookups
-    __table_args__ = (
-        Index("ix_gear_sources_source_lookup", "source_name", "source_record_id"),
     )
 
 
