@@ -157,6 +157,15 @@ class SQLAlchemyDITrackRepository:
         Returns:
             Domain DITrack entity
         """
+        # Handle checksum - it can be AudioChecksum (valid) or str (invalid test data)
+        checksum = None
+        if orm_track.checksum:
+            if isinstance(orm_track.checksum, AudioChecksum):
+                checksum = orm_track.checksum
+            else:
+                # It's a string (invalid test data), wrap it in AudioChecksum
+                checksum = AudioChecksum(orm_track.checksum)
+
         return DITrackEntity(
             id=orm_track.id,
             user_id=orm_track.user_id,
@@ -168,7 +177,7 @@ class SQLAlchemyDITrackRepository:
             description=orm_track.description,
             guitar=orm_track.guitar,
             pickup=orm_track.pickup,
-            checksum=AudioChecksum(orm_track.checksum) if orm_track.checksum else None,
+            checksum=checksum,
             waveform=None,  # Not stored in database
             created_at=orm_track.created_at,
             updated_at=orm_track.updated_at,

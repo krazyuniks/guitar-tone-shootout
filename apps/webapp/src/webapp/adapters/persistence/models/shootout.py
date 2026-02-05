@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
+    from core.domain.value_objects.audio_checksum import AudioChecksum
+
     from .signal_chain import SignalChain
     from .user import User
 
@@ -64,7 +66,7 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     guitar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pickup: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    checksum: Mapped[Any] = mapped_column(AudioChecksumType(), nullable=True)
 
     # Relationships
     user: Mapped[User] = relationship(
