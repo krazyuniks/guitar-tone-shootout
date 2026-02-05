@@ -29,7 +29,8 @@ from webapp.adapters.persistence.models.signal_chain import (
     SignalChainBlock,
     SignalChainGroup,
 )
-from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
+from webapp.adapters.persistence.models.user import OAuthProvider, User
+from webapp.adapters.persistence.models.user_identity import UserIdentity
 
 __all__ = [
     "AudioSegment",
