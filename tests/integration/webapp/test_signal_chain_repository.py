@@ -254,6 +254,15 @@ async def test_get_by_user_id(
     """Test getting chains by user_id."""
     repo = SQLAlchemySignalChainRepository(session)
 
+    # Create a second user for isolation testing
+    other_user = User(
+        id=uuid.uuid4(),
+        username="otheruser",
+        email="other@example.com",
+    )
+    session.add(other_user)
+    await session.flush()
+
     # Create multiple chains
     chain1 = SignalChain(
         id=uuid.uuid4(),
@@ -269,7 +278,7 @@ async def test_get_by_user_id(
     )
     chain3 = SignalChain(
         id=uuid.uuid4(),
-        user_id=uuid.uuid4(),  # Different user
+        user_id=other_user.id,  # Different user
         name="Chain 3",
         platform=Platform.NAM,
     )
