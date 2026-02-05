@@ -23,12 +23,16 @@ class OAuthProvider(UUIDMixin, Base):
     Attributes:
         id: Primary key (UUIDv7)
         name: Provider name (e.g., 't3k', 'google')
+        client_id: OAuth client ID for this provider
+        client_secret: OAuth client secret for this provider
         enabled: Whether this provider is currently active
     """
 
     __tablename__ = "oauth_providers"
 
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    client_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationship to identities
