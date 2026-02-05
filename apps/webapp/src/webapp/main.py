@@ -1,8 +1,12 @@
 """GTS Web Application - FastAPI entrypoint."""
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from webapp.api.v1 import health
+from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
 
@@ -13,6 +17,11 @@ def create_app() -> FastAPI:
         description="Compare guitar tones with scientific precision",
         version="0.1.0",
     )
+
+    # Initialize database (for tests, DATABASE_URL can be set externally)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        init_db(database_url)
 
     # Middleware order: outermost first (RequestID → Timing → CORS)
     # CORS must be added last so it's innermost (FastAPI reverses order)
@@ -26,9 +35,16 @@ def create_app() -> FastAPI:
     app.add_middleware(TimingMiddleware)
     app.add_middleware(RequestIDMiddleware)
 
+    # Include API routers
+    app.include_router(health.router, prefix="/api/v1", tags=["health"])
+
+    # Override health router's database dependency with our initialized one
+    if database_url:
+        app.dependency_overrides[health.get_db_session] = get_db
+
     @app.get("/health")
     async def health_check() -> dict[str, str]:
-        """Health check endpoint for container orchestration."""
+        """Health check endpoint for container orchestration (legacy)."""
         return {"status": "healthy"}
 
     return app

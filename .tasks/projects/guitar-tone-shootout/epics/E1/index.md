@@ -60,7 +60,7 @@ T6 → T9
 | T30 | [Task]: Chain Builder Page | pending | webapp | T27 |
 | T31 | [Task]: Shootout Pages | pending | webapp | T26 |
 | T4 | [Task]: FastAPI Application Skeleto | complete | webapp | - |
-| T5 | [Task]: Health Endpoints | pending | webapp | T4 |
+| T5 | [Task]: Health Endpoints | validating | webapp | T4 |
 | T6 | [Task]: User ORM Model | pending | webapp | T4 |
 | T7 | [Task]: OAuthProvider ORM Model | pending | webapp | T4 |
 | T8 | [Task]: UserIdentity ORM Model | pending | webapp | T6 |
