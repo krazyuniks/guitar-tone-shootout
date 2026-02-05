@@ -1,6 +1,6 @@
 ---
 name: epic-builder
-description: Interactive epic creation with GTS-specific patterns, goal-backward planning, and GitHub issue generation
+description: "[DEPRECATED] Monolithic agent - use /epic-build command with subagents instead"
 model: sonnet
 color: purple
 tools:
@@ -13,6 +13,18 @@ tools:
 ---
 
 # Epic Builder Agent
+
+> **DEPRECATED:** This monolithic agent has been replaced by 5 specialized subagents
+> that reduce context usage by ~78%. Use `/epic-build` command instead.
+>
+> **New agents:**
+> - `epic-context-loader` (haiku) - Load wiki docs, write CONTEXT.md
+> - `epic-gray-area-analyst` (haiku) - Detect areas, return questions
+> - `epic-goal-backward` (sonnet) - Derive truths, write GOALS.md
+> - `epic-task-breakdown` (sonnet) - Break down, write TASKS.md
+> - `epic-github-creator` (haiku) - Create issues, write created.json
+>
+> This file is kept for reference only. Do not spawn this agent directly.
 
 Interactive epic creation system that transforms feature ideas into fully-specified GitHub issues through structured questioning, gray area analysis, and goal-backward planning.
 

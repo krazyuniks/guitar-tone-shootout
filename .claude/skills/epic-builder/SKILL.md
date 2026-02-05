@@ -8,7 +8,25 @@ context: fork
 
 **Activation:** Epic creation, feature planning, GitHub issue generation, TDD task breakdown
 
-**Replaces:** `.claude/agents/planner.md` (deleted)
+**Command:** `/epic-build` - See `.claude/commands/epic-build.md`
+
+---
+
+## Architecture
+
+The epic-build command uses a subagent architecture to reduce context usage by ~78%:
+
+| Phase | Agent | Model | Purpose |
+|-------|-------|-------|---------|
+| Context | `epic-context-loader` | haiku | Load wiki docs, write CONTEXT.md |
+| Gray Areas | `epic-gray-area-analyst` | haiku | Detect areas, return questions |
+| Goals | `epic-goal-backward` | sonnet | Derive truths, write GOALS.md |
+| Tasks | `epic-task-breakdown` | sonnet | Break down, write TASKS.md |
+| GitHub | `epic-github-creator` | haiku | Create issues, write created.json |
+
+Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the orchestrator.
+
+**Agents:** Located in `.claude/agents/epic-*.md`
 
 ---
 
@@ -25,18 +43,27 @@ context: fork
 
 | Phase | Mode | Purpose |
 |-------|------|---------|
-| Context Loading | Autonomous | Load architecture, rules, codebase map |
+| Context Loading | Autonomous (subagent) | Load architecture, rules, codebase map |
 | Core Understanding | Interactive | User provides vision, stories, boundaries |
-| Gray Areas | Interactive | User selects areas, answers questions |
-| Testing Strategy | Interactive | **REQUIRED** - Read testing docs, confirm test patterns |
-| Goal-Backward | Autonomous | Derive truths, artifacts, wiring |
-| Task Breakdown | Autonomous | Generate task structure |
+| Gray Areas | Autonomous (subagent) + Interactive | Detect areas, user answers questions |
+| Testing Strategy | Interactive | **REQUIRED** - Confirm test patterns |
+| Goal-Backward | Autonomous (subagent) | Derive truths, artifacts, wiring |
+| Task Breakdown | Autonomous (subagent) | Generate task structure |
 | Decision Gate | Interactive | User approves or revises |
-| GitHub Creation | Autonomous | Create issues, validate, save state |
+| GitHub Creation | Autonomous (subagent) | Create issues, validate, save state |
+
+### State File Contract
+
+| File | Written By | Read By |
+|------|------------|---------|
+| `CONTEXT.md` | epic-context-loader + orchestrator | epic-goal-backward |
+| `GOALS.md` | epic-goal-backward | epic-task-breakdown, epic-github-creator |
+| `TASKS.md` | epic-task-breakdown | epic-github-creator |
+| `created.json` | epic-github-creator | external tools |
 
 ### Phase Prerequisites (MANDATORY)
 
-**Before Goal-Backward phase, you MUST:**
+**Before Goal-Backward phase, the subagent MUST:**
 1. READ `references/goal-backward.md` - Contains GTS test patterns and artifact mappings
 2. READ `../wiki/GTS-Technical-Architecture.md#testing-strategy` - Official testing strategy
 3. READ `../wiki/GTS-Technical-Architecture.md#domain-model` - Authoritative domain model

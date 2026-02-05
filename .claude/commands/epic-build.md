@@ -11,14 +11,6 @@ Transform feature ideas into fully-specified GitHub issues through structured qu
 /epic-build {number}     # Build from existing GitHub issue
 ```
 
-## What This Does
-
-1. **Loads GTS context** - Architecture, patterns, conventions
-2. **Asks structured questions** - Vision, user stories, boundaries
-3. **Analyses gray areas** - Domain-specific decisions (signal chain, gear, etc.)
-4. **Performs goal-backward analysis** - Derives truths, artifacts, tests
-5. **Generates GitHub issues** - Epic + tasks with full specs
-
 ## Output
 
 - GitHub epic issue with architecture decisions
@@ -28,14 +20,8 @@ Transform feature ideas into fully-specified GitHub issues through structured qu
 ## After Creation
 
 ```bash
-# Validate issue structure
-python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {epic} --validate
-
-# Sync to .tasks/
-just epic-sync {epic}
-
-# Start TDD workflow
-just epic-start {epic}
+just epic-sync {epic}     # Sync to .tasks/
+just epic-start {epic}    # Start TDD workflow
 ```
 
 ## State Persistence
@@ -46,185 +32,179 @@ Planning state saved to `.planning/epics/{slug}/`:
 - `TASKS.md` - Task breakdown
 - `created.json` - Issue numbers
 
-## Related
-
-- `/plan` - Iterative epic planning for existing issues
-- `.claude/agents/epic-builder.md` - Agent implementation
-- `.claude/skills/epic-builder/` - Reference files
-
 ---
 
 <epic-build>
 
-## Instructions
+## Architecture
 
-You are the Epic Builder orchestrator. Your job is to guide the user through interactive epic creation.
+This command orchestrates 5 specialized subagents:
 
-### Startup
+| Phase | Agent | Model | Purpose |
+|-------|-------|-------|---------|
+| Context | epic-context-loader | haiku | Load wiki docs, write CONTEXT.md |
+| Gray Areas | epic-gray-area-analyst | haiku | Detect areas, return questions |
+| Goals | epic-goal-backward | sonnet | Derive truths, write GOALS.md |
+| Tasks | epic-task-breakdown | sonnet | Break down, write TASKS.md |
+| GitHub | epic-github-creator | haiku | Create issues, write created.json |
 
-1. Load project context (autonomous):
-   - Read `../wiki/IMPLEMENTATION.md` - **Phase scope, archive mappings, deliverables**
-   - Read `../wiki/GTS-Technical-Architecture.md` - **Stack, domain model, testing strategy**
-   - Read `AGENTS.md` - Development workflow
-   - Check `.planning/codebase/` for existing analysis
-   - Report what was found
+Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the orchestrator.
 
-2. If argument is a number (e.g., `1`, `#1`, `42`):
-   - Fetch the GitHub issue: `gh issue view {number} --repo krazyuniks/guitar-tone-shootout --json title,body,labels`
-   - Use issue title as the feature vision
-   - Use issue body as existing context
-   - **Cross-reference with `../wiki/IMPLEMENTATION.md`** for the phase's authoritative scope
-   - Report what was found in the issue
-   - Skip to Phase 3 (Gray Areas) - we already have the feature description
+## Startup
 
-3. Check for existing state:
-   - If `.planning/epics/{slug}/` exists with partial state, offer to resume
-   - Otherwise, start fresh
+1. **Parse argument:**
+   - If number: fetch GitHub issue with `gh issue view {n} --repo krazyuniks/guitar-tone-shootout --json number,title,body,labels`
+   - If text: use as feature description
+   - If empty: ask "What feature would you like to build?"
 
-### Workflow Phases
+2. **Derive slug:** Convert title to kebab-case (e.g., "Contact Form" → "contact-form")
 
-| Phase | Mode | Your Action |
-|-------|------|-------------|
-| Context Loading | Autonomous | Read wiki docs, report findings |
-| Core Understanding | Interactive | Ask vision, stories, priority, boundaries |
-| Gray Areas | Interactive | Present multi-select, deep-dive each |
-| **Testing Strategy** | **Interactive** | **Confirm test patterns from wiki (DO NOT SKIP)** |
-| Goal-Backward | Autonomous | Derive truths, artifacts, tests |
-| Task Breakdown | Autonomous | Group into 15-60 min tasks |
-| Decision Gate | Interactive | Present options, wait for approval |
-| GitHub Creation | Autonomous | Create issues, save to created.json |
-| **Commit & Push** | **Autonomous** | **Commit .planning/ changes, push to remote** |
+3. **Check for resume:** If `.planning/epics/{slug}/` exists, offer to resume from last checkpoint
 
-### READ Before DERIVE (MANDATORY)
+## Phase 1: Context Loading
 
-**NEVER assume data models exist. ALWAYS read the source.**
-
-Before Goal-Backward phase, you MUST read these files **directly using the Read tool** (NO summarization agents):
-
-1. `../wiki/GTS-Technical-Architecture.md#domain-model` - Authoritative domain model
-2. `libs/core/src/core/domain/` - Actual GTS entity definitions
-3. `../wiki/IMPLEMENTATION.md` - Phase scope and archive mappings
-
-**For each artifact you derive:**
-- Cite the exact file and line where the entity/field is defined
-- If you cannot cite a source, **STOP and ASK**
-- NEVER assume fields exist because "they make sense"
-
-**GTS is source-agnostic.** Sources (T3K, future providers) are adapters. Core domain models NEVER contain source-specific fields (no `t3k_*`, `tone3000_*`, etc.).
-
-### Testing Strategy Phase (MANDATORY)
-
-Before Goal-Backward, you MUST:
-
-1. READ `../wiki/GTS-Technical-Architecture.md#testing-strategy` section
-2. READ `references/goal-backward.md` for test mapping patterns
-3. Confirm test commands (ONLY `just` commands allowed):
-   - `just test-regression` - E2E quality gate (stack connectivity + endpoint validation)
-   - `just test-unit` - Domain logic
-   - `just test-integration` - Real DB
-   - `just test-e2e` - Full user journeys
-   - `just tdd <path>` - Single test during TDD
-
-**NEVER use raw `docker compose exec`, `pytest`, or `python` commands in acceptance criteria.**
-**NEVER generate curl-based acceptance tests.** All tests must be pytest-based with proper locations.
-
-### Container-First Commands (MANDATORY)
-
-**All commands in acceptance criteria MUST use `just`.** This is a container-first architecture.
-
-| Action | Use This | NEVER This |
-|--------|----------|------------|
-| Run tests | `just test-unit`, `just test-integration` | `pytest`, `python -m pytest` |
-| Run E2E tests | `just test-e2e` | `cd tests/e2e && pytest` |
-| Run single test | `just tdd <path>` | `docker compose exec webapp pytest` |
-| Lint/type check | `just check` | `ruff check`, `mypy` |
-| Build frontend | `just build-astro` | `pnpm build`, `npm run build` |
-
-**NEVER generate raw `docker compose exec`, `python`, `pytest`, `ruff`, `mypy`, or `pnpm` commands.** Always use `just` equivalents.
-
-### CLI UX Rules
-
-**CRITICAL:** User is in CLI with limited screen space.
-
-1. **ONE question at a time**
-2. **Context immediately before question**
-3. **Summarise after 3-5 questions**
-4. **Never dump large tables then ask multiple questions**
-
-### Gray Area Detection
-
-Based on feature keywords, suggest relevant areas:
-
-| Keywords | Suggested Areas |
-|----------|-----------------|
-| signal chain, block, amp, IR | signal_chain, gear_model |
-| processing, render, audio | audio_processing, job_processing |
-| sync, t3k, source | dual_database |
-| page, template, form | frontend_layers |
-| background, job, queue | job_processing |
-
-### GitHub CLI
-
-**ALWAYS** include `--repo krazyuniks/guitar-tone-shootout` with ALL `gh` commands.
-
-### Task Issue Format
-
-**REQUIRED sections for gh_tasks_sync.py:**
-
-```markdown
-## Objective
-{2-3 sentences}
-
-## Acceptance Criteria
-- [ ] {criterion 1}
-- [ ] {criterion 2}
-
-## Scope
-**Create:**
-- `{path}`
-
-**Modify:**
-- `{path}`
-
-## Dependencies
-Blocked by: #{number}
-
-## Technical Notes
-- {hint}
+Spawn subagent:
+```
+Task(epic-context-loader, model=haiku, prompt="
+  slug: {slug}
+  feature_description: {description}
+")
 ```
 
-### Labels
+Report results: sources found, detected areas, relevant entities.
 
-- Epic: `epic`
-- Task: `task`, `project:{workspace}`
-- Workspaces: core, audio, webapp, worker, scheduler, t3k
+## Phase 2: Core Understanding (Interactive)
 
-### Now Begin
+Ask ONE question at a time:
 
-**If argument is a number (issue reference):**
-1. Fetch the issue: `gh issue view {number} --repo krazyuniks/guitar-tone-shootout --json number,title,body,labels`
-2. Display issue summary (title, key points from body)
-3. Ask user to confirm or clarify the scope
-4. Proceed to Phase 3 (Gray Areas)
+1. **Vision:** (skip if from GitHub issue)
+   "What feature are you building? (one sentence)"
 
-**If argument is text (topic):**
-Start with Phase 2 (Core Understanding) using that as the vision.
+2. **User Stories:**
+   "Who benefits from this feature and what can they do?"
 
-**If no argument:**
-Ask: "What feature would you like to build?"
+3. **Core Priority:**
+   "What's the ONE thing that must work?"
 
-### Commit & Push (MANDATORY)
+4. **Boundaries:**
+   "What's explicitly out of scope?"
 
-After GitHub issues are created and `created.json` is saved, you MUST:
+Append answers to CONTEXT.md under `## Core Understanding`.
 
-1. Stage all `.planning/epics/{slug}/` files
-2. Commit with message: `docs(planning): Add goal-backward analysis for {epic title}`
-3. Push to remote
+## Phase 3: Gray Area Analysis
 
+Spawn subagent:
+```
+Task(epic-gray-area-analyst, model=haiku, prompt="
+  feature_description: {description}
+  detected_areas: {from context loader}
+")
+```
+
+Present multi-select to user:
+```
+Based on GTS architecture, I've identified these areas to discuss:
+
+[1] Data Model - Tables, columns, relations
+[2] Signal Chain - Block types, ordering, validation
+[3] Frontend Layers - Astro SSG vs Jinja2 SSR vs HTMX
+...
+
+Select areas to discuss (comma-separated, or 'all'):
+```
+
+## Phase 4: Gray Area Q&A (Interactive)
+
+For each selected area, ask questions ONE at a time.
+
+After each area, summarise and append to CONTEXT.md:
+```markdown
+## Locked Decisions: {Area Name}
+
+- {Decision 1}
+- {Decision 2}
+```
+
+## Phase 5: Testing Strategy (Interactive - MANDATORY)
+
+Before Goal-Backward, confirm test patterns:
+```
+## Testing Strategy
+
+GTS uses container-first testing:
+
+- `just test-regression` - E2E quality gate
+- `just test-unit` - Isolated logic (Docker)
+- `just test-integration` - Real DB (Docker)
+- `just test-e2e` - User journeys (host)
+- `just tdd <path>` - TDD single test
+
+All acceptance criteria will use `just` commands only.
+
+Confirm? [Y/n]
+```
+
+## Phase 6: Goal-Backward Analysis
+
+Spawn subagent:
+```
+Task(epic-goal-backward, model=sonnet, prompt="
+  slug: {slug}
+  locked_decisions: {summary from CONTEXT.md}
+")
+```
+
+Present summary: truths, artifact count, test count.
+
+## Phase 7: Task Breakdown
+
+Spawn subagent:
+```
+Task(epic-task-breakdown, model=sonnet, prompt="
+  slug: {slug}
+")
+```
+
+Present summary: task count, groups, dependency graph.
+
+## Phase 8: Decision Gate (Interactive)
+
+Present options:
+```
+Ready to create GitHub issues?
+
+Epic: {title}
+Tasks: {count}
+Dependencies: Mapped
+Test specs: Complete
+
+[1] Create issues now
+[2] Review task details
+[3] Add more context
+[4] Start over
+```
+
+Loop until user selects "Create issues now".
+
+## Phase 9: GitHub Issue Creation
+
+Spawn subagent:
+```
+Task(epic-github-creator, model=haiku, prompt="
+  slug: {slug}
+  epic_title: {title}
+")
+```
+
+Report results: epic URL, task URLs.
+
+## Phase 10: Commit & Push
+
+After issues created:
 ```bash
 git add .planning/epics/{slug}/
 git commit -m "$(cat <<'EOF'
-docs(planning): Add goal-backward analysis for {epic title}
+docs(planning): Add goal-backward analysis for {title}
 
 - GOALS.md with observable truths and artifacts
 - TASKS.md with task breakdown and dependencies
@@ -238,6 +218,28 @@ EOF
 git push
 ```
 
-**Do NOT end the session without committing and pushing.** The planning artifacts must be available for worktree rebase.
+## Resume Support
+
+Detect checkpoint based on existing files:
+
+| Files Present | Resume Point |
+|---------------|--------------|
+| CONTEXT.md only | Phase 3 (Gray Areas) |
+| CONTEXT.md + GOALS.md | Phase 7 (Task Breakdown) |
+| CONTEXT.md + GOALS.md + TASKS.md | Phase 8 (Decision Gate) |
+| All + created.json | Complete (show summary) |
+
+## CLI UX Rules
+
+**CRITICAL:** User is in CLI with limited screen space.
+
+1. **ONE question at a time**
+2. **Context immediately before question**
+3. **Summarise after 3-5 questions**
+4. **Never dump large tables then ask multiple questions**
+
+## GitHub CLI
+
+**ALWAYS** include `--repo krazyuniks/guitar-tone-shootout` with ALL `gh` commands.
 
 </epic-build>

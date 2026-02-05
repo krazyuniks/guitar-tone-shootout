@@ -353,6 +353,15 @@ See `tests/AGENTS.md` for test structure and patterns.
 | `gts-error-resolver` | Debug and fix build/lint/test errors |
 | `gts-log-monitor` | Monitor Docker logs for errors |
 
+### Epic Builder Subagents
+| Agent | Model | Purpose |
+|-------|-------|---------|
+| `epic-context-loader` | haiku | Load wiki docs, write CONTEXT.md |
+| `epic-gray-area-analyst` | haiku | Detect areas, return questions |
+| `epic-goal-backward` | sonnet | Derive truths, write GOALS.md |
+| `epic-task-breakdown` | sonnet | Break down, write TASKS.md |
+| `epic-github-creator` | haiku | Create issues, write created.json |
+
 ## Conversation UX (CLI Environment)
 
 **CRITICAL:** User is in a CLI with limited screen real estate. They cannot see content at the top while reading the bottom.
