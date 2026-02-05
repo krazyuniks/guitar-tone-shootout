@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S python3 -u
 """
 Deterministic TDD state machine for epic orchestration.
 
@@ -590,7 +590,7 @@ def run_state_machine(
         if not incomplete:
             print()
             print("All tasks complete! Running final health check...")
-            ok, output = run_just_command("health", str(epic_number))
+            ok, output = run_just_command("epic-health", str(epic_number))
             if ok:
                 print(f"Epic E{epic_number} complete and healthy!")
                 return

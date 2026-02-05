@@ -449,24 +449,50 @@ tdd-test-phase task:
     @echo "Run: python scripts/run_epic.py dispatch test-author 'Write tests for {{task}}'"
 
 # Verify tests fail (red phase) - runs in Docker
+# Only checks NEW/MODIFIED test files (not pre-existing passing tests)
 tdd-red task:
     #!/usr/bin/env bash
     set -e
-    echo "Verifying tests fail (red phase)..."
-    # Run tests and expect failures
-    if docker compose exec -T webapp pytest tests/ -v 2>&1 | grep -q "passed"; then
-        echo "ERROR: Some tests passed. Tests should fail before implementation."
-        echo "Check that you're testing unimplemented functionality."
+    echo "Verifying new tests fail (red phase)..."
+
+    # Find new or modified test files since last commit
+    NEW_TESTS=$(git diff --name-only HEAD -- 'tests/' | grep -E 'test_.*\.py$' || true)
+    UNTRACKED_TESTS=$(git ls-files --others --exclude-standard -- 'tests/' | grep -E 'test_.*\.py$' || true)
+    ALL_NEW_TESTS=$(echo -e "${NEW_TESTS}\n${UNTRACKED_TESTS}" | sort -u | grep -v '^$' || true)
+
+    if [ -z "$ALL_NEW_TESTS" ]; then
+        echo "ERROR: No new test files found. test-author must create test files."
         exit 1
     fi
-    echo "Tests correctly failing (red phase verified)"
+
+    echo "New test files:"
+    echo "$ALL_NEW_TESTS" | sed 's/^/  /'
+
+    # Run ONLY the new tests — they should all fail
+    OUTPUT=$(docker compose exec -T webapp pytest $ALL_NEW_TESTS -v 2>&1) || true
+
+    if echo "$OUTPUT" | grep -qE "passed"; then
+        echo "ERROR: Some new tests passed. Tests should fail before implementation."
+        echo "$OUTPUT" | tail -20
+        exit 1
+    fi
+
+    if echo "$OUTPUT" | grep -qE "error"; then
+        echo "WARNING: Some tests errored (import/syntax issues). Check output:"
+        echo "$OUTPUT" | tail -30
+        # Errors are acceptable in red phase — tests may import unimplemented modules
+    fi
+
+    echo "New tests correctly failing (red phase verified)"
 
 # Lock tests (snapshot before implementation)
 tdd-lock task:
+    #!/usr/bin/env bash
+    set -e
     python scripts/snapshot_tests.py save {{task}}
-    git add .tasks/*/snapshots/ tests/
+    git add .tasks/ tests/
     git commit -m "test-lock: {{task}} tests ready for implementation"
-    @echo "Tests locked at $(git rev-parse --short HEAD)"
+    echo "Tests locked at $(git rev-parse --short HEAD)"
 
 # Implementation phase hint
 tdd-impl-phase task:

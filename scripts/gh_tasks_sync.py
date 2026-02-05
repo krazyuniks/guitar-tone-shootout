@@ -256,7 +256,20 @@ class TasksWriter:
             self._write_task_file(tasks_dir / f"T{child.number}.md", child, epic.number)
 
     def _write_task_file(self, path: Path, task: Issue, epic_number: int):
-        """Generate task file from parsed issue."""
+        """Generate task file from parsed issue.
+
+        Preserves local State if the file already exists (local state is
+        managed by run_epic.py, not GitHub).
+        """
+        # Preserve local state if file already exists
+        local_state = None
+        if path.exists():
+            existing = path.read_text()
+            state_match = re.search(
+                r"\|\s*State\s*\|\s*(\w+)\s*\|", existing, re.IGNORECASE
+            )
+            if state_match:
+                local_state = state_match.group(1).strip().lower()
 
         blocked_by = ", ".join(f"T{n}" for n in task.blocked_by) or "None"
 
@@ -293,7 +306,7 @@ class TasksWriter:
 
 | Field | Value |
 |-------|-------|
-| State | {"complete" if task.state == "closed" else "pending"} |
+| State | {local_state or ("complete" if task.state == "closed" else "pending")} |
 | Phase | - |
 | Project | {task.project.value if task.project else "-"} |
 | Blocked By | {blocked_by} |
