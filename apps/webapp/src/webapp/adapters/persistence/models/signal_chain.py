@@ -30,6 +30,7 @@ class BlockType(UUIDMixin, Base):
         category: Category (e.g., 'dynamics', 'eq', 'modulation')
         description: Optional description
         default_params: Default parameter values as JSON
+        blocks: Blocks using this block type
     """
 
     __tablename__ = "block_types"
@@ -38,6 +39,12 @@ class BlockType(UUIDMixin, Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+    # Relationships
+    blocks: Mapped[list[SignalChainBlock]] = relationship(
+        "SignalChainBlock",
+        back_populates="block_type",
+    )
 
 
 class SignalChain(UUIDMixin, TimestampMixin, Base):
@@ -97,13 +104,19 @@ class SignalChainBlock(UUIDMixin, Base):
     Represents one component (pedal, amp, full-rig, IR, or post-effect)
     in the signal chain. Blocks are ordered by position.
 
+    Can reference either:
+    - UserGear (user's library item) via user_gear_id + gear_type
+    - BlockType (built-in processor) via block_type_id
+
     Attributes:
         id: Primary key (UUIDv7)
         signal_chain_id: Foreign key to signal_chains table
         position: Order in the chain (0-indexed)
-        user_gear_id: Reference to UserGear item
-        gear_type: Type of gear (pedal, amp, full_rig, ir, post_effect)
+        user_gear_id: Reference to UserGear item (nullable when using BlockType)
+        gear_type: Type of gear (nullable when using BlockType)
+        block_type_id: Foreign key to block_types table (nullable when using UserGear)
         signal_chain: Reference to the SignalChain
+        block_type: Reference to the BlockType
         presets: List of parameter presets for this block
     """
 
@@ -115,18 +128,27 @@ class SignalChainBlock(UUIDMixin, Base):
         nullable=False,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    user_gear_id: Mapped[uuid.UUID] = mapped_column(
+    user_gear_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
-        nullable=False,
+        nullable=True,
     )
-    gear_type: Mapped[GearType] = mapped_column(
+    gear_type: Mapped[GearType | None] = mapped_column(
         EnumByValue(GearType),
-        nullable=False,
+        nullable=True,
+    )
+    block_type_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("block_types.id", ondelete="CASCADE"),
+        nullable=True,
     )
 
     # Relationships
     signal_chain: Mapped[SignalChain] = relationship(
         "SignalChain",
+        back_populates="blocks",
+    )
+    block_type: Mapped[BlockType | None] = relationship(
+        "BlockType",
         back_populates="blocks",
     )
     presets: Mapped[list[Preset]] = relationship(
@@ -210,7 +232,7 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     base_chain_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
-        ForeignKey("signal_chains.id", ondelete="SET NULL"),
+        ForeignKey("signal_chains.id", ondelete="CASCADE"),
         nullable=True,
     )
     slot_positions: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
@@ -224,6 +246,7 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
     )
     base_chain: Mapped[SignalChain | None] = relationship(
         "SignalChain",
+        foreign_keys=[base_chain_id],
     )
 
     # Indexes
