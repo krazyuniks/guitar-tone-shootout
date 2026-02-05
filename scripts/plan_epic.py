@@ -100,13 +100,14 @@ def run_planner(epic_number: int):
     print("=" * 60)
     print()
 
-    # Invoke Claude with planner agent via wrapper script
+    # Invoke Claude with planner agent via run_epic.py dispatch
     script_dir = Path(__file__).parent
-    wrapper = script_dir / "claude-agent.sh"
+    run_epic = script_dir / "run_epic.py"
 
+    prompt_content = prompt_file.read_text()
     result = subprocess.run(
-        [str(wrapper), "planner", "--print", "-f", str(prompt_file)],
-        text=True
+        [sys.executable, str(run_epic), "dispatch", "planner", prompt_content],
+        text=True,
     )
 
     if result.returncode != 0:

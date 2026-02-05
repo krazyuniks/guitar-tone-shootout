@@ -401,9 +401,17 @@ epic-sync epic:
 epic-sync-validate epic:
     python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}} --validate
 
-# Start orchestrating epic (with auto-restart loop)
+# Run TDD state machine for epic
 epic-start epic:
-    ./scripts/run-epic.sh {{epic}}
+    python scripts/run_epic.py run {{epic}}
+
+# Dry-run TDD state machine (show what would happen)
+epic-dry-run epic:
+    python scripts/run_epic.py run {{epic}} --dry-run
+
+# Dispatch a single agent manually
+dispatch agent +prompt:
+    python scripts/run_epic.py dispatch {{agent}} {{prompt}}
 
 # Show epic status
 epic-status epic:
@@ -438,7 +446,7 @@ tdd-test-phase task:
     @echo "Starting test phase for {{task}}"
     @echo "Write tests in tests/unit/, tests/integration/, or tests/e2e/python/"
     @echo ""
-    @echo "Run: ./scripts/claude-agent.sh test-author 'Write tests for {{task}}'"
+    @echo "Run: python scripts/run_epic.py dispatch test-author 'Write tests for {{task}}'"
 
 # Verify tests fail (red phase) - runs in Docker
 tdd-red task:

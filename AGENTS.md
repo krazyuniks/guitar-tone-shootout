@@ -681,7 +681,7 @@ Start fresh session for implementation.
 
 ## AI Development Workflow (Optional)
 
-Automated TDD workflow for epic/feature development. Use alongside existing patterns for larger features.
+Automated TDD workflow for epic/feature development. A deterministic Python state machine (`scripts/run_epic.py`) controls all state transitions and validation. AI agents do creative work only (writing tests, writing code).
 
 See [Wiki: AI-Development-Workflow](https://github.com/krazyuniks/guitar-tone-shootout/wiki/AI-Development-Workflow) for full documentation.
 
@@ -689,58 +689,65 @@ See [Wiki: AI-Development-Workflow](https://github.com/krazyuniks/guitar-tone-sh
 
 ```bash
 just epic-sync 42      # Sync epic from GitHub to .tasks/
-just epic-start 42     # Start orchestration
+just epic-start 42     # Run TDD state machine
 just epic-status 42    # Check status
+just epic-dry-run 42   # Preview without dispatching agents
 ```
 
 ### TDD Phases
 
-Every task goes through 5 phases:
+Every task goes through these phases, controlled by `run_epic.py`:
 
-| Phase | Command | Agent |
-|-------|---------|-------|
-| 1. Test | `just tdd-test-phase T43` | test-author |
-| 2. Red | `just tdd-red T43` | - |
-| 3. Lock | `just tdd-lock T43` | - |
-| 4. Impl | `just tdd-impl-phase T43` | implementer |
-| 5. Validate | `just tdd-complete T43` | validator |
+| Phase | What happens | Who |
+|-------|-------------|-----|
+| Test | test-author agent writes tests | AI |
+| Red | `just tdd-red` verifies tests fail | Python (deterministic) |
+| Lock | `just tdd-lock` snapshots tests | Python (deterministic) |
+| Impl | implementer agent writes code | AI |
+| Green | `just tdd-green` verifies tests pass | Python (deterministic) |
+| Validate | `just tdd-complete` full validation | Python (deterministic) |
+
+**Stop on failure.** Any validation gate failure halts the entire epic with an error report.
 
 ### Agent Invocation
 
-Use the wrapper script to invoke agents:
+Agents are dispatched via `run_epic.py`:
 
 ```bash
-./scripts/claude-agent.sh planner "Plan epic #42"
-./scripts/claude-agent.sh test-author "Write tests for T43"
-./scripts/claude-agent.sh implementer "Implement T43"
+# Automated (via state machine)
+python scripts/run_epic.py run 42
+
+# Manual dispatch
+python scripts/run_epic.py dispatch test-author "Write tests for T43"
+python scripts/run_epic.py dispatch implementer --project webapp "Implement T44"
 ```
+
+Tool enforcement: `run_epic.py` reads the `tools:` list from each agent's YAML frontmatter and passes `--allowedTools` to the Claude CLI. Agents only get the tools they're defined to use.
 
 ### Agents
 
 | Agent | Role | Constraints |
 |-------|------|-------------|
-| orchestrator | Coordinates tasks | No implementation |
-| planner | Breaks epics into tasks | Creates GitHub issues |
-| test-author | Writes pytest tests | No implementation files |
-| implementer | Makes tests pass | No test files |
-| validator | Verifies completion | Read-only |
+| test-author | Writes pytest tests | No implementation files, no state updates |
+| implementer | Makes tests pass | No test files, no state updates |
 
 ### State Location
 
 ```
 .tasks/projects/guitar-tone-shootout/epics/E{n}/
-├── index.md      # Dependency graph, status table
-├── tasks/        # Individual task specs
+├── index.md      # Dependency graph, status table (rebuilt by run_epic.py)
+├── tasks/        # Individual task specs (source of truth)
 ├── snapshots/    # Test file hashes (TDD enforcement)
-└── logs/         # Execution logs
+└── logs/         # Execution logs and error reports
 ```
 
 ### Key Rules
 
 1. **Tests are immutable** during implementation phase
-2. **All state in `.tasks/`** - read index.md for current status
-3. **Orchestrator is stateless** - exits and restarts with fresh context
-4. **Docker-first** - all test commands run via `docker compose exec`
+2. **All state in `.tasks/`** - task files are the source of truth
+3. **Python controls state** - AI agents never update task state
+4. **Stop on failure** - validation failures halt the epic
+5. **Docker-first** - all test commands run via `docker compose exec`
 
 ---
 
