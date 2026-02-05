@@ -410,6 +410,34 @@ When uncertain about ANY of the following, STOP and ask the user:
 
 **The cost of asking is low. The cost of wrong assumptions is high.**
 
+### CRITICAL: GTS is Source-Agnostic
+
+**GTS has its own domain model.** Sources (T3K, future providers) are external adapters that sync data INTO GTS.
+
+**Core domain models NEVER contain source-specific fields:**
+- NO `t3k_id`, `t3k_username`, `tone3000_*`, etc.
+- GTS entities: User, Gear, Pack, Model, SignalChain, Shootout, Job
+- Source entities stay in source adapters (`sources/t3k/`)
+
+**The domain model is defined in:**
+- `libs/core/src/core/domain/` - Entity definitions
+- `../wiki/GTS-Technical-Architecture.md#domain-model` - Authoritative documentation
+
+### CRITICAL: READ Before DERIVE - No Summarization
+
+**NEVER assume data models exist. ALWAYS read the source file directly.**
+
+Before deriving ANY artifact (model, repository, service, API):
+1. Use the **Read tool directly** on the authoritative file
+2. **NO Task agents** for domain model exploration - they summarize and lose precision
+3. Cite the exact file and line where the entity/field is defined
+4. If you cannot cite a source, **STOP and ASK**
+
+**Forbidden:**
+- Assuming fields exist because "they make sense"
+- Deriving models from external system names
+- Using summarization agents to explore domain model
+
 ### Other Rules
 
 1. **Run in containers** - Not on host (except explicit host tools like worktree.py)

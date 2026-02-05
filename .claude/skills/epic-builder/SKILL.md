@@ -28,35 +28,106 @@ context: fork
 | Context Loading | Autonomous | Load architecture, rules, codebase map |
 | Core Understanding | Interactive | User provides vision, stories, boundaries |
 | Gray Areas | Interactive | User selects areas, answers questions |
-| Testing Strategy | Interactive | User confirms test boundaries |
+| Testing Strategy | Interactive | **REQUIRED** - Read testing docs, confirm test patterns |
 | Goal-Backward | Autonomous | Derive truths, artifacts, wiring |
 | Task Breakdown | Autonomous | Generate task structure |
 | Decision Gate | Interactive | User approves or revises |
 | GitHub Creation | Autonomous | Create issues, validate, save state |
 
+### Phase Prerequisites (MANDATORY)
+
+**Before Goal-Backward phase, you MUST:**
+1. READ `references/goal-backward.md` - Contains GTS test patterns and artifact mappings
+2. READ `../wiki/GTS-Technical-Architecture.md#testing-strategy` - Official testing strategy
+3. READ `../wiki/GTS-Technical-Architecture.md#domain-model` - Authoritative domain model
+4. READ `libs/core/src/core/domain/` directory structure - Actual GTS entities
+5. Complete Testing Strategy phase with user (do NOT skip)
+
+### READ Before DERIVE (MANDATORY)
+
+**NEVER assume data models exist. ALWAYS read the source.**
+
+Before deriving ANY artifact (model, repository, service, API):
+1. Use the **Read tool directly** on the authoritative file - NO summarization agents
+2. Cite the exact file and line where the entity/field is defined
+3. If you cannot cite a source, **STOP and ASK**
+
+**Forbidden:**
+- Assuming fields exist because "they make sense"
+- Deriving models from external system names (T3K, Tone3000, etc.)
+- Using Task agents to summarize domain model (use Read tool directly)
+
+**GTS is source-agnostic.** Sources (T3K, future providers) are adapters. Core domain models NEVER contain source-specific fields.
+
+**Testing Strategy phase MUST:**
+1. Confirm test levels: Regression → Unit → Integration → E2E
+2. Confirm test commands (ONLY `just` commands allowed):
+   - `just test-regression` - E2E quality gate (stack connectivity + endpoint validation)
+   - `just test-unit` - Domain logic
+   - `just test-integration` - Real DB
+   - `just test-e2e` - Full user journeys
+   - `just tdd <path>` - Single test during TDD
+3. **NEVER** use raw `docker compose exec`, `pytest`, or `python` commands for running tests
+4. **NEVER** generate curl-based acceptance tests - use pytest patterns only
+
+**Note:** `just` commands wrap the underlying execution (Docker for unit/integration, host for E2E). Implementation details are hidden - always specify `just` commands in acceptance criteria.
+
+**Verification:** If your acceptance tests contain `curl` commands instead of pytest test names, STOP and re-read the testing documentation.
+
 ---
 
-## Reference Files
+## Container-First Commands (MANDATORY)
 
-| File | Purpose |
-|------|---------|
-| `references/question-bank.md` | GTS-specific questions for each phase |
-| `references/gray-areas.md` | Detection patterns and area definitions |
-| `references/goal-backward.md` | Planning guide with GTS examples |
-| `references/github-templates.md` | Issue body templates for gh_tasks_sync.py |
+**All commands MUST use `just`.** This is a container-first architecture.
+
+| Action | Use This | NEVER This |
+|--------|----------|------------|
+| Run tests | `just test-unit`, `just test-integration` | `pytest`, `python -m pytest` |
+| Run E2E tests | `just test-e2e` | `cd tests/e2e && pytest` |
+| Run single test | `just tdd <path>` | `docker compose exec webapp pytest` |
+| Lint/type check | `just check` | `ruff check`, `mypy` |
+| Build frontend | `just build-astro` | `pnpm build`, `npm run build` |
+| Validate sync | `just epic-sync {epic}` | `python scripts/gh_tasks_sync.py` |
+
+**Why:** All project code runs in Docker. The `justfile` wraps commands with correct container context, volumes, and environment.
+
+**Verification:** If your task acceptance criteria contain raw `docker compose`, `python`, `pytest`, `ruff`, `mypy`, or `pnpm` commands, STOP and replace them with `just` equivalents.
 
 ---
 
-## Context Sources
+## Reference Files (READ BEFORE EACH PHASE)
+
+| File | When to Read | Purpose |
+|------|--------------|---------|
+| `references/question-bank.md` | Before Core Understanding | GTS-specific questions for each phase |
+| `references/gray-areas.md` | Before Gray Areas | Detection patterns and area definitions |
+| `references/goal-backward.md` | **Before Goal-Backward** | Planning guide with GTS test patterns |
+| `references/github-templates.md` | Before GitHub Creation | Issue body templates for gh_tasks_sync.py |
+
+**CRITICAL:** These are not optional references. READ the relevant file BEFORE executing each phase.
+
+---
+
+## Context Sources (MUST READ)
+
+**Primary Sources (READ during Context Loading phase):**
 
 | Source | Path | Purpose |
 |--------|------|---------|
-| Architecture | `wiki/GTS-Technical-Architecture.md` | Stack, domain model |
+| Implementation Plan | `../wiki/IMPLEMENTATION.md` | **Phase scope, archive mappings, deliverables** |
+| Architecture | `../wiki/GTS-Technical-Architecture.md` | Stack, domain model, testing strategy |
 | Agent Guide | `AGENTS.md` | Development workflow, rules |
-| Auth Rules | `.claude/rules/authentication.md` | Auth patterns |
-| Test Policy | `.claude/rules/testing-policy.md` | Test boundaries |
-| Frontend Rules | `.claude/rules/frontend-standards.md` | Template patterns |
-| GitHub Rules | `.claude/rules/github.md` | CLI requirements |
+
+**Secondary Sources (READ when relevant):**
+
+| Source | Path | When |
+|--------|------|------|
+| Auth Rules | `.claude/rules/authentication.md` | Auth-related features |
+| Test Policy | `.claude/rules/testing-policy.md` | Always for test specs |
+| Frontend Rules | `.claude/rules/frontend-standards.md` | UI features |
+| GitHub Rules | `.claude/rules/github.md` | All GitHub operations |
+
+**CRITICAL: The wiki docs are authoritative.** If building from a GitHub issue that references `../wiki/IMPLEMENTATION.md`, you MUST read that file first. Do NOT rely on the issue body alone — the wiki contains archive mappings, dependency orders, and scope constraints.
 
 ---
 

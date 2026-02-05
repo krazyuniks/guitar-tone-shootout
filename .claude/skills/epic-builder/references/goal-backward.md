@@ -120,15 +120,33 @@ Tests:
 | DB/service | Integration | `tests/integration/` | Docker |
 | User journey | E2E | `tests/e2e/python/` | Host |
 
-### Test Commands
+### Test Commands (ONLY `just` commands allowed)
 
-| Test Type | Command | Runs In |
+| Test Type | Command | Purpose |
 |-----------|---------|---------|
-| Regression | `just test-regression` | Docker |
-| Unit | `just test-unit` | Docker |
-| Integration | `just test-integration` | Docker |
-| E2E | `just test-e2e` | Host |
-| TDD single | `just tdd <path>` | Docker |
+| Regression | `just test-regression` | **Quality gate** - E2E test exercising all endpoints + stack connectivity |
+| Unit | `just test-unit` | Isolated logic, no I/O |
+| Integration | `just test-integration` | Real DB/Redis |
+| E2E | `just test-e2e` | Full user journeys |
+| TDD single | `just tdd <path>` | Single test during development |
+
+**NEVER use raw `docker compose exec`, `pytest`, or `python` commands in acceptance criteria.** The `just` commands wrap the underlying execution - implementation details are hidden.
+
+### Three-Layer E2E Validation (MANDATORY)
+
+All E2E tests (including regression) must verify the full code path:
+
+1. **UI Action** - User interaction succeeds (click, submit)
+2. **DOM Update** - Page reflects expected state change
+3. **Database State** - Data persisted correctly (or page content reflects DB query)
+
+This ensures the entire stack is wired correctly: UI → Domain Model → Database.
+
+**Regression test note:** `test-regression` is a Playwright E2E test that serves dual purposes:
+1. **Stack connectivity** - Exercises ORM → Repository → Database through the webapp
+2. **Endpoint validation** - All web endpoints respond correctly with expected content
+
+When adding new endpoints, update `tests/e2e/python/tests/test_regression.py` with specific validation criteria (expected content, UI elements, data counts).
 
 ---
 
