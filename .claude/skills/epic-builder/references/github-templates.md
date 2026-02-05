@@ -198,11 +198,13 @@ After creating issues, validate structure:
 
 ```bash
 # Validate issue structure for sync compatibility
-python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {epic_number} --validate
+just epic-sync-validate {epic_number}
 
 # If validation passes, sync to .tasks/
 just epic-sync {epic_number}
 ```
+
+**Note:** Always use `just` commands, never direct `python scripts/...` calls.
 
 ---
 

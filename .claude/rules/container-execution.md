@@ -28,7 +28,8 @@ just up-d                  # Start services (existing worktree)
 | **Webapp** (Python) | Docker | `docker compose exec webapp <command>` |
 | **Frontend** (Node/pnpm) | Docker (build profile) | `just build-astro` or `docker compose --profile build exec astro <command>` |
 | **Pipeline** | Host | `cd pipeline && uv run <command>` |
-| **E2E Tests** (Playwright) | Host | `just tdd tests/e2e/python/...` |
+| **E2E Tests** (Playwright) | Host | `just test-e2e` |
+| **TDD Workflow Scripts** | Host | `just epic-sync`, `just snapshot-verify`, etc. |
 | **Git/GitHub** | Host | `git`, `gh` commands |
 
 ## Frontend Commands
@@ -51,6 +52,26 @@ cd pipeline && uv run pytest
 cd pipeline && uv run ruff check .
 cd pipeline && uv run mypy .
 ```
+
+### TDD Workflow Scripts
+
+The TDD workflow scripts in `scripts/` run on host because they:
+- Need GitHub CLI authentication (`gh_tasks_sync.py`, `plan_epic.py`)
+- Write to `.tasks/` directory which is not mounted in containers
+- Orchestrate `just` commands which themselves call Docker
+
+**Always use `just` commands**, not direct `python scripts/...` calls:
+
+| Script | Just Command |
+|--------|--------------|
+| `snapshot_tests.py save` | `just tdd-lock <task>` |
+| `snapshot_tests.py verify` | `just snapshot-verify <task>` |
+| `snapshot_tests.py diff` | `just snapshot-diff <task>` |
+| `snapshot_tests.py list` | `just snapshot-list` |
+| `test_quality_check.py` | `just test-quality` |
+| `health_check.py` | `just health <epic>` |
+| `gh_tasks_sync.py` | `just epic-sync <epic>` |
+| `plan_epic.py` | `just plan <epic>` |
 
 ### Shell Tools
 Git, GitHub CLI, and other shell tools run on host:

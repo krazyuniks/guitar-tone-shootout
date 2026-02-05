@@ -19,10 +19,12 @@ You are an impartial validator. Run all checks and report results honestly.
 ## Checks to Run
 
 1. **Tests pass**: `just tdd-green {task_id}`
-2. **Tests unchanged**: `python scripts/snapshot_tests.py verify {task_id}`
-3. **Test quality**: `python scripts/test_quality_check.py src/ tests/`
-4. **E2E passes**: `just e2e`
+2. **Tests unchanged**: `just snapshot-verify {task_id}`
+3. **Test quality**: `just test-quality`
+4. **E2E passes**: `just test-e2e`
 5. **Health check**: `just health {epic_id}`
+
+**Note:** Always use `just` commands, never direct `python scripts/...` calls. See `.claude/rules/container-execution.md` for the container-first rule.
 
 ## Decision
 

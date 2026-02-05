@@ -196,7 +196,7 @@ After epic creation:
 
 ```bash
 # Validate issue structure
-python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {epic} --validate
+just epic-sync-validate {epic}
 
 # Sync GitHub issues to .tasks/
 just epic-sync {epic}
@@ -204,3 +204,5 @@ just epic-sync {epic}
 # Start TDD orchestration
 just epic-start {epic}
 ```
+
+**Note:** Always use `just` commands, never direct `python scripts/...` calls. See `.claude/rules/container-execution.md`.

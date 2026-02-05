@@ -383,6 +383,13 @@ uninstall-hooks:
 # =============================================================================
 # Optional workflow for epic/feature development with automated TDD.
 # See wiki: AI-Development-Workflow
+#
+# HOST EXCEPTION: Scripts in this section run on host (not Docker) because:
+# - GitHub scripts need `gh` CLI authentication
+# - Snapshot scripts write to `.tasks/` (not mounted in containers)
+# - Health check orchestrates `just` commands
+#
+# See: .claude/rules/container-execution.md
 
 # --- Epic Management ---
 

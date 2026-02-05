@@ -246,7 +246,7 @@ EOF
 Validate issue structure for sync compatibility:
 
 ```bash
-python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {epic} --validate
+just epic-sync-validate {epic}
 ```
 
 Report results:

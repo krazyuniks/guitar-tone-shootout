@@ -78,3 +78,4 @@ just health E42       # System health
 2. **Orchestrator is stateless** - exits and restarts
 3. **All state in `.tasks/`** - survives context loss
 4. **Validation required** - "complete" means verified
+5. **Use `just` commands** - never direct `python scripts/...` calls (see `.claude/rules/container-execution.md`)
