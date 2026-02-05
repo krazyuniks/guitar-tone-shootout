@@ -64,7 +64,7 @@ T6 → T9
 | T6 | [Task]: User ORM Model | complete | webapp | T4 |
 | T7 | [Task]: OAuthProvider ORM Model | complete | webapp | T4 |
 | T8 | [Task]: UserIdentity ORM Model | complete | webapp | T6 |
-| T9 | [Task]: Gear and GearModel ORM Mode | pending | webapp | T6 |
+| T9 | [Task]: Gear and GearModel ORM Mode | complete | webapp | T6 |
 
 ## Commands
 
