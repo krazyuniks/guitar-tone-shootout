@@ -163,25 +163,17 @@ async def test_user_model_is_active_persists_to_database(db_session: AsyncSessio
     await db_session.commit()
     user_id = user.id
 
-    # Close session and open new one to force database read
-    await db_session.close()
+    # Expire all cached state to force fresh database read
+    db_session.expire_all()
 
-    # Create new session
-    engine = db_session.get_bind()
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    new_session = async_session()
+    # Query the user from database (forces fresh read)
+    result = await db_session.execute(select(User).where(User.id == user_id))
+    retrieved_user = result.scalar_one()
 
-    try:
-        # Query the user from database
-        result = await new_session.execute(select(User).where(User.id == user_id))
-        retrieved_user = result.scalar_one()
-
-        # Should still be inactive
-        assert retrieved_user.is_active is False, (
-            "is_active value not persisted correctly to database"
-        )
-    finally:
-        await new_session.close()
+    # Should still be inactive
+    assert retrieved_user.is_active is False, (
+        "is_active value not persisted correctly to database"
+    )
 
 
 @pytest.mark.asyncio
