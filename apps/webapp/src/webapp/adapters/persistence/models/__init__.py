@@ -10,10 +10,10 @@ from webapp.adapters.persistence.models.base import (
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearMake,
-    GearModel,
     GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.job import AuditLog, Job
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
