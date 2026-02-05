@@ -50,6 +50,7 @@ class User(UUIDMixin, TimestampMixin, Base):
         username: Display name
         email: Email address (optional, indexed)
         avatar_url: Profile image URL (optional)
+        is_active: Whether the user account is active
         created_at: When the user was created
         updated_at: When the user was last updated
         identities: List of linked external identities
@@ -60,6 +61,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationship to identities
     identities: Mapped[list[UserIdentity]] = relationship(
