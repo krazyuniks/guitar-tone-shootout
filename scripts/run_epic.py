@@ -189,8 +189,121 @@ def dispatch_agent(
 
 
 # ---------------------------------------------------------------------------
+# Pre-flight checks
+# ---------------------------------------------------------------------------
+
+
+def preflight_scope_check(task: Task) -> list[tuple[str, bool]]:
+    """Parse **Create:** section from task spec, check which files exist.
+
+    Returns list of (filepath, exists) tuples.
+    """
+    task_path = (
+        TASKS_BASE / f"E{task.epic_number}" / "tasks" / f"T{task.task_id}.md"
+    )
+    if not task_path.exists():
+        return []
+
+    content = task_path.read_text()
+
+    # Find the **Create:** section and extract file paths
+    # Matches lines like: - `apps/webapp/src/webapp/.../file.py`
+    in_create = False
+    results: list[tuple[str, bool]] = []
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("**Create:**"):
+            in_create = True
+            continue
+        if in_create:
+            # Stop at next section header or empty line after files
+            if stripped.startswith("**") or (not stripped and results):
+                break
+            match = re.match(r"^-\s*`([^`]+)`", stripped)
+            if match:
+                filepath = match.group(1)
+                exists = (PROJECT_ROOT / filepath).exists()
+                results.append((filepath, exists))
+
+    return results
+
+
+def find_existing_tests(task: Task) -> list[tuple[str, int]]:
+    """Find existing test files that cover modules in this task's scope.
+
+    Returns list of (test_filepath, test_count) tuples.
+    """
+    # Get scope modules from the Create section
+    scope_files = preflight_scope_check(task)
+    if not scope_files:
+        return []
+
+    # Extract module names from scope files (e.g. "gear" from "models/gear.py")
+    scope_modules: set[str] = set()
+    for filepath, _ in scope_files:
+        stem = Path(filepath).stem  # e.g. "gear", "gear_model", "gear_type"
+        scope_modules.add(stem)
+
+    # Directories to search (skip e2e venvs and unrelated dirs)
+    search_dirs = [
+        PROJECT_ROOT / "tests" / "unit",
+        PROJECT_ROOT / "tests" / "integration",
+        PROJECT_ROOT / "tests" / "regression",
+    ]
+
+    results: list[tuple[str, int]] = []
+    for test_dir in search_dirs:
+        if not test_dir.exists():
+            continue
+        for test_file in test_dir.rglob("test_*.py"):
+            # Check filename contains a scope module name
+            file_stem = test_file.stem.removeprefix("test_")
+            if any(module in file_stem for module in scope_modules):
+                content = test_file.read_text()
+                test_count = len(re.findall(r"^(?:async\s+)?def test_", content, re.MULTILINE))
+                rel_path = str(test_file.relative_to(PROJECT_ROOT))
+                results.append((rel_path, test_count))
+
+    return results
+
+
+def parse_pytest_counts(output: str) -> tuple[int, int, int]:
+    """Parse passed/failed/error counts from pytest output.
+
+    Returns (passed, failed, errors).
+    """
+    def _extract(pattern: str) -> int:
+        match = re.search(pattern, output)
+        return int(match.group(1)) if match else 0
+
+    return (
+        _extract(r"(\d+) passed"),
+        _extract(r"(\d+) failed"),
+        _extract(r"(\d+) error"),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Prompt builders
 # ---------------------------------------------------------------------------
+
+
+def load_testing_skill() -> str | None:
+    """Load GTS testing skill content for embedding in test-author prompts."""
+    skill_path = PROJECT_ROOT / ".claude" / "skills" / "gts-testing" / "SKILL.md"
+    if not skill_path.exists():
+        return None
+
+    content = skill_path.read_text()
+
+    # Strip YAML frontmatter if present
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            return parts[2].strip()
+
+    return content.strip()
 
 
 def build_test_author_prompt(task: Task, retry_context: str | None = None) -> str:
@@ -204,6 +317,64 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
         "## Task Specification",
         "",
         f"Read the full task spec at: .tasks/projects/guitar-tone-shootout/epics/E{task.epic_number}/tasks/T{task.task_id}.md",
+    ]
+
+    # --- Pre-flight context ---
+    scope_files = preflight_scope_check(task)
+    existing_tests = find_existing_tests(task)
+
+    existing_scope = [(f, e) for f, e in scope_files if e]
+    missing_scope = [(f, e) for f, e in scope_files if not e]
+
+    if existing_scope or existing_tests:
+        lines.extend([
+            "",
+            "## Pre-flight Context (IMPORTANT)",
+            "",
+            "Some scope files already exist. This means code is partially implemented.",
+            "Every test you write MUST FAIL against the current code.",
+            "Do NOT write tests that verify already-working functionality.",
+            "",
+        ])
+
+        if existing_scope:
+            lines.append("**Scope files that ALREADY EXIST (read these first):**")
+            for filepath, _ in existing_scope:
+                lines.append(f"- `{filepath}` — READ this file before writing tests")
+            lines.append("")
+
+        if missing_scope:
+            lines.append("**Scope files that DO NOT exist yet (safe to test freely):**")
+            for filepath, _ in missing_scope:
+                lines.append(f"- `{filepath}`")
+            lines.append("")
+
+        if existing_tests:
+            lines.append("**Existing test files covering these modules (DO NOT duplicate):**")
+            for test_path, count in existing_tests:
+                lines.append(f"- `{test_path}` ({count} tests)")
+            lines.append("")
+
+        lines.extend([
+            "**Strategy for partially-implemented tasks:**",
+            "1. Read all existing scope files to understand what's already implemented",
+            "2. Read existing test files to avoid duplication",
+            "3. Write tests ONLY for genuinely missing functionality",
+            "4. If everything is already implemented, write tests for edge cases or",
+            "   acceptance criteria that existing tests don't cover",
+            "5. Every test MUST FAIL — if you can't find anything untested, STOP and",
+            "   report that the task appears fully implemented",
+        ])
+    elif missing_scope:
+        lines.extend([
+            "",
+            "## Scope Context",
+            "",
+            "None of the scope files exist yet — this is a fresh implementation task.",
+            "All tests should fail (imports will error on missing modules).",
+        ])
+
+    lines.extend([
         "",
         "## Instructions",
         "",
@@ -214,21 +385,48 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
         "5. Do NOT update any .tasks/ state files",
         "6. Do NOT modify any existing test files — only create new ones",
         "7. Check if a test file exists before writing. If it does, use a different filename",
-    ]
+    ])
 
     if retry_context:
+        passed, failed, errors = parse_pytest_counts(retry_context)
         lines.extend([
             "",
-            "## Previous Attempt Failed",
+            "## Previous Attempt Failed — RED GATE REJECTED",
             "",
-            "The previous test run did not produce properly failing tests.",
-            "Fix the issues and ensure all tests fail (not error).",
+            f"**Results:** {passed} passed, {failed} failed, {errors} errors",
             "",
-            "Previous output:",
+        ])
+
+        if passed > 0 and failed == 0 and errors == 0:
+            lines.extend([
+                f"ALL {passed} tests passed. The red gate requires at least one failure.",
+                "",
+                "**You MUST:**",
+                "1. DELETE all test files you created (they test already-implemented code)",
+                "2. Read the existing implementation files listed in scope",
+                "3. Write NEW tests that target genuinely MISSING functionality",
+                "4. If everything is implemented, test edge cases or validation not yet covered",
+            ])
+        elif passed > 0:
+            lines.extend([
+                f"{passed} tests already pass against current code.",
+                "The red gate tolerates some passing tests IF failures exist too,",
+                "but you should still review passing tests — they may be testing",
+                "already-implemented behaviour (wasting test budget).",
+            ])
+
+        lines.extend([
+            "",
+            "Previous output (last 2000 chars):",
             "```",
-            retry_context[-2000:],  # Truncate to last 2000 chars
+            retry_context[-2000:],
             "```",
         ])
+
+    # Append GTS testing skill reference
+    skill_content = load_testing_skill()
+    if skill_content:
+        lines.extend(["", "---", "", "## GTS Testing Reference", "", skill_content])
 
     return "\n".join(lines)
 
@@ -273,6 +471,120 @@ def build_implementer_prompt(
         ])
 
     return "\n".join(lines)
+
+
+def is_likely_test_bug(task: Task, green_output: str) -> bool:
+    """Heuristic: did the implementer do the work but tests have bugs?
+
+    Returns True when:
+    - Most scope files exist (implementation was done, >= 75% present)
+    - Small number of failures (<= 3)
+    - Most tests pass
+    """
+    scope_files = preflight_scope_check(task)
+    if not scope_files:
+        return False
+
+    existing = sum(1 for _, exists in scope_files if exists)
+    total = len(scope_files)
+    if total == 0 or existing / total < 0.75:
+        return False
+
+    passed, failed, errors = parse_pytest_counts(green_output)
+    total_tests = passed + failed + errors
+    if total_tests == 0:
+        return False
+
+    # Few failures relative to total, and most tests pass
+    failure_count = failed + errors
+    return failure_count <= 3 and passed > failure_count
+
+
+def find_failing_test_files(green_output: str) -> list[str]:
+    """Extract failing test file paths from pytest output."""
+    # Match FAILED lines: FAILED tests/unit/webapp/test_foo.py::test_bar
+    files: set[str] = set()
+    for match in re.finditer(r"FAILED (tests/\S+\.py)::", green_output):
+        files.add(match.group(1))
+    return sorted(files)
+
+
+def build_test_fix_prompt(
+    task: Task,
+    green_output: str,
+    failing_test_files: list[str],
+) -> str:
+    """Build prompt for test-author in FIX mode (bounce-back from green failure)."""
+    lines = [
+        f"FIX tests for task T{task.task_id}: {task.title}",
+        "",
+        "## Context",
+        "",
+        "The implementer completed the code, but some tests have bugs.",
+        "You are being called back to FIX the failing tests — not write new ones.",
+        "",
+        "## Failing Test Files (you MAY modify these)",
+        "",
+    ]
+
+    for f in failing_test_files:
+        lines.append(f"- `{f}`")
+
+    lines.extend([
+        "",
+        "## Rules",
+        "",
+        "1. ONLY modify the files listed above — no other test files",
+        "2. Read each failing test file and the implementation it tests",
+        "3. Fix the test bugs (wrong imports, wrong assertions, wrong patterns)",
+        "4. Do NOT add new tests — only fix existing ones",
+        "5. Do NOT modify implementation files (libs/, apps/, sources/)",
+        "6. Do NOT update any .tasks/ state files",
+        "",
+        "## BANNED Patterns (NEVER USE)",
+        "",
+        "- `importlib.util` / `find_spec` / `module_from_spec` — use standard `from X import Y`",
+        "- `db_session.get_bind()` — returns sync Engine, use fixtures directly",
+        "- Ad-hoc session fixtures when conftest fixtures exist",
+        "",
+        "## Green Phase Output (failures to fix)",
+        "",
+        "```",
+        green_output[-3000:],
+        "```",
+    ])
+
+    # Append skill content for reference
+    skill_content = load_testing_skill()
+    if skill_content:
+        lines.extend(["", "---", "", "## GTS Testing Reference", "", skill_content])
+
+    return "\n".join(lines)
+
+
+def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
+    """Re-snapshot and commit fixed tests after bounce-back.
+
+    Returns (success, output).
+    """
+    # Stage and commit test fixes
+    result = subprocess.run(
+        ["git", "add", "tests/"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False, result.stderr
+
+    result = subprocess.run(
+        ["git", "commit", "-m", f"fix(tests): Fix test bugs for {task_id_str} (bounce-back)"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    # commit may fail if nothing changed — that's OK
+    commit_output = result.stdout + result.stderr
+
+    # Re-snapshot
+    ok, snapshot_output = run_just_command("tdd-lock", task_id_str)
+    return ok, commit_output + "\n" + snapshot_output
 
 
 # ---------------------------------------------------------------------------
@@ -570,6 +882,9 @@ def run_state_machine(
     # Ensure log directories exist
     (epic_dir / "logs" / "errors").mkdir(parents=True, exist_ok=True)
 
+    # Track bounce-backs: task_id -> count (max 1 per task)
+    bounce_backs: dict[int, int] = {}
+
     print(f"Starting TDD state machine for Epic E{epic_number}")
     print(f"  Tasks dir: {epic_dir}")
     print(f"  Max iterations: {max_iterations}")
@@ -674,7 +989,29 @@ def run_state_machine(
                             break
 
                     if not ok:
-                        stop_epic(epic_dir, task.task_id, "green_failed", output)
+                        # --- BOUNCE-BACK: try fixing tests if likely test bug ---
+                        bounced = bounce_backs.get(task.task_id, 0)
+                        if bounced == 0 and is_likely_test_bug(task, output):
+                            bounce_backs[task.task_id] = 1
+                            failing_files = find_failing_test_files(output)
+                            print(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
+                            print(f"  Dispatching test-author in FIX mode...")
+
+                            fix_prompt = build_test_fix_prompt(task, output, failing_files)
+                            dispatch_agent("test-author", fix_prompt, project=task.project)
+
+                            # Re-lock tests and re-verify green
+                            print(f"\n  Re-locking tests after bounce-back...")
+                            lock_ok, lock_output = re_lock_after_bounce(task_id_str)
+                            if not lock_ok:
+                                stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
+
+                            print(f"\n  Re-running GREEN after bounce-back...")
+                            ok, output = run_tdd_green(task_id_str)
+                            if not ok:
+                                stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
+                        else:
+                            stop_epic(epic_dir, task.task_id, "green_failed", output)
 
                 # Auto-commit implementation files
                 print(f"\n  Committing implementation...")

@@ -450,6 +450,8 @@ tdd-test-phase task:
 
 # Verify tests fail (red phase) - runs in Docker
 # Only checks NEW/MODIFIED test files (not pre-existing passing tests)
+# Gate: at least one test must FAIL. Passing tests are warned but tolerated
+# when failures exist (handles tasks that extend already-implemented code).
 tdd-red task:
     #!/usr/bin/env bash
     set -e
@@ -468,22 +470,43 @@ tdd-red task:
     echo "New test files:"
     echo "$ALL_NEW_TESTS" | sed 's/^/  /'
 
-    # Run ONLY the new tests — they should all fail
+    # Run ONLY the new tests — they should fail
     OUTPUT=$(docker compose exec -T webapp pytest $ALL_NEW_TESTS -v 2>&1) || true
 
-    if echo "$OUTPUT" | grep -qE "passed"; then
-        echo "ERROR: Some new tests passed. Tests should fail before implementation."
+    # Parse pass/fail/error counts from pytest summary line
+    # Matches patterns like: "3 failed, 2 passed", "5 failed", "2 passed, 1 error"
+    FAILED=$(echo "$OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || true)
+    PASSED=$(echo "$OUTPUT" | grep -oP '\d+(?= passed)' | tail -1 || true)
+    ERRORS=$(echo "$OUTPUT" | grep -oP '\d+(?= error)' | tail -1 || true)
+
+    FAILED=${FAILED:-0}
+    PASSED=${PASSED:-0}
+    ERRORS=${ERRORS:-0}
+
+    echo ""
+    echo "Results: ${FAILED} failed, ${PASSED} passed, ${ERRORS} errors"
+
+    # Gate: at least one test must fail
+    if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+        echo "ERROR: All ${PASSED} tests passed. Tests must fail before implementation."
+        echo "Either tests are trivial or code already exists for everything tested."
         echo "$OUTPUT" | tail -20
         exit 1
     fi
 
-    if echo "$OUTPUT" | grep -qE "error"; then
-        echo "WARNING: Some tests errored (import/syntax issues). Check output:"
-        echo "$OUTPUT" | tail -30
-        # Errors are acceptable in red phase — tests may import unimplemented modules
+    # Warn on passing tests but proceed if failures exist
+    if [ "$PASSED" -gt 0 ]; then
+        echo "WARNING: ${PASSED} tests already pass (code may partially exist)."
+        echo "  This is OK — ${FAILED} tests still fail, so there's work to do."
     fi
 
-    echo "New tests correctly failing (red phase verified)"
+    if [ "$ERRORS" -gt 0 ]; then
+        echo "NOTE: ${ERRORS} tests errored (import/syntax issues)."
+        echo "  Errors count as 'not passing' — acceptable in red phase."
+    fi
+
+    echo ""
+    echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
 
 # Lock tests (snapshot before implementation)
 tdd-lock task:
