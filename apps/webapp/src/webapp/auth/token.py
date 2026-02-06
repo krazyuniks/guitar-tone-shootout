@@ -1,8 +1,10 @@
 """Token exchange logic for OAuth flows.
 
 Handles exchanging authorization codes for access tokens from OAuth providers.
+Also provides token validation for authentication.
 """
 
+import uuid
 from typing import Any
 
 import httpx
@@ -60,3 +62,25 @@ class TokenExchanger:
             response.raise_for_status()
 
             return response.json()
+
+
+def validate_token(token: str) -> uuid.UUID:
+    """Validate Bearer token and return user ID.
+
+    This is a placeholder implementation. In production, this would:
+    - Decode and validate JWT token
+    - Check token expiration
+    - Return user_id from token claims
+
+    Args:
+        token: Bearer token to validate
+
+    Returns:
+        User UUID from token
+
+    Raises:
+        ValueError: If token is invalid or expired
+    """
+    # Placeholder implementation
+    # In production, this would validate JWT and extract user_id
+    raise NotImplementedError("Token validation not yet implemented")
