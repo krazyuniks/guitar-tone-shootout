@@ -472,3 +472,75 @@ Tests passing
 
 2026-02-06 03:30:32,793 [INFO] 
   Committing implementation...
+2026-02-06 03:30:35,132 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 03:30:35,142 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 03:30:35,142 [INFO]   Git sync: push --force-with-lease
+2026-02-06 03:30:36,607 [DEBUG]   Pushed: 
+2026-02-06 03:30:36,607 [INFO] 
+2026-02-06 03:30:36,607 [INFO] === Iteration 6 ===
+2026-02-06 03:30:36,609 [INFO]   Next task: T25 — [Task]: SignalChainService and API (state=validating)
+2026-02-06 03:30:36,609 [INFO] 
+  Phase: VALIDATE (full TDD validation for T25)
+2026-02-06 03:30:36,609 [INFO]     Running: just tdd-complete T25
+2026-02-06 03:31:02,241 [DEBUG]     just tdd-complete T25 -> OK
+2026-02-06 03:31:02,241 [DEBUG]     Output:
+assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_gear_repository.py:373 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:78 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:123 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:162 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:213 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:287 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:328 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_user_repository.py:361 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_t3k_oauth_integration_t15.py:93 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+
+Errors: 1, Warnings: 92
+Test quality check failed
+4. Running regression tests...
+→ Running internal stack regression tests...
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0, anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 8 items
+
+tests/regression/test_stack.py ........                                  [100%]
+
+============================== 8 passed in 0.33s ===============================
+
+→ Testing external endpoint: https://1.tone-shootout.com
+→ Traefik detected: Testing SSL endpoint...
+  ✓ SSL endpoint responding: https://1.tone-shootout.com
+
+✓ All regression tests passed
+5. Running E2E tests...
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /home/ryan/Work/guitar-tone-worktrees/1-phase-4-web-application-implementation/tests/e2e/python/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/ryan/Work/guitar-tone-worktrees/1-phase-4-web-application-implementation/tests/e2e/python
+configfile: pyproject.toml
+plugins: playwright-0.7.2, anyio-4.12.1, base-url-2.1.0, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 0 items
+
+============================ no tests ran in 0.02s =============================
+E2E skipped or failed
+
+Task T25 validation complete
+cd tests/e2e/python && uv run pytest tests/ -v
+error: Recipe `test-e2e` failed on line 146 with exit code 5
+
+2026-02-06 03:31:02,241 [INFO]   T25 COMPLETE
