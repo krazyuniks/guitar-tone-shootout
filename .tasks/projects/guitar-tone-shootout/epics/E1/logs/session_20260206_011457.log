@@ -70,3 +70,33 @@ cd tests/e2e/python && uv run pytest tests/ -v
 error: Recipe `test-e2e` failed on line 146 with exit code 5
 
 2026-02-06 02:15:18,972 [INFO]   T19 COMPLETE
+2026-02-06 02:15:21,254 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 02:15:21,282 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 02:15:21,282 [INFO]   Git sync: push --force-with-lease
+2026-02-06 02:15:22,643 [DEBUG]   Pushed: 
+2026-02-06 02:15:22,643 [INFO] 
+2026-02-06 02:15:22,643 [INFO] === Iteration 2 ===
+2026-02-06 02:15:22,644 [INFO]   Next task: T20 — [Task]: Gear API Endpoints (state=pending)
+2026-02-06 02:15:22,644 [INFO] 
+  Phase: TEST (writing tests for T20)
+2026-02-06 02:15:22,645 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-06 02:17:15,122 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-06 02:17:15,122 [INFO] 
+  Phase: RED (verifying tests fail)
+2026-02-06 02:17:15,122 [INFO]     Running: just tdd-red T20
+2026-02-06 02:17:17,665 [DEBUG]     just tdd-red T20 -> OK
+2026-02-06 02:17:17,665 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/integration/webapp/test_gear_api_t20.py
+
+Results: 0 failed, 0 passed, 15 errors
+NOTE: 15 tests errored (import/syntax issues).
+  Errors count as 'not passing' — acceptable in red phase.
+
+Red phase verified: 0 failing + 15 erroring tests found.
+
+2026-02-06 02:17:17,666 [INFO] 
+  Phase: LOCK (snapshotting tests)
+2026-02-06 02:17:17,666 [INFO]     Running: just tdd-lock T20
