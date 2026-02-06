@@ -579,3 +579,18 @@ Red phase verified: 0 failing + 6 erroring tests found.
 2026-02-06 03:35:15,872 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-06 03:35:15,872 [INFO]     Running: just tdd-lock T26
+2026-02-06 03:35:18,123 [DEBUG]     just tdd-lock T26 -> OK
+2026-02-06 03:35:18,123 [DEBUG]     Output:
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T26.json
+  64 test files captured at commit dfa1da316f00
+[1/phase-4-web-application-implementation 1460b2a] test-lock: T26 tests ready for implementation
+ 9 files changed, 2070 insertions(+), 1 deletion(-)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T26.json
+ create mode 100644 tests/integration/webapp/test_job_service.py
+ create mode 100644 tests/integration/webapp/test_jobs_api.py
+ create mode 100644 tests/integration/webapp/test_shootout_service.py
+ create mode 100644 tests/integration/webapp/test_shootouts_api.py
+ create mode 100644 tests/unit/webapp/test_job_schemas.py
+ create mode 100644 tests/unit/webapp/test_shootout_schemas.py
+Tests locked at 1460b2a
+
