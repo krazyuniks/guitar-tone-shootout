@@ -202,25 +202,28 @@ class SQLAlchemyShootoutRepository:
             existing.video_path = shootout.output_path
             existing.updated_at = shootout.updated_at
 
-            # Update chains - compare IDs
-            existing_chain_ids = {chain.id for chain in existing.chains}
+            # Synchronize chains using relationship management
+            # This leverages cascade="all, delete-orphan" on the relationship
             new_chain_ids = {chain.id for chain in shootout.chains}
 
-            # Remove chains that are no longer in the entity
-            for orm_chain in existing.chains:
-                if orm_chain.id not in new_chain_ids:
-                    await self.session.delete(orm_chain)
+            # Remove chains that are no longer in the entity by clearing the list
+            # and rebuilding it - this triggers the cascade delete-orphan
+            existing.chains = [
+                orm_chain for orm_chain in existing.chains
+                if orm_chain.id in new_chain_ids
+            ]
+
+            # Track which chains exist for update vs create
+            existing_chain_map = {chain.id: chain for chain in existing.chains}
 
             # Add or update chains
             for chain in shootout.chains:
-                if chain.id in existing_chain_ids:
+                if chain.id in existing_chain_map:
                     # Update existing chain
-                    for existing_chain in existing.chains:
-                        if existing_chain.id == chain.id:
-                            existing_chain.signal_chain_id = chain.signal_chain_id
-                            existing_chain.position = chain.position
-                            existing_chain.label = chain.label
-                            break
+                    existing_chain = existing_chain_map[chain.id]
+                    existing_chain.signal_chain_id = chain.signal_chain_id
+                    existing_chain.position = chain.position
+                    existing_chain.label = chain.label
                 else:
                     # Add new chain
                     orm_chain = ShootoutChain(
@@ -230,7 +233,7 @@ class SQLAlchemyShootoutRepository:
                         position=chain.position,
                         label=chain.label,
                     )
-                    self.session.add(orm_chain)
+                    existing.chains.append(orm_chain)
 
         await self.session.flush()
 
