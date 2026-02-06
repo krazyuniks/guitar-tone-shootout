@@ -119,7 +119,6 @@ class TimestampMixin:
         """Configure mapper to set timestamps on insert."""
         # Import here to avoid issues with mapper configuration
         from sqlalchemy import event
-        from sqlalchemy.orm import object_mapper
 
         # Use a before_insert listener to set both timestamps to the same value
         @event.listens_for(cls, "before_insert", propagate=True)

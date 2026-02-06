@@ -55,12 +55,12 @@ class UserGear(UUIDMixin, TimestampMixin, Base):
     is_favourite: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Relationships
-    user: Mapped["User"] = relationship(
+    user: Mapped[User] = relationship(
         "User",
         back_populates="user_gear",
         lazy="selectin",
     )
-    gear: Mapped["Gear"] = relationship(
+    gear: Mapped[Gear] = relationship(
         "Gear",
         back_populates="user_gear",
         lazy="selectin",

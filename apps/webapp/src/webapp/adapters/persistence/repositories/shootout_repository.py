@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from core.domain.entities.shootout import Shootout as ShootoutEntity
-from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
+
+from core.domain.entities.shootout import Shootout as ShootoutEntity
+from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
 from webapp.adapters.persistence.models.shootout import (
     Shootout,
     ShootoutChain,

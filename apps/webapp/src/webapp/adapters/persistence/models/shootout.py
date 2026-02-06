@@ -12,7 +12,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin
 
 if TYPE_CHECKING:
-    from core.domain.value_objects.audio_checksum import AudioChecksum
 
     from .signal_chain import SignalChain
     from .user import User

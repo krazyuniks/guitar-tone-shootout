@@ -74,6 +74,7 @@ class Gear(Entity):
     Attributes:
         id: Unique internal identifier
         name: Display name
+        slug: URL-friendly identifier
         gear_type: Type of gear (amp, pedal, ir, etc.)
         description: Optional description
         manufacturer: Gear manufacturer
@@ -87,6 +88,7 @@ class Gear(Entity):
     """
 
     name: str = ""
+    slug: str = ""
     gear_type: GearType = GearType.AMP
     description: str | None = None
     manufacturer: str | None = None

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 import soundfile as sf
-from core.domain.value_objects.audio_checksum import AudioChecksum
 from sqlalchemy import select
+
+from core.domain.value_objects.audio_checksum import AudioChecksum
 from webapp.adapters.persistence.models.shootout import DITrack
 
 if TYPE_CHECKING:
@@ -87,9 +87,9 @@ class DITrackService:
                 duration_seconds = 1.0  # Default duration for test files
                 sample_rate = 44100  # Default sample rate
             else:
-                raise ValueError(f"Invalid audio file: {str(e)}") from e
+                raise ValueError(f"Invalid audio file: {e!s}") from e
         except Exception as e:
-            raise ValueError(f"Invalid audio file: {str(e)}") from e
+            raise ValueError(f"Invalid audio file: {e!s}") from e
 
         # Generate checksum
         checksum = AudioChecksum.from_file(path)

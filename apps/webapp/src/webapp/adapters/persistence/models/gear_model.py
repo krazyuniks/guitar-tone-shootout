@@ -2,10 +2,11 @@
 
 import uuid
 
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
 from sqlalchemy import ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from core.domain.value_objects.download_status import DownloadStatus
+from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
 
 from .base import Base, EnumByValue, UUIDMixin
 

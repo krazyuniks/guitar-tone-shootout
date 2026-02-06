@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+
 from core.domain.entities.signal_chain import (
     SignalChain as SignalChainEntity,
 )
 from core.domain.entities.signal_chain import SignalChainBlock as BlockEntity
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
 from webapp.adapters.persistence.models.signal_chain import (
     SignalChain,
     SignalChainBlock,

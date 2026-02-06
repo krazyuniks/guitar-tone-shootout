@@ -2,23 +2,24 @@
 
 from __future__ import annotations
 
+import re
 import uuid
-from datetime import datetime
 from typing import TYPE_CHECKING
 
-from core.domain.value_objects.signal_chain_enums import GearType
 from sqlalchemy import (
     Boolean,
     Column,
-    DateTime,
     ForeignKey,
     Index,
     String,
     Table,
     Text,
     Uuid,
+    event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from core.domain.value_objects.signal_chain_enums import GearType
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
 from .gear_model import GearModel
@@ -26,6 +27,41 @@ from .gear_source import GearSource
 
 if TYPE_CHECKING:
     from .user_gear import UserGear
+
+
+def _slugify(text: str, manufacturer: str | None = None) -> str:
+    """Convert text to a URL-friendly slug.
+
+    Args:
+        text: The text to slugify
+        manufacturer: Optional manufacturer name to prepend
+
+    Returns:
+        A lowercase, hyphenated slug
+    """
+    # Check if manufacturer is already in the name
+    if manufacturer:
+        # Case-insensitive check if name starts with manufacturer
+        if text.lower().startswith(manufacturer.lower()):
+            # Manufacturer already in name, don't duplicate
+            combined = text
+        else:
+            # Prepend manufacturer
+            combined = f"{manufacturer} {text}"
+    else:
+        combined = text
+
+    # Convert to lowercase
+    slug = combined.lower()
+    # Normalize unicode characters (ö -> o, etc.)
+    import unicodedata
+    slug = unicodedata.normalize('NFKD', slug)
+    slug = slug.encode('ascii', 'ignore').decode('ascii')
+    # Replace non-alphanumeric characters with hyphens
+    slug = re.sub(r'[^a-z0-9-]+', '-', slug)
+    # Remove leading/trailing hyphens and collapse multiple hyphens
+    slug = re.sub(r'-+', '-', slug).strip('-')
+    return slug
 
 # Junction table for gear-tag many-to-many relationship
 gear_tags_table = Table(
@@ -53,7 +89,7 @@ class GearTag(UUIDMixin, Base):
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
 
     # Relationship to gear (many-to-many)
-    gear_items: Mapped[list["Gear"]] = relationship(
+    gear_items: Mapped[list[Gear]] = relationship(
         "Gear",
         secondary=gear_tags_table,
         back_populates="tags",
@@ -77,7 +113,7 @@ class GearMake(UUIDMixin, Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
     # Relationship to gear
-    gear_items: Mapped[list["Gear"]] = relationship(
+    gear_items: Mapped[list[Gear]] = relationship(
         "Gear",
         back_populates="make",
     )
@@ -109,6 +145,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "gear"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     gear_type: Mapped[GearType] = mapped_column(
         EnumByValue(GearType),
         nullable=False,
@@ -129,27 +166,27 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     )
 
     # Relationships
-    make: Mapped["GearMake | None"] = relationship(
+    make: Mapped[GearMake | None] = relationship(
         "GearMake",
         back_populates="gear_items",
     )
-    source: Mapped["GearSource | None"] = relationship(
+    source: Mapped[GearSource | None] = relationship(
         "GearSource",
         back_populates="gear",
     )
-    models: Mapped[list["GearModel"]] = relationship(
+    models: Mapped[list[GearModel]] = relationship(
         "GearModel",
         back_populates="gear",
         cascade="all, delete-orphan",
         lazy="selectin",  # Eager load models
     )
-    tags: Mapped[list["GearTag"]] = relationship(
+    tags: Mapped[list[GearTag]] = relationship(
         "GearTag",
         secondary=gear_tags_table,
         back_populates="gear_items",
         lazy="selectin",  # Eager load tags
     )
-    user_gear: Mapped[list["UserGear"]] = relationship(
+    user_gear: Mapped[list[UserGear]] = relationship(
         "UserGear",
         back_populates="gear",
         cascade="all, delete-orphan",
@@ -162,3 +199,11 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         Index("ix_gear_make_id", "make_id"),
         Index("ix_gear_source_id", "source_id"),
     )
+
+
+# Event listener to auto-generate slug before insert
+@event.listens_for(Gear, 'before_insert')
+def generate_slug(mapper, connection, target):
+    """Automatically generate slug if not provided."""
+    if not target.slug:
+        target.slug = _slugify(target.name, target.manufacturer)
