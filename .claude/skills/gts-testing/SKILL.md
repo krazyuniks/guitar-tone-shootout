@@ -1,41 +1,79 @@
 ---
 name: gts-testing
-description: Test development with pytest, fixtures, and integration testing. Use for writing tests, test patterns, parametrization, and debugging test failures. GTS-specific patterns.
+description: "Testing for GTS: TDD workflow, pytest patterns, fixtures, scaffolding, mutation verification, and anti-patterns. Use when writing tests, implementing features via TDD, debugging test failures, scaffolding new test files, or verifying mutations persist."
 context: fork
 ---
 
-# Testing Skill
+# GTS Testing
 
-Quick reference for writing tests. For full methodology and philosophy, see [Testing Methodology](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Testing-Methodology) in the wiki.
+Single reference for all testing in GTS. Covers TDD workflow, pytest patterns, fixtures, scaffolding, and mutation verification.
 
 **Philosophy:** Test real services, mock only external network APIs. See `.claude/rules/testing-policy.md`.
 
-## Test Type Taxonomy
+## Quick Reference
 
-| Test Type | What It Tests | Location |
-|-----------|---------------|----------|
-| **Unit Tests** | Single function/class in isolation | `tests/unit/backend/` |
-| **Backend-Integration Tests** | Service orchestration, real DB/Redis | `tests/integration/backend/` |
-| **E2E Tests** | Browser + DB verification | `tests/e2e/python/` |
-| **Smoke Tests** | Critical path quick validation | Marker-based (`-m smoke`) |
+| Command | Purpose |
+|---------|---------|
+| `just tdd <path>` | Run single test (Docker) |
+| `just test-unit` | All unit tests |
+| `just test-integration` | All integration tests |
+| `just test-regression` | Stack connectivity (<1s) |
+| `just test-e2e` | E2E tests (host) |
+| `just check` | Full quality gates |
 
-## Test Marker Decision Tree
+### TDD Orchestration
 
-Use this to choose the right marker for your test:
+| Command | Purpose |
+|---------|---------|
+| `just epic-sync 42` | Sync epic from GitHub |
+| `just epic-start 42` | Begin TDD state machine |
+| `just epic-status 42` | Check progress |
+| `just tdd-red T43` | Verify tests fail |
+| `just tdd-lock T43` | Snapshot tests |
+| `just tdd-green T43` | Verify tests pass |
+| `just tdd-complete T43` | Full validation |
 
-```
-Is it a browser-based test?
-├── YES: Mark with @pytest.mark.e2e
-│   ├── Fast critical path? → Also add @pytest.mark.e2e_quick + @pytest.mark.smoke
-│   └── Full workflow?      → Also add @pytest.mark.e2e_full
-└── NO: Does it need real DB/Redis?
-    ├── YES: Place in tests/integration/ (auto-marked @pytest.mark.integration)
-    │   └── Critical for CI? → Also add @pytest.mark.smoke
-    └── NO: Place in tests/unit/ (auto-marked @pytest.mark.unit)
-        └── Critical for CI? → Also add @pytest.mark.smoke
-```
+---
 
-## Test Structure
+## TDD Discipline
+
+### Why Test-First Matters in Automated Pipelines
+
+The TDD state machine (`run_epic.py`) enforces separation: test-author writes tests, implementer makes them pass. This isn't bureaucracy — it prevents implementation bias in test design.
+
+If the same agent writes tests and code, it unconsciously designs tests that match its implementation rather than the specification. Separate agents with separate tool permissions eliminate this.
+
+### Iron Law
+
+No production code without a failing test first. If you didn't watch the test fail, you don't know if it tests the right thing.
+
+### Common Rationalisations to Resist
+
+| Rationalisation | Reality |
+|---|---|
+| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
+| "I'll fix the test to match my implementation" | Tests are contracts. Fix your code, not the test. |
+| "This test is wrong" | Maybe. But report it — don't silently change it. |
+| "All tests pass so I'm done" | Tests passing is necessary but not sufficient. Check quality. |
+| "I need to modify the test to handle an edge case" | Edge cases get NEW tests. Existing tests are immutable. |
+
+### Common Mistakes (from Production Runs)
+
+These have actually happened in automated TDD runs. Do not repeat them.
+
+| Mistake | Correct Behaviour |
+|---|---|
+| Modified existing test files | Only CREATE new test files. Existing tests are immutable. |
+| Ran the full test suite | Only run YOUR new/modified test files. |
+| Imported from implementation packages that don't exist yet | Use standard imports. Tests should fail with ImportError or AssertionError, not SyntaxError. |
+| Used `conftest.py` fixtures from integration tests in unit tests | Unit and integration fixtures are separate. Check which conftest.py applies. |
+| Created implementation files as test-author | test-author writes ONLY in `tests/`. No `libs/`, `apps/`, `sources/`. |
+| Modified tests as implementer | implementer writes ONLY in `libs/`, `apps/`, `sources/`. No `tests/`. |
+| Hit max turns without finishing | Start with the simplest test/implementation. Iterate. Don't plan everything upfront. |
+
+---
+
+## Test Structure & Placement
 
 ```
 tests/
@@ -46,12 +84,112 @@ tests/
 │   └── factories.py         # Test data factories
 ├── unit/backend/            # Pure logic, no external deps
 ├── integration/backend/     # Real DB/Redis tests
+├── regression/              # Stack connectivity (SQLite, <1s)
 └── e2e/
-    ├── python/              # E2E tests (pytest + Playwright)
-    │   ├── conftest.py      # Browser fixtures, auth, DB access
-    │   └── tests/           # Test files
-    └── smoke/               # Infrastructure smoke tests
+    └── python/              # E2E tests (pytest + Playwright)
+        ├── conftest.py      # Browser fixtures, auth, DB access
+        └── tests/           # Test files
 ```
+
+### Placement Decision Tree
+
+```
+Is it a browser-based test?
+├── YES → tests/e2e/python/tests/  (runs on HOST)
+└── NO → Does it need real DB/Redis?
+    ├── YES → tests/integration/backend/  (runs in DOCKER)
+    └── NO → tests/unit/backend/  (runs in DOCKER)
+```
+
+---
+
+## TDD Workflow Phases
+
+### Phase 1: Test Specification
+- **Agent:** `test-author` (tools: Read, Write, Edit, Bash, Glob, Grep)
+- **Path:** `tests/**/*.py` only
+- Tests MUST fail. No trivial assertions.
+
+### Phase 2: Red Verification
+- **Command:** `just tdd-red T43`
+- Verifies all tests fail (not error)
+- Retry: test-author gets 1 retry with failure context
+
+### Phase 3: Lock
+- **Command:** `just tdd-lock T43`
+- SHA-256 snapshots of test files
+- Committed with `test-lock:` prefix
+
+### Phase 4: Implementation
+- **Agent:** `implementer` (tools: Read, Write, Edit, Bash, Glob, Grep)
+- **Path:** `libs/`, `apps/`, `sources/` only
+- Tests are immutable. CANNOT modify test files.
+
+### Phase 5: Green Verification
+- **Command:** `just tdd-green T43`
+- Verifies all tests pass
+- Retry: implementer gets 2 retries with failure context
+
+### Phase 6: Full Validation
+- **Command:** `just tdd-complete T43`
+- Tests pass + unchanged since lock + quality checks + regression + E2E
+
+### State Location
+
+```
+.tasks/projects/guitar-tone-shootout/epics/E{n}/
+├── index.md      # Status, dependency graph
+├── tasks/        # Task specs (source of truth)
+├── snapshots/    # Test file hashes (TDD enforcement)
+└── logs/         # Execution logs, error reports
+```
+
+---
+
+## Antipatterns
+
+### Banned Test Patterns
+
+| Pattern | Issue |
+|---------|-------|
+| `assert True` | Trivial — proves nothing |
+| `assert x` (truthy only) | Weak — doesn't verify specific value |
+| `mock.assert_called()` alone | Spy-only — no effect verification |
+| Empty test (`pass` only) | No assertions |
+| `@pytest.mark.skip` | Skipped — defeats purpose |
+| `time.sleep()` | Flaky indicator |
+| `importlib.util` / `find_spec` | Banned — use standard imports |
+| `db_session.get_bind()` | Banned — use fixtures directly |
+
+### Bad vs Good
+
+```python
+# BAD — truthy check
+def test_validate_email_works():
+    result = validate_email('test@example.com')
+    assert result  # What does "truthy" even mean here?
+
+# GOOD — specific assertion
+def test_validate_email_rejects_invalid_format():
+    result = validate_email('not-an-email')
+    assert result.valid is False
+    assert result.error == 'Invalid email format'
+```
+
+### Forbidden Mocking
+
+```python
+# NEVER mock internal services
+@patch('app.repositories.signal_chain_repo')  # NO
+mock_service = Mock(spec=SignalChainService)   # NO
+
+# NEVER mock API in E2E tests
+page.route('**/api/**', ...)  # NO
+```
+
+**Mock ONLY external network APIs:** T3K API, email services, payment APIs.
+
+---
 
 ## Key Fixtures
 
@@ -60,18 +198,9 @@ tests/
 ```python
 @pytest.fixture(scope="function")
 async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Real database with transaction rollback."""
     connection = await db_engine.connect()
     transaction = await connection.begin()
-
-    async_session_factory = async_sessionmaker(
-        bind=connection,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    session = async_session_factory()
-
+    session = async_sessionmaker(bind=connection, class_=AsyncSession, expire_on_commit=False)()
     try:
         yield session
     finally:
@@ -80,151 +209,224 @@ async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
         await connection.close()
 ```
 
-### Factory Fixture Pattern
+### Factory Pattern
 
 ```python
 @pytest.fixture(scope="function")
 def make_signal_chain(db_session: AsyncSession, test_user):
-    """Factory for creating signal chains."""
-    async def _make_signal_chain(name: str = "Test Chain", **kwargs):
-        chain = SignalChain(
-            id=uuid4(),
-            user_id=test_user.id,
-            name=name,
-            **kwargs,
-        )
+    async def _make(name: str = "Test Chain", **kwargs):
+        chain = SignalChain(id=uuid4(), user_id=test_user.id, name=name, **kwargs)
         db_session.add(chain)
         await db_session.flush()
         await db_session.refresh(chain)
         return chain
-
-    return _make_signal_chain
+    return _make
 ```
 
-### Authentication
+### Fixture Quick Reference
+
+**Integration:**
+
+| Fixture | Description |
+|---------|-------------|
+| `db_session` | Async DB session with transaction rollback |
+| `test_user` | Authenticated test user |
+| `other_user` | Second user for isolation tests |
+| `client` | httpx AsyncClient (unauthenticated) |
+| `authenticated_client` | httpx AsyncClient with auth |
+| `auth_headers` | `{"Authorization": "Bearer ..."}` |
+| `make_signal_chain` | Factory for SignalChain |
+| `make_user_gear` | Factory for UserGear |
+| `make_shootout` | Factory for Shootout |
+
+**E2E:**
+
+| Fixture | Description |
+|---------|-------------|
+| `page` | Authenticated Playwright page |
+| `guest_page` | Unauthenticated page |
+| `frontend_url` | Base URL (e.g., `http://localhost:9000`) |
+| `db_session` | Direct DB access for verification |
+
+---
+
+## Test Templates
+
+### Unit Test
 
 ```python
-@pytest.fixture(scope="function")
-def auth_headers(auth_token: str) -> dict[str, str]:
-    """Authorization headers for authenticated requests."""
-    return {"Authorization": f"Bearer {auth_token}"}
+# tests/unit/backend/services/test_{module}.py
+import pytest
+from app.services.{module} import {Module}Service
+
+class Test{Module}Service:
+    @pytest.fixture
+    def service(self) -> {Module}Service:
+        return {Module}Service(repository=Mock())
+
+    def test_validates_input(self, service):
+        result = service.validate({"name": "test"})
+        assert result.is_valid is True
+
+    def test_rejects_empty_name(self, service):
+        with pytest.raises(ValueError, match="Name cannot be empty"):
+            service.validate({"name": ""})
 ```
 
-## Test Patterns
-
-### Backend-Integration Test (Preferred)
+### Integration Test
 
 ```python
+# tests/integration/backend/api/test_{endpoint}.py
+import pytest
+from httpx import AsyncClient
+
 @pytest.mark.asyncio
-async def test_create_signal_chain(client, auth_headers, test_user):
-    """Test creating a signal chain via API."""
-    response = await client.post(
-        "/api/v1/signal-chains",
-        json={"name": "Test Chain", "platform": "nam"},
-        headers=auth_headers,
-    )
-    assert response.status_code == 201
-    data = response.json()
-    assert data["id"] is not None
-    assert data["name"] == "Test Chain"
+@pytest.mark.integration
+class Test{Endpoint}API:
+    async def test_create(self, client: AsyncClient, auth_headers, test_user):
+        response = await client.post(
+            "/api/v1/{endpoint}",
+            json={"name": "Test Item"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        assert response.json()["name"] == "Test Item"
+
+    async def test_unauthorized(self, client: AsyncClient):
+        response = await client.get("/api/v1/{endpoint}")
+        assert response.status_code == 401
 ```
 
-### Unit Test (Pure Logic)
+### E2E Test (Playwright)
 
 ```python
-def test_signal_chain_validates_name():
-    """Test domain validation without database."""
-    with pytest.raises(ValueError, match="Name cannot be empty"):
-        SignalChainCreate(name="", platform="nam")
-```
+# tests/e2e/python/tests/test_{feature}.py
+import pytest
+from playwright.async_api import Page, expect
 
-### E2E Test (Python Playwright)
-
-```python
 @pytest.mark.asyncio
 @pytest.mark.e2e
-@pytest.mark.e2e_quick
-async def test_creates_signal_chain(page: Page, db_session, frontend_url: str):
-    """Three-layer validation: UI action → DOM update → database state."""
+class Test{Feature}E2E:
+    async def test_creates_item(self, page: Page, db_session, frontend_url: str):
+        # Layer 1: UI action
+        await page.goto(f"{frontend_url}/{path}")
+        await page.fill('[data-testid="name-input"]', 'My Item')
+        await page.click('[data-testid="submit-btn"]')
 
-    # LAYER 1: UI Action - Navigate and interact
-    await page.goto(f"{frontend_url}/builder")
-    await page.fill('[name="chain-name"]', 'My Chain')
-    await page.click('button:has-text("Save")')
+        # Layer 2: DOM verification
+        await expect(page.locator('[data-testid="success"]')).to_be_visible()
 
-    # LAYER 2: DOM Update - Verify UI response
-    await expect(page.locator('[data-testid="chain-card"]')).to_be_visible()
-
-    # LAYER 3: Database State - Verify persistence
-    result = await db_session.execute(
-        text("SELECT id FROM signal_chains WHERE name = :name"),
-        {"name": "My Chain"}
-    )
-    assert result.fetchone() is not None
+        # Layer 3: Database verification
+        result = await db_session.execute(
+            text("SELECT id FROM {table} WHERE name = :name"),
+            {"name": "My Item"}
+        )
+        assert result.fetchone() is not None
 ```
 
-### Mocking External APIs Only
+### Page Object
 
 ```python
-@pytest.mark.asyncio
-async def test_t3k_sync_handles_error(db_session, test_user):
-    """Mock EXTERNAL API only - never mock internal services."""
-    with patch("app.services.t3k_client.fetch_tones") as mock:
-        mock.side_effect = ExternalAPIError("T3K down")
-        service = T3KSyncService(db_session)
-        result = await service.sync_user_tones(test_user.id)
-        assert result.status == "failed"
+# tests/e2e/python/pages/{page}_page.py
+from playwright.async_api import Page, expect
+
+class {Page}Page:
+    def __init__(self, page: Page, base_url: str):
+        self.page = page
+        self.base_url = base_url
+        self.heading = page.locator('[data-testid="{page}-heading"]')
+        self.submit = page.locator('[data-testid="submit-btn"]')
+
+    async def goto(self):
+        await self.page.goto(f"{self.base_url}/{path}")
+        await expect(self.heading).to_be_visible()
 ```
 
-## Pytest Markers Reference
+### Factory Fixture
 
-| Marker | Use When | Runtime | Auto-Applied |
-|--------|----------|---------|--------------|
-| `smoke` | Critical path, must pass for CI | < 3 min | `tests/e2e/smoke/` |
-| `unit` | Testing single function/class | < 1 sec | `tests/unit/` |
-| `integration` | Testing with real DB/Redis | < 10 sec | `tests/integration/` |
-| `e2e` | Browser-based tests | varies | `tests/e2e/` |
-| `e2e_quick` | Fast E2E for commit validation | < 1 min | Manual |
-| `e2e_full` | Comprehensive E2E for PR | < 10 min | Manual |
-| `t3k_integration` | Real Tone3000 API (skip in CI) | varies | Manual |
-| `docker_only` | Requires container volume mounts | varies | Manual |
-| `slow` | Tests > 10 seconds (reserved) | > 10 sec | Manual |
+```python
+# tests/integration/backend/conftest.py
+@pytest.fixture(scope="function")
+def make_{entity}(db_session: AsyncSession, test_user):
+    async def _make(name: str = "Test {Entity}", **kwargs) -> {Entity}:
+        entity = {Entity}(id=uuid4(), user_id=test_user.id, name=name, **kwargs)
+        db_session.add(entity)
+        await db_session.flush()
+        await db_session.refresh(entity)
+        return entity
+    return _make
+```
 
-## Common Fixtures Quick Reference
+---
 
-### Integration Tests
+## Mutation Verification
 
-| Fixture | Description | Scope |
-|---------|-------------|-------|
-| `db_session` | Async DB session with transaction rollback | function |
-| `test_user` | Authenticated test user | function |
-| `other_user` | Second user for isolation tests | function |
-| `client` | httpx AsyncClient (unauthenticated) | function |
-| `authenticated_client` | httpx AsyncClient with auth headers | function |
-| `auth_headers` | `{"Authorization": "Bearer ..."}` dict | function |
-| `make_signal_chain` | Factory for SignalChain objects | function |
-| `make_user_gear` | Factory for UserGear objects | function |
-| `make_di_track` | Factory for DITrack objects | function |
-| `make_shootout` | Factory for Shootout objects | function |
+For CRUD operations, verify persistence across three layers.
 
-### E2E Tests
+### Layer 1: UI Response
+Check visual feedback — success toast, no errors, expected state change.
 
-| Fixture | Description | Scope |
-|---------|-------------|-------|
-| `page` | Authenticated Playwright page | function |
-| `guest_page` | Unauthenticated Playwright page | function |
-| `frontend_url` | Base URL (e.g., `http://localhost:9000`) | session |
-| `backend_url` | API URL (e.g., `http://localhost:8000`) | session |
-| `db_session` | Direct DB access for verification | function |
-| `current_user_id` | Authenticated user's UUID | function |
-| `auth_client` | Context manager for authenticated API calls | function |
-| `test_wav_file` | Path to test WAV file | session |
-| `uploaded_di_track` | Pre-uploaded DI track for testing | function |
+### Layer 2: API Response
+Check network tab for 2xx status. Watch for 409 (conflict), 422 (validation), 500 (crash).
+
+### Layer 3: Database State
+
+```bash
+docker compose exec -T webapp python -c "
+import asyncio
+from sqlalchemy import select
+from app.core.database import async_session_factory
+from app.models import YourModel
+
+async def check():
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(YourModel).where(YourModel.id == 'your-id')
+        )
+        row = result.scalar_one_or_none()
+        print('FOUND:', row.id if row else 'NOT_FOUND')
+asyncio.run(check())
+"
+```
+
+### Common Failure Patterns
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| UI success, DB empty | Transaction not committed | `await session.commit()` |
+| 409 Conflict | Unique constraint | Check for existing record |
+| 500 Error | Missing foreign key | Verify related entity exists |
+| Stale after refresh | Cache not invalidated | Clear cache after mutation |
+
+---
+
+## Markers Reference
+
+| Marker | Use When | Auto-Applied |
+|--------|----------|--------------|
+| `unit` | Single function/class | `tests/unit/` |
+| `integration` | Real DB/Redis | `tests/integration/` |
+| `e2e` | Browser-based | `tests/e2e/` |
+| `e2e_quick` | Fast E2E for CI | Manual |
+| `e2e_full` | Comprehensive E2E | Manual |
+| `smoke` | Critical path | Manual |
+| `t3k_integration` | Real T3K API (skip in CI) | Manual |
+
+---
+
+## Failure Recovery
+
+| Failure | Action |
+|---------|--------|
+| Tests modified during impl | `just snapshot-diff T43` then reset impl files |
+| Tests won't pass | `just tdd <path> -v --tb=long` for verbose output |
+| Epic halted | Check `logs/errors/`, fix issue, re-run `run_epic.py run 42` |
+| Test quality failed | Rewrite tests — no trivial assertions |
+
+---
 
 ## Related
 
-- [Testing Methodology](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Testing-Methodology) - Full methodology (GitHub Wiki)
-- `.claude/rules/testing-policy.md` - Testing rules
-- `.claude/rules/testing-policy.md` - Claude's testing role
-- `tests/AGENTS.md` - Test structure and placement guide
-- `tests/conftest.py` - Full marker documentation and decision tree
+- `.claude/rules/testing-policy.md` — Claude's testing role (auto-loaded rule)
+- [TDD Workflow](https://github.com/krazyuniks/guitar-tone-shootout/wiki/TDD-Workflow) — wiki
+- [Validation and Testing](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Validation-and-Testing) — wiki

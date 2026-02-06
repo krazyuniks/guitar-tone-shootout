@@ -21,6 +21,12 @@
     ],
     "deny": []
   },
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/hooks/statusline.sh",
+    "refreshMs": 10000,
+    "enabled": true
+  },
   "hooks": {
     "SessionStart": [
       {
