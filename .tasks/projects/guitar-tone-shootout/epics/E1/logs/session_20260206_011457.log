@@ -240,3 +240,33 @@ cd tests/e2e/python && uv run pytest tests/ -v
 error: Recipe `test-e2e` failed on line 146 with exit code 5
 
 2026-02-06 02:20:29,972 [INFO]   T20 COMPLETE
+2026-02-06 02:20:32,233 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 02:20:32,263 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 02:20:32,263 [INFO]   Git sync: push --force-with-lease
+2026-02-06 02:20:33,600 [DEBUG]   Pushed: 
+2026-02-06 02:20:33,600 [INFO] 
+2026-02-06 02:20:33,600 [INFO] === Iteration 5 ===
+2026-02-06 02:20:33,601 [INFO]   Next task: T21 — [Task]: Chain Validator Domain Service (state=pending)
+2026-02-06 02:20:33,601 [INFO] 
+  Phase: TEST (writing tests for T21)
+2026-02-06 02:20:33,601 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-06 02:22:52,542 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-06 02:22:52,542 [INFO] 
+  Phase: RED (verifying tests fail)
+2026-02-06 02:22:52,542 [INFO]     Running: just tdd-red T21
+2026-02-06 02:22:53,459 [DEBUG]     just tdd-red T21 -> OK
+2026-02-06 02:22:53,459 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/unit/core/services/test_chain_validator_t21.py
+
+Results: 19 failed, 5 passed, 0 errors
+WARNING: 5 tests already pass (code may partially exist).
+  This is OK — 19 tests still fail, so there's work to do.
+
+Red phase verified: 19 failing + 0 erroring tests found.
+
+2026-02-06 02:22:53,459 [INFO] 
+  Phase: LOCK (snapshotting tests)
+2026-02-06 02:22:53,459 [INFO]     Running: just tdd-lock T21
