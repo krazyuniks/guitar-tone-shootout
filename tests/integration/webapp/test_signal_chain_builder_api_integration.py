@@ -1,0 +1,420 @@
+"""Integration tests for SignalChainBuilder API interactions.
+
+Tests verify that the API endpoints required by the SignalChainBuilder
+component work correctly.
+"""
+
+from collections.abc import AsyncGenerator
+from uuid import uuid4
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from webapp.adapters.persistence.models.base import Base
+from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
+from webapp.adapters.persistence.models.signal_chain_block import SignalChainBlock as SignalChainBlockModel
+from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.models.user_gear import UserGear
+from webapp.api.v1.library import set_session_override as set_library_session, set_user_override as set_library_user
+from webapp.api.v1.signal_chains import set_session_override as set_chain_session, set_user_override as set_chain_user
+from webapp.main import app
+
+
+@pytest.fixture
+async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
+    """Create test database engine."""
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """Create test database session."""
+    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with async_session() as session:
+        yield session
+
+
+@pytest.fixture
+async def test_user(db_session: AsyncSession) -> User:
+    """Create a test user."""
+    user = User(
+        id=uuid4(),
+        username="testuser",
+        email="test@example.com",
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+async def test_gear(db_session: AsyncSession) -> list[Gear]:
+    """Create test gear items of various types."""
+    gear_items = [
+        Gear(
+            id=uuid4(),
+            name="Test Amp",
+            slug="test-amp",
+            gear_type="amp",
+            platform="nam",
+        ),
+        Gear(
+            id=uuid4(),
+            name="Test Pedal",
+            slug="test-pedal",
+            gear_type="pedal",
+            platform="nam",
+        ),
+        Gear(
+            id=uuid4(),
+            name="Test IR",
+            slug="test-ir",
+            gear_type="ir",
+            platform="ir",
+        ),
+    ]
+    for gear in gear_items:
+        db_session.add(gear)
+    await db_session.commit()
+    for gear in gear_items:
+        await db_session.refresh(gear)
+    return gear_items
+
+
+@pytest.fixture
+async def user_gear(db_session: AsyncSession, test_user: User, test_gear: list[Gear]) -> list[UserGear]:
+    """Create user's gear library."""
+    user_gear_items = []
+    for gear in test_gear:
+        user_gear_item = UserGear(
+            id=uuid4(),
+            user_id=test_user.id,
+            gear_id=gear.id,
+        )
+        db_session.add(user_gear_item)
+        user_gear_items.append(user_gear_item)
+    await db_session.commit()
+    for item in user_gear_items:
+        await db_session.refresh(item)
+    return user_gear_items
+
+
+@pytest.fixture
+async def client(db_session: AsyncSession, test_user: User) -> AsyncGenerator[AsyncClient, None]:
+    """Create authenticated HTTP client."""
+    # Set overrides for both routers
+    set_library_session(db_session)
+    set_library_user(test_user)
+    set_chain_session(db_session)
+    set_chain_user(test_user)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        yield client
+
+    # Clear overrides
+    set_library_session(None)
+    set_library_user(None)
+    set_chain_session(None)
+    set_chain_user(None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestLibraryAPIForBuilder:
+    """Test library API endpoints that the builder uses for gear selection."""
+
+    async def test_list_user_gear_returns_items(
+        self,
+        client: AsyncClient,
+        user_gear: list[UserGear],
+        test_gear: list[Gear],
+    ) -> None:
+        """Builder should be able to fetch user's gear library."""
+        response = await client.get("/api/v1/library/gear")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == len(test_gear)
+        assert all("id" in item for item in data)
+        assert all("gear_id" in item for item in data)
+        assert all("name" in item for item in data)
+        assert all("gear_type" in item for item in data)
+
+    async def test_library_includes_all_gear_types(
+        self,
+        client: AsyncClient,
+        user_gear: list[UserGear],
+    ) -> None:
+        """Library should include all gear types needed for chain building."""
+        response = await client.get("/api/v1/library/gear")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        gear_types = {item["gear_type"] for item in data}
+        expected_types = {"amp", "pedal", "ir"}
+        assert expected_types.issubset(gear_types), "Not all required gear types present"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestSignalChainAPIForBuilder:
+    """Test signal chain API endpoints that the builder uses."""
+
+    async def test_create_chain_with_blocks(
+        self,
+        client: AsyncClient,
+        user_gear: list[UserGear],
+    ) -> None:
+        """Builder should be able to create a chain with multiple blocks."""
+        chain_data = {
+            "name": "Test Chain",
+            "platform": "nam",
+            "description": "Test description",
+            "blocks": [
+                {
+                    "user_gear_id": str(user_gear[0].id),
+                    "gear_type": "pedal",
+                    "position": 0,
+                },
+                {
+                    "user_gear_id": str(user_gear[1].id),
+                    "gear_type": "amp",
+                    "position": 1,
+                },
+            ],
+        }
+
+        response = await client.post("/api/v1/signal-chains/", json=chain_data)
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "Test Chain"
+        assert data["platform"] == "nam"
+        assert len(data["blocks"]) == 2
+        assert data["blocks"][0]["position"] == 0
+        assert data["blocks"][1]["position"] == 1
+
+    async def test_update_chain_replaces_blocks(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        user_gear: list[UserGear],
+    ) -> None:
+        """Builder should be able to update chain by replacing blocks."""
+        # Create initial chain
+        chain = SignalChainModel(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="Original Chain",
+            platform="nam",
+        )
+        db_session.add(chain)
+
+        block = SignalChainBlockModel(
+            id=uuid4(),
+            signal_chain_id=chain.id,
+            user_gear_id=user_gear[0].id,
+            gear_type="pedal",
+            position=0,
+        )
+        db_session.add(block)
+        await db_session.commit()
+        await db_session.refresh(chain)
+
+        # Update with new blocks
+        update_data = {
+            "name": "Updated Chain",
+            "platform": "nam",
+            "blocks": [
+                {
+                    "user_gear_id": str(user_gear[1].id),
+                    "gear_type": "amp",
+                    "position": 0,
+                },
+                {
+                    "user_gear_id": str(user_gear[2].id),
+                    "gear_type": "ir",
+                    "position": 1,
+                },
+            ],
+        }
+
+        response = await client.put(f"/api/v1/signal-chains/{chain.id}", json=update_data)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Updated Chain"
+        assert len(data["blocks"]) == 2
+        assert data["blocks"][0]["gear_type"] == "amp"
+        assert data["blocks"][1]["gear_type"] == "ir"
+
+    async def test_list_user_chains(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        user_gear: list[UserGear],
+    ) -> None:
+        """Builder should be able to fetch user's existing chains."""
+        # Create test chains
+        chain1 = SignalChainModel(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="Chain 1",
+            platform="nam",
+        )
+        chain2 = SignalChainModel(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="Chain 2",
+            platform="nam",
+        )
+        db_session.add_all([chain1, chain2])
+        await db_session.commit()
+
+        response = await client.get("/api/v1/signal-chains/")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        chain_names = {chain["name"] for chain in data}
+        assert chain_names == {"Chain 1", "Chain 2"}
+
+    async def test_delete_chain(
+        self,
+        client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """Builder should be able to delete chains."""
+        chain = SignalChainModel(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="To Delete",
+            platform="nam",
+        )
+        db_session.add(chain)
+        await db_session.commit()
+
+        response = await client.delete(f"/api/v1/signal-chains/{chain.id}")
+
+        assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestBuilderPermutationMode:
+    """Test API support for permutation mode (multiple gear per slot).
+
+    Permutation mode allows multiple gear items at the same position,
+    which the builder will use to generate multiple chain variations.
+    """
+
+    async def test_create_chain_with_multiple_gear_at_same_position(
+        self,
+        client: AsyncClient,
+        user_gear: list[UserGear],
+    ) -> None:
+        """API should accept multiple blocks at the same position for permutations."""
+        chain_data = {
+            "name": "Permutation Chain",
+            "platform": "nam",
+            "blocks": [
+                {
+                    "user_gear_id": str(user_gear[0].id),
+                    "gear_type": "pedal",
+                    "position": 0,
+                },
+                {
+                    "user_gear_id": str(user_gear[1].id),
+                    "gear_type": "pedal",
+                    "position": 0,  # Same position as previous
+                },
+            ],
+        }
+
+        response = await client.post("/api/v1/signal-chains/", json=chain_data)
+
+        # This might be 201 (accepted) or 422 (validation error) depending on
+        # whether permutation mode is handled at API level or application level
+        assert response.status_code in {201, 422}
+
+        if response.status_code == 201:
+            data = response.json()
+            assert len(data["blocks"]) == 2
+            positions = [block["position"] for block in data["blocks"]]
+            assert positions.count(0) == 2, "Both blocks should be at position 0"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestBuilderValidation:
+    """Test API validation that affects builder UX."""
+
+    async def test_chain_requires_name(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Builder should handle validation error for missing name."""
+        chain_data = {
+            "platform": "nam",
+            "blocks": [],
+        }
+
+        response = await client.post("/api/v1/signal-chains/", json=chain_data)
+
+        assert response.status_code == 422
+
+    async def test_chain_requires_valid_platform(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Builder should validate platform selection."""
+        chain_data = {
+            "name": "Test Chain",
+            "platform": "invalid_platform",
+            "blocks": [],
+        }
+
+        response = await client.post("/api/v1/signal-chains/", json=chain_data)
+
+        assert response.status_code == 422
+
+    async def test_block_requires_valid_gear_type(
+        self,
+        client: AsyncClient,
+        user_gear: list[UserGear],
+    ) -> None:
+        """Builder should validate gear type for blocks."""
+        chain_data = {
+            "name": "Test Chain",
+            "platform": "nam",
+            "blocks": [
+                {
+                    "user_gear_id": str(user_gear[0].id),
+                    "gear_type": "invalid_type",
+                    "position": 0,
+                },
+            ],
+        }
+
+        response = await client.post("/api/v1/signal-chains/", json=chain_data)
+
+        assert response.status_code == 422

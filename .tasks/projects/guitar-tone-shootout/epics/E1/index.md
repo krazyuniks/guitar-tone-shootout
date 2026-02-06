@@ -53,7 +53,7 @@ T6 → T9
 | T23 | [Task]: Gear Browse and Detail Page | complete | webapp | T20 |
 | T24 | [Task]: User Library API and Page | complete | webapp | T13 |
 | T25 | [Task]: SignalChainService and API | complete | webapp | T21 |
-| T26 | [Task]: ShootoutService, JobService | locked | webapp | T18 |
+| T26 | [Task]: ShootoutService, JobService | complete | webapp | T18 |
 | T27 | [Task]: React SignalChainBuilder Re | pending | webapp | T25 |
 | T28 | [Task]: Chain List Page | pending | webapp | T25 |
 | T29 | [Task]: HTMX Fragment Endpoints | pending | webapp | T20 |
