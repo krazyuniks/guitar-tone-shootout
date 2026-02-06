@@ -182,20 +182,27 @@ class TestSignalChainAPIForBuilder:
         user_gear: list[UserGear],
     ) -> None:
         """Builder should be able to create a chain with multiple blocks."""
+        # Note: user_gear[0]=amp, user_gear[1]=pedal, user_gear[2]=ir
+        # Chain must be: pedal → amp → ir (validation requires IR after amp)
         chain_data = {
             "name": "Test Chain",
             "platform": "nam",
             "description": "Test description",
             "blocks": [
                 {
-                    "user_gear_id": str(user_gear[0].id),
+                    "user_gear_id": str(user_gear[1].id),  # pedal
                     "gear_type": "pedal",
                     "position": 0,
                 },
                 {
-                    "user_gear_id": str(user_gear[1].id),
+                    "user_gear_id": str(user_gear[0].id),  # amp
                     "gear_type": "amp",
                     "position": 1,
+                },
+                {
+                    "user_gear_id": str(user_gear[2].id),  # ir
+                    "gear_type": "ir",
+                    "position": 2,
                 },
             ],
         }
@@ -206,9 +213,13 @@ class TestSignalChainAPIForBuilder:
         data = response.json()
         assert data["name"] == "Test Chain"
         assert data["platform"] == "nam"
-        assert len(data["blocks"]) == 2
+        assert len(data["blocks"]) == 3
         assert data["blocks"][0]["position"] == 0
+        assert data["blocks"][0]["gear_type"] == "pedal"
         assert data["blocks"][1]["position"] == 1
+        assert data["blocks"][1]["gear_type"] == "amp"
+        assert data["blocks"][2]["position"] == 2
+        assert data["blocks"][2]["gear_type"] == "ir"
 
     async def test_update_chain_replaces_blocks(
         self,
@@ -219,19 +230,21 @@ class TestSignalChainAPIForBuilder:
     ) -> None:
         """Builder should be able to update chain by replacing blocks."""
         # Create initial chain
+        from core.domain.value_objects.signal_chain_enums import GearType, Platform
+
         chain = SignalChainModel(
             id=uuid4(),
             user_id=test_user.id,
             name="Original Chain",
-            platform="nam",
+            platform=Platform.NAM,
         )
         db_session.add(chain)
 
         block = SignalChainBlockModel(
             id=uuid4(),
             signal_chain_id=chain.id,
-            user_gear_id=user_gear[0].id,
-            gear_type="pedal",
+            user_gear_id=user_gear[1].id,  # pedal
+            gear_type=GearType.PEDAL,
             position=0,
         )
         db_session.add(block)
@@ -274,17 +287,19 @@ class TestSignalChainAPIForBuilder:
     ) -> None:
         """Builder should be able to fetch user's existing chains."""
         # Create test chains
+        from core.domain.value_objects.signal_chain_enums import Platform
+
         chain1 = SignalChainModel(
             id=uuid4(),
             user_id=test_user.id,
             name="Chain 1",
-            platform="nam",
+            platform=Platform.NAM,
         )
         chain2 = SignalChainModel(
             id=uuid4(),
             user_id=test_user.id,
             name="Chain 2",
-            platform="nam",
+            platform=Platform.NAM,
         )
         db_session.add_all([chain1, chain2])
         await db_session.commit()
@@ -304,11 +319,13 @@ class TestSignalChainAPIForBuilder:
         test_user: User,
     ) -> None:
         """Builder should be able to delete chains."""
+        from core.domain.value_objects.signal_chain_enums import Platform
+
         chain = SignalChainModel(
             id=uuid4(),
             user_id=test_user.id,
             name="To Delete",
-            platform="nam",
+            platform=Platform.NAM,
         )
         db_session.add(chain)
         await db_session.commit()
