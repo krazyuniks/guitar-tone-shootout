@@ -137,6 +137,18 @@ test collection and halt the pipeline.
 
 Put tests in `tests/unit/` or `tests/integration/` only.
 
+### 7. `from __future__ import annotations` in FastAPI route modules — BANNED
+
+NEVER use `from __future__ import annotations` in files that define FastAPI route handlers with
+`Depends()`. It breaks FastAPI's runtime type resolution, causing `Depends(get_db_session)` to be
+treated as a query parameter (422 Unprocessable Entity).
+
+### 8. Query param names must match test URLs
+
+When writing API tests, the query parameter name in the test URL (e.g., `?status=running`) MUST
+match the FastAPI endpoint parameter name. If the endpoint uses `status_filter`, the test must
+send `?status_filter=running`. Use `Query(None, alias="status")` to map different names.
+
 ## Correct GTS Test Patterns
 
 ### Unit test with async SQLite (ORM models)
