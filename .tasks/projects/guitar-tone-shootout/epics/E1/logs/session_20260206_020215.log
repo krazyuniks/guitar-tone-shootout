@@ -231,3 +231,35 @@ cd tests/e2e/python && uv run pytest tests/ -v
 error: Recipe `test-e2e` failed on line 146 with exit code 5
 
 2026-02-06 03:16:35,381 [INFO]   T24 COMPLETE
+2026-02-06 03:16:37,643 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 03:16:37,646 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 03:16:37,646 [INFO]   Git sync: push --force-with-lease
+2026-02-06 03:16:38,999 [DEBUG]   Pushed: 
+2026-02-06 03:16:38,999 [INFO] 
+2026-02-06 03:16:38,999 [INFO] === Iteration 4 ===
+2026-02-06 03:16:39,003 [INFO]   Next task: T25 — [Task]: SignalChainService and API (state=pending)
+2026-02-06 03:16:39,003 [INFO] 
+  Phase: TEST (writing tests for T25)
+2026-02-06 03:16:39,005 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-06 03:19:20,345 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-06 03:19:20,345 [INFO] 
+  Phase: RED (verifying tests fail)
+2026-02-06 03:19:20,346 [INFO]     Running: just tdd-red T25
+2026-02-06 03:19:22,576 [DEBUG]     just tdd-red T25 -> OK
+2026-02-06 03:19:22,576 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/integration/webapp/test_signal_chain_api.py
+  tests/unit/webapp/test_signal_chain_schemas.py
+  tests/unit/webapp/test_signal_chain_service.py
+
+Results: 0 failed, 0 passed, 3 errors
+NOTE: 3 tests errored (import/syntax issues).
+  Errors count as 'not passing' — acceptable in red phase.
+
+Red phase verified: 0 failing + 3 erroring tests found.
+
+2026-02-06 03:19:22,576 [INFO] 
+  Phase: LOCK (snapshotting tests)
+2026-02-06 03:19:22,576 [INFO]     Running: just tdd-lock T25
