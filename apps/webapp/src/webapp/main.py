@@ -4,9 +4,10 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.api import pages
-from webapp.api.v1 import health, html, library, signal_chains
+from webapp.api.v1 import auth, gear, health, html, jobs, library, shootouts, signal_chains
 from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
@@ -24,20 +25,33 @@ def create_app() -> FastAPI:
     if database_url:
         init_db(database_url)
 
-    # Middleware order: outermost first (RequestID → Timing → CORS)
+    # Middleware order: outermost first (RequestID -> Timing -> Session -> CORS)
     # CORS must be added last so it's innermost (FastAPI reverses order)
+    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:9000").split(",")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://localhost:9000"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"),
+        session_cookie="gts_session",
+        max_age=86400 * 7,  # 7 days
+        same_site="lax",
+        https_only=os.getenv("ENV") == "production",
     )
     app.add_middleware(TimingMiddleware)
     app.add_middleware(RequestIDMiddleware)
 
     # Include API routers
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
+    app.include_router(auth.router)
+    app.include_router(gear.router)
+    app.include_router(shootouts.router)
+    app.include_router(jobs.router)
     app.include_router(html.router)
     app.include_router(library.router)
     app.include_router(signal_chains.router)
@@ -45,9 +59,14 @@ def create_app() -> FastAPI:
     # Include page routers
     app.include_router(pages.router)
 
-    # Override database dependencies with our initialized one
+    # Override database dependencies with our initialized one.
+    # Only override modules that raise NotImplementedError (no fallback).
+    # Modules like pages and html already fall back to get_db internally,
+    # and overriding them would break test session injection via _session_override.
     if database_url:
-        app.dependency_overrides[health.get_db_session] = get_db
+        for module in [health, auth, gear, shootouts, jobs]:
+            if hasattr(module, "get_db_session"):
+                app.dependency_overrides[module.get_db_session] = get_db
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:

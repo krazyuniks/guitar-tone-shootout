@@ -2,7 +2,7 @@
 name = "gts-e2e"
 version = "0.1.0"
 description = "E2E tests for Guitar Tone Shootout"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",

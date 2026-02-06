@@ -5,9 +5,8 @@ Fragments are used by HTMX for dynamic page updates without full page reloads.
 All fragments return HTMLResponse with Jinja2 templates.
 """
 
-from __future__ import annotations
-
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
@@ -70,18 +69,30 @@ async def get_db_session() -> AsyncSession:
     raise RuntimeError("Failed to obtain database session")
 
 
-async def get_current_user() -> User:
-    """Get current authenticated user dependency.
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> User:
+    """Get current authenticated user from session.
 
-    In production this would validate session/token.
     For testing, uses override if set.
     """
     if _user_override:
         return _user_override
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-    )
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return user
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -205,7 +216,7 @@ async def library_my_gear_list_fragment(
 
     # Build gear items list
     gear_items = []
-    for user_gear, gear in rows:
+    for _user_gear, gear in rows:
         gear_items.append(gear)
 
     return templates.TemplateResponse(

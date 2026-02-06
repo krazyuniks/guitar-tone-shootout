@@ -1,10 +1,11 @@
-"""SSR page routes for public pages."""
+"""SSR page routes for public and protected pages."""
 
 from datetime import UTC
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,41 +65,54 @@ async def get_db_session() -> AsyncSession:
     raise RuntimeError("Failed to obtain database session")
 
 
-async def get_current_user() -> User:
-    """Get current authenticated user dependency.
+async def get_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> User | None:
+    """Get current authenticated user from session.
 
-    In production this would validate session/token.
+    Returns None for unauthenticated users (public pages still render).
     For testing, uses override if set.
     """
-    if _user_override:
+    if _user_override is not None:
         return _user_override
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-    )
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    return result.scalar_one_or_none()
+
+
+async def require_current_user(
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> User:
+    """Require authenticated user — redirects to login if not authenticated."""
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return current_user
+
+
+# --- Public pages ---
 
 
 @router.get("/gear", response_class=HTMLResponse)
 async def gear_browse_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> HTMLResponse:
     """Render gear browse page.
 
     Public page showing all gear with filtering controls.
     Uses HTMX for dynamic list updates.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-
-    Returns:
-        Rendered HTML page
     """
     return templates.TemplateResponse(
         request,
         "pages/gear_browse.html",
-        {},
+        {"user": current_user},
     )
 
 
@@ -107,21 +121,11 @@ async def gear_detail_page(
     request: Request,
     slug: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> HTMLResponse:
     """Render gear detail page.
 
     Public page showing full details for a specific gear item.
-
-    Args:
-        request: FastAPI request object
-        slug: Gear URL slug
-        db: Database session
-
-    Returns:
-        Rendered HTML page
-
-    Raises:
-        HTTPException: 404 if gear not found or not public
     """
     repo = SQLAlchemyGearRepository(db)
     gear = await repo.get_by_slug(slug)
@@ -136,7 +140,7 @@ async def gear_detail_page(
     return templates.TemplateResponse(
         request,
         "pages/gear_detail.html",
-        {"gear": gear},
+        {"gear": gear, "user": current_user},
     )
 
 
@@ -150,33 +154,15 @@ async def gear_list_fragment(
     limit: int = Query(50, ge=1, le=100, description="Maximum items per page"),
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> HTMLResponse:
-    """Render gear list fragment for HTMX updates.
-
-    Returns just the list of gear cards without page wrapper.
-    Used by HTMX to update the gear list dynamically.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        query: Optional text search on name/description
-        gear_type: Optional filter by gear type
-        manufacturer: Optional filter by manufacturer
-        limit: Maximum items per page
-        offset: Number of items to skip
-
-    Returns:
-        Rendered HTML fragment
-    """
+    """Render gear list fragment for HTMX updates."""
     repo = SQLAlchemyGearRepository(db)
 
-    # Get total count with filters
     total = await repo.count(
         query=query,
         gear_type=gear_type,
         manufacturer=manufacturer,
     )
 
-    # Get filtered and paginated gear items (only public ones)
     all_gear = await repo.search(
         query=query,
         gear_type=gear_type,
@@ -185,7 +171,6 @@ async def gear_list_fragment(
         offset=offset,
     )
 
-    # Filter to only public gear
     gear_items = [gear for gear in all_gear if gear.is_public]
 
     return templates.TemplateResponse(
@@ -198,26 +183,45 @@ async def gear_list_fragment(
     )
 
 
+@router.get("/shootouts", response_class=HTMLResponse)
+async def shootouts_page(
+    request: Request,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render public shootouts page.
+
+    If authenticated, redirects to library shootouts.
+    Otherwise shows the public shootouts landing.
+    """
+    if current_user:
+        return RedirectResponse(url="/library/shootouts", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "pages/shootouts.html",
+        {"user": None},
+    )
+
+
+@router.get("/logout")
+async def logout(request: Request) -> RedirectResponse:
+    """Clear session and redirect to home."""
+    request.session.clear()
+    return RedirectResponse(url="/", status_code=302)
+
+
+# --- Protected pages (require authentication) ---
+
+
 @router.get("/library/my-gear", response_class=HTMLResponse)
 async def library_my_gear_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
     """Render user's gear library page.
 
     Protected page showing user's personal gear collection.
-    Uses HTMX for dynamic add/remove operations.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Rendered HTML page
     """
-    # Query user's gear with joined gear details
     result = await db.execute(
         select(UserGear, Gear)
         .join(Gear, UserGear.gear_id == Gear.id)
@@ -225,7 +229,6 @@ async def library_my_gear_page(
     )
     rows = result.all()
 
-    # Build gear items list with all necessary details
     gear_items = []
     for user_gear, gear in rows:
         gear_items.append({
@@ -243,6 +246,7 @@ async def library_my_gear_page(
         "pages/library/my_gear.html",
         {
             "gear_items": gear_items,
+            "user": current_user,
         },
     )
 
@@ -251,25 +255,15 @@ async def library_my_gear_page(
 async def library_chains_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
     """Render user's signal chain library page.
 
     Protected page showing user's signal chains.
-    Uses HTMX for dynamic operations (delete, duplicate).
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Rendered HTML page
     """
     repo = SQLAlchemySignalChainRepository(db)
     chains = await repo.get_by_user_id(current_user.id)
 
-    # Convert to dict for template
     chain_items = []
     for chain in chains:
         chain_items.append({
@@ -285,6 +279,7 @@ async def library_chains_page(
         "pages/library/chains.html",
         {
             "chains": chain_items,
+            "user": current_user,
         },
     )
 
@@ -293,25 +288,12 @@ async def library_chains_page(
 async def chain_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
-    """Render chain list fragment for HTMX updates.
-
-    Returns just the list of chain items without page wrapper.
-    Used by HTMX to update the chain list dynamically.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Rendered HTML fragment
-    """
+    """Render chain list fragment for HTMX updates."""
     repo = SQLAlchemySignalChainRepository(db)
     chains = await repo.get_by_user_id(current_user.id)
 
-    # Convert to dict for template
     chain_items = []
     for chain in chains:
         chain_items.append({
@@ -336,27 +318,11 @@ async def chain_delete_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
-    """Delete a signal chain via HTMX.
-
-    Args:
-        request: FastAPI request object
-        chain_id: Chain UUID as string
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Empty response (HTMX will swap out the element)
-
-    Raises:
-        HTTPException: 404 if chain not found or not owned by user
-    """
-    from uuid import UUID
-
+    """Delete a signal chain via HTMX."""
     repo = SQLAlchemySignalChainRepository(db)
 
-    # Get chain and verify ownership
     chain = await repo.get_by_id(UUID(chain_id))
     if not chain or chain.user_id != current_user.id:
         raise HTTPException(
@@ -364,11 +330,9 @@ async def chain_delete_fragment(
             detail="Chain not found",
         )
 
-    # Delete via transaction
     async with db.begin():
         await repo.delete(UUID(chain_id))
 
-    # Return empty response - HTMX will swap out the element
     return HTMLResponse(content="", status_code=200)
 
 
@@ -377,24 +341,11 @@ async def chain_duplicate_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
-    """Duplicate a signal chain via HTMX.
-
-    Args:
-        request: FastAPI request object
-        chain_id: Chain UUID as string
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        HTML fragment with updated chain list
-
-    Raises:
-        HTTPException: 404 if chain not found or not owned by user
-    """
+    """Duplicate a signal chain via HTMX."""
     from datetime import datetime
-    from uuid import UUID, uuid4
+    from uuid import uuid4
 
     from core.domain.entities.signal_chain import (
         SignalChain as SignalChainEntity,
@@ -402,7 +353,6 @@ async def chain_duplicate_fragment(
 
     repo = SQLAlchemySignalChainRepository(db)
 
-    # Get chain and verify ownership
     chain = await repo.get_by_id(UUID(chain_id))
     if not chain or chain.user_id != current_user.id:
         raise HTTPException(
@@ -410,7 +360,6 @@ async def chain_duplicate_fragment(
             detail="Chain not found",
         )
 
-    # Create duplicate with new ID and updated name
     now = datetime.now(UTC)
     new_chain = SignalChainEntity(
         id=uuid4(),
@@ -418,16 +367,14 @@ async def chain_duplicate_fragment(
         name=f"{chain.name} (Copy)",
         description=chain.description,
         platform=chain.platform,
-        blocks=chain.blocks.copy(),  # Shallow copy blocks list
+        blocks=chain.blocks.copy(),
         created_at=now,
         updated_at=now,
     )
 
-    # Save via transaction
     async with db.begin():
         await repo.save(new_chain)
 
-    # Return updated chain list fragment
     chains = await repo.get_by_user_id(current_user.id)
     chain_items = []
     for c in chains:
@@ -452,28 +399,19 @@ async def chain_duplicate_fragment(
 async def chain_builder_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
     chain_id: str | None = Query(None, description="Chain ID for editing"),
 ) -> HTMLResponse:
     """Render chain builder page.
 
     Protected page for creating or editing signal chains.
-    Mounts React SignalChainBuilder component.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        current_user: Currently authenticated user
-        chain_id: Optional chain ID for editing mode
-
-    Returns:
-        Rendered HTML page
     """
     return templates.TemplateResponse(
         request,
         "pages/library/chains_build.html",
         {
             "chain_id": chain_id,
+            "user": current_user,
         },
     )
 
@@ -482,25 +420,15 @@ async def chain_builder_page(
 async def library_shootouts_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
     """Render user's shootout library page.
 
     Protected page showing user's shootouts.
-    Uses HTMX for dynamic operations (delete).
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Rendered HTML page
     """
     service = ShootoutService(db)
     shootouts = await service.get_by_user_id(current_user.id)
 
-    # Convert to dict for template
     shootout_items = []
     for shootout in shootouts:
         shootout_items.append({
@@ -517,6 +445,7 @@ async def library_shootouts_page(
         "pages/library/shootouts.html",
         {
             "shootouts": shootout_items,
+            "user": current_user,
         },
     )
 
@@ -526,28 +455,12 @@ async def shootout_detail_page(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
     """Render shootout detail page.
 
     Protected page showing shootout details and chains.
-
-    Args:
-        request: FastAPI request object
-        shootout_id: Shootout UUID as string
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Rendered HTML page
-
-    Raises:
-        HTTPException: 404 if shootout not found or not owned by user
     """
-    from uuid import UUID
-
-    from sqlalchemy import select
-
     from webapp.adapters.persistence.models.di_track import DITrack
     from webapp.adapters.persistence.models.signal_chain import (
         SignalChain as SignalChainModel,
@@ -555,7 +468,6 @@ async def shootout_detail_page(
 
     service = ShootoutService(db)
 
-    # Get shootout and verify ownership
     shootout = await service.get_by_id(UUID(shootout_id))
     if not shootout or shootout.user_id != current_user.id:
         raise HTTPException(
@@ -563,13 +475,11 @@ async def shootout_detail_page(
             detail="Shootout not found",
         )
 
-    # Get DI track details
     di_track_result = await db.execute(
         select(DITrack).where(DITrack.id == shootout.di_track_id)
     )
     di_track = di_track_result.scalar_one_or_none()
 
-    # Get chain details for each shootout chain
     chain_items = []
     for shootout_chain in shootout.chains:
         chain_result = await db.execute(
@@ -586,7 +496,6 @@ async def shootout_detail_page(
                 "chain_name": chain.name,
             })
 
-    # Sort by position
     chain_items.sort(key=lambda x: x["position"])
 
     return templates.TemplateResponse(
@@ -606,6 +515,7 @@ async def shootout_detail_page(
                 "name": di_track.name if di_track else "Unknown",
             },
             "chains": chain_items,
+            "user": current_user,
         },
     )
 
@@ -614,25 +524,12 @@ async def shootout_detail_page(
 async def shootout_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
-    """Render shootout list fragment for HTMX updates.
-
-    Returns just the list of shootouts without page wrapper.
-    Used by HTMX to update the shootout list dynamically.
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Rendered HTML fragment
-    """
+    """Render shootout list fragment for HTMX updates."""
     service = ShootoutService(db)
     shootouts = await service.get_by_user_id(current_user.id)
 
-    # Convert to dict for template
     shootout_items = []
     for shootout in shootouts:
         shootout_items.append({
@@ -658,27 +555,11 @@ async def shootout_delete_fragment(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_current_user)],
 ) -> HTMLResponse:
-    """Delete a shootout via HTMX.
-
-    Args:
-        request: FastAPI request object
-        shootout_id: Shootout UUID as string
-        db: Database session
-        current_user: Currently authenticated user
-
-    Returns:
-        Empty response (HTMX will swap out the element)
-
-    Raises:
-        HTTPException: 404 if shootout not found or not owned by user
-    """
-    from uuid import UUID
-
+    """Delete a shootout via HTMX."""
     service = ShootoutService(db)
 
-    # Get shootout and verify ownership
     shootout = await service.get_by_id(UUID(shootout_id))
     if not shootout or shootout.user_id != current_user.id:
         raise HTTPException(
@@ -686,9 +567,7 @@ async def shootout_delete_fragment(
             detail="Shootout not found",
         )
 
-    # Delete via transaction
     async with db.begin():
         await service.delete(UUID(shootout_id))
 
-    # Return empty response - HTMX will swap out the element
     return HTMLResponse(content="", status_code=200)

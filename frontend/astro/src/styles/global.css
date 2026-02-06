@@ -3,45 +3,39 @@
  * Guitar Tone Shootout design tokens and base styles
  */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  /* Custom colors mapped from CSS variables */
+  --color-bg-base: #0a0a0b;
+  --color-bg-surface: #18181b;
+  --color-bg-elevated: #27272a;
+
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #d4d4d8;
+  --color-text-muted: #a1a1aa;
+
+  --color-accent-primary: #3b82f6;
+  --color-accent-secondary: #8b5cf6;
+  --color-accent-success: #10b981;
+  --color-accent-warning: #f59e0b;
+  --color-accent-error: #ef4444;
+  --color-accent-info: #06b6d4;
+
+  --color-block-amp: #dc2626;
+  --color-block-pedal: #ea580c;
+  --color-block-loop: #f59e0b;
+  --color-block-ir: #10b981;
+  --color-block-pre: #06b6d4;
+  --color-block-post: #8b5cf6;
+
+  --color-gear-amp: #dc2626;
+  --color-gear-cab: #10b981;
+  --color-gear-pedal: #ea580c;
+  --color-gear-full-rig: #8b5cf6;
+}
 
 @layer base {
-  :root {
-    /* Background colors */
-    --color-bg-base: #0a0a0b;
-    --color-bg-surface: #18181b;
-    --color-bg-elevated: #27272a;
-
-    /* Text colors */
-    --color-text-primary: #fafafa;
-    --color-text-secondary: #d4d4d8;
-    --color-text-muted: #a1a1aa;
-
-    /* Accent colors */
-    --color-accent-primary: #3b82f6;
-    --color-accent-secondary: #8b5cf6;
-    --color-accent-success: #10b981;
-    --color-accent-warning: #f59e0b;
-    --color-accent-error: #ef4444;
-    --color-accent-info: #06b6d4;
-
-    /* Block type colors - for signal chain visualization */
-    --color-block-amp: #dc2626;
-    --color-block-pedal: #ea580c;
-    --color-block-loop: #f59e0b;
-    --color-block-ir: #10b981;
-    --color-block-pre: #06b6d4;
-    --color-block-post: #8b5cf6;
-
-    /* Gear type colors - for gear library */
-    --color-gear-amp: #dc2626;
-    --color-gear-cab: #10b981;
-    --color-gear-pedal: #ea580c;
-    --color-gear-full-rig: #8b5cf6;
-  }
-
   /* Base styles */
   body {
     background-color: var(--color-bg-base);

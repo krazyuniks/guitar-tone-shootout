@@ -13,7 +13,7 @@ services:
   # PostgreSQL - Dual database with pgmq extension
   # ==========================================================================
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: gts
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
@@ -36,7 +36,7 @@ services:
   redis:
     profiles:
       - jobs
-    image: redis:7-alpine
+    image: redis:8-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data

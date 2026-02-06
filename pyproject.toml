@@ -2,7 +2,7 @@
 name = "gts"
 version = "0.1.0"
 description = "Guitar Tone Shootout - Tone comparison platform"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 readme = "README.md"
 
 [build-system]

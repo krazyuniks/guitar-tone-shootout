@@ -1,0 +1,59 @@
+/**
+ * Shootouts Landing Page Template
+ *
+ * Public-facing shootouts page. Authenticated users are redirected
+ * to /library/shootouts by the FastAPI route handler.
+ *
+ * Build output: frontend/astro/dist/pages/shootouts.html
+ * FastAPI route: templates.TemplateResponse(request, "pages/shootouts.html", {...})
+ */
+
+export async function GET() {
+  const html = `{% extends "layouts/base.html" %}
+
+{% block title %}Shootouts - Guitar Tone Shootout{% endblock %}
+
+{% block content %}
+<div
+  data-testid="shootouts-page"
+  class="container mx-auto px-4 py-8"
+>
+  <h1
+    data-testid="shootouts-heading"
+    class="text-[var(--color-text-primary)] text-3xl font-bold mb-6"
+  >
+    Tone Shootouts
+  </h1>
+
+  <div class="max-w-2xl">
+    <p class="text-[var(--color-text-secondary)] text-lg mb-6">
+      Compare guitar tones side-by-side with blind A/B testing.
+      Build signal chains, run shootouts, and discover your ideal tone.
+    </p>
+
+    <div class="bg-[var(--color-bg-surface)] rounded-lg p-8 border border-[var(--color-border)]">
+      <h2 class="text-[var(--color-text-primary)] text-xl font-semibold mb-4">
+        Get Started
+      </h2>
+      <p class="text-[var(--color-text-secondary)] mb-6">
+        Sign in with your Tone3000 account to create and manage shootouts.
+      </p>
+      <a
+        href="/login"
+        data-testid="shootouts-login-cta"
+        class="inline-block bg-[var(--color-accent-primary)] text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+      >
+        Sign In to Continue
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}

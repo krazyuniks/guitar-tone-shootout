@@ -26,14 +26,20 @@ export async function GET() {
   <!-- Alpine.js for client-side interactivity -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body class="min-h-screen">
-  {% block content %}
-  <!-- SSR page content goes here -->
-  {% endblock %}
+<body class="min-h-screen flex flex-col">
+  {% include "partials/header.html" %}
+
+  <main class="flex-1">
+    {% block content %}
+    <!-- SSR page content goes here -->
+    {% endblock %}
+  </main>
 
   {% block scripts %}
   <!-- Page-specific scripts go here -->
   {% endblock %}
+
+  {% include "partials/footer.html" %}
 </body>
 </html>`;
 

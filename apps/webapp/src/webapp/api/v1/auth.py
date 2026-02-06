@@ -4,11 +4,14 @@ Provides OAuth login flow endpoints:
 - GET /api/v1/auth/login - Redirects to OAuth provider
 - GET /api/v1/auth/callback - Handles OAuth callback
 - GET /api/v1/auth/me - Returns current user info
+- GET /api/v1/auth/logout - Clears session
 """
 
-from typing import Annotated
+import os
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.user import User
@@ -52,14 +55,17 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 @router.get("/login")
 async def login(
+    request: Request,
     provider: str = Query(..., description="OAuth provider name (e.g., 't3k')"),
     db_session: AsyncSession = Depends(get_db_session),
-) -> Response:
+) -> RedirectResponse:
     """Initiate OAuth login flow.
 
     Redirects to OAuth provider's authorization page.
+    Stores OAuth state in session for CSRF validation.
 
     Args:
+        request: FastAPI request object (for session access)
         provider: OAuth provider name (t3k, google, etc.)
         db_session: Database session
 
@@ -72,9 +78,9 @@ async def login(
     try:
         oauth_handler = OAuthHandler(db_session)
 
-        # Generate authorization URL
-        # In production, redirect_uri would be built from request.base_url
-        redirect_uri = "http://localhost:8000/api/v1/auth/callback"
+        # Build redirect_uri from PUBLIC_URL (Traefik URL, not internal container URL)
+        public_url = os.getenv("PUBLIC_URL", "http://localhost:9000")
+        redirect_uri = f"{public_url}/api/v1/auth/callback"
 
         auth_url, state = await oauth_handler.generate_authorization_url(
             provider_name=provider,
@@ -82,13 +88,11 @@ async def login(
             scope=None,
         )
 
-        # TODO: Store state in session for CSRF validation
+        # Store state in session for CSRF validation on callback
+        request.session["oauth_state"] = state
+        request.session["oauth_provider"] = provider
 
-        # Redirect to OAuth provider
-        return Response(
-            status_code=307,
-            headers={"location": auth_url},
-        )
+        return RedirectResponse(url=auth_url, status_code=307)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -96,35 +100,40 @@ async def login(
 
 @router.get("/callback")
 async def callback(
+    request: Request,
     provider: str = Query(..., description="OAuth provider name"),
     code: str = Query(..., description="Authorization code from provider"),
     state: str = Query(..., description="State parameter for CSRF protection"),
     db_session: AsyncSession = Depends(get_db_session),
-) -> Response:
+) -> RedirectResponse:
     """Handle OAuth callback.
 
     Exchanges authorization code for tokens, retrieves user info,
-    and creates or updates user account.
+    and creates or updates user account. Stores user_id in session.
 
     Args:
+        request: FastAPI request object (for session access)
         provider: OAuth provider name
         code: Authorization code from OAuth provider
         state: State parameter for CSRF validation
         db_session: Database session
 
     Returns:
-        200 response with user data or 302 redirect to app
+        302 redirect to library page
 
     Raises:
         HTTPException: 400/401 if callback validation fails
     """
     try:
+        # Validate CSRF state from session
+        expected_state = request.session.pop("oauth_state", None)
+        if not expected_state or expected_state != state:
+            raise HTTPException(status_code=400, detail="Invalid OAuth state")
+
         oauth_handler = OAuthHandler(db_session)
 
-        # TODO: Retrieve expected_state from session
-        expected_state = state  # Placeholder - in production, read from session
-
-        redirect_uri = "http://localhost:8000/api/v1/auth/callback"
+        public_url = os.getenv("PUBLIC_URL", "http://localhost:9000")
+        redirect_uri = f"{public_url}/api/v1/auth/callback"
 
         # Exchange code for tokens
         tokens = await oauth_handler.handle_callback(
@@ -152,67 +161,67 @@ async def callback(
             avatar_url=user_info.get("avatar_url"),
         )
 
-        # TODO: Create session or return JWT token
-        # For now, return user data
-        return Response(
-            status_code=200,
-            content=f'{{"id": "{user.id}", "username": "{user.username}"}}',
-            media_type="application/json",
-        )
+        # Store user_id in session cookie
+        request.session["user_id"] = str(user.id)
+
+        return RedirectResponse(url="/library/my-gear", status_code=302)
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Callback failed: {e!s}")
 
 
 @router.get("/me")
-async def get_current_user(
-    authorization: Annotated[str | None, Header()] = None,
+async def get_current_user_info(
+    request: Request,
     db_session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Get current authenticated user.
-
-    Requires Bearer token in Authorization header.
+    """Get current authenticated user from session.
 
     Args:
-        authorization: Authorization header with Bearer token
+        request: FastAPI request object (for session access)
         db_session: Database session
 
     Returns:
         User profile data
 
     Raises:
-        HTTPException: 401 if not authenticated or token invalid
+        HTTPException: 401 if not authenticated
     """
-    if not authorization or not authorization.startswith("Bearer "):
+    user_id = request.session.get("user_id")
+    if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = authorization[7:]  # Remove "Bearer " prefix
+    from uuid import UUID
 
-    # TODO: Validate token and get user_id
-    # For now, this is a placeholder that will be mocked in tests
-    try:
-        # Import here to avoid circular dependency
-        from webapp.auth.token import validate_token
+    result = await db_session.execute(select(User).where(User.id == UUID(user_id)))
+    user = result.scalar_one_or_none()
 
-        user_id = validate_token(token)
+    if user is None:
+        # Session has stale user_id — clear it
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="User not found")
 
-        # Fetch user from database
-        from sqlalchemy import select
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "avatar_url": user.avatar_url,
+    }
 
-        result = await db_session.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
 
-        if user is None:
-            raise HTTPException(status_code=401, detail="User not found")
+@router.get("/logout")
+async def logout(request: Request) -> RedirectResponse:
+    """Clear session and redirect to home.
 
-        return {
-            "id": str(user.id),
-            "username": user.username,
-            "email": user.email,
-            "avatar_url": user.avatar_url,
-        }
+    Args:
+        request: FastAPI request object (for session access)
 
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    Returns:
+        302 redirect to home page
+    """
+    request.session.clear()
+    return RedirectResponse(url="/", status_code=302)
