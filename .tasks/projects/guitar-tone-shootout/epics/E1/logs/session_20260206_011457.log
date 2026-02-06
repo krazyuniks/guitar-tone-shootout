@@ -410,3 +410,34 @@ cd tests/e2e/python && uv run pytest tests/ -v
 error: Recipe `test-e2e` failed on line 146 with exit code 5
 
 2026-02-06 02:26:14,533 [INFO]   T21 COMPLETE
+2026-02-06 02:26:16,796 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 02:26:16,800 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 02:26:16,800 [INFO]   Git sync: push --force-with-lease
+2026-02-06 02:26:18,133 [DEBUG]   Pushed: 
+2026-02-06 02:26:18,133 [INFO] 
+2026-02-06 02:26:18,133 [INFO] === Iteration 8 ===
+2026-02-06 02:26:18,134 [INFO]   Next task: T22 — [Task]: BlockTypeRegistry and PresetService (state=pending)
+2026-02-06 02:26:18,134 [INFO] 
+  Phase: TEST (writing tests for T22)
+2026-02-06 02:26:18,134 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-06 02:28:42,704 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-06 02:28:42,704 [INFO] 
+  Phase: RED (verifying tests fail)
+2026-02-06 02:28:42,704 [INFO]     Running: just tdd-red T22
+2026-02-06 02:28:45,490 [DEBUG]     just tdd-red T22 -> OK
+2026-02-06 02:28:45,490 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/unit/backend/services/test_block_type_registry.py
+  tests/unit/backend/services/test_preset_service.py
+
+Results: 13 failed, 0 passed, 7 errors
+NOTE: 7 tests errored (import/syntax issues).
+  Errors count as 'not passing' — acceptable in red phase.
+
+Red phase verified: 13 failing + 7 erroring tests found.
+
+2026-02-06 02:28:45,490 [INFO] 
+  Phase: LOCK (snapshotting tests)
+2026-02-06 02:28:45,490 [INFO]     Running: just tdd-lock T22
