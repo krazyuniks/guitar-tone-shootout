@@ -128,6 +128,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         id: Primary key (UUIDv7)
         name: Display name
         gear_type: Type of gear (amp, pedal, ir, etc.)
+        platform: Primary platform for this gear (optional, derived from models)
         description: Optional description
         manufacturer: Manufacturer name (legacy field, prefer make_id)
         make_id: Foreign key to gear_makes table
@@ -150,6 +151,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         EnumByValue(GearType),
         nullable=False,
     )
+    platform: Mapped[str | None] = mapped_column(String(50), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
     make_id: Mapped[uuid.UUID | None] = mapped_column(

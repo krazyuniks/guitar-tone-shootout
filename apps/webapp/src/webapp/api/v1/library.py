@@ -102,10 +102,10 @@ async def list_user_gear(
             UserGearResponse(
                 user_gear_id=user_gear.id,
                 gear_id=gear.id,
-                nickname=user_gear.nickname,
-                is_favourite=user_gear.is_favourite,
                 gear_name=gear.name,
                 gear_type=gear.gear_type,
+                nickname=user_gear.nickname,
+                is_favourite=user_gear.is_favourite,
             )
         )
 
@@ -168,13 +168,15 @@ async def add_gear_to_library(
             detail="Gear is already in library",
         )
 
+    await db.refresh(gear)
+
     return UserGearResponse(
         user_gear_id=user_gear.id,
         gear_id=gear.id,
-        nickname=user_gear.nickname,
-        is_favourite=user_gear.is_favourite,
         gear_name=gear.name,
         gear_type=gear.gear_type,
+        nickname=user_gear.nickname,
+        is_favourite=user_gear.is_favourite,
     )
 
 

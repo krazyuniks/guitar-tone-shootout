@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -12,7 +13,7 @@ class BlockRequest(BaseModel):
     """Request schema for a signal chain block."""
 
     user_gear_id: UUID
-    gear_type: str
+    gear_type: Literal["pedal", "amp", "full_rig", "ir", "post_effect", "outboard"]
     position: int
 
 
@@ -31,7 +32,7 @@ class SignalChainCreateRequest(BaseModel):
     """Request schema for creating a signal chain."""
 
     name: str
-    platform: str
+    platform: Literal["nam", "aida_x", "ir", "aa_snapshot", "proteus"]
     description: str | None = None
     blocks: list[BlockRequest]
 
@@ -40,7 +41,7 @@ class SignalChainUpdateRequest(BaseModel):
     """Request schema for updating a signal chain."""
 
     name: str
-    platform: str
+    platform: Literal["nam", "aida_x", "ir", "aa_snapshot", "proteus"]
     description: str | None = None
     blocks: list[BlockRequest]
 
