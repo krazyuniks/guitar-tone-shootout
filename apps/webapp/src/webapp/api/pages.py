@@ -1,5 +1,6 @@
 """SSR page routes for public pages."""
 
+from datetime import UTC
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -392,7 +393,7 @@ async def chain_duplicate_fragment(
     Raises:
         HTTPException: 404 if chain not found or not owned by user
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     from uuid import UUID, uuid4
 
     from core.domain.entities.signal_chain import (
@@ -410,7 +411,7 @@ async def chain_duplicate_fragment(
         )
 
     # Create duplicate with new ID and updated name
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     new_chain = SignalChainEntity(
         id=uuid4(),
         user_id=current_user.id,

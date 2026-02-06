@@ -1,0 +1,191 @@
+/**
+ * Shootout Detail Page Template
+ *
+ * Protected page showing shootout details.
+ * Full page template served by FastAPI's Jinja2 renderer.
+ *
+ * Build output: frontend/astro/dist/pages/shootout_detail.html
+ * FastAPI route: templates.TemplateResponse(request, "pages/shootout_detail.html", {...})
+ */
+
+export async function GET() {
+  const html = `{% extends "layouts/base.html" %}
+
+{% block title %}{{ shootout.name }} - Guitar Tone Shootout{% endblock %}
+
+{% block content %}
+<div
+  data-testid="shootout-detail-page"
+  class="container mx-auto px-4 py-8"
+>
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex justify-between items-start mb-4">
+      <div>
+        <h1
+          class="text-[var(--color-text-primary)] text-3xl font-bold mb-2"
+        >
+          {{ shootout.name }}
+        </h1>
+        {% if shootout.description %}
+          <p class="text-[var(--color-text-secondary)] text-lg">
+            {{ shootout.description }}
+          </p>
+        {% endif %}
+      </div>
+      <a
+        href="/library/shootouts"
+        data-testid="back-to-library-btn"
+        class="px-4 py-2 bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] rounded-lg hover:opacity-90"
+      >
+        Back to Library
+      </a>
+    </div>
+
+    <!-- Status -->
+    <div class="flex gap-4 text-sm">
+      <div class="text-[var(--color-text-secondary)]">
+        <span class="font-semibold">DI Track:</span>
+        <span data-testid="di-track-name">{{ di_track.name }}</span>
+      </div>
+      <div class="text-[var(--color-text-secondary)]">
+        <span class="font-semibold">Chains:</span>
+        <span data-testid="chain-count">{{ shootout.chain_count }}</span>
+      </div>
+      <div>
+        {% if shootout.is_processed %}
+          <span
+            data-testid="processing-status"
+            class="text-green-600 font-semibold"
+          >
+            • Processed
+          </span>
+        {% else %}
+          <span
+            data-testid="processing-status"
+            class="text-yellow-600 font-semibold"
+          >
+            • Pending
+          </span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Chains Section -->
+  <div class="mb-6">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-[var(--color-text-primary)] text-2xl font-bold">
+        Signal Chains
+      </h2>
+      <button
+        data-testid="add-chain-btn"
+        class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90"
+        hx-get="/fragments/shootouts/{{ shootout.id }}/add-chain-form"
+        hx-target="#add-chain-container"
+        hx-swap="innerHTML"
+      >
+        Add Chain
+      </button>
+    </div>
+
+    <!-- Add Chain Form Container -->
+    <div id="add-chain-container" class="mb-4"></div>
+
+    <!-- Chains List -->
+    {% if chains %}
+      <div class="space-y-3">
+        {% for chain in chains %}
+          <div
+            data-testid="shootout-chain-item"
+            class="bg-[var(--color-bg-elevated)] rounded-lg p-4 border border-[var(--color-border)]"
+          >
+            <div class="flex justify-between items-center">
+              <div class="flex-1">
+                <div class="flex items-center gap-3">
+                  <span
+                    data-testid="chain-position"
+                    class="text-[var(--color-text-secondary)] font-mono text-sm"
+                  >
+                    #{{ chain.position + 1 }}
+                  </span>
+                  <div>
+                    <div class="text-[var(--color-text-primary)] font-semibold">
+                      {{ chain.label }}
+                    </div>
+                    <div class="text-[var(--color-text-secondary)] text-sm">
+                      {{ chain.chain_name }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button
+                  data-testid="remove-chain-btn"
+                  class="px-3 py-1 text-[var(--color-error)] hover:bg-[var(--color-bg-base)] rounded"
+                  hx-delete="/fragments/shootouts/{{ shootout.id }}/chains/{{ chain.signal_chain_id }}"
+                  hx-confirm="Remove this chain from the shootout?"
+                  hx-target="closest [data-testid='shootout-chain-item']"
+                  hx-swap="outerHTML swap:0.3s"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-8 bg-[var(--color-bg-elevated)] rounded-lg">
+        <p class="text-[var(--color-text-secondary)]">
+          No chains added yet. Add chains to start comparing.
+        </p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Actions Section -->
+  <div class="flex gap-3 mt-8">
+    {% if not shootout.is_processed and shootout.chain_count >= 2 %}
+      <button
+        data-testid="process-shootout-btn"
+        class="px-6 py-3 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 font-semibold"
+      >
+        Process Shootout
+      </button>
+    {% endif %}
+
+    {% if shootout.is_processed and shootout.output_path %}
+      <a
+        href="{{ shootout.output_path }}"
+        data-testid="download-video-btn"
+        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:opacity-90 font-semibold"
+        download
+      >
+        Download Video
+      </a>
+    {% endif %}
+
+    <button
+      data-testid="delete-shootout-detail-btn"
+      class="px-6 py-3 bg-[var(--color-error)] text-white rounded-lg hover:opacity-90"
+      hx-delete="/fragments/shootouts/{{ shootout.id }}"
+      hx-confirm="Delete this shootout? This cannot be undone."
+      hx-target="body"
+      hx-swap="none"
+      hx-on::after-request="if(event.detail.successful) window.location.href = '/library/shootouts'"
+    >
+      Delete Shootout
+    </button>
+  </div>
+</div>
+{% endblock %}
+`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}

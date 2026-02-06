@@ -10,8 +10,9 @@ from webapp.adapters.persistence.repositories.shootout_repository import (
 )
 
 if TYPE_CHECKING:
-    from core.domain.entities.shootout import Shootout
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from core.domain.entities.shootout import Shootout
 
 
 class ShootoutService:

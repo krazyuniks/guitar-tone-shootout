@@ -16,15 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.shootout import Shootout
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
-)
-from webapp.adapters.persistence.repositories.shootout_repository import (
-    SQLAlchemyShootoutRepository,
 )
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,

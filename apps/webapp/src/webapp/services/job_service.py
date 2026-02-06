@@ -11,8 +11,9 @@ from webapp.adapters.persistence.repositories.job_repository import (
 )
 
 if TYPE_CHECKING:
-    from core.domain.entities.job import Job
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from core.domain.entities.job import Job
 
 
 class JobService:
