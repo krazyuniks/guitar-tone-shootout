@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from webapp.api import pages
-from webapp.api.v1 import health
+from webapp.api.v1 import health, signal_chains
 from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
 
     # Include API routers
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
+    app.include_router(signal_chains.router)
 
     # Include page routers
     app.include_router(pages.router)
