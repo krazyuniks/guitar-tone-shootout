@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.shootout import Shootout
@@ -454,6 +454,7 @@ class TestLibraryChainsFragments:
             user_id=test_user.id,
             name="Test Chain",
             description="Test signal chain",
+            platform=Platform.NAM,
         )
         db_session.add(chain)
         await db_session.commit()
@@ -497,12 +498,14 @@ class TestLibraryChainsFragments:
             user_id=test_user.id,
             name="User's Chain",
             description="Test user's chain",
+            platform=Platform.NAM,
         )
         other_chain = SignalChain(
             id=uuid4(),
             user_id=other_user.id,
             name="Other User's Chain",
             description="Other user's chain",
+            platform=Platform.NAM,
         )
         db_session.add_all([user_chain, other_chain])
         await db_session.commit()
@@ -532,6 +535,7 @@ class TestLibraryChainsFragments:
                 user_id=test_user.id,
                 name=f"Chain {i}",
                 description=f"Test chain {i}",
+                platform=Platform.NAM,
             )
             db_session.add(chain)
         await db_session.commit()
