@@ -186,6 +186,8 @@ services:
     build:
       context: ./frontend/astro
       dockerfile: Dockerfile
+    environment:
+      SHELL: /bin/sh
     volumes:
       - ./frontend/astro:/app
       - /app/node_modules
