@@ -44,7 +44,7 @@ T6 → T9
 | T14 | [Task]: SignalChain and SignalChain | complete | webapp | T9 |
 | T15 | [Task]: T3K Provider Implementation | complete | webapp | T11 |
 | T16 | [Task]: Gear Repository | complete | webapp | T12 |
-| T17 | [Task]: BlockType and Preset Models | pending | webapp | T14 |
+| T17 | [Task]: BlockType and Preset Models | complete | webapp | T14 |
 | T18 | [Task]: Shootout and ShootoutChain  | pending | webapp | T14 |
 | T19 | [Task]: IdentityService and Auth AP | pending | webapp | T15 |
 | T20 | [Task]: Gear API Endpoints | pending | webapp | T16 |
