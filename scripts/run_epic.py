@@ -478,8 +478,9 @@ def is_likely_test_bug(task: Task, green_output: str) -> bool:
 
     Returns True when:
     - Most scope files exist (implementation was done, >= 75% present)
-    - Small number of failures (<= 3)
-    - Most tests pass
+    - AND one of:
+      a) Small number of failures (<= 3) with most tests passing
+      b) All failures are in a single test file (likely one bad pattern)
     """
     scope_files = preflight_scope_check(task)
     if not scope_files:
@@ -495,9 +496,18 @@ def is_likely_test_bug(task: Task, green_output: str) -> bool:
     if total_tests == 0:
         return False
 
-    # Few failures relative to total, and most tests pass
     failure_count = failed + errors
-    return failure_count <= 3 and passed > failure_count
+
+    # Heuristic A: few failures and most tests pass
+    if failure_count <= 3 and passed > failure_count:
+        return True
+
+    # Heuristic B: all failures in a single test file (one bad pattern)
+    failing_files = find_failing_test_files(green_output)
+    if len(failing_files) == 1 and passed > 0:
+        return True
+
+    return False
 
 
 def find_failing_test_files(green_output: str) -> list[str]:
@@ -546,6 +556,7 @@ def build_test_fix_prompt(
         "- `importlib.util` / `find_spec` / `module_from_spec` — use standard `from X import Y`",
         "- `db_session.get_bind()` — returns sync Engine, use fixtures directly",
         "- Ad-hoc session fixtures when conftest fixtures exist",
+        "- `AsyncClient(app=...)` — removed in HTTPX 0.28+, use `AsyncClient(transport=ASGITransport(app=app), ...)`",
         "",
         "## Green Phase Output (failures to fix)",
         "",

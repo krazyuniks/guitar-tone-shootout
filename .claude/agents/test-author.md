@@ -97,7 +97,23 @@ new_session = AsyncSession(engine)  # BROKEN: sync engine in async context
 
 NEVER create ad-hoc session fixtures when conftest fixtures exist. Read `tests/regression/conftest.py` or `tests/unit/` conftest files first.
 
-### 4. Testing removal of backward-compat imports — BANNED
+### 4. Old HTTPX `AsyncClient(app=...)` API — BANNED
+
+HTTPX 0.28+ removed the `app` parameter from `AsyncClient`. Use `ASGITransport` instead.
+
+```python
+# BANNED — removed in HTTPX 0.28+
+from httpx import AsyncClient
+async with AsyncClient(app=app, base_url="http://test") as client:
+    ...
+
+# CORRECT — use ASGITransport
+from httpx import ASGITransport, AsyncClient
+async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    ...
+```
+
+### 5. Testing removal of backward-compat imports — BANNED
 
 NEVER write tests asserting that something should NOT be importable from its current location.
 Existing code depends on current import paths. Moving code to a new location means ADDING a new

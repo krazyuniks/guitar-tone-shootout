@@ -10,6 +10,7 @@ from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from httpx import ASGITransport
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
@@ -78,7 +79,7 @@ class TestAuthLoginEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
                 "/api/v1/auth/login",
                 params={"provider": "t3k"},
@@ -106,7 +107,7 @@ class TestAuthLoginEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
                 "/api/v1/auth/login",
                 params={"provider": "t3k"},
@@ -135,7 +136,7 @@ class TestAuthLoginEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
                 "/api/v1/auth/login",
                 params={"provider": "nonexistent"},
@@ -168,7 +169,7 @@ class TestAuthLoginEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
                 "/api/v1/auth/login",
                 params={"provider": "disabled"},
@@ -210,7 +211,7 @@ class TestAuthCallbackEndpoint:
             mock_callback.return_value = mock_token_response
             mock_user_info_fn.return_value = mock_user_info
 
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 # Simulate OAuth callback
                 response = await client.get(
                     "/api/v1/auth/callback",
@@ -245,7 +246,7 @@ class TestAuthCallbackEndpoint:
         with patch("webapp.auth.oauth.OAuthHandler.handle_callback") as mock_callback:
             mock_callback.side_effect = ValueError("Invalid state parameter")
 
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get(
                     "/api/v1/auth/callback",
                     params={
@@ -285,7 +286,7 @@ class TestAuthCallbackEndpoint:
             mock_callback.return_value = mock_token_response
             mock_user_info_fn.return_value = mock_user_info
 
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 await client.get(
                     "/api/v1/auth/callback",
                     params={
@@ -347,7 +348,7 @@ class TestAuthCallbackEndpoint:
             mock_callback.return_value = mock_token_response
             mock_user_info_fn.return_value = mock_user_info
 
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 await client.get(
                     "/api/v1/auth/callback",
                     params={
@@ -378,7 +379,7 @@ class TestTokenAuthentication:
         app = FastAPI()
         app.include_router(router)
 
-        async with AsyncClient(app=app, base_url="http://test") as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Request without token should fail
             response = await client.get("/api/v1/auth/me")
 
@@ -409,7 +410,7 @@ class TestTokenAuthentication:
         with patch("webapp.auth.token.validate_token") as mock_validate:
             mock_validate.return_value = user.id
 
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get(
                     "/api/v1/auth/me",
                     headers={"Authorization": "Bearer valid_token_here"},
@@ -435,7 +436,7 @@ class TestTokenAuthentication:
         with patch("webapp.auth.token.validate_token") as mock_validate:
             mock_validate.side_effect = ValueError("Invalid token")
 
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get(
                     "/api/v1/auth/me",
                     headers={"Authorization": "Bearer invalid_token"},
