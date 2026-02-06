@@ -16,3 +16,4 @@ page.route('**/api/**', ...)                   # NEVER mock API in E2E tests
 ```
 
 For test structure, fixtures, markers, and patterns, see the `gts-testing` skill.
+For production-learned banned patterns (11 patterns), see `gts-testing` skill > "Production-Learned Banned Patterns".

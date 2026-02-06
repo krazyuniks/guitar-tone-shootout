@@ -17,8 +17,8 @@ export async function GET() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Guitar Tone Shootout{% endblock %}</title>
 
-  <!-- Compiled Tailwind CSS with design tokens -->
-  <link rel="stylesheet" href="/_astro/index.CKfN-jZC.css">
+  <!-- Compiled Tailwind CSS with design tokens (hash injected by post-build script) -->
+  <link rel="stylesheet" href="/_astro/CSS_PLACEHOLDER">
 
   <!-- HTMX for dynamic HTML fragments -->
   <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>

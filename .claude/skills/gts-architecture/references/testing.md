@@ -20,7 +20,7 @@ Testing uses pytest with Playwright for browser automation. The suite is structu
 | Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM -> Repo -> DB) |
 | Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
 | Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
-| E2E | `tests/e2e/python/` | Host | `just test-e2e` | Full user journey |
+| E2E | `tests/e2e/python/` | Host | `just test-golden-path` | Full user journey |
 
 ## Regression Tests
 
@@ -64,7 +64,7 @@ This pattern catches issues at any layer: frontend rendering, API communication,
 just test-regression  # Stack connectivity (< 1s) - before commits
 just test             # Unit + Integration (< 30s) - before PRs
 just tdd <path>       # Single test during development
-just test-e2e         # E2E (when frontend works)
+just test-golden-path # Golden path tests (when frontend works)
 ```
 
 **Why E2E on host?**

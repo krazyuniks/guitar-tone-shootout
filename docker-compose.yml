@@ -107,6 +107,8 @@ services:
     depends_on:
       webapp:
         condition: service_healthy
+      astro:
+        condition: service_healthy
     restart: unless-stopped
 
   # ==========================================================================
@@ -178,11 +180,9 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Astro - Build-only service (not in runtime stack)
+  # Astro - Watches source files and auto-rebuilds on change
   # ==========================================================================
   astro:
-    profiles:
-      - build
     build:
       context: ./frontend/astro
       dockerfile: Dockerfile
@@ -190,6 +190,7 @@ services:
       - ./frontend/astro:/app
       - /app/node_modules
     working_dir: /app
+    restart: unless-stopped
 
   # ==========================================================================
   # CloudBeaver - Web-based database management (tools profile only)

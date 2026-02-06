@@ -162,7 +162,7 @@ All project code executes in Docker containers. The host environment is only for
 | Integration tests | Docker | `just test-integration` |
 | Migrations | Docker | `just migrate` |
 | Python REPL | Docker | `just repl` |
-| E2E tests | **Host** | `just test-e2e` |
+| E2E tests | **Host** | `just test-golden-path` |
 | Git, GitHub CLI | Host | `git`, `gh` |
 | Worktree management | Host | `./worktree.py` |
 

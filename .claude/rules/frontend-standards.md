@@ -2,7 +2,7 @@
 
 ## Hard Constraints
 
-- **Pre-bundled:** `astro/dist/` is committed to git. Run `just build-astro` after source changes. Commit both `astro/src/` and `astro/dist/`.
+- **Pre-bundled:** `astro/dist/` is committed to git. Chokidar auto-rebuilds on source changes. Commit both `astro/src/` and `astro/dist/`.
 - **All interactive elements MUST have `data-testid` attributes** for Playwright testing.
 - **Links to SSR pages need `data-astro-reload`** in Astro components (ClientRouter intercepts clicks).
 - **No CDN Tailwind.** All styles pre-compiled by Astro at `/_astro/*.css`.

@@ -26,7 +26,7 @@ just --list           # Find ANY command (ALWAYS check here first)
 just check            # Quality gates (runs in Docker)
 just fix-lint         # Auto-fix issues (runs in Docker)
 just test-regression  # Stack tests (runs in Docker)
-just test-e2e         # E2E tests (runs on host)
+just test-golden-path # Golden path tests (runs on host)
 just build-astro      # Build Astro frontend
 ```
 

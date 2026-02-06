@@ -12,13 +12,14 @@ Single reference for all testing in GTS. Covers TDD workflow, pytest patterns, f
 
 ## Quick Reference
 
-| Command | Purpose | Where |
-|---------|---------|-------|
-| `just tdd <path>` | Run single test | Docker |
+| Command | Scope | Runs In |
+|---------|-------|---------|
+| `just tdd <path>` | Single test file | Docker |
 | `just test-unit` | All unit tests | Docker |
 | `just test-integration` | All integration tests | Docker |
+| `just test` | Unit + integration | Docker |
 | `just test-regression` | Stack connectivity (<1s) | Docker |
-| `just test-golden-path` | Golden path E2E | Host |
+| `just test-golden-path` | E2E user journey | Host |
 | `just check` | Full quality gates | Docker |
 
 ### TDD Orchestration
@@ -35,122 +36,11 @@ Single reference for all testing in GTS. Covers TDD workflow, pytest patterns, f
 
 ---
 
-## Workspace-Aware Test Taxonomy
-
-GTS uses uv workspaces. Each workspace member is a bounded context with its own test directories.
-
-### Test Placement by Workspace
-
-| Workspace Member | Unit | Integration | Golden Path E2E |
-|---|---|---|---|
-| `libs/core` | `tests/unit/core/` | `tests/integration/core/` | Covered via webapp E2E |
-| `libs/audio` | `tests/unit/audio/` | `tests/integration/audio/` | N/A |
-| `apps/webapp` | `tests/unit/webapp/` | `tests/integration/webapp/` | `tests/e2e/python/` |
-| `apps/worker` | `tests/unit/worker/` | `tests/integration/worker/` | N/A |
-| `sources/t3k` | `tests/unit/t3k/` | `tests/integration/t3k/` | N/A |
-
-**Key insight:** E2E tests are webapp-scoped. They cover the full stack (UI → services → models → DB) which exercises `apps/webapp` + `libs/core` together. Not every workspace member needs E2E tests.
-
-### Directory Structure
-
-```
-tests/
-├── conftest.py              # Root config: markers, pytest_plugins
-├── fixtures/                # Shared fixtures
-│   ├── database.py          # DB session with transaction rollback
-│   ├── auth.py              # JWT tokens, auth headers
-│   └── factories.py         # Test data factories
-├── unit/                    # Pure logic, no external deps (Docker)
-│   ├── core/                # libs/core domain logic
-│   ├── audio/               # libs/audio processing
-│   ├── webapp/              # apps/webapp ORM, services
-│   └── worktree/            # worktree tooling
-├── integration/             # Real DB/Redis tests (Docker)
-│   ├── audio/               # Audio processing with real files
-│   ├── webapp/              # Repository, migration tests
-│   └── worker/              # Worker job tests
-├── regression/              # Stack connectivity (SQLite, <1s)
-│   └── test_stack.py
-└── e2e/
-    ├── python/              # Golden path E2E (host, Playwright)
-    │   ├── conftest.py      # Browser fixtures, auth, DB access
-    │   └── tests/           # Test files
-    └── smoke/               # Infrastructure smoke tests
-```
-
-### Placement Decision Tree
-
-```
-Is it a browser-based / full-stack test?
-├── YES → tests/e2e/python/tests/  (runs on HOST)
-└── NO → Does it need real DB/Redis?
-    ├── YES → tests/integration/{workspace}/  (runs in DOCKER)
-    └── NO → tests/unit/{workspace}/  (runs in DOCKER)
-```
-
-Where `{workspace}` matches the source: `core`, `audio`, `webapp`, `worker`, `t3k`.
-
----
-
-## Golden Path Test
-
-A single living E2E test that proves the full stack works end-to-end. Updated as features ship.
-
-### How It Works
-
-- **Command:** `just test-golden-path`
-- **Runs on host** (not Docker) — uses Playwright to hit the running Docker stack
-- **Location:** `tests/e2e/python/tests/`
-- **Isolated package:** `tests/e2e/python/pyproject.toml` with its own venv
-
-### Living Test Philosophy
-
-The golden path test grows with the application. Each new feature adds specific `data-testid` checks:
-
-```python
-# Example: gear browse page should show gear packs from DB
-async def test_gear_browse_shows_packs(page, frontend_url):
-    await page.goto(f"{frontend_url}/gear")
-    pack_list = page.locator('[data-testid="gear-browse"]')
-    await expect(pack_list).to_be_visible()
-    # Verify real data from DB (not empty)
-    pack_cards = page.locator('[data-testid="item-card"]')
-    count = await pack_cards.count()
-    assert count > 0, "Gear browse should show packs from database"
-```
-
-### When to Update the Golden Path
-
-- New page/route added → add navigation + visibility check
-- New CRUD feature → add create/read/delete flow
-- New data display → add `data-testid` presence check with data assertion
-
-### Auth for Protected Routes
-
-Routes under `/library/*` require authentication. Before running golden path tests:
-
-```bash
-# 1. Authenticate (once, shared across worktrees)
-./worktree.py auth-login
-
-# 2. Restore session in current worktree
-./worktree.py auth-restore
-
-# 3. Verify
-./worktree.py auth-status
-```
-
-Auth tokens are stored in `../.gts-auth.json` (shared file in worktrees parent directory). `auth-restore` calls `POST /api/v1/auth/restore-session` to create a local session.
-
-**If auth is expired:** Re-run `./worktree.py auth-login` — T3K uses passwordless OAuth (email magic link).
-
----
-
 ## TDD Discipline
 
 ### Why Test-First Matters in Automated Pipelines
 
-The TDD state machine (`run_epic.py`) enforces separation: test-author writes tests, implementer makes them pass. This prevents implementation bias in test design.
+The TDD state machine (`run_epic.py`) enforces separation: test-author writes tests, implementer makes them pass. This isn't bureaucracy — it prevents implementation bias in test design.
 
 If the same agent writes tests and code, it unconsciously designs tests that match its implementation rather than the specification. Separate agents with separate tool permissions eliminate this.
 
@@ -168,33 +58,49 @@ No production code without a failing test first. If you didn't watch the test fa
 | "All tests pass so I'm done" | Tests passing is necessary but not sufficient. Check quality. |
 | "I need to modify the test to handle an edge case" | Edge cases get NEW tests. Existing tests are immutable. |
 
-### Test-Author Workflow
+### Common Mistakes (from Production Runs)
 
-1. **Read** the task spec — extract acceptance criteria and scope files
-2. **Create** new test file(s) in the correct workspace directory (see Placement Decision Tree)
-3. **Write** tests that import from the expected module paths — even if those modules don't exist yet. A correct red test fails with `ImportError` or `AssertionError`, not `SyntaxError`.
-4. **Run only your files**: `just tdd tests/unit/webapp/test_your_file.py` — not the full suite
-5. **Verify** they fail for the right reasons, then stop
+These have actually happened in automated TDD runs. Do not repeat them.
 
-### Implementer Workflow
+| Mistake | Correct Behaviour |
+|---|---|
+| Modified existing test files | Only CREATE new test files. Existing tests are immutable. |
+| Ran the full test suite | Only run YOUR new/modified test files. |
+| Imported from implementation packages that don't exist yet | Use standard imports. Tests should fail with ImportError or AssertionError, not SyntaxError. |
+| Used `conftest.py` fixtures from integration tests in unit tests | Unit and integration fixtures are separate. Check which conftest.py applies. |
+| Created implementation files as test-author | test-author writes ONLY in `tests/`. No `libs/`, `apps/`, `sources/`. |
+| Modified tests as implementer | implementer writes ONLY in `libs/`, `apps/`, `sources/`. No `tests/`. |
+| Hit max turns without finishing | Start with the simplest test/implementation. Iterate. Don't plan everything upfront. |
 
-1. **Read** the test files first — they are your specification
-2. **Start small** — pick the simplest failing test, make it pass, then move to the next
-3. **Run iteratively**: `just tdd <your_test_path>` after each change
-4. **Don't over-plan** — write enough code to pass the current test, then reassess
+---
 
-### Fixture Scoping
-
-Fixtures are scoped by directory. Only fixtures from your test's ancestor `conftest.py` files are available:
+## Test Structure & Placement
 
 ```
-tests/conftest.py                     → markers, pytest_plugins (all tests)
-tests/unit/conftest.py                → unit-specific (NO database)
-tests/integration/webapp/conftest.py  → db_session, factories, auth
-tests/e2e/python/conftest.py          → page, browser, frontend_url
+tests/
+├── conftest.py              # Root config: markers, pytest_plugins
+├── fixtures/                # Shared fixtures
+│   ├── database.py          # DB session with transaction rollback
+│   ├── auth.py              # JWT tokens, auth headers
+│   └── factories.py         # Test data factories
+├── unit/backend/            # Pure logic, no external deps
+├── integration/backend/     # Real DB/Redis tests
+├── regression/              # Stack connectivity (SQLite, <1s)
+└── e2e/
+    └── python/              # E2E tests (pytest + Playwright)
+        ├── conftest.py      # Browser fixtures, auth, DB access
+        └── tests/           # Test files
 ```
 
-Unit tests cannot use integration fixtures (`db_session`, `make_signal_chain`, etc.) — they live in a different conftest hierarchy.
+### Placement Decision Tree
+
+```
+Is it a browser-based test?
+├── YES → tests/e2e/python/tests/  (runs on HOST)
+└── NO → Does it need real DB/Redis?
+    ├── YES → tests/integration/backend/  (runs in DOCKER)
+    └── NO → tests/unit/backend/  (runs in DOCKER)
+```
 
 ---
 
@@ -227,7 +133,7 @@ Unit tests cannot use integration fixtures (`db_session`, `make_signal_chain`, e
 
 ### Phase 6: Full Validation
 - **Command:** `just tdd-complete T43`
-- Tests pass + unchanged since lock + quality checks + regression + golden path
+- Tests pass + unchanged since lock + quality checks + regression + E2E
 
 ### State Location
 
@@ -286,6 +192,137 @@ page.route('**/api/**', ...)  # NO
 
 ---
 
+## Production-Learned Banned Patterns
+
+These patterns caused repeated failures during automated TDD runs. **Never use them.**
+
+### Test-Authoring Patterns
+
+**1. `importlib.util` / `find_spec` / `module_from_spec` — BANNED**
+
+Fragile and produces false failures (module found but attributes not loaded).
+
+```python
+# BANNED
+import importlib.util
+spec = importlib.util.find_spec("some.module")
+module = importlib.util.module_from_spec(spec)
+
+# CORRECT — standard import; missing file = collection failure = red phase
+from webapp.adapters.persistence.models.gear_model import GearModel
+```
+
+**2. `AsyncSession.get_bind()` — BANNED**
+
+Returns a **sync** Engine, not AsyncEngine. Creates broken sessions.
+
+```python
+# BANNED
+engine = db_session.get_bind()
+new_session = AsyncSession(engine)  # sync engine in async context
+
+# CORRECT — use fixtures directly
+async def test_something(db_session: AsyncSession):
+    result = await db_session.execute(select(Model))
+```
+
+**3. `AsyncClient(app=...)` — BANNED (removed in HTTPX 0.28+)**
+
+```python
+# BANNED
+async with AsyncClient(app=app, base_url="http://test") as client: ...
+
+# CORRECT
+from httpx import ASGITransport, AsyncClient
+async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client: ...
+```
+
+**4. Inline `FastAPI()` without `set_session_override()` — BANNED**
+
+Tests that create `FastAPI()` inline need `set_session_override()` from conftest autouse fixture, not `dependency_overrides`.
+
+**5. Testing backward-compat import removal — BANNED**
+
+Creates unsolvable contradictions. Existing code depends on current import paths. The implementer cannot modify existing test files, so breaking existing imports is a deadlock.
+
+```python
+# BANNED — creates unsolvable contradiction
+assert not hasattr(signal_chain_enums, "GearType")
+
+# CORRECT — test the NEW location works
+from core.domain.value_objects.gear_type import GearType
+assert GearType.AMP is not None
+```
+
+**6. `from __future__ import annotations` in FastAPI route modules — BANNED**
+
+Breaks `Depends()` runtime type resolution. FastAPI treats `Depends(get_db_session)` as a query parameter, returning 422 Unprocessable Entity. Remove the annotations import and import `AsyncSession` directly.
+
+**7. Query param name mismatch**
+
+The query parameter name in test URLs (e.g., `?status=running`) MUST match the FastAPI endpoint parameter name. Use `Query(None, alias="status")` when the variable name differs.
+
+### Infrastructure Patterns
+
+**8. `db_session.expire_all()` + re-query instead of close/recreate**
+
+Never close a session and recreate from engine. Use `db_session.expire_all()` then re-query.
+
+**9. `db_session.begin()` nesting**
+
+Conftest uses `_TestAsyncSession` that falls back to `begin_nested()` when autobegin is active (fixtures trigger autobegin via `flush()`). Be aware of this when writing transaction tests.
+
+**10. Module existence testing — just import it**
+
+If the module file doesn't exist, pytest collection fails — that IS the red phase. No need for special existence checks.
+
+**11. `conftest.py` is NOT a test file**
+
+`conftest.py` can be modified by ALL agents (test-author and implementer). It is not locked by the test snapshot system. Fixture changes go in conftest.
+
+---
+
+## E2E Testing (Golden Path)
+
+E2E tests live in `tests/e2e/python/tests/` and run on **HOST only** via `just test-golden-path`.
+
+### Key Facts
+
+- **NOT collected** by `tdd-red` or `tdd-green` (those run in Docker)
+- **Collected** by `tdd-complete` at step 5
+- Uses **Playwright** (not available in Docker containers)
+- Tests the full user journey through the browser
+
+### Writing E2E Tests
+
+```python
+# tests/e2e/python/tests/test_gear_library.py
+import pytest
+from playwright.async_api import Page, expect
+
+@pytest.mark.asyncio
+@pytest.mark.e2e
+class TestGearLibraryE2E:
+    async def test_user_can_view_gear(self, page: Page, db_session, frontend_url: str):
+        # Layer 1: UI action
+        await page.goto(f"{frontend_url}/gear")
+
+        # Layer 2: DOM verification
+        await expect(page.locator('[data-testid="gear-list"]')).to_be_visible()
+
+        # Layer 3: Database verification
+        result = await db_session.execute(text("SELECT count(*) FROM gear"))
+        assert result.scalar() > 0
+```
+
+### Three-Layer Verification
+
+1. **UI action** — `page.goto()`, `page.click()`, `page.fill()`
+2. **DOM verification** — `expect(locator).to_be_visible()`, text content checks
+3. **Database verification** — Direct DB queries to confirm persistence
+
+---
+
 ## Key Fixtures
 
 ### Database Session (Transaction Rollback)
@@ -334,7 +371,7 @@ def make_signal_chain(db_session: AsyncSession, test_user):
 | `make_user_gear` | Factory for UserGear |
 | `make_shootout` | Factory for Shootout |
 
-**E2E (Golden Path):**
+**E2E:**
 
 | Fixture | Description |
 |---------|-------------|
@@ -350,9 +387,9 @@ def make_signal_chain(db_session: AsyncSession, test_user):
 ### Unit Test
 
 ```python
-# tests/unit/webapp/services/test_{module}.py
+# tests/unit/backend/services/test_{module}.py
 import pytest
-from webapp.services.{module} import {Module}Service
+from app.services.{module} import {Module}Service
 
 class Test{Module}Service:
     @pytest.fixture
@@ -371,7 +408,7 @@ class Test{Module}Service:
 ### Integration Test
 
 ```python
-# tests/integration/webapp/api/test_{endpoint}.py
+# tests/integration/backend/api/test_{endpoint}.py
 import pytest
 from httpx import AsyncClient
 
@@ -392,28 +429,31 @@ class Test{Endpoint}API:
         assert response.status_code == 401
 ```
 
-### Golden Path E2E Test
+### E2E Test (Playwright)
 
 ```python
-# tests/e2e/python/tests/test_golden_path.py
+# tests/e2e/python/tests/test_{feature}.py
 import pytest
 from playwright.async_api import Page, expect
 
 @pytest.mark.asyncio
 @pytest.mark.e2e
-class TestGoldenPath:
-    """Living test — updated as features ship."""
+class Test{Feature}E2E:
+    async def test_creates_item(self, page: Page, db_session, frontend_url: str):
+        # Layer 1: UI action
+        await page.goto(f"{frontend_url}/{path}")
+        await page.fill('[data-testid="name-input"]', 'My Item')
+        await page.click('[data-testid="submit-btn"]')
 
-    async def test_homepage_loads(self, page: Page, frontend_url: str):
-        await page.goto(frontend_url)
-        await expect(page).to_have_title(re.compile("Guitar Tone"))
+        # Layer 2: DOM verification
+        await expect(page.locator('[data-testid="success"]')).to_be_visible()
 
-    async def test_gear_browse_shows_data(self, page: Page, frontend_url: str):
-        await page.goto(f"{frontend_url}/gear")
-        browse = page.locator('[data-testid="gear-browse"]')
-        await expect(browse).to_be_visible()
-        cards = page.locator('[data-testid="item-card"]')
-        assert await cards.count() > 0
+        # Layer 3: Database verification
+        result = await db_session.execute(
+            text("SELECT id FROM {table} WHERE name = :name"),
+            {"name": "My Item"}
+        )
+        assert result.fetchone() is not None
 ```
 
 ### Page Object
@@ -437,7 +477,7 @@ class {Page}Page:
 ### Factory Fixture
 
 ```python
-# tests/integration/webapp/conftest.py
+# tests/integration/backend/conftest.py
 @pytest.fixture(scope="function")
 def make_{entity}(db_session: AsyncSession, test_user):
     async def _make(name: str = "Test {Entity}", **kwargs) -> {Entity}:
@@ -502,7 +542,6 @@ asyncio.run(check())
 | `e2e_quick` | Fast E2E for CI | Manual |
 | `e2e_full` | Comprehensive E2E | Manual |
 | `smoke` | Critical path | Manual |
-| `regression` | Golden path gate | `tests/e2e/python/` |
 | `t3k_integration` | Real T3K API (skip in CI) | Manual |
 
 ---
@@ -515,7 +554,6 @@ asyncio.run(check())
 | Tests won't pass | `just tdd <path> -v --tb=long` for verbose output |
 | Epic halted | Check `logs/errors/`, fix issue, re-run `run_epic.py run 42` |
 | Test quality failed | Rewrite tests — no trivial assertions |
-| Golden path auth fails | `./worktree.py auth-login` then `./worktree.py auth-restore` |
 
 ---
 

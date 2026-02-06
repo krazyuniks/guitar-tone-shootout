@@ -102,6 +102,17 @@ Break refined epic into TEST-first tasks.
 4. Integration tests verify API contracts (pytest, real DB)
 5. "N/A" only valid for docs/config changes
 
+### Task Sizing Rules (DECOMPOSE Phase)
+
+Before finalising task breakdown, verify each task meets sizing constraints:
+
+- [ ] Each task has ≤15 acceptance criteria / tests
+- [ ] Each task touches ≤3 implementation files
+- [ ] Each task stays within a single layer boundary
+- [ ] No task crosses bounded contexts
+
+If a task exceeds these limits, split it further before proceeding.
+
 ---
 
 ## Phase 6: RECOMPUTE (MANDATORY)

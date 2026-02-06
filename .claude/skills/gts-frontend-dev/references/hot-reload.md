@@ -5,18 +5,17 @@ How file changes trigger rebuilds in development.
 ## Quick Start
 
 ```bash
-# Terminal 1: Start services
+# Start services (astro auto-starts with chokidar watcher)
 just up-d
-
-# Terminal 2: Watch for changes (REQUIRED for frontend hot reload)
-just watch-templates
 ```
+
+No separate watch command needed — the astro service runs chokidar automatically.
 
 ## How Changes Work
 
 | Component | Behaviour |
 |-----------|-----------|
-| Frontend (Astro) | Build to `astro/dist/`, nginx serves immediately |
+| Frontend (Astro) | Chokidar watches source, auto-builds to `astro/dist/`, nginx serves immediately |
 | Backend (Python) | uvicorn auto-reloads on file changes |
 | Jinja2 templates | Auto-reload on request (no restart needed) |
 
@@ -29,9 +28,9 @@ just watch-templates
 | `.css` | `src/**/*.css` | `astro/dist/_astro/*.css` |
 | React islands | `src/islands/*.tsx` | `astro/dist/islands/*.js` |
 
-**Rebuild process:** chokidar detects change → triggers `pnpm build` → output to `astro/dist/` → nginx serves immediately (bind mount) → browser refresh shows changes.
+**Rebuild process:** chokidar detects change -> triggers `pnpm build` (includes `inject-css-hash.js`) -> output to `astro/dist/` -> nginx serves immediately (bind mount) -> browser refresh shows changes.
 
-**Prerequisite:** `just watch-templates` must be running.
+**CSS hash injection:** After each build, `scripts/inject-css-hash.js` replaces the `CSS_PLACEHOLDER` in `dist/layouts/base.html` with the actual hashed CSS filename, ensuring Jinja2 templates always reference the correct CSS file.
 
 ## Backend (uvicorn --reload)
 
@@ -45,9 +44,9 @@ just watch-templates
 
 | Change This | Requires | Appears After |
 |-------------|----------|---------------|
-| `.astro` page | watch running | ~4s + refresh |
-| `.css` styles | watch running | ~4s + refresh |
-| React island | watch running | ~4s + refresh |
+| `.astro` page | nothing (auto) | ~4s + refresh |
+| `.css` styles | nothing (auto) | ~4s + refresh |
+| React island | nothing (auto) | ~4s + refresh |
 | Python code | nothing | ~2s (auto) |
 | Jinja2 template | nothing | instant on refresh |
 | Static file | nothing | instant on refresh |
@@ -56,30 +55,31 @@ just watch-templates
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No CSS changes | Watch not running | `just watch-templates` |
-| Astro not rebuilding | chokidar not started | Restart frontend or run watch |
-| Python not reloading | Container issue | `docker compose restart backend` |
-| Islands stale | Cache issue | `just fix-frontend-rebuild` |
-| Build errors | Syntax error | Check `docker compose logs frontend` |
+| No CSS changes | Astro not running | `docker compose up -d astro` |
+| Astro not rebuilding | Container unhealthy | `docker compose restart astro` |
+| Python not reloading | Container issue | `docker compose restart webapp` |
+| Build errors | Syntax error | `just watch-astro` (view logs) |
 
 ### Changes Don't Appear
 
-1. Check watch is running: `docker compose exec -T frontend pgrep -f "chokidar"`
-2. Check for build errors: `docker compose logs frontend --tail=20`
+1. Check astro is healthy: `docker compose ps astro`
+2. Check for build errors: `just watch-astro` (follows logs)
 3. Force rebuild: `just build-astro`
-4. Verify dist/ is updated: `ls -la astro/dist/`
+4. Verify dist/ is updated: `ls -la frontend/astro/dist/`
 
 ### CSS Not Updating
 
 1. Verify `astro/src/styles/global.css` exists
-2. Check `just watch-templates` is running
+2. Check astro container is running: `docker compose ps astro`
 3. Look for `astro/dist/_astro/*.css` file
-4. Hard refresh browser (Cmd+Shift+R)
+4. Check `dist/layouts/base.html` has correct CSS filename (not `CSS_PLACEHOLDER`)
+5. Hard refresh browser (Cmd+Shift+R)
 
 ## Key Difference from Traditional Dev Servers
 
 No Vite dev server at runtime. The workflow is:
 1. Edit files in `astro/src/`
-2. Watch process compiles to `astro/dist/`
-3. nginx serves pre-built files from bind-mounted directory
-4. No HMR - full page refresh needed
+2. Chokidar detects change and triggers `pnpm build`
+3. Post-build script injects CSS hash into `base.html`
+4. nginx serves pre-built files from bind-mounted directory
+5. No HMR — full page refresh needed

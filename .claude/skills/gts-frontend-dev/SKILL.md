@@ -27,8 +27,9 @@ context: fork
 > # Build frontend (outputs to git-tracked astro/dist/)
 > just build-astro
 >
-> # Watch mode (run in separate terminal)
-> just watch-templates
+> # The Astro service auto-rebuilds via chokidar when source files change.
+> # View rebuild logs with:
+> just watch-astro
 >
 > # Commit both source and dist
 > git add astro/src/ astro/dist/
@@ -548,21 +549,22 @@ bg-[var(--color-block-ir)]         /* IR blocks */
 ### Updating Design Tokens
 
 1. Edit `astro/src/styles/global.css`
-2. Run `just build-astro` (or use `just watch-templates` for auto-rebuild)
+2. Run `just build-astro` (or let the Astro service auto-rebuild via chokidar)
 3. Changes apply to both static (Astro) and dynamic (Jinja2) pages
 4. No backend restart needed - Jinja2 templates auto-reload from disk
 
 ### Development Workflow
 
 ```bash
-# One-time build
+# Explicit build
 just build-astro
 
-# Watch mode (run in separate terminal) - auto-rebuilds on file changes
-just watch-templates
+# The Astro service runs chokidar persistently and auto-rebuilds on file changes.
+# View rebuild logs with:
+just watch-astro
 ```
 
-The watch command monitors `src/**/*.{astro,html,css,ts,tsx}` and triggers `astro build` automatically. Backend picks up changes immediately due to Jinja2 `auto_reload=True`.
+The Astro service monitors `src/**/*.{astro,html,css,ts,tsx}` via chokidar and triggers `astro build` automatically. Backend picks up changes immediately due to Jinja2 `auto_reload=True`.
 
 ## Auth Handling
 
@@ -602,8 +604,8 @@ docker compose exec astro pnpm check
 # Build frontend (backend auto-reloads templates)
 just build-astro
 
-# Watch mode (run in separate terminal)
-just watch-templates
+# View Astro auto-rebuild logs (service rebuilds automatically via chokidar)
+just watch-astro
 
 # Backend checks
 docker compose exec webapp ruff check src/webapp/

@@ -84,12 +84,12 @@ class HealthChecker:
         ))
 
     def check_e2e(self):
-        """Run golden path E2E tests (on host, hits Docker containers)."""
+        """Run E2E golden path tests (on host, hits Docker containers)."""
         result = self._run(["just", "test-golden-path"], timeout=600)
         self.results.append(HealthResult(
-            check="golden-path",
+            check="e2e",
             passed=result.returncode == 0,
-            message="Golden path passed" if result.returncode == 0 else "Golden path failed",
+            message="E2E passed" if result.returncode == 0 else "E2E failed",
             details={"output": result.stderr[-1000:]} if result.returncode != 0 else {}
         ))
 

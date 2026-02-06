@@ -60,7 +60,7 @@ Task runner with commands for development workflow. Use `just --list` for discov
 |----------|--------------|
 | **Docker** | `up-d`, `down`, `rebuild`, `logs`, `shell`, `status` |
 | **Quality** | `check`, `lint`, `check-types`, `check-imports` |
-| **Testing** | `tdd`, `test-regression`, `test`, `test-unit`, `test-integration`, `test-e2e` |
+| **Testing** | `tdd`, `test-regression`, `test`, `test-unit`, `test-integration`, `test-golden-path` |
 | **Database** | `migrate`, `db-export`, `db-import`, `psql`, `psql-t3k` |
 | **Frontend** | `build-astro`, `watch-astro`, `check-astro`, `verify-astro-sync` |
 | **Git Hooks** | `install-hooks`, `run-hooks`, `uninstall-hooks` |

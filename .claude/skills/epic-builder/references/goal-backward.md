@@ -127,7 +127,7 @@ Tests:
 | Regression | `just test-regression` | **Quality gate** - E2E test exercising all endpoints + stack connectivity |
 | Unit | `just test-unit` | Isolated logic, no I/O |
 | Integration | `just test-integration` | Real DB/Redis |
-| Golden path | `just test-golden-path` | Full user journeys |
+| E2E | `just test-golden-path` | Full user journeys |
 | TDD single | `just tdd <path>` | Single test during development |
 
 **NEVER use raw `docker compose exec`, `pytest`, or `python` commands in acceptance criteria.** The `just` commands wrap the underlying execution - implementation details are hidden.
@@ -147,6 +147,17 @@ This ensures the entire stack is wired correctly: UI → Domain Model → Databa
 2. **Endpoint validation** - All web endpoints respond correctly with expected content
 
 When adding new endpoints, update `tests/e2e/python/tests/test_regression.py` with specific validation criteria (expected content, UI elements, data counts).
+
+### Layer-Boundary Examples
+
+**Good (single boundary):**
+- Task: "Gear repository + service" — touches `repositories/gear.py` + `services/gear.py`
+- Task: "Gear API endpoints" — touches `api/gear.py` + `schemas/gear.py`
+- Task: "Gear library page" — touches `pages/gear.html.ts` + template
+
+**Bad (crosses boundaries):**
+- Task: "Full gear CRUD" — touches repository + service + API + schemas + template
+- Task: "Implement shootouts and jobs" — crosses entity boundaries
 
 ---
 

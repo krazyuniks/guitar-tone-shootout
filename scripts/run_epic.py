@@ -92,6 +92,40 @@ def log(msg: str, level: str = "info") -> None:
     getattr(_session_log, level)(msg)
 
 
+def log_structured(event: str, **data: object) -> None:
+    """Write a structured JSON log entry for machine parsing."""
+    entry = {
+        "event": event,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        **data,
+    }
+    log(f"STRUCTURED: {json.dumps(entry)}", "debug")
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure health check
+# ---------------------------------------------------------------------------
+
+
+def check_infra_health() -> bool:
+    """Check that Docker services are healthy before dispatching agents.
+
+    Returns True if healthy, False otherwise.
+    """
+    result = subprocess.run(
+        ["just", "health"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0 or "No healthy services found" in result.stdout:
+        log("  WARNING: Infrastructure health check failed", "warning")
+        log(f"  {result.stdout.strip()}", "warning")
+        return False
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Git sync — rebase + push after commits
 # ---------------------------------------------------------------------------
@@ -265,6 +299,7 @@ def dispatch_agent(
         return None
 
     log(f"  Dispatching '{agent_name}' (model={agent_def.model}, max_turns={max_turns})...")
+    log_structured("agent_dispatch", agent=agent_name, model=agent_def.model, max_turns=max_turns)
 
     # Pass prompt via stdin to avoid command-line length issues
     result = subprocess.run(
@@ -547,16 +582,50 @@ def build_implementer_prompt(
     ]
 
     if retry_context:
+        passed, failed, errors = parse_pytest_counts(retry_context)
+
+        # Categorise errors for the agent
+        error_types: list[str] = []
+        if "ImportError" in retry_context or "ModuleNotFoundError" in retry_context:
+            error_types.append("ImportError (missing module or wrong import path)")
+        if "AssertionError" in retry_context or "AssertionError" in retry_context:
+            error_types.append("AssertionError (logic/value mismatch)")
+        if "RuntimeError" in retry_context or "TypeError" in retry_context:
+            error_types.append("RuntimeError/TypeError (code structure issue)")
+        if "422" in retry_context:
+            error_types.append("422 Unprocessable Entity (check Depends() / annotations)")
+
+        # Get files modified so far
+        diff_result = subprocess.run(
+            ["git", "diff", "--name-only", "HEAD"],
+            cwd=PROJECT_ROOT, capture_output=True, text=True,
+        )
+        modified_files = diff_result.stdout.strip()
+
         lines.extend([
             "",
             "## Previous Attempt Failed",
             "",
-            "Tests are still failing after the previous implementation attempt.",
+            f"**Results:** {passed} passed, {failed} failed, {errors} errors",
+            "",
+        ])
+
+        if error_types:
+            lines.append("**Error categories:** " + "; ".join(error_types))
+            lines.append("")
+
+        if modified_files:
+            lines.append("**Files created/modified so far:**")
+            for f in modified_files.splitlines()[:20]:
+                lines.append(f"- `{f}`")
+            lines.append("")
+
+        lines.extend([
             "Review the failures and fix the implementation.",
             "",
-            "Previous output:",
+            "Previous output (last 3000 chars):",
             "```",
-            retry_context[-2000:],
+            retry_context[-3000:],
             "```",
         ])
 
@@ -1040,10 +1109,21 @@ def run_state_machine(
         task_id_str = f"T{task.task_id}"
         log(f"  Next task: T{task.task_id} — {task.title} (state={task.state})")
 
+        # 4b. Infrastructure health check before dispatch
+        if not dry_run:
+            if not check_infra_health():
+                log("  Waiting 15s for services to recover...")
+                import time
+                time.sleep(15)
+                if not check_infra_health():
+                    log("  Infrastructure still unhealthy. Halting.", "error")
+                    stop_epic(epic_dir, task.task_id, "infra_unhealthy", "Docker services not healthy")
+
         # 5. Execute based on current state
         if task.state == "pending":
             # --- TEST PHASE ---
             log(f"\n  Phase: TEST (writing tests for T{task.task_id})")
+            log_structured("phase_start", task_id=task.task_id, phase="test")
 
             prompt = build_test_author_prompt(task)
             dispatch_agent("test-author", prompt, project=task.project, dry_run=dry_run)
@@ -1070,6 +1150,7 @@ def run_state_machine(
                     stop_epic(epic_dir, task.task_id, "lock_failed", output)
 
                 update_task_state(epic_dir, task.task_id, "locked")
+                log_structured("phase_end", task_id=task.task_id, phase="test", result="locked")
                 git_sync()  # tdd-lock creates a commit; sync it
             else:
                 log(f"  [dry-run] Would run: tdd-red {task_id_str}")
@@ -1079,6 +1160,7 @@ def run_state_machine(
         elif task.state == "locked":
             # --- IMPLEMENTATION PHASE ---
             log(f"\n  Phase: IMPL (implementing T{task.task_id})")
+            log_structured("phase_start", task_id=task.task_id, phase="impl")
 
             prompt = build_implementer_prompt(task)
             dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
@@ -1138,6 +1220,7 @@ def run_state_machine(
                 git_sync()
 
                 update_task_state(epic_dir, task.task_id, "validating")
+                log_structured("phase_end", task_id=task.task_id, phase="impl", result="validating")
             else:
                 log(f"  [dry-run] Would run: tdd-green {task_id_str}")
                 log(f"  [dry-run] Would commit implementation files")
@@ -1146,6 +1229,7 @@ def run_state_machine(
         elif task.state == "validating":
             # --- VALIDATION PHASE ---
             log(f"\n  Phase: VALIDATE (full TDD validation for T{task.task_id})")
+            log_structured("phase_start", task_id=task.task_id, phase="validate")
 
             if not dry_run:
                 ok, output = run_tdd_complete(task_id_str)
@@ -1154,6 +1238,7 @@ def run_state_machine(
 
                 update_task_state(epic_dir, task.task_id, "complete")
                 log(f"  T{task.task_id} COMPLETE")
+                log_structured("phase_end", task_id=task.task_id, phase="validate", result="complete")
 
                 # Commit task state change and sync
                 subprocess.run(

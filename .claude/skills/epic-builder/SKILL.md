@@ -110,7 +110,7 @@ Before deriving ANY artifact (model, repository, service, API):
 | Action | Use This | NEVER This |
 |--------|----------|------------|
 | Run tests | `just test-unit`, `just test-integration` | `pytest`, `python -m pytest` |
-| Run golden path E2E | `just test-golden-path` | `cd tests/e2e && pytest` |
+| Run E2E tests | `just test-golden-path` | `cd tests/e2e && pytest` |
 | Run single test | `just tdd <path>` | `docker compose exec webapp pytest` |
 | Lint/type check | `just check` | `ruff check`, `mypy` |
 | Build frontend | `just build-astro` | `pnpm build`, `npm run build` |
@@ -182,6 +182,8 @@ Epic building may span sessions. State persists in `.planning/epics/{slug}/`:
 Each task must have:
 - [ ] Clear objective (2-3 sentences)
 - [ ] Specific acceptance criteria (checkboxes)
+- [ ] Each task has ≤15 acceptance criteria (split if more)
+- [ ] Each task stays within a single layer boundary
 - [ ] Exact GTS file paths in scope
 - [ ] Dependencies noted (`Blocked by: #n`)
 - [ ] `project:{workspace}` label

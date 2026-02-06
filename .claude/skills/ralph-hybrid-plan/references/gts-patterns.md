@@ -48,7 +48,7 @@ Key commands:
 - `just test-regression` - Stack tests
 - `just test-unit` - Unit tests (Docker)
 - `just test-integration` - Integration tests (Docker)
-- `just test-e2e` - E2E tests (host)
+- `just test-golden-path` - Golden path tests (host)
 - `just build-astro` - Build frontend
 
 ## SETTINGS Phase Defaults for GTS

@@ -108,7 +108,7 @@ for cls in [NotFoundError, BadRequestError, ValidationError, AuthenticationError
 just check          # Quality gates
 just test-unit      # Unit tests (Docker)
 just test-integration  # Integration tests (Docker)
-just test-e2e       # E2E tests (host)
+just test-golden-path # Golden path tests (host)
 just build-astro    # Build frontend
 just verify-astro-sync  # Verify frontend sync
 ```

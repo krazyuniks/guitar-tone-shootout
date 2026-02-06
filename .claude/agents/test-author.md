@@ -54,100 +54,27 @@ Do NOT create or modify files outside `tests/`.
 - Existing tests (regression, unit, integration) are owned by previous tasks
 - Your job is to add NEW test files for the current task only
 
-## BANNED Patterns (NEVER USE)
+## Banned Patterns
 
-These patterns have caused repeated failures. Using ANY of them will break the TDD pipeline.
+See `.claude/skills/gts-testing/SKILL.md` > "Production-Learned Banned Patterns" for the full list (11 patterns with examples).
 
-### 1. `importlib` — BANNED
+**Critical (always remember):**
 
-NEVER use `importlib.util`, `find_spec`, `module_from_spec`, or `exec_module`.
-These are fragile and produce false failures (module found but attributes not loaded).
+1. **NEVER use `importlib.util`** — use standard `from X import Y`. Missing file = collection failure = red phase.
+2. **NEVER use `AsyncClient(app=...)`** — removed in HTTPX 0.28+. Use `AsyncClient(transport=ASGITransport(app=app), ...)`.
+3. **NEVER use `from __future__ import annotations`** in FastAPI route modules — breaks `Depends()`.
 
-```python
-# BANNED — DO NOT USE
-import importlib.util
-spec = importlib.util.find_spec("some.module")
-module = importlib.util.module_from_spec(spec)  # BROKEN: doesn't execute module
-```
+### E2E Tests (Golden Path)
 
-**Correct way to test module existence:** Just import from it. If the file doesn't exist, the import fails at collection time — that IS the red phase.
+E2E tests go in `tests/e2e/python/tests/`. They run on HOST via `just test-golden-path`, NOT in Docker.
 
-```python
-# CORRECT — standard import
-from webapp.adapters.persistence.models.gear_model import GearModel
+The TDD red/green phases do NOT collect E2E tests — only `tdd-complete` runs them.
 
-def test_gear_model_exists():
-    assert GearModel is not None
-    assert GearModel.__tablename__ == "gear_models"
-```
-
-### 2. `db_session.get_bind()` — BANNED
-
-Returns a **sync** Engine, not AsyncEngine. Creates broken sessions.
-
-```python
-# BANNED — DO NOT USE
-engine = db_session.get_bind()
-new_session = AsyncSession(engine)  # BROKEN: sync engine in async context
-```
-
-**Correct pattern:** Use `db_session.expire_all()` + re-query, or use the fixture directly.
-
-### 3. Inventing fixtures — BANNED
-
-NEVER create ad-hoc session fixtures when conftest fixtures exist. Read `tests/regression/conftest.py` or `tests/unit/` conftest files first.
-
-### 4. Old HTTPX `AsyncClient(app=...)` API — BANNED
-
-HTTPX 0.28+ removed the `app` parameter from `AsyncClient`. Use `ASGITransport` instead.
-
-```python
-# BANNED — removed in HTTPX 0.28+
-from httpx import AsyncClient
-async with AsyncClient(app=app, base_url="http://test") as client:
-    ...
-
-# CORRECT — use ASGITransport
-from httpx import ASGITransport, AsyncClient
-async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-    ...
-```
-
-### 5. Testing removal of backward-compat imports — BANNED
-
-NEVER write tests asserting that something should NOT be importable from its current location.
-Existing code depends on current import paths. Moving code to a new location means ADDING a new
-import path and keeping backward-compat re-exports. The implementer cannot modify existing test
-files, so breaking existing imports creates an unsolvable contradiction.
-
-```python
-# BANNED — creates unsolvable contradiction with existing tests
-assert not hasattr(signal_chain_enums, "GearType")  # Other tests import from here!
-
-# CORRECT — test the NEW location works, allow backward compat
-from core.domain.value_objects.gear_type import GearType
-assert GearType.AMP is not None  # New location works
-```
-
-### 6. E2E tests in `tests/e2e/` — BANNED for TDD tasks
-
-NEVER create test files in `tests/e2e/`. E2E tests use Playwright which runs on the HOST, not in Docker.
-All TDD validation runs in Docker where Playwright is NOT installed. Creating E2E tests will break
-test collection and halt the pipeline.
-
-Put tests in `tests/unit/` or `tests/integration/` only.
-
-### 7. `from __future__ import annotations` in FastAPI route modules — BANNED
-
-NEVER use `from __future__ import annotations` in files that define FastAPI route handlers with
-`Depends()`. It breaks FastAPI's runtime type resolution, causing `Depends(get_db_session)` to be
-treated as a query parameter (422 Unprocessable Entity).
-
-### 8. Query param names must match test URLs
-
-When writing API tests, the query parameter name in the test URL (e.g., `?status=running`) MUST
-match the FastAPI endpoint parameter name. If the endpoint uses `status_filter`, the test must
-send `?status_filter=running`. Use `Query(None, alias="status")` to map different names.
+When a task has UI requirements, write or extend the golden path test:
+- Import: `from playwright.async_api import Page`
+- Navigate: `await page.goto(f"{frontend_url}/path")`
+- Assert DOM: `await expect(page.locator("[data-testid='...']")).to_be_visible()`
+- Verify DB state when needed
 
 ## Correct GTS Test Patterns
 

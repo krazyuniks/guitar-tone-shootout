@@ -4,7 +4,7 @@
 
 - **All project code runs in Docker.** No host execution except E2E tests, worktree.py, and git/gh.
 - **Use `just` commands.** Not raw Docker, uv, pytest, ruff, mypy, or pnpm on host.
-- **Frontend needs `--profile build`.** Use `just build-astro` or `just watch-astro`.
+- **Astro runs as a persistent service** (chokidar auto-rebuilds on source changes). Use `just build-astro` for explicit builds or `just watch-astro` for logs.
 
 ## NEVER Run on Host
 

@@ -9,7 +9,7 @@ All project code runs in Docker. The ONLY host execution is E2E tests.
 | Webapp (Python) | Docker | `docker compose exec webapp <command>` |
 | Frontend (Node/pnpm) | Docker (build profile) | `just build-astro` or `docker compose --profile build exec astro <command>` |
 | Pipeline | Host | `cd pipeline && uv run <command>` |
-| E2E Tests (Playwright) | Host | `just test-e2e` |
+| E2E Tests (Playwright) | Host | `just test-golden-path` |
 | TDD Workflow Scripts | Host | `just epic-sync`, `just snapshot-verify`, etc. |
 | Git/GitHub | Host | `git`, `gh` commands |
 

@@ -108,7 +108,7 @@ const blockStyles = {
 ## Updating Design Tokens
 
 1. Edit `astro/src/styles/global.css`
-2. Run `just build-astro` (or `just watch-templates`)
+2. Run `just build-astro` (or let the Astro service auto-rebuild via chokidar)
 3. Changes apply to both static (Astro) and dynamic (Jinja2) pages
 4. No backend restart needed
 

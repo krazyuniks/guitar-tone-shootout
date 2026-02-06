@@ -1,53 +1,23 @@
 ---
-description: Generate completion report for an epic.
-allowed-tools: Bash(gh:*), Bash(git:*), Read, Grep
+description: "[DEPRECATED] Use /epic-review instead. Comprehensive post-mortem review."
+allowed-tools: Read
 argument-hint: "<epic-number>"
 context: fork
 ---
 
-# /epic-report - Epic Completion Report
+# /epic-report — DEPRECATED
 
-Generate a completion report for an epic.
+This command has been superseded by `/epic-review`, which provides:
+- Per-task metrics and agent effectiveness analysis
+- Task complexity analysis with split recommendations
+- Infrastructure issue tracking
+- Learnings extraction and promotion recommendations
+- Machine-readable `review-data.json` companion file
 
-## Usage
+## Migration
 
 ```
-/epic-report 441
+/epic-review <epic-number>
 ```
 
-## Steps
-
-1. **Get Epic Details:**
-   ```bash
-   gh issue view <epic-number> --repo krazyuniks/guitar-tone-shootout
-   ```
-
-2. **Find Related Issues:**
-   ```bash
-   gh api repos/krazyuniks/guitar-tone-shootout/issues/<epic-number>/sub_issues
-   ```
-
-3. **Check for TODOs:**
-   ```bash
-   git diff main...HEAD --name-only | xargs grep -n "TODO:" 2>/dev/null
-   ```
-
-## Output Format
-
-### 1. Epic Summary
-- Title and objective
-- Overall completion percentage
-
-### 2. Stories Status Table
-| Story | Title | Status | Notes |
-|-------|-------|--------|-------|
-| #442 | Story title | Complete | |
-
-### 3. Blocking Issues
-- TODOs found in code
-- Failing tests
-- Open dependencies
-
-### 4. Next Steps
-- Recommended follow-up actions
-- Issues to create
+Run `/epic-review` instead. It produces everything `/epic-report` did plus comprehensive post-mortem analysis.
