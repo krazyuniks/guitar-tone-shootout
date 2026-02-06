@@ -4,9 +4,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.signal_chain_enums import GearType
+from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
 )
@@ -16,6 +20,7 @@ router = APIRouter(tags=["pages"])
 
 # Session override for testing
 _session_override: AsyncSession | None = None
+_user_override: User | None = None
 
 
 def set_session_override(session: AsyncSession) -> None:
@@ -26,6 +31,16 @@ def set_session_override(session: AsyncSession) -> None:
     """
     global _session_override
     _session_override = session
+
+
+def set_user_override(user: User | None) -> None:
+    """Override the current user for testing.
+
+    Args:
+        user: Test user to use as CurrentUser
+    """
+    global _user_override
+    _user_override = user
 
 
 async def get_db_session() -> AsyncSession:
@@ -42,6 +57,20 @@ async def get_db_session() -> AsyncSession:
     async for session in get_db():
         return session
     raise RuntimeError("Failed to obtain database session")
+
+
+async def get_current_user() -> User:
+    """Get current authenticated user dependency.
+
+    In production this would validate session/token.
+    For testing, uses override if set.
+    """
+    if _user_override:
+        return _user_override
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+    )
 
 
 @router.get("/gear", response_class=HTMLResponse)
@@ -160,5 +189,54 @@ async def gear_list_fragment(
         {
             "gear_items": gear_items,
             "total": total,
+        },
+    )
+
+
+@router.get("/library/my-gear", response_class=HTMLResponse)
+async def library_my_gear_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's gear library page.
+
+    Protected page showing user's personal gear collection.
+    Uses HTMX for dynamic add/remove operations.
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML page
+    """
+    # Query user's gear with joined gear details
+    result = await db.execute(
+        select(UserGear, Gear)
+        .join(Gear, UserGear.gear_id == Gear.id)
+        .where(UserGear.user_id == current_user.id)
+    )
+    rows = result.all()
+
+    # Build gear items list with all necessary details
+    gear_items = []
+    for user_gear, gear in rows:
+        gear_items.append({
+            "user_gear_id": str(user_gear.id),
+            "gear_id": str(gear.id),
+            "nickname": user_gear.nickname,
+            "is_favourite": user_gear.is_favourite,
+            "gear_name": gear.name,
+            "gear_type": gear.gear_type.value,
+            "manufacturer": gear.manufacturer,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "pages/library/my_gear.html",
+        {
+            "gear_items": gear_items,
         },
     )
