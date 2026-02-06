@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -89,6 +89,7 @@ class SignalChainBlock(UUIDMixin, Base):
         user_gear_id: Reference to UserGear item (nullable when using BlockType)
         gear_type: Type of gear (nullable when using BlockType)
         block_type_id: Foreign key to block_types table (nullable when using UserGear)
+        params: Parameter values as JSON (default empty dict)
         signal_chain: Reference to the SignalChain
         block_type: Reference to the BlockType
         presets: List of parameter presets for this block
@@ -115,6 +116,7 @@ class SignalChainBlock(UUIDMixin, Base):
         ForeignKey("block_types.id", ondelete="CASCADE"),
         nullable=True,
     )
+    params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Relationships
     signal_chain: Mapped[SignalChain] = relationship(

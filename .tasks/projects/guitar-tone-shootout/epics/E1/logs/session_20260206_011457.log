@@ -441,3 +441,72 @@ Red phase verified: 13 failing + 7 erroring tests found.
 2026-02-06 02:28:45,490 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-06 02:28:45,490 [INFO]     Running: just tdd-lock T22
+2026-02-06 02:28:47,783 [DEBUG]     just tdd-lock T22 -> OK
+2026-02-06 02:28:47,783 [DEBUG]     Output:
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T22.json
+  51 test files captured at commit a60baf0f7fb8
+[1/phase-4-web-application-implementation 08cd7bb] test-lock: T22 tests ready for implementation
+ 5 files changed, 908 insertions(+), 1 deletion(-)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T22.json
+ create mode 100644 tests/unit/backend/services/test_block_type_registry.py
+ create mode 100644 tests/unit/backend/services/test_preset_service.py
+Tests locked at 08cd7bb
+
+2026-02-06 02:28:47,803 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 02:28:47,805 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 02:28:47,805 [INFO]   Git sync: push --force-with-lease
+2026-02-06 02:28:49,047 [DEBUG]   Pushed: 
+2026-02-06 02:28:49,047 [INFO] 
+2026-02-06 02:28:49,047 [INFO] === Iteration 9 ===
+2026-02-06 02:28:49,049 [INFO]   Next task: T22 — [Task]: BlockTypeRegistry and PresetService (state=locked)
+2026-02-06 02:28:49,049 [INFO] 
+  Phase: IMPL (implementing T22)
+2026-02-06 02:28:49,049 [INFO]   Dispatching 'implementer' (model=sonnet, max_turns=30)...
+2026-02-06 02:32:02,553 [DEBUG]   Agent 'implementer' exited with code 0
+2026-02-06 02:32:02,553 [INFO] 
+  Phase: GREEN (verifying tests pass)
+2026-02-06 02:32:02,553 [INFO]     Running: just tdd-green T22
+2026-02-06 02:32:22,416 [DEBUG]     just tdd-green T22 -> OK
+2026-02-06 02:32:22,416 [DEBUG]     Output:
+s/integration/webapp/test_health_endpoints.py .........              [ 82%]
+tests/integration/webapp/test_migration.py ..                            [ 82%]
+tests/integration/webapp/test_repositories.py ............               [ 85%]
+tests/integration/webapp/test_shootout_repository.py ................    [ 88%]
+tests/integration/webapp/test_signal_chain_repository.py ...........     [ 91%]
+tests/integration/webapp/test_t3k_oauth_integration_t15.py .......       [ 92%]
+tests/integration/webapp/test_unit_of_work.py ..........                 [ 95%]
+tests/integration/webapp/test_user_gear_repository_t13.py ..........     [ 97%]
+tests/integration/webapp/test_user_repository.py .............           [100%]
+
+=============================== warnings summary ===============================
+tests/unit/webapp/test_orm_base.py::TestUUIDMixin::test_uuid_mixin_generates_uuidv7
+  /app/tests/unit/webapp/test_orm_base.py:51: SAWarning: This declarative base already contains a class with the same class name and module name as test_orm_base.TestModel, and will be replaced in the string-lookup table.
+    class TestModel(UUIDMixin, Base):
+
+tests/unit/webapp/test_orm_base.py::TestTimestampMixin::test_timestamp_mixin_adds_columns
+  /app/tests/unit/webapp/test_orm_base.py:77: SAWarning: This declarative base already contains a class with the same class name and module name as test_orm_base.TestModel, and will be replaced in the string-lookup table.
+    class TestModel(TimestampMixin, Base):
+
+tests/unit/webapp/test_orm_base.py::TestTimestampMixin::test_timestamp_mixin_sets_created_at
+  /app/tests/unit/webapp/test_orm_base.py:87: SAWarning: This declarative base already contains a class with the same class name and module name as test_orm_base.TestModel, and will be replaced in the string-lookup table.
+    class TestModel(TimestampMixin, Base):
+
+tests/unit/webapp/test_orm_base.py::TestTimestampMixin::test_timestamp_mixin_sets_updated_at
+  /app/tests/unit/webapp/test_orm_base.py:110: SAWarning: This declarative base already contains a class with the same class name and module name as test_orm_base.TestModel, and will be replaced in the string-lookup table.
+    class TestModel(TimestampMixin, Base):
+
+tests/unit/webapp/test_orm_base.py::TestEnumByValue::test_enum_by_value_stores_value_not_name
+  /app/tests/unit/webapp/test_orm_base.py:140: SAWarning: This declarative base already contains a class with the same class name and module name as test_orm_base.TestModel, and will be replaced in the string-lookup table.
+    class TestModel(Base):
+
+tests/integration/audio/test_processor.py::TestProcessDITrack::test_process_di_track_with_ir
+  /app/.venv/lib/python3.12/site-packages/pyloudnorm/normalize.py:62: UserWarning: Possible clipped samples in output.
+    warnings.warn("Possible clipped samples in output.")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 461 passed, 6 warnings in 18.05s =======================
+Tests passing
+
+2026-02-06 02:32:22,416 [INFO] 
+  Committing implementation...
