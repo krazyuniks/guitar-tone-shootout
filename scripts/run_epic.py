@@ -99,6 +99,22 @@ def log(msg: str, level: str = "info") -> None:
 
 def git_sync() -> None:
     """Rebase on origin/main and push after commits."""
+    # Stage any unstaged changes (epic-sync updates .tasks/ timestamps)
+    subprocess.run(
+        ["git", "add", ".tasks/", "tests/"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    # Commit if there are staged changes (no-op if clean)
+    check = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    if check.returncode != 0:
+        subprocess.run(
+            ["git", "commit", "-m", "chore: sync task state"],
+            cwd=PROJECT_ROOT, capture_output=True, text=True,
+        )
+
     log("  Git sync: pull --rebase origin main")
     result = subprocess.run(
         ["git", "pull", "--rebase", "origin", "main"],
