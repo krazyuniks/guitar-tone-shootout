@@ -1,12 +1,23 @@
 ---
 name: gts-frontend-dev
-description: Jinja2 SSR pages with HTMX for small fragment updates (card-sized or smaller), Alpine.js for client-side UI state (toggles, tabs), and Tailwind CSS for styling. React islands only for complex stateful components (SignalChainBuilder). GTS-specific patterns.
+description: Jinja2 SSR pages with HTMX for small fragment updates (card-sized or smaller), Alpine.js for client-side UI state (toggles, tabs), and Tailwind CSS for styling. React islands only for complex stateful components (SignalChainBuilder). GTS-specific patterns. Extends global astro-frontend with GTS patterns.
 context: fork
 ---
 
 # Frontend Development
 
 **Activation:** Jinja2, HTMX, Alpine.js, Tailwind, template, page, UI, frontend
+
+## Reference Files
+
+| Working On | Read |
+|---|---|
+| Route ownership, rendering strategy, nginx routing | references/architecture.md |
+| Design tokens, colours, typography, component styles | references/design-system.md |
+| File watching, rebuild process, troubleshooting | references/hot-reload.md |
+| Template file structure, page/fragment patterns, HTMX mapping | references/template-patterns.md |
+| data-testid conventions, state exposure, naming | references/testability.md |
+| Astro ClientRouter, data-astro-reload, SSR routes | references/navigation.md |
 
 > **CRITICAL: Pre-Bundled Architecture**
 >
