@@ -55,7 +55,7 @@ T6 → T9
 | T25 | [Task]: SignalChainService and API | complete | webapp | T21 |
 | T26 | [Task]: ShootoutService, JobService | complete | webapp | T18 |
 | T27 | [Task]: React SignalChainBuilder Re | complete | webapp | T25 |
-| T28 | [Task]: Chain List Page | locked | webapp | T25 |
+| T28 | [Task]: Chain List Page | complete | webapp | T25 |
 | T29 | [Task]: HTMX Fragment Endpoints | pending | webapp | T20 |
 | T30 | [Task]: Chain Builder Page | pending | webapp | T27 |
 | T31 | [Task]: Shootout Pages | pending | webapp | T26 |
