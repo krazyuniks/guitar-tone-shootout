@@ -50,7 +50,7 @@ T6 → T9
 | T20 | [Task]: Gear API Endpoints | complete | webapp | T16 |
 | T21 | [Task]: Chain Validator Domain Serv | complete | core | T14 |
 | T22 | [Task]: BlockTypeRegistry and Prese | complete | webapp | T17 |
-| T23 | [Task]: Gear Browse and Detail Page | pending | webapp | T20 |
+| T23 | [Task]: Gear Browse and Detail Page | locked | webapp | T20 |
 | T24 | [Task]: User Library API and Page | pending | webapp | T13 |
 | T25 | [Task]: SignalChainService and API | pending | webapp | T21 |
 | T26 | [Task]: ShootoutService, JobService | pending | webapp | T18 |
