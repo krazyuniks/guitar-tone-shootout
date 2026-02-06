@@ -28,3 +28,14 @@ Red phase verified: 19 failing + 0 erroring tests found.
 2026-02-06 04:37:11,260 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-06 04:37:11,260 [INFO]     Running: just tdd-lock T29
+2026-02-06 04:37:13,417 [DEBUG]     just tdd-lock T29 -> OK
+2026-02-06 04:37:13,417 [DEBUG]     Output:
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T29.json
+  68 test files captured at commit c4579e1dacf4
+[1/phase-4-web-application-implementation 31b8862] test-lock: T29 tests ready for implementation
+ 32 files changed, 1250 insertions(+), 29 deletions(-)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E1/logs/session_20260206_033434.log
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T29.json
+ create mode 100644 tests/integration/webapp/test_htmx_fragment_endpoints_t29.py
+Tests locked at 31b8862
+
