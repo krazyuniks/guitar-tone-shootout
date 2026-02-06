@@ -115,9 +115,9 @@ def git_sync() -> None:
             cwd=PROJECT_ROOT, capture_output=True, text=True,
         )
 
-    log("  Git sync: pull --rebase origin main")
+    log("  Git sync: pull --rebase --autostash origin main")
     result = subprocess.run(
-        ["git", "pull", "--rebase", "origin", "main"],
+        ["git", "pull", "--rebase", "--autostash", "origin", "main"],
         cwd=PROJECT_ROOT, capture_output=True, text=True,
     )
     if result.returncode != 0:

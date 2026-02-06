@@ -16,6 +16,20 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+
+class _TestAsyncSession(AsyncSession):
+    """Test session that falls back to begin_nested() when already in a transaction.
+
+    Fixtures call flush() which triggers autobegin. Tests then call begin()
+    expecting nested transaction (SAVEPOINT) semantics. SQLAlchemy 2.0's begin()
+    raises on double-begin, so we intercept and use begin_nested() instead.
+    """
+
+    def begin(self, **kw):  # type: ignore[override]
+        if self.in_transaction():
+            return self.begin_nested(**kw)
+        return super().begin(**kw)
+
 from uuid import uuid4
 
 from webapp.adapters.persistence.models.base import Base
@@ -43,12 +57,29 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
 
 @pytest.fixture
 async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    # Create session factory
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
+    """Create a test database session with transaction management.
 
-    async with async_session() as session:
+    The session auto-begins a transaction on first use. Tests can:
+    - Use `async with db_session.begin():` for nested transactions (SAVEPOINT)
+    - Use `await db_session.commit()` to commit changes
+
+    All changes are rolled back after each test for isolation.
+    """
+    # Create session factory with custom session class
+    async_session = async_sessionmaker(
+        db_engine, class_=_TestAsyncSession, expire_on_commit=False,
+    )
+
+    # Create session
+    session = async_session()
+
+    try:
         yield session
+    finally:
+        # Rollback any active transaction and close session
+        if session.in_transaction():
+            await session.rollback()
+        await session.close()
 
 
 def pytest_runtest_call(item: pytest.Item) -> None:
