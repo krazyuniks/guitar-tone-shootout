@@ -46,7 +46,7 @@ T6 → T9
 | T16 | [Task]: Gear Repository | complete | webapp | T12 |
 | T17 | [Task]: BlockType and Preset Models | complete | webapp | T14 |
 | T18 | [Task]: Shootout and ShootoutChain  | complete | webapp | T14 |
-| T19 | [Task]: IdentityService and Auth AP | pending | webapp | T15 |
+| T19 | [Task]: IdentityService and Auth AP | locked | webapp | T15 |
 | T20 | [Task]: Gear API Endpoints | pending | webapp | T16 |
 | T21 | [Task]: Chain Validator Domain Serv | pending | core | T14 |
 | T22 | [Task]: BlockTypeRegistry and Prese | pending | webapp | T17 |
