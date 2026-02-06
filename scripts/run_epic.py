@@ -109,9 +109,9 @@ def git_sync() -> None:
     else:
         log(f"  Rebased: {result.stdout.strip()}", "debug")
 
-    log("  Git sync: push")
+    log("  Git sync: push --force-with-lease")
     result = subprocess.run(
-        ["git", "push"],
+        ["git", "push", "--force-with-lease"],
         cwd=PROJECT_ROOT, capture_output=True, text=True,
     )
     if result.returncode != 0:

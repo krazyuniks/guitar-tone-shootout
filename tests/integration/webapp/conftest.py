@@ -9,7 +9,6 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -49,22 +48,16 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         yield session
 
 
-@pytest.fixture
-def app_with_db(db_session: AsyncSession) -> FastAPI:
-    """Create FastAPI app with database session configured.
+@pytest.fixture(autouse=True)
+async def _wire_auth_session(db_session: AsyncSession) -> AsyncGenerator[None, None]:
+    """Auto-wire test DB session into auth module.
 
-    This fixture provides a FastAPI app with the database dependency
-    properly overridden to use the test database session.
+    The auth endpoints use a module-level session override so tests that
+    create their own FastAPI() app (without dependency_overrides) still
+    get the test session.
     """
-    from webapp.api.v1.auth import get_db_session, router as auth_router
+    from webapp.api.v1.auth import set_session_override
 
-    app = FastAPI()
-    app.include_router(auth_router)
-
-    # Override database dependency to use test session
-    async def override_get_db_session() -> AsyncSession:
-        return db_session
-
-    app.dependency_overrides[get_db_session] = override_get_db_session
-
-    return app
+    set_session_override(db_session)
+    yield
+    set_session_override(None)
