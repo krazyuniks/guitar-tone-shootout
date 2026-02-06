@@ -25,7 +25,10 @@ class TestGearBrowsePageRoute:
         self, db_session: AsyncSession
     ) -> None:
         """Verify GET /gear returns HTML page."""
+        from webapp.api import pages
+
         app = create_app()
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -40,7 +43,7 @@ class TestGearBrowsePageRoute:
 
             # Verify page contains expected structure
             html = response.text
-            assert "gear-browse-page" in html
+            assert "data-testid=\"gear-browse-page\"" in html
             assert "Browse Gear" in html
 
     async def test_gear_browse_renders_base_layout(

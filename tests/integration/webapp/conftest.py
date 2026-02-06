@@ -50,14 +50,19 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 
 @pytest.fixture(autouse=True)
 async def _wire_auth_session(db_session: AsyncSession) -> AsyncGenerator[None, None]:
-    """Auto-wire test DB session into auth module.
+    """Auto-wire test DB session into auth and pages modules.
 
-    The auth endpoints use a module-level session override so tests that
+    The auth and pages endpoints use a module-level session override so tests that
     create their own FastAPI() app (without dependency_overrides) still
     get the test session.
     """
-    from webapp.api.v1.auth import set_session_override
+    from webapp.api import pages
+    from webapp.api.v1.auth import set_session_override as set_auth_session_override
 
-    set_session_override(db_session)
+    print(f"[FIXTURE] Setting session override: {db_session}")
+    set_auth_session_override(db_session)
+    pages.set_session_override(db_session)
+    print(f"[FIXTURE] pages._session_override is now: {pages._session_override}")
     yield
-    set_session_override(None)
+    set_auth_session_override(None)
+    pages.set_session_override(None)
