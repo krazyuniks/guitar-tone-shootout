@@ -57,7 +57,7 @@ T6 → T9
 | T27 | [Task]: React SignalChainBuilder Re | complete | webapp | T25 |
 | T28 | [Task]: Chain List Page | complete | webapp | T25 |
 | T29 | [Task]: HTMX Fragment Endpoints | complete | webapp | T20 |
-| T30 | [Task]: Chain Builder Page | pending | webapp | T27 |
+| T30 | [Task]: Chain Builder Page | locked | webapp | T27 |
 | T31 | [Task]: Shootout Pages | pending | webapp | T26 |
 | T4 | [Task]: FastAPI Application Skeleto | complete | webapp | - |
 | T5 | [Task]: Health Endpoints | complete | webapp | T4 |

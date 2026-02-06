@@ -444,3 +444,33 @@ async def chain_duplicate_fragment(
             "chains": chain_items,
         },
     )
+
+
+@router.get("/library/chains/build", response_class=HTMLResponse)
+async def chain_builder_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    chain_id: str | None = Query(None, description="Chain ID for editing"),
+) -> HTMLResponse:
+    """Render chain builder page.
+
+    Protected page for creating or editing signal chains.
+    Mounts React SignalChainBuilder component.
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+        chain_id: Optional chain ID for editing mode
+
+    Returns:
+        Rendered HTML page
+    """
+    return templates.TemplateResponse(
+        request,
+        "pages/library/chains_build.html",
+        {
+            "chain_id": chain_id,
+        },
+    )
