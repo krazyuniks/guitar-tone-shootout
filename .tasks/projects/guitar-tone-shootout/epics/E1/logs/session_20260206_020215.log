@@ -263,3 +263,15 @@ Red phase verified: 0 failing + 3 erroring tests found.
 2026-02-06 03:19:22,576 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-06 03:19:22,576 [INFO]     Running: just tdd-lock T25
+2026-02-06 03:19:24,870 [DEBUG]     just tdd-lock T25 -> OK
+2026-02-06 03:19:24,870 [DEBUG]     Output:
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T25.json
+  58 test files captured at commit 639901580227
+[1/phase-4-web-application-implementation 8fe7689] test-lock: T25 tests ready for implementation
+ 6 files changed, 1421 insertions(+), 1 deletion(-)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E1/snapshots/T25.json
+ create mode 100644 tests/integration/webapp/test_signal_chain_api.py
+ create mode 100644 tests/unit/webapp/test_signal_chain_schemas.py
+ create mode 100644 tests/unit/webapp/test_signal_chain_service.py
+Tests locked at 8fe7689
+
