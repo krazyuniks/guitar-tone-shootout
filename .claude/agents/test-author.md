@@ -129,6 +129,14 @@ from core.domain.value_objects.gear_type import GearType
 assert GearType.AMP is not None  # New location works
 ```
 
+### 6. E2E tests in `tests/e2e/` — BANNED for TDD tasks
+
+NEVER create test files in `tests/e2e/`. E2E tests use Playwright which runs on the HOST, not in Docker.
+All TDD validation runs in Docker where Playwright is NOT installed. Creating E2E tests will break
+test collection and halt the pipeline.
+
+Put tests in `tests/unit/` or `tests/integration/` only.
+
 ## Correct GTS Test Patterns
 
 ### Unit test with async SQLite (ORM models)

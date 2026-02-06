@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from webapp.api import pages
 from webapp.api.v1 import health
 from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
@@ -38,7 +39,10 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
 
-    # Override health router's database dependency with our initialized one
+    # Include page routers
+    app.include_router(pages.router)
+
+    # Override database dependencies with our initialized one
     if database_url:
         app.dependency_overrides[health.get_db_session] = get_db
 

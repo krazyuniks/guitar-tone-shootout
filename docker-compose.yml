@@ -74,6 +74,7 @@ services:
       - ./libs:/app/libs:ro
       - ./apps/webapp:/app/apps/webapp
       - ./frontend/astro/dist:/app/static:ro
+      - ./frontend/astro:/app/frontend/astro:ro
       - upload_data:/app/uploads
       # Source code for execution
       - ./src:/app/src:ro
