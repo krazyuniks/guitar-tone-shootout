@@ -34,7 +34,7 @@ export async function GET() {
         data-testid="platform-badge"
         class="inline-block bg-[var(--color-accent-primary)] text-white px-3 py-1 rounded text-sm"
       >
-        {{ chain.platform.value }}
+        {{ chain.platform }}
       </span>
     </div>
   </div>

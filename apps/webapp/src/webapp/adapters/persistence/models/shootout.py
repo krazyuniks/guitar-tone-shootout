@@ -7,7 +7,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin
 
@@ -20,7 +20,9 @@ if TYPE_CHECKING:
 class ShootoutStatus(str, Enum):
     """Status enum for shootout processing."""
 
+    DRAFT = "draft"
     PENDING = "pending"
+    RUNNING = "running"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -91,8 +93,8 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     Attributes:
         id: Primary key (UUIDv7)
         user_id: Foreign key to users table
-        di_track_id: Foreign key to di_tracks table
-        title: Display title for the shootout
+        di_track_id: Foreign key to di_tracks table (nullable)
+        name: Display name for the shootout
         description: Optional description
         status: Processing status (pending, processing, completed, failed)
         video_path: Path to output video (after processing)
@@ -110,12 +112,13 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    di_track_id: Mapped[uuid.UUID] = mapped_column(
+    di_track_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("di_tracks.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
-    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    title: Mapped[str] = synonym("name")  # Alias for backwards compatibility
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[ShootoutStatus] = mapped_column(
         EnumByValue(ShootoutStatus),
@@ -129,7 +132,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         "User",
         back_populates="shootouts",
     )
-    di_track: Mapped[DITrack] = relationship(
+    di_track: Mapped[DITrack | None] = relationship(
         "DITrack",
         back_populates="shootouts",
         lazy="selectin",  # Eager load di_track

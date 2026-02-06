@@ -1,0 +1,63 @@
+/**
+ * Shootout List Fragment Template
+ *
+ * HTMX fragment for displaying the list of user's shootouts.
+ * Returns just the list of shootout cards without page wrapper.
+ *
+ * Build output: frontend/astro/dist/fragments/shootouts/list.html
+ * FastAPI route: templates.TemplateResponse(request, "fragments/shootouts/list.html", {"shootouts": shootouts})
+ * HTMX usage: hx-get="/api/v1/html/library/shootouts/list"
+ */
+
+export async function GET() {
+  const html = `<!-- Shootout List Fragment -->
+{% if shootouts %}
+<div class="space-y-4">
+  {% for shootout in shootouts %}
+  <div
+    data-testid="shootout-item"
+    data-shootout-id="{{ shootout.id }}"
+    class="bg-[var(--color-bg-elevated)] rounded-lg p-6 hover:shadow-lg transition-shadow"
+  >
+    <div class="flex justify-between items-start mb-4">
+      <div class="flex-1">
+        <h3 class="text-[var(--color-text-primary)] font-bold text-xl mb-2">
+          {{ shootout.name }}
+        </h3>
+
+        {% if shootout.description %}
+        <p class="text-[var(--color-text-secondary)] text-sm line-clamp-2 mb-2">
+          {{ shootout.description }}
+        </p>
+        {% endif %}
+
+        <span
+          data-testid="status-badge"
+          class="inline-block bg-[var(--color-accent-primary)] text-white px-3 py-1 rounded text-sm"
+        >
+          {{ shootout.status }}
+        </span>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12">
+  <p class="text-[var(--color-text-secondary)] text-lg mb-4">
+    No shootouts yet
+  </p>
+  <p class="text-[var(--color-text-secondary)] text-sm">
+    Create your first shootout to get started
+  </p>
+</div>
+{% endif %}
+`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}

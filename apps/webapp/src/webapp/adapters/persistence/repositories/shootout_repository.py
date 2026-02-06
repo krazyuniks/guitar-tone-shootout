@@ -169,7 +169,7 @@ class SQLAlchemyShootoutRepository:
                 id=shootout.id,
                 user_id=shootout.user_id,
                 di_track_id=shootout.di_track_id,
-                title=shootout.name,
+                name=shootout.name,
                 description=shootout.description,
                 status=status,
                 video_path=shootout.output_path,
@@ -195,7 +195,7 @@ class SQLAlchemyShootoutRepository:
             await self.session.refresh(existing, ["chains"])
 
             status = ShootoutStatus.COMPLETED if shootout.is_processed else ShootoutStatus.PENDING
-            existing.title = shootout.name
+            existing.name = shootout.name
             existing.di_track_id = shootout.di_track_id
             existing.description = shootout.description
             existing.status = status
@@ -277,7 +277,7 @@ class SQLAlchemyShootoutRepository:
         return ShootoutEntity(
             id=orm_shootout.id,
             user_id=orm_shootout.user_id,
-            name=orm_shootout.title,
+            name=orm_shootout.name,
             di_track_id=orm_shootout.di_track_id,
             description=orm_shootout.description,
             output_format="mp4",  # Default format
