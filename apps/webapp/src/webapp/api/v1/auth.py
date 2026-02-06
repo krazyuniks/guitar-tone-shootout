@@ -16,7 +16,6 @@ from webapp.auth.oauth import OAuthHandler
 from webapp.auth.providers.t3k import T3KProvider
 from webapp.services.identity_service import IdentityService
 
-
 # Module-level session override for testing
 # Tests can set this to provide a session without using dependency_overrides
 _session_override: AsyncSession | None = None
@@ -164,7 +163,7 @@ async def callback(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Callback failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Callback failed: {e!s}")
 
 
 @router.get("/me")
