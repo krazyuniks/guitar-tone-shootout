@@ -14,6 +14,9 @@ from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
 )
+from webapp.adapters.persistence.repositories.signal_chain_repository import (
+    SQLAlchemySignalChainRepository,
+)
 from webapp.templates import templates
 
 router = APIRouter(tags=["pages"])
@@ -238,5 +241,206 @@ async def library_my_gear_page(
         "pages/library/my_gear.html",
         {
             "gear_items": gear_items,
+        },
+    )
+
+
+@router.get("/library/chains", response_class=HTMLResponse)
+async def library_chains_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's signal chain library page.
+
+    Protected page showing user's signal chains.
+    Uses HTMX for dynamic operations (delete, duplicate).
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML page
+    """
+    repo = SQLAlchemySignalChainRepository(db)
+    chains = await repo.get_by_user_id(current_user.id)
+
+    # Convert to dict for template
+    chain_items = []
+    for chain in chains:
+        chain_items.append({
+            "id": str(chain.id),
+            "name": chain.name,
+            "description": chain.description,
+            "platform": chain.platform.value,
+            "created_at": chain.created_at,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "pages/library/chains.html",
+        {
+            "chains": chain_items,
+        },
+    )
+
+
+@router.get("/fragments/chains/list", response_class=HTMLResponse)
+async def chain_list_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render chain list fragment for HTMX updates.
+
+    Returns just the list of chain items without page wrapper.
+    Used by HTMX to update the chain list dynamically.
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML fragment
+    """
+    repo = SQLAlchemySignalChainRepository(db)
+    chains = await repo.get_by_user_id(current_user.id)
+
+    # Convert to dict for template
+    chain_items = []
+    for chain in chains:
+        chain_items.append({
+            "id": str(chain.id),
+            "name": chain.name,
+            "description": chain.description,
+            "platform": chain.platform.value,
+            "created_at": chain.created_at,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/chains/list.html",
+        {
+            "chains": chain_items,
+        },
+    )
+
+
+@router.delete("/fragments/chains/{chain_id}", response_class=HTMLResponse)
+async def chain_delete_fragment(
+    request: Request,
+    chain_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Delete a signal chain via HTMX.
+
+    Args:
+        request: FastAPI request object
+        chain_id: Chain UUID as string
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Empty response (HTMX will swap out the element)
+
+    Raises:
+        HTTPException: 404 if chain not found or not owned by user
+    """
+    from uuid import UUID
+
+    repo = SQLAlchemySignalChainRepository(db)
+
+    # Get chain and verify ownership
+    chain = await repo.get_by_id(UUID(chain_id))
+    if not chain or chain.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chain not found",
+        )
+
+    # Delete via transaction
+    async with db.begin():
+        await repo.delete(UUID(chain_id))
+
+    # Return empty response - HTMX will swap out the element
+    return HTMLResponse(content="", status_code=200)
+
+
+@router.post("/fragments/chains/{chain_id}/duplicate", response_class=HTMLResponse)
+async def chain_duplicate_fragment(
+    request: Request,
+    chain_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Duplicate a signal chain via HTMX.
+
+    Args:
+        request: FastAPI request object
+        chain_id: Chain UUID as string
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        HTML fragment with updated chain list
+
+    Raises:
+        HTTPException: 404 if chain not found or not owned by user
+    """
+    from datetime import datetime, timezone
+    from uuid import UUID, uuid4
+
+    from core.domain.entities.signal_chain import (
+        SignalChain as SignalChainEntity,
+    )
+
+    repo = SQLAlchemySignalChainRepository(db)
+
+    # Get chain and verify ownership
+    chain = await repo.get_by_id(UUID(chain_id))
+    if not chain or chain.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chain not found",
+        )
+
+    # Create duplicate with new ID and updated name
+    now = datetime.now(timezone.utc)
+    new_chain = SignalChainEntity(
+        id=uuid4(),
+        user_id=current_user.id,
+        name=f"{chain.name} (Copy)",
+        description=chain.description,
+        platform=chain.platform,
+        blocks=chain.blocks.copy(),  # Shallow copy blocks list
+        created_at=now,
+        updated_at=now,
+    )
+
+    # Save via transaction
+    async with db.begin():
+        await repo.save(new_chain)
+
+    # Return updated chain list fragment
+    chains = await repo.get_by_user_id(current_user.id)
+    chain_items = []
+    for c in chains:
+        chain_items.append({
+            "id": str(c.id),
+            "name": c.name,
+            "description": c.description,
+            "platform": c.platform.value,
+            "created_at": c.created_at,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/chains/list.html",
+        {
+            "chains": chain_items,
         },
     )

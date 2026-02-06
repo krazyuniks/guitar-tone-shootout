@@ -1,0 +1,119 @@
+/**
+ * Signal Chain List Page Template
+ *
+ * Protected page showing user's signal chains.
+ * Full page template served by FastAPI's Jinja2 renderer.
+ *
+ * Build output: frontend/astro/dist/pages/library/chains.html
+ * FastAPI route: templates.TemplateResponse(request, "pages/library/chains.html", {...})
+ */
+
+export async function GET() {
+  const html = `{% extends "layouts/base.html" %}
+
+{% block title %}My Chains - Guitar Tone Shootout{% endblock %}
+
+{% block content %}
+<div
+  data-testid="library-chains-page"
+  class="container mx-auto px-4 py-8"
+>
+  <div class="flex justify-between items-center mb-6">
+    <h1
+      class="text-[var(--color-text-primary)] text-3xl font-bold"
+    >
+      My Chains
+    </h1>
+    <a
+      href="/library/chains/build"
+      data-testid="create-chain-btn"
+      class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90"
+    >
+      Create Chain
+    </a>
+  </div>
+
+  <!-- Chain List Container -->
+  <div
+    id="chain-list-container"
+    hx-get="/fragments/chains/list"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+    class="space-y-4"
+  >
+    {% if chains %}
+      {% for chain in chains %}
+        <div
+          data-testid="chain-item"
+          class="bg-[var(--color-bg-elevated)] rounded-lg p-4 border border-[var(--color-border)]"
+        >
+          <div class="flex justify-between items-start mb-2">
+            <div class="flex-1">
+              <h3 class="text-[var(--color-text-primary)] font-semibold text-lg">
+                {{ chain.name }}
+              </h3>
+              {% if chain.description %}
+                <p class="text-[var(--color-text-secondary)] text-sm mt-1">
+                  {{ chain.description }}
+                </p>
+              {% endif %}
+            </div>
+            <span
+              data-testid="platform-badge"
+              class="px-3 py-1 bg-[var(--color-bg-base)] text-[var(--color-text-secondary)] text-xs rounded-full"
+            >
+              {{ chain.platform }}
+            </span>
+          </div>
+          <div class="flex justify-end gap-2 mt-3">
+            <a
+              href="/library/chains/build?chain_id={{ chain.id }}"
+              data-testid="edit-chain-btn"
+              class="px-3 py-1 text-[var(--color-primary)] hover:bg-[var(--color-bg-base)] rounded"
+            >
+              Edit
+            </a>
+            <button
+              data-testid="duplicate-chain-btn"
+              class="px-3 py-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-base)] rounded"
+              hx-post="/fragments/chains/{{ chain.id }}/duplicate"
+              hx-target="#chain-list-container"
+              hx-swap="innerHTML"
+            >
+              Duplicate
+            </button>
+            <button
+              data-testid="delete-chain-btn"
+              class="px-3 py-1 text-[var(--color-error)] hover:bg-[var(--color-bg-base)] rounded"
+              hx-delete="/fragments/chains/{{ chain.id }}"
+              hx-confirm="Delete this chain?"
+              hx-target="closest [data-testid='chain-item']"
+              hx-swap="outerHTML swap:0.3s"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-12">
+        <p class="text-[var(--color-text-secondary)] text-lg mb-4">
+          No chains yet
+        </p>
+        <p class="text-[var(--color-text-secondary)] text-sm">
+          Build your first chain to get started
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+}

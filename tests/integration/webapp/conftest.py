@@ -118,9 +118,12 @@ async def _wire_auth_session(db_session: AsyncSession) -> AsyncGenerator[None, N
     pages.set_session_override(db_session)
     set_library_session_override(db_session)
     print(f"[FIXTURE] pages._session_override is now: {pages._session_override}")
+    from webapp.api.v1.library import set_user_override as set_library_user_override
     yield
     set_auth_session_override(None)
     pages.set_session_override(None)
+    pages.set_user_override(None)
     set_library_session_override(None)
+    set_library_user_override(None)
 
 
