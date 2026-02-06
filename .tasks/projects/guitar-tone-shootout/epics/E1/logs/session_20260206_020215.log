@@ -544,3 +544,38 @@ cd tests/e2e/python && uv run pytest tests/ -v
 error: Recipe `test-e2e` failed on line 146 with exit code 5
 
 2026-02-06 03:31:02,241 [INFO]   T25 COMPLETE
+2026-02-06 03:31:04,548 [INFO]   Git sync: pull --rebase origin main
+2026-02-06 03:31:04,551 [WARNING]   Git rebase failed (non-fatal): error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+2026-02-06 03:31:04,551 [INFO]   Git sync: push --force-with-lease
+2026-02-06 03:31:05,953 [DEBUG]   Pushed: 
+2026-02-06 03:31:05,953 [INFO] 
+2026-02-06 03:31:05,953 [INFO] === Iteration 7 ===
+2026-02-06 03:31:05,954 [INFO]   Next task: T26 — [Task]: ShootoutService, JobService, and APIs (state=pending)
+2026-02-06 03:31:05,954 [INFO] 
+  Phase: TEST (writing tests for T26)
+2026-02-06 03:31:05,955 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-06 03:35:13,547 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-06 03:35:13,547 [INFO] 
+  Phase: RED (verifying tests fail)
+2026-02-06 03:35:13,547 [INFO]     Running: just tdd-red T26
+2026-02-06 03:35:15,872 [DEBUG]     just tdd-red T26 -> OK
+2026-02-06 03:35:15,872 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/integration/webapp/test_jobs_api.py
+  tests/integration/webapp/test_job_service.py
+  tests/integration/webapp/test_shootouts_api.py
+  tests/integration/webapp/test_shootout_service.py
+  tests/unit/webapp/test_job_schemas.py
+  tests/unit/webapp/test_shootout_schemas.py
+
+Results: 0 failed, 0 passed, 6 errors
+NOTE: 6 tests errored (import/syntax issues).
+  Errors count as 'not passing' — acceptable in red phase.
+
+Red phase verified: 0 failing + 6 erroring tests found.
+
+2026-02-06 03:35:15,872 [INFO] 
+  Phase: LOCK (snapshotting tests)
+2026-02-06 03:35:15,872 [INFO]     Running: just tdd-lock T26
