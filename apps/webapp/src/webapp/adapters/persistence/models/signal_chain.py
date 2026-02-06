@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,38 +14,11 @@ from core.domain.value_objects.signal_chain_enums import (
 )
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+from .block_type import BlockType
+from .preset import Preset
 
 if TYPE_CHECKING:
     from .user import User
-
-
-class BlockType(UUIDMixin, Base):
-    """Built-in processor type definitions.
-
-    Represents built-in audio processors (compressor, EQ, etc.) that
-    can be used in signal chains beyond captured gear.
-
-    Attributes:
-        id: Primary key (UUIDv7)
-        name: Processor name (e.g., 'Compressor', 'EQ')
-        category: Category (e.g., 'dynamics', 'eq', 'modulation')
-        description: Optional description
-        default_params: Default parameter values as JSON
-        blocks: Blocks using this block type
-    """
-
-    __tablename__ = "block_types"
-
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    category: Mapped[str] = mapped_column(String(50), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    default_params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-
-    # Relationships
-    blocks: Mapped[list[SignalChainBlock]] = relationship(
-        "SignalChainBlock",
-        back_populates="block_type",
-    )
 
 
 class SignalChain(UUIDMixin, TimestampMixin, Base):
@@ -162,41 +135,6 @@ class SignalChainBlock(UUIDMixin, Base):
     __table_args__ = (
         Index("ix_signal_chain_blocks_chain_id", "signal_chain_id"),
         Index("ix_signal_chain_blocks_position", "signal_chain_id", "position"),
-    )
-
-
-class Preset(UUIDMixin, Base):
-    """Parameter preset for a signal chain block.
-
-    Stores parameter values for built-in processors or gear settings.
-
-    Attributes:
-        id: Primary key (UUIDv7)
-        signal_chain_block_id: Foreign key to signal_chain_blocks table
-        name: Preset name
-        params: Parameter values as JSON
-        signal_chain_block: Reference to the SignalChainBlock
-    """
-
-    __tablename__ = "presets"
-
-    signal_chain_block_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("signal_chain_blocks.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
-
-    # Relationship
-    signal_chain_block: Mapped[SignalChainBlock] = relationship(
-        "SignalChainBlock",
-        back_populates="presets",
-    )
-
-    # Index
-    __table_args__ = (
-        Index("ix_presets_block_id", "signal_chain_block_id"),
     )
 
 

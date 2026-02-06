@@ -177,10 +177,29 @@ class EnumByValue(TypeDecorator[E]):
         super().__init__()
 
     def process_bind_param(self, value: E | None, _dialect: Any) -> Any:
-        """Convert enum to value for database storage."""
+        """Convert enum to value for database storage.
+
+        Accepts either an enum instance or a value that can be converted to the enum.
+        This allows flexibility in how values are provided while validating the input.
+        """
         if value is None:
             return None
-        return value.value
+        # If it's already an enum instance, extract its value
+        if isinstance(value, self.enum_type):
+            return value.value
+        # If it's a raw value (string/int), validate it by converting to enum
+        # This handles cases where string values are passed directly (e.g., from tests)
+        try:
+            # Validate by converting to enum then back to value
+            return self.enum_type(value).value
+        except (ValueError, KeyError) as e:
+            # Raise a clear error if the value is invalid
+            valid_values = [member.value for member in self.enum_type]
+            msg = (
+                f"Invalid value '{value}' for enum {self.enum_type.__name__}. "
+                f"Valid values are: {valid_values}"
+            )
+            raise ValueError(msg) from e
 
     def process_result_value(self, value: Any, _dialect: Any) -> E | None:
         """Convert value from database to enum."""
