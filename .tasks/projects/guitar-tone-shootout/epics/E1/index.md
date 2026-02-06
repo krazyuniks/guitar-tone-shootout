@@ -58,7 +58,7 @@ T6 → T9
 | T28 | [Task]: Chain List Page | complete | webapp | T25 |
 | T29 | [Task]: HTMX Fragment Endpoints | complete | webapp | T20 |
 | T30 | [Task]: Chain Builder Page | complete | webapp | T27 |
-| T31 | [Task]: Shootout Pages | pending | webapp | T26 |
+| T31 | [Task]: Shootout Pages | locked | webapp | T26 |
 | T4 | [Task]: FastAPI Application Skeleto | complete | webapp | - |
 | T5 | [Task]: Health Endpoints | complete | webapp | T4 |
 | T6 | [Task]: User ORM Model | complete | webapp | T4 |

@@ -17,6 +17,7 @@ from webapp.adapters.persistence.repositories.gear_repository import (
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
+from webapp.services.shootout_service import ShootoutService
 from webapp.templates import templates
 
 router = APIRouter(tags=["pages"])
@@ -474,3 +475,219 @@ async def chain_builder_page(
             "chain_id": chain_id,
         },
     )
+
+
+@router.get("/library/shootouts", response_class=HTMLResponse)
+async def library_shootouts_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's shootout library page.
+
+    Protected page showing user's shootouts.
+    Uses HTMX for dynamic operations (delete).
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML page
+    """
+    service = ShootoutService(db)
+    shootouts = await service.get_by_user_id(current_user.id)
+
+    # Convert to dict for template
+    shootout_items = []
+    for shootout in shootouts:
+        shootout_items.append({
+            "id": str(shootout.id),
+            "name": shootout.name,
+            "description": shootout.description,
+            "chain_count": shootout.chain_count,
+            "is_processed": shootout.is_processed,
+            "created_at": shootout.created_at,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "pages/library/shootouts.html",
+        {
+            "shootouts": shootout_items,
+        },
+    )
+
+
+@router.get("/shootout/{shootout_id}", response_class=HTMLResponse)
+async def shootout_detail_page(
+    request: Request,
+    shootout_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render shootout detail page.
+
+    Protected page showing shootout details and chains.
+
+    Args:
+        request: FastAPI request object
+        shootout_id: Shootout UUID as string
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML page
+
+    Raises:
+        HTTPException: 404 if shootout not found or not owned by user
+    """
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from webapp.adapters.persistence.models.di_track import DITrack
+    from webapp.adapters.persistence.models.signal_chain import (
+        SignalChain as SignalChainModel,
+    )
+
+    service = ShootoutService(db)
+
+    # Get shootout and verify ownership
+    shootout = await service.get_by_id(UUID(shootout_id))
+    if not shootout or shootout.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    # Get DI track details
+    di_track_result = await db.execute(
+        select(DITrack).where(DITrack.id == shootout.di_track_id)
+    )
+    di_track = di_track_result.scalar_one_or_none()
+
+    # Get chain details for each shootout chain
+    chain_items = []
+    for shootout_chain in shootout.chains:
+        chain_result = await db.execute(
+            select(SignalChainModel).where(
+                SignalChainModel.id == shootout_chain.signal_chain_id
+            )
+        )
+        chain = chain_result.scalar_one_or_none()
+        if chain:
+            chain_items.append({
+                "signal_chain_id": str(shootout_chain.signal_chain_id),
+                "position": shootout_chain.position,
+                "label": shootout_chain.label,
+                "chain_name": chain.name,
+            })
+
+    # Sort by position
+    chain_items.sort(key=lambda x: x["position"])
+
+    return templates.TemplateResponse(
+        request,
+        "pages/shootout_detail.html",
+        {
+            "shootout": {
+                "id": str(shootout.id),
+                "name": shootout.name,
+                "description": shootout.description,
+                "chain_count": shootout.chain_count,
+                "is_processed": shootout.is_processed,
+                "output_path": shootout.output_path,
+            },
+            "di_track": {
+                "id": str(di_track.id) if di_track else None,
+                "name": di_track.name if di_track else "Unknown",
+            },
+            "chains": chain_items,
+        },
+    )
+
+
+@router.get("/fragments/shootouts/list", response_class=HTMLResponse)
+async def shootout_list_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render shootout list fragment for HTMX updates.
+
+    Returns just the list of shootouts without page wrapper.
+    Used by HTMX to update the shootout list dynamically.
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML fragment
+    """
+    service = ShootoutService(db)
+    shootouts = await service.get_by_user_id(current_user.id)
+
+    # Convert to dict for template
+    shootout_items = []
+    for shootout in shootouts:
+        shootout_items.append({
+            "id": str(shootout.id),
+            "name": shootout.name,
+            "description": shootout.description,
+            "chain_count": shootout.chain_count,
+            "is_processed": shootout.is_processed,
+            "created_at": shootout.created_at,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/list.html",
+        {
+            "shootouts": shootout_items,
+        },
+    )
+
+
+@router.delete("/fragments/shootouts/{shootout_id}", response_class=HTMLResponse)
+async def shootout_delete_fragment(
+    request: Request,
+    shootout_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Delete a shootout via HTMX.
+
+    Args:
+        request: FastAPI request object
+        shootout_id: Shootout UUID as string
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Empty response (HTMX will swap out the element)
+
+    Raises:
+        HTTPException: 404 if shootout not found or not owned by user
+    """
+    from uuid import UUID
+
+    service = ShootoutService(db)
+
+    # Get shootout and verify ownership
+    shootout = await service.get_by_id(UUID(shootout_id))
+    if not shootout or shootout.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    # Delete via transaction
+    async with db.begin():
+        await service.delete(UUID(shootout_id))
+
+    # Return empty response - HTMX will swap out the element
+    return HTMLResponse(content="", status_code=200)
