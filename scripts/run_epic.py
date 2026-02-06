@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 import subprocess
 import sys
@@ -45,6 +46,78 @@ STATE_ORDER = ["pending", "locked", "validating", "complete"]
 
 MAX_TEST_AUTHOR_RETRIES = 1  # retry once after initial failure
 MAX_IMPLEMENTER_RETRIES = 2  # retry twice after initial failure
+
+
+# ---------------------------------------------------------------------------
+# Session logging
+# ---------------------------------------------------------------------------
+
+_session_log: logging.Logger | None = None
+
+
+def init_session_log(epic_dir: Path, epic_number: int) -> None:
+    """Initialise session log file under epic logs directory."""
+    global _session_log
+
+    logs_dir = epic_dir / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    log_path = logs_dir / f"session_{timestamp}.log"
+
+    logger = logging.getLogger(f"epic-{epic_number}")
+    logger.setLevel(logging.DEBUG)
+
+    # File handler — verbose
+    fh = logging.FileHandler(log_path)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    logger.addHandler(fh)
+
+    # Console handler — summary only
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(ch)
+
+    _session_log = logger
+    _session_log.info(f"Session log: {log_path}")
+
+
+def log(msg: str, level: str = "info") -> None:
+    """Log a message to session log and console."""
+    if _session_log is None:
+        print(msg)
+        return
+    getattr(_session_log, level)(msg)
+
+
+# ---------------------------------------------------------------------------
+# Git sync — rebase + push after commits
+# ---------------------------------------------------------------------------
+
+
+def git_sync() -> None:
+    """Rebase on origin/main and push after commits."""
+    log("  Git sync: pull --rebase origin main")
+    result = subprocess.run(
+        ["git", "pull", "--rebase", "origin", "main"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        log(f"  Git rebase failed (non-fatal): {result.stderr.strip()}", "warning")
+    else:
+        log(f"  Rebased: {result.stdout.strip()}", "debug")
+
+    log("  Git sync: push")
+    result = subprocess.run(
+        ["git", "push"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        log(f"  Git push failed (non-fatal): {result.stderr.strip()}", "warning")
+    else:
+        log(f"  Pushed: {result.stdout.strip()}", "debug")
 
 
 # ---------------------------------------------------------------------------
@@ -171,11 +244,11 @@ def dispatch_agent(
 
     if dry_run:
         tools_str = ", ".join(agent_def.tools) if agent_def.tools else "(all)"
-        print(f"  [dry-run] Would dispatch '{agent_name}' (model={agent_def.model}, tools={tools_str})")
-        print(f"  [dry-run] Max turns: {max_turns}, project: {project or 'none'}")
+        log(f"  [dry-run] Would dispatch '{agent_name}' (model={agent_def.model}, tools={tools_str})")
+        log(f"  [dry-run] Max turns: {max_turns}, project: {project or 'none'}")
         return None
 
-    print(f"  Dispatching '{agent_name}' (model={agent_def.model}, max_turns={max_turns})...")
+    log(f"  Dispatching '{agent_name}' (model={agent_def.model}, max_turns={max_turns})...")
 
     # Pass prompt via stdin to avoid command-line length issues
     result = subprocess.run(
@@ -185,6 +258,7 @@ def dispatch_agent(
         text=True,
         cwd=PROJECT_ROOT,
     )
+    log(f"  Agent '{agent_name}' exited with code {result.returncode}", "debug")
     return result
 
 
@@ -779,7 +853,7 @@ just debug E{epic_number}                       # Debug issues
 def run_just_command(command: str, task_id: str) -> tuple[bool, str]:
     """Run a just command, return (success, output)."""
     full_cmd = f"just {command} {task_id}"
-    print(f"    Running: {full_cmd}")
+    log(f"    Running: {full_cmd}")
     result = subprocess.run(
         full_cmd.split(),
         capture_output=True,
@@ -787,7 +861,13 @@ def run_just_command(command: str, task_id: str) -> tuple[bool, str]:
         cwd=PROJECT_ROOT,
     )
     output = result.stdout + result.stderr
-    return result.returncode == 0, output
+    ok = result.returncode == 0
+    status = "OK" if ok else f"FAILED (exit {result.returncode})"
+    log(f"    {full_cmd} -> {status}", "debug")
+    # Log output to file (last 3000 chars)
+    if output.strip():
+        log(f"    Output:\n{output[-3000:]}", "debug")
+    return ok, output
 
 
 def run_tdd_red(task_id: str) -> tuple[bool, str]:
@@ -853,18 +933,18 @@ def stop_epic(
     """Stop the epic with a clear error report. Exits the process."""
     report_path = write_error_report(epic_dir, task_id, phase, output)
 
-    print()
-    print("=" * 60)
-    print(f"EPIC HALTED — T{task_id} failed at phase: {phase}")
-    print("=" * 60)
-    print(f"Error report: {report_path}")
-    print()
-    print("Last output:")
+    log("")
+    log("=" * 60)
+    log(f"EPIC HALTED — T{task_id} failed at phase: {phase}")
+    log("=" * 60)
+    log(f"Error report: {report_path}")
+    log("")
+    log("Last output:")
     # Show last 40 lines
     for line in output.strip().splitlines()[-40:]:
-        print(f"  {line}")
-    print()
-    print("To retry, fix the issue and re-run: python scripts/run_epic.py run <epic>")
+        log(f"  {line}")
+    log("")
+    log("To retry, fix the issue and re-run: python scripts/run_epic.py run <epic>")
     sys.exit(1)
 
 
@@ -896,14 +976,17 @@ def run_state_machine(
     # Track bounce-backs: task_id -> count (max 1 per task)
     bounce_backs: dict[int, int] = {}
 
-    print(f"Starting TDD state machine for Epic E{epic_number}")
-    print(f"  Tasks dir: {epic_dir}")
-    print(f"  Max iterations: {max_iterations}")
-    print(f"  Dry run: {dry_run}")
-    print()
+    # Initialise session log
+    init_session_log(epic_dir, epic_number)
+
+    log(f"Starting TDD state machine for Epic E{epic_number}")
+    log(f"  Tasks dir: {epic_dir}")
+    log(f"  Max iterations: {max_iterations}")
+    log(f"  Dry run: {dry_run}")
+    log("")
 
     for iteration in range(1, max_iterations + 1):
-        print(f"=== Iteration {iteration} ===")
+        log(f"=== Iteration {iteration} ===")
 
         # 1. Rebuild index from task files (source of truth)
         rebuild_index(epic_dir, epic_number)
@@ -916,47 +999,47 @@ def run_state_machine(
         # 3. Check if epic is complete
         incomplete = [t for t in tasks if t.state != "complete"]
         if not incomplete:
-            print()
-            print("All tasks complete! Running final health check...")
+            log("")
+            log("All tasks complete! Running final health check...")
             ok, output = run_just_command("epic-health", str(epic_number))
             if ok:
-                print(f"Epic E{epic_number} complete and healthy!")
+                log(f"Epic E{epic_number} complete and healthy!")
                 return
             else:
-                print("Health check failed:")
-                print(output[-1000:])
+                log("Health check failed:")
+                log(output[-1000:])
                 die("Epic complete but health check failed")
 
         # 4. Find next actionable task
         task = find_next_actionable(tasks)
         if task is None:
             blocked = [t for t in tasks if t.state != "complete"]
-            print()
-            print("No actionable tasks. Remaining tasks are blocked:")
+            log("")
+            log("No actionable tasks. Remaining tasks are blocked:")
             for t in blocked:
                 blockers = ", ".join(f"T{b}" for b in t.blocked_by_incomplete)
-                print(f"  T{t.task_id} ({t.state}) — blocked by: {blockers}")
+                log(f"  T{t.task_id} ({t.state}) — blocked by: {blockers}")
             die("Epic is blocked")
 
         task_id_str = f"T{task.task_id}"
-        print(f"  Next task: T{task.task_id} — {task.title} (state={task.state})")
+        log(f"  Next task: T{task.task_id} — {task.title} (state={task.state})")
 
         # 5. Execute based on current state
         if task.state == "pending":
             # --- TEST PHASE ---
-            print(f"\n  Phase: TEST (writing tests for T{task.task_id})")
+            log(f"\n  Phase: TEST (writing tests for T{task.task_id})")
 
             prompt = build_test_author_prompt(task)
             dispatch_agent("test-author", prompt, project=task.project, dry_run=dry_run)
 
             if not dry_run:
                 # Verify tests fail (red phase)
-                print(f"\n  Phase: RED (verifying tests fail)")
+                log(f"\n  Phase: RED (verifying tests fail)")
                 ok, output = run_tdd_red(task_id_str)
 
                 if not ok:
                     # Retry once
-                    print(f"  Red phase failed. Retrying test-author...")
+                    log(f"  Red phase failed. Retrying test-author...")
                     retry_prompt = build_test_author_prompt(task, retry_context=output)
                     dispatch_agent("test-author", retry_prompt, project=task.project)
 
@@ -965,33 +1048,34 @@ def run_state_machine(
                         stop_epic(epic_dir, task.task_id, "red_failed", output)
 
                 # Lock tests
-                print(f"\n  Phase: LOCK (snapshotting tests)")
+                log(f"\n  Phase: LOCK (snapshotting tests)")
                 ok, output = run_tdd_lock(task_id_str)
                 if not ok:
                     stop_epic(epic_dir, task.task_id, "lock_failed", output)
 
                 update_task_state(epic_dir, task.task_id, "locked")
+                git_sync()  # tdd-lock creates a commit; sync it
             else:
-                print(f"  [dry-run] Would run: tdd-red {task_id_str}")
-                print(f"  [dry-run] Would run: tdd-lock {task_id_str}")
-                print(f"  [dry-run] Would update state: pending → locked")
+                log(f"  [dry-run] Would run: tdd-red {task_id_str}")
+                log(f"  [dry-run] Would run: tdd-lock {task_id_str}")
+                log(f"  [dry-run] Would update state: pending → locked")
 
         elif task.state == "locked":
             # --- IMPLEMENTATION PHASE ---
-            print(f"\n  Phase: IMPL (implementing T{task.task_id})")
+            log(f"\n  Phase: IMPL (implementing T{task.task_id})")
 
             prompt = build_implementer_prompt(task)
             dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
 
             if not dry_run:
                 # Verify tests pass (green phase)
-                print(f"\n  Phase: GREEN (verifying tests pass)")
+                log(f"\n  Phase: GREEN (verifying tests pass)")
                 ok, output = run_tdd_green(task_id_str)
 
                 if not ok:
                     # Retry up to MAX_IMPLEMENTER_RETRIES times
                     for attempt in range(MAX_IMPLEMENTER_RETRIES):
-                        print(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
+                        log(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
                         retry_prompt = build_implementer_prompt(task, retry_context=output)
                         dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
 
@@ -1005,28 +1089,28 @@ def run_state_machine(
                         if bounced == 0 and is_likely_test_bug(task, output):
                             bounce_backs[task.task_id] = 1
                             failing_files = find_failing_test_files(output)
-                            print(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
-                            print(f"  Dispatching test-author in FIX mode...")
+                            log(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
+                            log(f"  Dispatching test-author in FIX mode...")
 
                             fix_prompt = build_test_fix_prompt(task, output, failing_files)
                             dispatch_agent("test-author", fix_prompt, project=task.project)
 
                             # Re-lock tests and re-verify green
-                            print(f"\n  Re-locking tests after bounce-back...")
+                            log(f"\n  Re-locking tests after bounce-back...")
                             lock_ok, lock_output = re_lock_after_bounce(task_id_str)
                             if not lock_ok:
                                 stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
 
-                            print(f"\n  Re-running GREEN after bounce-back...")
+                            log(f"\n  Re-running GREEN after bounce-back...")
                             ok, output = run_tdd_green(task_id_str)
                             if not ok:
                                 stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
                         else:
                             stop_epic(epic_dir, task.task_id, "green_failed", output)
 
-                # Auto-commit implementation files
-                print(f"\n  Committing implementation...")
-                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/"]
+                # Auto-commit implementation files + task state
+                log(f"\n  Committing implementation...")
+                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", ".tasks/"]
                 subprocess.run(
                     ["git", "add", *impl_paths],
                     cwd=PROJECT_ROOT, capture_output=True, text=True,
@@ -1035,16 +1119,17 @@ def run_state_machine(
                     ["git", "commit", "-m", f"feat({task.project or 'impl'}): Implement {task_id_str} — {task.title}"],
                     cwd=PROJECT_ROOT, capture_output=True, text=True,
                 )
+                git_sync()
 
                 update_task_state(epic_dir, task.task_id, "validating")
             else:
-                print(f"  [dry-run] Would run: tdd-green {task_id_str}")
-                print(f"  [dry-run] Would commit implementation files")
-                print(f"  [dry-run] Would update state: locked → validating")
+                log(f"  [dry-run] Would run: tdd-green {task_id_str}")
+                log(f"  [dry-run] Would commit implementation files")
+                log(f"  [dry-run] Would update state: locked → validating")
 
         elif task.state == "validating":
             # --- VALIDATION PHASE ---
-            print(f"\n  Phase: VALIDATE (full TDD validation for T{task.task_id})")
+            log(f"\n  Phase: VALIDATE (full TDD validation for T{task.task_id})")
 
             if not dry_run:
                 ok, output = run_tdd_complete(task_id_str)
@@ -1052,19 +1137,30 @@ def run_state_machine(
                     stop_epic(epic_dir, task.task_id, "validation_failed", output)
 
                 update_task_state(epic_dir, task.task_id, "complete")
-                print(f"  T{task.task_id} COMPLETE")
+                log(f"  T{task.task_id} COMPLETE")
+
+                # Commit task state change and sync
+                subprocess.run(
+                    ["git", "add", ".tasks/"],
+                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"chore: Mark {task_id_str} complete"],
+                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                )
+                git_sync()
             else:
-                print(f"  [dry-run] Would run: tdd-complete {task_id_str}")
-                print(f"  [dry-run] Would update state: validating → complete")
+                log(f"  [dry-run] Would run: tdd-complete {task_id_str}")
+                log(f"  [dry-run] Would update state: validating → complete")
 
         else:
             die(f"Unexpected task state: {task.state} for T{task.task_id}")
 
-        print()
+        log("")
 
     # If we exhaust iterations
-    print(f"Max iterations ({max_iterations}) reached.")
-    print(f"Epic may not be complete. Check: just epic-status {epic_number}")
+    log(f"Max iterations ({max_iterations}) reached.")
+    log(f"Epic may not be complete. Check: just epic-status {epic_number}")
     sys.exit(1)
 
 
