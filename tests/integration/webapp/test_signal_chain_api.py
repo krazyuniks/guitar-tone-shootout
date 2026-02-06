@@ -115,6 +115,7 @@ class TestListSignalChains:
         self,
         client: AsyncClient,
         session: AsyncSession,
+        test_user: User,
         other_user: User,
     ) -> None:
         """Test that listing only returns current user's chains."""
@@ -136,7 +137,6 @@ class TestListSignalChains:
         )
 
         # Switch back to test_user
-        test_user = await session.get(User, (await session.execute("SELECT id FROM users WHERE username='testuser'")).scalar_one())
         set_user_override(test_user)
 
         # Act
@@ -345,6 +345,7 @@ class TestUpdateSignalChain:
         self,
         client: AsyncClient,
         session: AsyncSession,
+        test_user: User,
         other_user: User,
     ) -> None:
         """Test that updating another user's chain returns 404."""
@@ -367,7 +368,6 @@ class TestUpdateSignalChain:
         chain_id = create_response.json()["id"]
 
         # Switch back to test_user
-        test_user = await session.get(User, (await session.execute("SELECT id FROM users WHERE username='testuser'")).scalar_one())
         set_user_override(test_user)
 
         # Act - try to update other user's chain
@@ -440,6 +440,7 @@ class TestDeleteSignalChain:
         self,
         client: AsyncClient,
         session: AsyncSession,
+        test_user: User,
         other_user: User,
     ) -> None:
         """Test that deleting another user's chain returns 404."""
@@ -462,7 +463,6 @@ class TestDeleteSignalChain:
         chain_id = create_response.json()["id"]
 
         # Switch back to test_user
-        test_user = await session.get(User, (await session.execute("SELECT id FROM users WHERE username='testuser'")).scalar_one())
         set_user_override(test_user)
 
         # Act - try to delete other user's chain
