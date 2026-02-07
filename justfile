@@ -387,13 +387,13 @@ epic-status epic:
     @echo "=== Epic E{{epic}} Status ==="
     @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just epic-sync {{epic}}"
 
-# Plan an epic - breaks it into well-structured tasks
-plan epic:
-    python scripts/plan_epic.py {{epic}}
+# Plan an epic - full agent pipeline
+plan epic *FLAGS:
+    python scripts/plan_epic.py {{epic}} {{FLAGS}}
 
-# Plan with dry run (show prompt only)
-plan-dry epic:
-    python scripts/plan_epic.py {{epic}} --dry-run
+# Plan with dry run (show prompts only)
+plan-dry epic *FLAGS:
+    python scripts/plan_epic.py {{epic}} --dry-run {{FLAGS}}
 
 # Full workflow: plan -> sync -> start
 epic-full epic:
