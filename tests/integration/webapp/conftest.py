@@ -83,54 +83,27 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 
 
 def pytest_runtest_call(item: pytest.Item) -> None:
-    """Hook that runs during test execution to wire test_user as current user.
-
-    This hook examines the test's fixtures after they're all resolved
-    and wires test_user as the current authenticated user for library and html endpoints.
-    """
-    from webapp.api import pages
-    from webapp.api.v1.html import set_user_override as set_html_user_override
-    from webapp.api.v1.library import set_user_override
+    """Hook that runs during test execution to wire test_user as current user."""
+    from webapp.auth.dependencies import set_user_override
 
     # Check if test_user fixture was used
     if hasattr(item, "funcargs") and "test_user" in item.funcargs:
         test_user = item.funcargs["test_user"]
         set_user_override(test_user)
-        set_html_user_override(test_user)
-        pages.set_user_override(test_user)
         print(f"[HOOK] Setting current user: {test_user.username}")
 
 
 @pytest.fixture(autouse=True)
 async def _wire_auth_session(db_session: AsyncSession) -> AsyncGenerator[None, None]:
-    """Auto-wire test DB session into auth, pages, html, and library modules.
+    """Auto-wire test DB session into the centralised auth dependencies.
 
-    The auth, pages, html, and library endpoints use a module-level session override so tests that
-    create their own FastAPI() app (without dependency_overrides) still
-    get the test session.
+    All route modules (auth, pages, html, library) now import from
+    webapp.auth.dependencies, so we only need to set the override once.
     """
-    from webapp.api import pages
-    from webapp.api.v1.auth import set_session_override as set_auth_session_override
-    from webapp.api.v1.html import set_session_override as set_html_session_override
-    from webapp.api.v1.library import (
-        set_session_override as set_library_session_override,
-    )
+    from webapp.auth.dependencies import set_session_override, set_user_override
 
     print(f"[FIXTURE] Setting session override: {db_session}")
-    set_auth_session_override(db_session)
-    pages.set_session_override(db_session)
-    set_html_session_override(db_session)
-    set_library_session_override(db_session)
-    print(f"[FIXTURE] pages._session_override is now: {pages._session_override}")
-    from webapp.api.v1.html import set_user_override as set_html_user_override
-    from webapp.api.v1.library import set_user_override as set_library_user_override
+    set_session_override(db_session)
     yield
-    set_auth_session_override(None)
-    pages.set_session_override(None)
-    pages.set_user_override(None)
-    set_html_session_override(None)
-    set_html_user_override(None)
-    set_library_session_override(None)
-    set_library_user_override(None)
-
-
+    set_session_override(None)
+    set_user_override(None)

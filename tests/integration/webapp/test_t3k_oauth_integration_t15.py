@@ -1,10 +1,10 @@
-"""Integration tests for T3K OAuth flow (T15).
+"""Integration tests for T3K authentication flow (T15).
 
 Tests end-to-end T3K authentication flow:
-- Authorization URL generation using T3K provider with OAuthHandler
-- Token exchange using T3K endpoints
+- Login URL generation for T3K api_key flow
+- API key exchange with T3K
 - User info retrieval from T3K API
-- Full OAuth callback flow with state validation
+- Custom API URL from environment variable
 """
 
 from collections.abc import AsyncGenerator
@@ -65,64 +65,40 @@ async def t3k_provider(db_session: AsyncSession) -> OAuthProvider:
     return provider
 
 
-class TestT3KOAuthIntegration:
-    """Integration tests for T3K OAuth flow."""
+class TestT3KAuthIntegration:
+    """Integration tests for T3K auth flow."""
 
-    async def test_oauth_handler_generates_t3k_authorization_url(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+    def test_t3k_provider_builds_login_url(
+        self, t3k_provider: OAuthProvider
     ) -> None:
-        """Test OAuthHandler generates valid T3K authorization URL."""
-        from webapp.auth.oauth import OAuthHandler
+        """Test T3KProvider generates valid login URL with redirect."""
         from webapp.auth.providers.t3k import T3KProvider
 
-        handler = OAuthHandler(db_session)
+        t3k = T3KProvider()
+        callback = "http://localhost:9000/api/v1/auth/callback"
+
+        url = t3k.build_login_url(callback)
+
+        assert "tone3000.com" in url
+        assert "/api/v1/auth" in url
+        assert f"redirect_url={callback}" in url
+
+    async def test_full_t3k_auth_flow_with_api_key(
+        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+    ) -> None:
+        """Test complete T3K auth flow: api_key exchange + user info retrieval."""
+        from webapp.auth.providers.t3k import T3KProvider
+
         t3k = T3KProvider()
 
-        redirect_uri = "http://localhost:8000/auth/t3k/callback"
-
-        # Generate authorization URL
-        auth_url, state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # URL should use T3K's authorization endpoint
-        # (OAuthHandler should use T3K provider's authorization_url)
-        # For now, this will fail because OAuthHandler uses generic URL
-        # The implementation needs to integrate T3K provider configuration
-        assert state is not None
-        assert len(state) > 0
-        assert "client_id=" in auth_url
-        assert "redirect_uri=" in auth_url
-        assert "state=" in auth_url
-
-    async def test_full_t3k_oauth_callback_flow(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
-    ) -> None:
-        """Test complete T3K OAuth callback flow with token exchange and user info."""
-        from webapp.auth.oauth import OAuthHandler
-        from webapp.auth.providers.t3k import T3KProvider
-
-        handler = OAuthHandler(db_session)
-        t3k_provider_instance = T3KProvider()
-
-        redirect_uri = "http://localhost:8000/auth/t3k/callback"
-
-        # Step 1: Generate authorization URL
-        _, state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # Step 2: Mock T3K token exchange
+        # Step 1: Mock api_key exchange
         mock_token_response = {
             "access_token": "t3k_access_abc123",
-            "token_type": "Bearer",
-            "expires_in": 7200,
             "refresh_token": "t3k_refresh_def456",
+            "expires_at": "2099-01-01T00:00:00Z",
         }
 
-        # Step 3: Mock T3K user info
+        # Step 2: Mock user info
         mock_user_info = {
             "id": "t3k_user_789",
             "username": "tone_enthusiast",
@@ -132,7 +108,7 @@ class TestT3KOAuthIntegration:
         with patch("httpx.AsyncClient.post") as mock_post, patch(
             "httpx.AsyncClient.get"
         ) as mock_get:
-            # Mock token exchange response
+            # Mock api_key exchange response
             mock_token_resp = MagicMock()
             mock_token_resp.json.return_value = mock_token_response
             mock_token_resp.raise_for_status = MagicMock()
@@ -144,100 +120,45 @@ class TestT3KOAuthIntegration:
             mock_user_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_user_resp
 
-            # Handle callback
-            tokens = await handler.handle_callback(
-                provider_name="t3k",
-                code="t3k_auth_code_xyz",
-                state=state,
-                expected_state=state,
-                redirect_uri=redirect_uri,
-            )
-
-            # Verify tokens received
+            # Exchange api_key for tokens
+            tokens = await t3k.exchange_api_key("test_api_key")
             assert tokens["access_token"] == "t3k_access_abc123"
             assert tokens["refresh_token"] == "t3k_refresh_def456"
 
-            # Fetch user info using T3K provider
-            user_info = await t3k_provider_instance.get_user_info(
+            # Fetch user info using access token
+            user_info = await t3k.get_user_info(
                 access_token=tokens["access_token"]
             )
 
-            # Verify user info
             assert user_info["id"] == "t3k_user_789"
             assert user_info["username"] == "tone_enthusiast"
             assert user_info["email"] == "user@tone3000.com"
 
-    async def test_t3k_oauth_flow_handles_invalid_state(
+    async def test_t3k_api_key_exchange_handles_failure(
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
-        """Test T3K OAuth flow rejects callback with invalid state."""
-        from webapp.auth.oauth import OAuthHandler
-
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/t3k/callback"
-
-        # Generate valid state
-        _, valid_state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # Callback with mismatched state should fail
-        with pytest.raises(ValueError, match="Invalid state parameter"):
-            await handler.handle_callback(
-                provider_name="t3k",
-                code="t3k_auth_code",
-                state="wrong_state_value",
-                expected_state=valid_state,
-                redirect_uri=redirect_uri,
-            )
-
-    async def test_t3k_oauth_flow_handles_token_exchange_failure(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
-    ) -> None:
-        """Test T3K OAuth flow handles token exchange errors."""
-        from webapp.auth.oauth import OAuthHandler
+        """Test T3K api_key exchange handles HTTP errors."""
         from webapp.auth.providers.t3k import T3KProvider
 
-        handler = OAuthHandler(db_session)
         t3k = T3KProvider()
 
-        redirect_uri = "http://localhost:8000/auth/t3k/callback"
-
-        # Generate state
-        _, state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # Mock token exchange failure
         mock_response = Response(
-            status_code=400,
-            json={
-                "error": "invalid_grant",
-                "error_description": "Authorization code has expired",
-            },
+            status_code=401,
+            json={"error": "invalid_api_key"},
         )
-        mock_request = Request("POST", t3k.token_url)
+        mock_request = Request("POST", f"{t3k.base_url}/api/v1/auth/session")
 
         with patch("httpx.AsyncClient.post") as mock_post:
             mock_post.side_effect = HTTPStatusError(
-                "Token exchange failed",
+                "Unauthorized",
                 request=mock_request,
                 response=mock_response,
             )
 
-            # Should raise HTTPStatusError
             with pytest.raises(HTTPStatusError):
-                await handler.handle_callback(
-                    provider_name="t3k",
-                    code="expired_code",
-                    state=state,
-                    expected_state=state,
-                    redirect_uri=redirect_uri,
-                )
+                await t3k.exchange_api_key("invalid_key")
 
-    async def test_t3k_provider_user_info_handles_unauthorized(
+    async def test_t3k_user_info_handles_unauthorized(
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test T3K provider handles 401 Unauthorized when fetching user info."""
@@ -245,15 +166,11 @@ class TestT3KOAuthIntegration:
 
         t3k = T3KProvider()
 
-        # Mock 401 Unauthorized response
         mock_response = Response(
             status_code=401,
-            json={
-                "error": "invalid_token",
-                "error_description": "The access token expired",
-            },
+            json={"error": "invalid_token"},
         )
-        mock_request = Request("GET", t3k.user_info_url)
+        mock_request = Request("GET", f"{t3k.base_url}/api/v1/user")
 
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = HTTPStatusError(
@@ -262,26 +179,23 @@ class TestT3KOAuthIntegration:
                 response=mock_response,
             )
 
-            # Should raise HTTPStatusError
             with pytest.raises(HTTPStatusError):
-                await t3k.get_user_info(access_token="expired_or_invalid_token")
+                await t3k.get_user_info(access_token="expired_token")
 
-    async def test_t3k_oauth_uses_custom_api_url_from_env(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+    def test_t3k_uses_custom_api_url_from_env(
+        self, t3k_provider: OAuthProvider
     ) -> None:
-        """Test T3K OAuth flow uses custom API URL from environment."""
+        """Test T3K provider uses custom API URL from environment."""
         from webapp.auth.providers.t3k import T3KProvider
 
-        # Set custom T3K API URL
         custom_api_url = "https://staging.tone3000.com"
 
         with patch.dict("os.environ", {"T3K_API_URL": custom_api_url}, clear=False):
             t3k = T3KProvider()
+            assert t3k.base_url == custom_api_url
 
-            # All endpoints should use custom API URL
-            assert custom_api_url in t3k.authorization_url
-            assert custom_api_url in t3k.token_url
-            assert custom_api_url in t3k.user_info_url
+            url = t3k.build_login_url("http://localhost/callback")
+            assert custom_api_url in url
 
     async def test_t3k_provider_returns_complete_user_profile(
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
@@ -290,9 +204,7 @@ class TestT3KOAuthIntegration:
         from webapp.auth.providers.t3k import T3KProvider
 
         t3k = T3KProvider()
-        access_token = "valid_t3k_token"
 
-        # Mock complete T3K user profile
         mock_user_info = {
             "id": "t3k_12345",
             "username": "guitar_wizard",
@@ -307,12 +219,9 @@ class TestT3KOAuthIntegration:
             mock_response.raise_for_status = MagicMock()
             mock_get.return_value = mock_response
 
-            user_info = await t3k.get_user_info(access_token=access_token)
+            user_info = await t3k.get_user_info(access_token="valid_token")
 
-            # Verify all fields present
             assert user_info["id"] == "t3k_12345"
             assert user_info["username"] == "guitar_wizard"
             assert user_info["email"] == "wizard@tone3000.com"
-            # Avatar and created_at are optional but should be passed through if present
-            if "avatar_url" in user_info:
-                assert user_info["avatar_url"] == "https://tone3000.com/avatars/wizard.jpg"
+            assert user_info["avatar_url"] == "https://tone3000.com/avatars/wizard.jpg"

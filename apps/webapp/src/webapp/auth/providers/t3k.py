@@ -1,119 +1,73 @@
-"""T3K (Tone3000) OAuth provider implementation.
+"""T3K (Tone3000) authentication provider.
 
-Implements OAuth2 authorization code flow for T3K authentication including:
-- Authorization URL generation
-- Token exchange with T3K API
-- User information retrieval
+Implements T3K's simplified api_key flow:
+1. User visits T3K login page with redirect_url
+2. T3K redirects back with ?api_key=...
+3. We exchange api_key for access/refresh tokens
+4. We fetch user profile with the access token
 """
 
 import os
 from typing import Any
-from urllib.parse import urlencode
 
 import httpx
 
 
 class T3KProvider:
-    """T3K OAuth provider for Tone3000 authentication.
-
-    Handles OAuth2 flow with T3K's passwordless authentication system.
-    T3K uses email magic links for user authentication.
-    """
+    """T3K authentication provider using api_key flow."""
 
     def __init__(self) -> None:
-        """Initialize T3K provider with API endpoints.
+        self.base_url = os.environ.get(
+            "T3K_API_URL", "https://www.tone3000.com"
+        )
 
-        Reads T3K_API_URL from environment or uses default.
-        """
-        # Read API URL from environment or use default
-        self.api_url = os.environ.get("T3K_API_URL", "https://api.tone3000.com")
-
-        # Define OAuth endpoints
-        self.authorization_url = f"{self.api_url}/oauth/authorize"
-        self.token_url = f"{self.api_url}/oauth/token"
-        self.user_info_url = f"{self.api_url}/api/v1/me"
-
-    def build_authorization_url(
-        self,
-        client_id: str,
-        redirect_uri: str,
-        state: str,
-        scope: str | None = None,
-    ) -> str:
-        """Build OAuth authorization URL for T3K.
+    def build_login_url(self, callback_url: str) -> str:
+        """Build T3K login URL that redirects back to our callback.
 
         Args:
-            client_id: OAuth client ID
-            redirect_uri: Callback URL for OAuth redirect
-            state: CSRF protection state token
-            scope: OAuth scope (optional)
+            callback_url: Our callback URL (e.g. https://1.tone-shootout.com/api/v1/auth/callback)
 
         Returns:
-            Complete authorization URL with parameters
+            T3K auth URL to redirect the user to
         """
-        params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "state": state,
-        }
+        return f"{self.base_url}/api/v1/auth?redirect_url={callback_url}"
 
-        if scope:
-            params["scope"] = scope
-
-        return f"{self.authorization_url}?{urlencode(params)}"
-
-    async def exchange_code(
-        self,
-        code: str,
-        client_id: str,
-        client_secret: str,
-        redirect_uri: str,
-    ) -> dict[str, Any]:
-        """Exchange authorization code for access token.
+    async def exchange_api_key(self, api_key: str) -> dict[str, Any]:
+        """Exchange api_key from callback for access/refresh tokens.
 
         Args:
-            code: Authorization code from T3K callback
-            client_id: OAuth client ID
-            client_secret: OAuth client secret
-            redirect_uri: Redirect URI used in authorization request
+            api_key: API key received from T3K callback
 
         Returns:
-            Token response with access_token, refresh_token, etc.
+            Dict with access_token, refresh_token, expires_at, etc.
 
         Raises:
-            HTTPStatusError: If token exchange fails
+            httpx.HTTPStatusError: If exchange fails
         """
-        data = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "redirect_uri": redirect_uri,
-        }
-
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.token_url, data=data)
+            response = await client.post(
+                f"{self.base_url}/api/v1/auth/session",
+                json={"api_key": api_key},
+            )
             response.raise_for_status()
             return response.json()
 
     async def get_user_info(self, access_token: str) -> dict[str, Any]:
-        """Retrieve user information from T3K API.
+        """Fetch user profile from T3K API.
 
         Args:
-            access_token: Valid OAuth access token
+            access_token: Valid T3K access token
 
         Returns:
-            User profile information from T3K
+            User profile dict with id, username, email, avatar_url, etc.
 
         Raises:
-            HTTPStatusError: If user info retrieval fails
+            httpx.HTTPStatusError: If request fails
         """
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-        }
-
         async with httpx.AsyncClient() as client:
-            response = await client.get(self.user_info_url, headers=headers)
+            response = await client.get(
+                f"{self.base_url}/api/v1/user",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
             response.raise_for_status()
             return response.json()

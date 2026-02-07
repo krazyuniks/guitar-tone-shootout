@@ -32,89 +32,18 @@ from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
 from webapp.api.pages import _gear_to_pack
+from webapp.auth.dependencies import (
+    get_current_user_optional as get_optional_user,
+)
+from webapp.auth.dependencies import (
+    get_current_user_required as get_current_user,
+)
+from webapp.auth.dependencies import (
+    get_db_session,
+)
 from webapp.templates import _relative_time, templates
 
 router = APIRouter(prefix="/api/v1/html", tags=["html-fragments"])
-
-# Session override for testing
-_session_override: AsyncSession | None = None
-_user_override: User | None = None
-
-
-def set_session_override(session: AsyncSession) -> None:
-    """Override the database session for testing.
-
-    Args:
-        session: Test database session
-    """
-    global _session_override
-    _session_override = session
-
-
-def set_user_override(user: User | None) -> None:
-    """Override the current user for testing.
-
-    Args:
-        user: Test user to use as CurrentUser
-    """
-    global _user_override
-    _user_override = user
-
-
-async def get_db_session() -> AsyncSession:
-    """Get database session dependency.
-
-    Checks for test session override first, then falls back to the
-    global database session factory.
-    """
-    if _session_override:
-        return _session_override
-    # Fall back to global database session factory
-    from webapp.dependencies import get_db
-
-    async for session in get_db():
-        return session
-    raise RuntimeError("Failed to obtain database session")
-
-
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-) -> User:
-    """Get current authenticated user from session.
-
-    For testing, uses override if set.
-    """
-    if _user_override:
-        return _user_override
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    return user
-
-
-async def get_optional_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-) -> User | None:
-    """Get current user if authenticated, None otherwise."""
-    if _user_override:
-        return _user_override
-    user_id = request.session.get("user_id")
-    if not user_id:
-        return None
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    return result.scalar_one_or_none()
 
 
 def _format_duration(seconds: float | None) -> str:

@@ -20,81 +20,16 @@ from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
+from webapp.auth.dependencies import (
+    get_current_user_optional,
+    get_current_user_required,
+    get_db_session,
+)
 from webapp.services.gear_service import GearService
 from webapp.services.shootout_service import ShootoutService
 from webapp.templates import _relative_time, templates
 
 router = APIRouter(tags=["pages"])
-
-# Session override for testing
-_session_override: AsyncSession | None = None
-_user_override: User | None = None
-
-
-def set_session_override(session: AsyncSession) -> None:
-    """Override the database session for testing.
-
-    Args:
-        session: Test database session
-    """
-    global _session_override
-    _session_override = session
-
-
-def set_user_override(user: User | None) -> None:
-    """Override the current user for testing.
-
-    Args:
-        user: Test user to use as CurrentUser
-    """
-    global _user_override
-    _user_override = user
-
-
-async def get_db_session() -> AsyncSession:
-    """Get database session dependency.
-
-    Checks for test session override first, then falls back to the
-    global database session factory.
-    """
-    if _session_override:
-        return _session_override
-    # Fall back to global database session factory
-    from webapp.dependencies import get_db
-
-    async for session in get_db():
-        return session
-    raise RuntimeError("Failed to obtain database session")
-
-
-async def get_current_user(
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-) -> User | None:
-    """Get current authenticated user from session.
-
-    Returns None for unauthenticated users (public pages still render).
-    For testing, uses override if set.
-    """
-    if _user_override is not None:
-        return _user_override
-    user_id = request.session.get("user_id")
-    if not user_id:
-        return None
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    return result.scalar_one_or_none()
-
-
-async def require_current_user(
-    current_user: Annotated[User | None, Depends(get_current_user)],
-) -> User:
-    """Require authenticated user — redirects to login if not authenticated."""
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
-    return current_user
 
 
 # --- Gear mapping helpers ---
@@ -168,7 +103,7 @@ def _gear_to_detail_pack(gear) -> dict:
 async def gear_browse_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User | None, Depends(get_current_user)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)],
     search: str | None = Query(None),
     gear_type: str | None = Query(None),
     sort: str = Query("newest"),
@@ -248,7 +183,7 @@ async def gear_detail_page(
     request: Request,
     slug: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User | None, Depends(get_current_user)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)],
 ) -> HTMLResponse:
     """Render gear detail page with full SSR.
 
@@ -322,7 +257,7 @@ async def gear_list_fragment(
 @router.get("/shootouts", response_class=HTMLResponse)
 async def shootouts_page(
     request: Request,
-    current_user: Annotated[User | None, Depends(get_current_user)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)],
 ) -> HTMLResponse:
     """Render public shootouts page.
 
@@ -341,7 +276,7 @@ async def shootouts_page(
 @router.get("/di-tracks", response_class=HTMLResponse)
 async def di_tracks_browse_page(
     request: Request,
-    current_user: Annotated[User | None, Depends(get_current_user)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)],
 ) -> HTMLResponse:
     """Render DI tracks browse page.
 
@@ -354,13 +289,6 @@ async def di_tracks_browse_page(
     )
 
 
-@router.get("/logout")
-async def logout(request: Request) -> RedirectResponse:
-    """Clear session and redirect to home."""
-    request.session.clear()
-    return RedirectResponse(url="/", status_code=302)
-
-
 # --- Protected pages (require authentication) ---
 
 
@@ -368,7 +296,7 @@ async def logout(request: Request) -> RedirectResponse:
 async def library_my_gear_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render user's gear library page.
 
@@ -407,7 +335,7 @@ async def library_my_gear_page(
 async def library_chains_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render user's signal chain library page.
 
@@ -440,7 +368,7 @@ async def library_chains_page(
 async def chain_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render chain list fragment for HTMX updates."""
     repo = SQLAlchemySignalChainRepository(db)
@@ -470,7 +398,7 @@ async def chain_delete_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Delete a signal chain via HTMX."""
     repo = SQLAlchemySignalChainRepository(db)
@@ -493,7 +421,7 @@ async def chain_duplicate_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Duplicate a signal chain via HTMX."""
     from datetime import datetime
@@ -551,7 +479,7 @@ async def chain_duplicate_fragment(
 async def chain_builder_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
     chain_id: str | None = Query(None, description="Chain ID for editing"),
 ) -> HTMLResponse:
     """Render chain builder page.
@@ -572,7 +500,7 @@ async def chain_builder_page(
 async def library_shootouts_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render user's shootout library page.
 
@@ -607,7 +535,7 @@ async def shootout_detail_page(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render shootout detail page.
 
@@ -676,7 +604,7 @@ async def shootout_detail_page(
 async def shootout_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render shootout list fragment for HTMX updates."""
     service = ShootoutService(db)
@@ -707,7 +635,7 @@ async def shootout_delete_fragment(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Delete a shootout via HTMX."""
     service = ShootoutService(db)
@@ -730,7 +658,7 @@ async def chain_detail_page(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render signal chain detail page.
 
@@ -793,7 +721,7 @@ async def chain_detail_page(
 @router.get("/shootout/create", response_class=HTMLResponse)
 async def shootout_create_page(
     request: Request,
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render shootout creation wizard page.
 
@@ -812,7 +740,7 @@ async def shootout_create_page(
 @router.get("/library/di-tracks", response_class=HTMLResponse)
 async def library_di_tracks_page(
     request: Request,
-    current_user: Annotated[User, Depends(require_current_user)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render user's DI tracks library page.
 
@@ -822,4 +750,49 @@ async def library_di_tracks_page(
         request,
         "pages/library/di-tracks.html",
         {"user": current_user},
+    )
+
+
+@router.get("/settings/account", response_class=HTMLResponse)
+async def settings_account_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
+) -> HTMLResponse:
+    """Render account settings page with linked provider status."""
+
+    # Build provider status list
+    identities = current_user.identities if current_user.identities else []
+    linked_providers = {
+        identity.provider.name: identity
+        for identity in identities
+        if identity.provider
+    }
+
+    provider_defs = [
+        ("t3k", "Tone3000", True),
+        ("google", "Google", False),
+        ("github", "GitHub", False),
+        ("facebook", "Facebook", False),
+    ]
+
+    providers = []
+    for name, display_name, available in provider_defs:
+        identity = linked_providers.get(name)
+        providers.append({
+            "name": name,
+            "display_name": display_name,
+            "available": available,
+            "linked": identity is not None,
+            "username": identity.username if identity else None,
+            "is_last_provider": len(linked_providers) <= 1 and identity is not None,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "pages/settings_account.html",
+        {
+            "user": current_user,
+            "providers": providers,
+        },
     )

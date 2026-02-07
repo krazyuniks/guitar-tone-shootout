@@ -24,11 +24,13 @@ class AuthFilePersistence:
 
         Args:
             auth_file_path: Path to .gts-auth.json file.
-                           If None, defaults to .gts-auth.json in current directory.
+                           If None, reads from GTS_AUTH_FILE env var,
+                           or defaults to /.gts-auth.json (Docker).
         """
         if auth_file_path is None:
-            # Default to .gts-auth.json in current directory
-            auth_file_path = os.path.join(os.getcwd(), ".gts-auth.json")
+            auth_file_path = os.environ.get(
+                "GTS_AUTH_FILE", "/.gts-auth.json"
+            )
 
         self.auth_file_path = auth_file_path
 

@@ -1,86 +1,70 @@
-"""Token exchange logic for OAuth flows.
+"""JWT token utilities for session management.
 
-Handles exchanging authorization codes for access tokens from OAuth providers.
-Also provides token validation for authentication.
+Creates and validates JWT tokens used in httponly cookies for
+stateless authentication.
 """
 
+import os
 import uuid
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
-import httpx
+import jwt
 
-
-class TokenExchanger:
-    """Handles token exchange with OAuth providers.
-
-    Exchanges authorization codes for access tokens via POST requests
-    to provider token endpoints.
-    """
-
-    async def exchange_code(
-        self,
-        token_url: str,
-        client_id: str,
-        client_secret: str,
-        code: str,
-        redirect_uri: str,
-    ) -> dict[str, Any]:
-        """Exchange authorization code for access token.
-
-        Args:
-            token_url: OAuth provider's token endpoint URL
-            client_id: OAuth client ID
-            client_secret: OAuth client secret
-            code: Authorization code from callback
-            redirect_uri: Redirect URI used in authorization request
-
-        Returns:
-            Token response dictionary containing:
-                - access_token: Access token
-                - token_type: Token type (usually "Bearer")
-                - expires_in: Token expiration time in seconds (optional)
-                - refresh_token: Refresh token (optional)
-                - scope: Token scope (optional)
-
-        Raises:
-            HTTPStatusError: If token exchange request fails
-            Exception: For network or other errors
-        """
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                token_url,
-                data={
-                    "grant_type": "authorization_code",
-                    "code": code,
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "redirect_uri": redirect_uri,
-                },
-            )
-
-            # Raise for HTTP errors (4xx, 5xx)
-            response.raise_for_status()
-
-            return response.json()
+JWT_ALGORITHM = "HS256"
+JWT_COOKIE_NAME = "gts_session"
+JWT_EXPIRY_DAYS = 7
 
 
-def validate_token(token: str) -> uuid.UUID:
-    """Validate Bearer token and return user ID.
+def _get_secret_key() -> str:
+    return os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
 
-    This is a placeholder implementation. In production, this would:
-    - Decode and validate JWT token
-    - Check token expiration
-    - Return user_id from token claims
+
+def create_access_token(user_id: uuid.UUID) -> str:
+    """Create a JWT access token for the given user.
 
     Args:
-        token: Bearer token to validate
+        user_id: User UUID to encode in the token
 
     Returns:
-        User UUID from token
+        Encoded JWT string
+    """
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "iat": now,
+        "exp": now + timedelta(days=JWT_EXPIRY_DAYS),
+    }
+    return jwt.encode(payload, _get_secret_key(), algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> dict:
+    """Decode and validate a JWT access token.
+
+    Args:
+        token: JWT token string
+
+    Returns:
+        Decoded payload dictionary
 
     Raises:
-        ValueError: If token is invalid or expired
+        jwt.ExpiredSignatureError: If token has expired
+        jwt.InvalidTokenError: If token is invalid
     """
-    # Placeholder implementation
-    # In production, this would validate JWT and extract user_id
-    raise NotImplementedError("Token validation not yet implemented")
+    return jwt.decode(token, _get_secret_key(), algorithms=[JWT_ALGORITHM])
+
+
+def get_user_id_from_token(token: str) -> uuid.UUID:
+    """Extract user ID from a JWT token.
+
+    Args:
+        token: JWT token string
+
+    Returns:
+        User UUID from the 'sub' claim
+
+    Raises:
+        jwt.InvalidTokenError: If token is invalid
+        ValueError: If sub claim is not a valid UUID
+    """
+    payload = decode_access_token(token)
+    return uuid.UUID(payload["sub"])

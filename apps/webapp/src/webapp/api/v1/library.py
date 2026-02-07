@@ -1,7 +1,5 @@
 """User library API endpoints."""
 
-from __future__ import annotations
-
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -17,57 +15,14 @@ from webapp.api.v1.schemas.library import (
     AddGearToLibraryRequest,
     UserGearResponse,
 )
+from webapp.auth.dependencies import (
+    get_current_user_required as get_current_user,
+)
+from webapp.auth.dependencies import (
+    get_db_session,
+)
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
-
-# Session override for testing
-_session_override: AsyncSession | None = None
-_user_override: User | None = None
-
-
-def set_session_override(session: AsyncSession) -> None:
-    """Override the database session for testing.
-
-    Args:
-        session: Test database session
-    """
-    global _session_override
-    _session_override = session
-
-
-def set_user_override(user: User | None) -> None:
-    """Override the current user for testing.
-
-    Args:
-        user: Test user to use as CurrentUser
-    """
-    global _user_override
-    _user_override = user
-
-
-async def get_db_session() -> AsyncSession:
-    """Get database session dependency.
-
-    Checks for test session override first, then falls back to the
-    global database session factory.
-    """
-    if _session_override:
-        return _session_override
-    raise NotImplementedError("Database session dependency not configured")
-
-
-async def get_current_user() -> User:
-    """Get current authenticated user dependency.
-
-    In production this would validate session/token.
-    For testing, uses override if set.
-    """
-    if _user_override:
-        return _user_override
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-    )
 
 
 @router.get("/gear", response_model=list[UserGearResponse])

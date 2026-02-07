@@ -1,227 +1,399 @@
 """Authentication API endpoints.
 
-Provides OAuth login flow endpoints:
-- GET /api/v1/auth/login - Redirects to OAuth provider
-- GET /api/v1/auth/callback - Handles OAuth callback
-- GET /api/v1/auth/me - Returns current user info
-- GET /api/v1/auth/logout - Clears session
+Provides T3K login, callback, logout, session persistence, and status.
+Uses JWT httponly cookies for stateless auth.
 """
 
+import logging
 import os
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from webapp.adapters.persistence.models.user import User
-from webapp.auth.oauth import OAuthHandler
+from webapp.auth.dependencies import (
+    CurrentUser,
+    CurrentUserOptional,
+    get_db_session,
+)
+from webapp.auth.encryption import TokenEncryptor
+from webapp.auth.persistence import AuthFilePersistence
 from webapp.auth.providers.t3k import T3KProvider
+from webapp.auth.token import JWT_COOKIE_NAME, JWT_EXPIRY_DAYS, create_access_token
 from webapp.services.identity_service import IdentityService
 
-# Module-level session override for testing
-# Tests can set this to provide a session without using dependency_overrides
-_session_override: AsyncSession | None = None
-
-
-def set_session_override(session: AsyncSession | None) -> None:
-    """Set session override for testing.
-
-    This allows tests to inject a database session without using FastAPI's
-    dependency_overrides mechanism.
-
-    Args:
-        session: Database session to use, or None to clear override
-    """
-    global _session_override
-    _session_override = session
-
-
-async def get_db_session() -> AsyncSession:  # pragma: no cover
-    """Get database session dependency.
-
-    This should be overridden by the application or tests using
-    app.dependency_overrides[get_db_session] = your_session_provider
-
-    Alternatively, tests can use set_session_override() to inject a session.
-    """
-    if _session_override is not None:
-        return _session_override
-    raise NotImplementedError("Database session dependency not configured")
-
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+# Cookie settings
+_COOKIE_MAX_AGE = 86400 * JWT_EXPIRY_DAYS  # 7 days in seconds
 
-@router.get("/login")
-async def login(
-    request: Request,
-    provider: str = Query(..., description="OAuth provider name (e.g., 't3k')"),
-    db_session: AsyncSession = Depends(get_db_session),
-) -> RedirectResponse:
-    """Initiate OAuth login flow.
 
-    Redirects to OAuth provider's authorization page.
-    Stores OAuth state in session for CSRF validation.
+def _is_production() -> bool:
+    return os.getenv("ENV") == "production"
 
-    Args:
-        request: FastAPI request object (for session access)
-        provider: OAuth provider name (t3k, google, etc.)
-        db_session: Database session
 
-    Returns:
-        307 redirect to OAuth authorization URL
+def _get_auth_file() -> AuthFilePersistence:
+    path = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
+    return AuthFilePersistence(auth_file_path=path)
 
-    Raises:
-        HTTPException: 400 if provider is invalid or disabled
+
+def _set_jwt_cookie(response: RedirectResponse | JSONResponse, token: str) -> None:
+    """Set JWT token as httponly cookie on response."""
+    response.set_cookie(
+        key=JWT_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=_is_production(),
+        samesite="lax",
+        max_age=_COOKIE_MAX_AGE,
+        path="/",
+    )
+
+
+def _clear_jwt_cookie(response: RedirectResponse | JSONResponse) -> None:
+    """Clear JWT cookie from response."""
+    response.delete_cookie(
+        key=JWT_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=_is_production(),
+        samesite="lax",
+    )
+
+
+def _get_next_url(request: Request) -> str | None:
+    """Read ?next= parameter from request or from temp cookie."""
+    next_url = request.query_params.get("next")
+    if next_url and next_url.startswith("/"):
+        return next_url
+    # Check temp cookie set during login redirect
+    next_url = request.cookies.get("gts_next")
+    if next_url and next_url.startswith("/"):
+        return next_url
+    return None
+
+
+# --- Login endpoints ---
+
+
+@router.get("/login/t3k")
+async def login_t3k(request: Request) -> RedirectResponse:
+    """Redirect to T3K login page.
+
+    Sets a temp cookie with ?next= URL so we can redirect after callback.
     """
-    try:
-        oauth_handler = OAuthHandler(db_session)
+    public_url = os.getenv("PUBLIC_URL", "http://localhost:9000")
+    callback_url = f"{public_url}/api/v1/auth/callback"
 
-        # Build redirect_uri from PUBLIC_URL (Traefik URL, not internal container URL)
-        public_url = os.getenv("PUBLIC_URL", "http://localhost:9000")
-        redirect_uri = f"{public_url}/api/v1/auth/callback"
+    provider = T3KProvider()
+    login_url = provider.build_login_url(callback_url)
 
-        auth_url, state = await oauth_handler.generate_authorization_url(
-            provider_name=provider,
-            redirect_uri=redirect_uri,
-            scope=None,
+    response = RedirectResponse(url=login_url, status_code=307)
+
+    # Persist ?next= in a temp cookie for the callback
+    next_url = request.query_params.get("next")
+    if next_url and next_url.startswith("/"):
+        response.set_cookie(
+            key="gts_next",
+            value=next_url,
+            httponly=True,
+            max_age=600,  # 10 minutes
+            path="/",
+            samesite="lax",
         )
 
-        # Store state in session for CSRF validation on callback
-        request.session["oauth_state"] = state
-        request.session["oauth_provider"] = provider
+    return response
 
-        return RedirectResponse(url=auth_url, status_code=307)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+@router.get("/login/{provider}")
+async def login_provider(provider: str) -> RedirectResponse:
+    """Redirect to provider login (returns 404 for unimplemented providers)."""
+    raise HTTPException(
+        status_code=404,
+        detail=f"Provider '{provider}' is not available yet",
+    )
+
+
+# --- Callback ---
 
 
 @router.get("/callback")
 async def callback(
     request: Request,
-    provider: str = Query(..., description="OAuth provider name"),
-    code: str = Query(..., description="Authorization code from provider"),
-    state: str = Query(..., description="State parameter for CSRF protection"),
-    db_session: AsyncSession = Depends(get_db_session),
+    db: AsyncSession = Depends(get_db_session),
+    api_key: str | None = Query(None),
 ) -> RedirectResponse:
-    """Handle OAuth callback.
+    """Handle T3K callback with api_key parameter.
 
-    Exchanges authorization code for tokens, retrieves user info,
-    and creates or updates user account. Stores user_id in session.
-
-    Args:
-        request: FastAPI request object (for session access)
-        provider: OAuth provider name
-        code: Authorization code from OAuth provider
-        state: State parameter for CSRF validation
-        db_session: Database session
-
-    Returns:
-        302 redirect to library page
-
-    Raises:
-        HTTPException: 400/401 if callback validation fails
+    Flow:
+    1. Exchange api_key for access/refresh tokens
+    2. Fetch user profile from T3K
+    3. Create or update User + UserIdentity
+    4. Issue JWT cookie
+    5. Save tokens to auth file
+    6. Redirect to ?next= URL or /library/my-gear
     """
-    try:
-        # Validate CSRF state from session
-        expected_state = request.session.pop("oauth_state", None)
-        if not expected_state or expected_state != state:
-            raise HTTPException(status_code=400, detail="Invalid OAuth state")
-
-        oauth_handler = OAuthHandler(db_session)
-
-        public_url = os.getenv("PUBLIC_URL", "http://localhost:9000")
-        redirect_uri = f"{public_url}/api/v1/auth/callback"
-
-        # Exchange code for tokens
-        tokens = await oauth_handler.handle_callback(
-            provider_name=provider,
-            code=code,
-            state=state,
-            expected_state=expected_state,
-            redirect_uri=redirect_uri,
+    if not api_key:
+        return RedirectResponse(
+            url="/login?error=missing_api_key", status_code=302
         )
 
-        # Get user info from provider
-        if provider == "t3k":
-            t3k_provider = T3KProvider()
-            user_info = await t3k_provider.get_user_info(tokens["access_token"])
-        else:
-            raise ValueError(f"Unsupported provider: {provider}")
+    provider = T3KProvider()
 
-        # Create or update user via IdentityService
-        identity_service = IdentityService(db_session)
+    try:
+        # Exchange api_key for tokens
+        token_data = await provider.exchange_api_key(api_key)
+        access_token = token_data.get("access_token") or token_data.get("token")
+        if not access_token:
+            logger.error("T3K token exchange returned no access_token")
+            return RedirectResponse(
+                url="/login?error=token_exchange_failed", status_code=302
+            )
+
+        # Fetch user profile
+        user_info = await provider.get_user_info(access_token)
+
+        # Create or update user
+        identity_service = IdentityService(db)
         user = await identity_service.get_or_create_user(
-            provider_name=provider,
-            external_id=user_info["id"],
-            username=user_info["username"],
+            provider_name="t3k",
+            external_id=str(user_info.get("id", "")),
+            username=user_info.get("username", ""),
             email=user_info.get("email"),
             avatar_url=user_info.get("avatar_url"),
         )
 
-        # Store user_id in session cookie
-        request.session["user_id"] = str(user.id)
+        # Create JWT
+        jwt_token = create_access_token(user.id)
 
-        return RedirectResponse(url="/library/my-gear", status_code=302)
+        # Determine redirect target
+        next_url = _get_next_url(request) or "/library/my-gear"
+        response = RedirectResponse(url=next_url, status_code=302)
+        _set_jwt_cookie(response, jwt_token)
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Callback failed: {e!s}")
+        # Clear temp next cookie
+        response.delete_cookie(key="gts_next", path="/")
+
+        # Save tokens to auth file
+        try:
+            encryptor = TokenEncryptor()
+            auth_data = {
+                "user_id": str(user.id),
+                "username": user.username,
+                "access_token": encryptor.encrypt(access_token),
+                "expires_at": token_data.get("expires_at"),
+                "provider": "t3k",
+                "saved_at": datetime.now(UTC).isoformat(),
+            }
+            refresh_token = token_data.get("refresh_token")
+            if refresh_token:
+                auth_data["refresh_token"] = encryptor.encrypt(refresh_token)
+
+            auth_file = _get_auth_file()
+            auth_file.save(auth_data)
+        except Exception:
+            logger.warning("Failed to save auth file", exc_info=True)
+
+        return response
+
+    except Exception:
+        logger.exception("T3K callback failed")
+        return RedirectResponse(
+            url="/login?error=callback_failed", status_code=302
+        )
+
+
+# --- User info ---
 
 
 @router.get("/me")
-async def get_current_user_info(
-    request: Request,
-    db_session: AsyncSession = Depends(get_db_session),
-) -> dict:
-    """Get current authenticated user from session.
-
-    Args:
-        request: FastAPI request object (for session access)
-        db_session: Database session
-
-    Returns:
-        User profile data
-
-    Raises:
-        HTTPException: 401 if not authenticated
-    """
-    user_id = request.session.get("user_id")
-    if not user_id:
+async def get_me(current_user: CurrentUserOptional) -> dict:
+    """Return current user info, or 401 if not authenticated."""
+    if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    from uuid import UUID
-
-    result = await db_session.execute(select(User).where(User.id == UUID(user_id)))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        # Session has stale user_id — clear it
-        request.session.clear()
-        raise HTTPException(status_code=401, detail="User not found")
-
     return {
-        "id": str(user.id),
-        "username": user.username,
-        "email": user.email,
-        "avatar_url": user.avatar_url,
+        "id": str(current_user.id),
+        "username": current_user.username,
+        "email": current_user.email,
+        "avatar_url": current_user.avatar_url,
     }
 
 
+# --- Logout ---
+
+
+@router.post("/logout")
+async def logout_post(request: Request) -> JSONResponse:
+    """Clear JWT cookie (for HTMX nav POST)."""
+    response = JSONResponse(content={"status": "logged_out"})
+    _clear_jwt_cookie(response)
+
+    # Delete auth file
+    try:
+        auth_file = _get_auth_file()
+        auth_file.delete()
+    except Exception:
+        logger.warning("Failed to delete auth file", exc_info=True)
+
+    # Set HX-Redirect for HTMX
+    response.headers["HX-Redirect"] = "/"
+    return response
+
+
 @router.get("/logout")
-async def logout(request: Request) -> RedirectResponse:
-    """Clear session and redirect to home.
+async def logout_get(request: Request) -> RedirectResponse:
+    """Clear JWT cookie and redirect to home (browser-friendly)."""
+    response = RedirectResponse(url="/", status_code=302)
+    _clear_jwt_cookie(response)
 
-    Args:
-        request: FastAPI request object (for session access)
+    try:
+        auth_file = _get_auth_file()
+        auth_file.delete()
+    except Exception:
+        logger.warning("Failed to delete auth file", exc_info=True)
 
-    Returns:
-        302 redirect to home page
-    """
-    request.session.clear()
-    return RedirectResponse(url="/", status_code=302)
+    return response
+
+
+# --- Auth status ---
+
+
+@router.get("/status")
+async def auth_status() -> dict:
+    """Return auth file validity and expiration. No auth required."""
+    auth_file = _get_auth_file()
+    data = auth_file.load()
+
+    if data is None:
+        return {"status": "no_auth_file", "valid": False}
+
+    expires_at = data.get("expires_at")
+    if expires_at:
+        try:
+            exp = datetime.fromisoformat(expires_at)
+            now = datetime.now(UTC)
+            if exp.tzinfo is None:
+                # Assume UTC if no timezone
+                exp = exp.replace(tzinfo=UTC)
+            is_valid = exp > now
+            return {
+                "status": "valid" if is_valid else "expired",
+                "valid": is_valid,
+                "username": data.get("username"),
+                "expires_at": expires_at,
+                "provider": data.get("provider"),
+            }
+        except (ValueError, TypeError):
+            pass
+
+    return {
+        "status": "unknown",
+        "valid": False,
+        "username": data.get("username"),
+        "provider": data.get("provider"),
+    }
+
+
+# --- Session save/restore ---
+
+
+@router.post("/save-session")
+async def save_session(current_user: CurrentUser) -> dict:
+    """Save current T3K tokens to auth file. Requires auth."""
+    # Auth file is already saved during callback. This endpoint allows
+    # explicit re-save if needed.
+    auth_file = _get_auth_file()
+    data = auth_file.load()
+    if data is None:
+        raise HTTPException(status_code=404, detail="No session data to save")
+
+    # Update saved_at timestamp
+    data["saved_at"] = datetime.now(UTC).isoformat()
+    auth_file.save(data)
+
+    return {"status": "saved", "username": current_user.username}
+
+
+@router.post("/restore-session")
+async def restore_session_post(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> JSONResponse:
+    """Restore session from auth file, set JWT cookie."""
+    return await _restore_session(request, db, redirect=False)
+
+
+@router.get("/restore-session", response_model=None)
+async def restore_session_get(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> RedirectResponse:
+    """Restore session from auth file, redirect to library."""
+    return await _restore_session(request, db, redirect=True)
+
+
+async def _restore_session(
+    request: Request,
+    db: AsyncSession,
+    redirect: bool,
+) -> RedirectResponse | JSONResponse:
+    """Common restore logic."""
+    auth_file = _get_auth_file()
+    data = auth_file.load()
+
+    if data is None:
+        if redirect:
+            return RedirectResponse(url="/login?error=no_session", status_code=302)
+        raise HTTPException(status_code=404, detail="No auth file found")
+
+    user_id = data.get("user_id")
+    if not user_id:
+        if redirect:
+            return RedirectResponse(url="/login?error=invalid_session", status_code=302)
+        raise HTTPException(status_code=400, detail="Invalid auth file")
+
+    # Verify user exists
+    from uuid import UUID
+
+    from sqlalchemy import select
+
+    from webapp.adapters.persistence.models.user import User
+
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        if redirect:
+            return RedirectResponse(url="/login?error=user_not_found", status_code=302)
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Issue new JWT
+    jwt_token = create_access_token(user.id)
+
+    if redirect:
+        next_url = _get_next_url(request) or "/library/my-gear"
+        response = RedirectResponse(url=next_url, status_code=302)
+    else:
+        response = JSONResponse(content={
+            "status": "restored",
+            "username": user.username,
+        })
+
+    _set_jwt_cookie(response, jwt_token)
+    return response
+
+
+# --- Provider unlinking (future) ---
+
+
+@router.delete("/unlink/{provider}")
+async def unlink_provider(provider: str, current_user: CurrentUser) -> dict:
+    """Unlink a provider from user account. Future endpoint."""
+    raise HTTPException(
+        status_code=501,
+        detail=f"Unlinking '{provider}' is not yet implemented",
+    )

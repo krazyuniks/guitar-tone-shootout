@@ -1,10 +1,8 @@
-"""Unit tests for generic OAuth handler (T11).
+"""Unit tests for JWT token utilities and T3K provider (T11).
 
-Tests for provider-agnostic OAuth flow implementation including:
-- Authorization URL generation with state and PKCE
-- OAuth callback handling
-- Token exchange with authorization code
-- Error handling for invalid states and failed exchanges
+Tests for:
+- JWT token creation and validation
+- T3K provider URL building and API calls
 """
 
 from collections.abc import AsyncGenerator
@@ -66,440 +64,167 @@ async def test_provider(db_session: AsyncSession) -> OAuthProvider:
     return provider
 
 
-class TestOAuthHandler:
-    """Test suite for OAuth handler."""
+class TestJWTToken:
+    """Test suite for JWT token utilities."""
 
-    async def test_generate_authorization_url_creates_state_parameter(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test authorization URL generation includes state parameter for CSRF protection."""
-        from webapp.auth.oauth import OAuthHandler
+    def test_create_access_token_returns_string(self) -> None:
+        """Test create_access_token returns a non-empty string."""
+        from webapp.auth.token import create_access_token
 
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
+        user_id = uuid4()
+        token = create_access_token(user_id)
 
-        auth_url, state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
+        assert isinstance(token, str)
+        assert len(token) > 0
 
-        # State should be a non-empty string
-        assert state is not None
-        assert isinstance(state, str)
-        assert len(state) > 0
+    def test_decode_access_token_returns_payload(self) -> None:
+        """Test decode_access_token returns the original payload."""
+        from webapp.auth.token import create_access_token, decode_access_token
 
-        # URL should contain state parameter
-        assert f"state={state}" in auth_url
+        user_id = uuid4()
+        token = create_access_token(user_id)
+        payload = decode_access_token(token)
 
-    async def test_generate_authorization_url_includes_redirect_uri(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test authorization URL includes redirect_uri parameter."""
-        from webapp.auth.oauth import OAuthHandler
+        assert payload["sub"] == str(user_id)
+        assert "iat" in payload
+        assert "exp" in payload
 
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
+    def test_get_user_id_from_token_returns_uuid(self) -> None:
+        """Test get_user_id_from_token extracts UUID from token."""
+        from webapp.auth.token import create_access_token, get_user_id_from_token
 
-        auth_url, _ = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
+        user_id = uuid4()
+        token = create_access_token(user_id)
+        result = get_user_id_from_token(token)
 
-        # URL should contain redirect_uri parameter (URL-encoded)
-        assert "redirect_uri=" in auth_url
-        assert "localhost" in auth_url
+        assert result == user_id
 
-    async def test_generate_authorization_url_includes_client_id(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test authorization URL includes client_id from provider config."""
-        from webapp.auth.oauth import OAuthHandler
+    def test_decode_invalid_token_raises(self) -> None:
+        """Test decode_access_token raises on invalid token."""
+        import jwt
 
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
+        from webapp.auth.token import decode_access_token
 
-        auth_url, _ = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
+        with pytest.raises(jwt.InvalidTokenError):
+            decode_access_token("invalid_token")
 
-        # URL should contain client_id from test_provider
-        assert "client_id=" in auth_url
-        assert "test_client_id" in auth_url
+    def test_token_contains_expiry(self) -> None:
+        """Test JWT token has an expiry claim."""
+        from webapp.auth.token import create_access_token, decode_access_token
 
-    async def test_generate_authorization_url_raises_when_provider_not_found(
-        self, db_session: AsyncSession
-    ) -> None:
-        """Test authorization URL generation fails for non-existent provider."""
-        from webapp.auth.oauth import OAuthHandler
+        user_id = uuid4()
+        token = create_access_token(user_id)
+        payload = decode_access_token(token)
 
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
-
-        # Should raise exception when provider doesn't exist
-        with pytest.raises(ValueError, match="Provider 'nonexistent' not found"):
-            await handler.generate_authorization_url(
-                provider_name="nonexistent",
-                redirect_uri=redirect_uri,
-            )
-
-    async def test_generate_authorization_url_raises_when_provider_disabled(
-        self, db_session: AsyncSession
-    ) -> None:
-        """Test authorization URL generation fails for disabled provider."""
-        from webapp.auth.oauth import OAuthHandler
-
-        # Create disabled provider
-        disabled_provider = OAuthProvider(
-            name="disabled_provider",
-            client_id="disabled_client",
-            client_secret="disabled_secret",
-            enabled=False,
-        )
-        db_session.add(disabled_provider)
-        await db_session.commit()
-
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
-
-        # Should raise exception when provider is disabled
-        with pytest.raises(ValueError, match="Provider 'disabled_provider' is not enabled"):
-            await handler.generate_authorization_url(
-                provider_name="disabled_provider",
-                redirect_uri=redirect_uri,
-            )
-
-    async def test_handle_callback_validates_state_parameter(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test callback handling validates state parameter against stored value."""
-        from webapp.auth.oauth import OAuthHandler
-
-        handler = OAuthHandler(db_session)
-
-        # Generate auth URL to create state
-        redirect_uri = "http://localhost:8000/auth/callback"
-        _, original_state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # Callback with invalid state should fail
-        with pytest.raises(ValueError, match="Invalid state parameter"):
-            await handler.handle_callback(
-                provider_name="t3k",
-                code="test_auth_code",
-                state="invalid_state",
-                expected_state=original_state,
-                redirect_uri=redirect_uri,
-            )
-
-    async def test_handle_callback_exchanges_code_for_token(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test callback handling exchanges authorization code for access token."""
-        from webapp.auth.oauth import OAuthHandler
-
-        handler = OAuthHandler(db_session)
-
-        # Generate auth URL to create state
-        redirect_uri = "http://localhost:8000/auth/callback"
-        _, state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # Mock the token exchange
-        mock_token_response = {
-            "access_token": "test_access_token",
-            "token_type": "Bearer",
-            "expires_in": 3600,
-            "refresh_token": "test_refresh_token",
-        }
-
-        with patch("webapp.auth.token.TokenExchanger.exchange_code") as mock_exchange:
-            mock_exchange.return_value = mock_token_response
-
-            # Handle callback
-            tokens = await handler.handle_callback(
-                provider_name="t3k",
-                code="test_auth_code",
-                state=state,
-                expected_state=state,
-                redirect_uri=redirect_uri,
-            )
-
-            # Verify token exchange was called
-            mock_exchange.assert_called_once()
-
-            # Verify tokens returned
-            assert tokens["access_token"] == "test_access_token"
-            assert tokens["refresh_token"] == "test_refresh_token"
-
-    async def test_handle_callback_raises_on_token_exchange_failure(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test callback handling raises exception when token exchange fails."""
-        from webapp.auth.oauth import OAuthHandler
-
-        handler = OAuthHandler(db_session)
-
-        # Generate auth URL to create state
-        redirect_uri = "http://localhost:8000/auth/callback"
-        _, state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-
-        # Mock token exchange failure
-        mock_response = Response(
-            status_code=400,
-            json={"error": "invalid_grant"},
-        )
-        mock_request = Request("POST", "http://example.com/token")
-
-        with patch("webapp.auth.token.TokenExchanger.exchange_code") as mock_exchange:
-            mock_exchange.side_effect = HTTPStatusError(
-                "Token exchange failed",
-                request=mock_request,
-                response=mock_response,
-            )
-
-            # Should raise exception
-            with pytest.raises(HTTPStatusError):
-                await handler.handle_callback(
-                    provider_name="t3k",
-                    code="invalid_code",
-                    state=state,
-                    expected_state=state,
-                    redirect_uri=redirect_uri,
-                )
-
-    async def test_generate_authorization_url_includes_scope_parameter(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test authorization URL includes scope parameter when provided."""
-        from webapp.auth.oauth import OAuthHandler
-
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
-        scope = "read write"
-
-        auth_url, _ = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-            scope=scope,
-        )
-
-        # URL should contain scope parameter
-        assert "scope=" in auth_url
-        assert "read" in auth_url or "write" in auth_url
-
-    async def test_oauth_handler_is_provider_agnostic(
-        self, db_session: AsyncSession
-    ) -> None:
-        """Test OAuth handler works with multiple providers (T3K, Google, etc)."""
-        from webapp.auth.oauth import OAuthHandler
-
-        # Create multiple providers
-        providers = [
-            OAuthProvider(
-                name="t3k",
-                client_id="t3k_client",
-                client_secret="t3k_secret",
-                enabled=True,
-            ),
-            OAuthProvider(
-                name="google",
-                client_id="google_client",
-                client_secret="google_secret",
-                enabled=True,
-            ),
-        ]
-        db_session.add_all(providers)
-        await db_session.commit()
-
-        handler = OAuthHandler(db_session)
-        redirect_uri = "http://localhost:8000/auth/callback"
-
-        # Should work with T3K
-        t3k_url, t3k_state = await handler.generate_authorization_url(
-            provider_name="t3k",
-            redirect_uri=redirect_uri,
-        )
-        assert "t3k_client" in t3k_url
-        assert t3k_state is not None
-
-        # Should work with Google
-        google_url, google_state = await handler.generate_authorization_url(
-            provider_name="google",
-            redirect_uri=redirect_uri,
-        )
-        assert "google_client" in google_url
-        assert google_state is not None
-
-        # States should be different
-        assert t3k_state != google_state
+        assert "exp" in payload
+        assert payload["exp"] > payload["iat"]
 
 
-class TestTokenExchanger:
-    """Test suite for token exchange logic."""
+class TestT3KProvider:
+    """Test suite for T3K authentication provider."""
 
-    async def test_exchange_code_sends_post_request(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test token exchanger sends POST request to token endpoint."""
-        from webapp.auth.token import TokenExchanger
+    def test_build_login_url_includes_redirect(self) -> None:
+        """Test build_login_url includes redirect_url parameter."""
+        from webapp.auth.providers.t3k import T3KProvider
 
-        exchanger = TokenExchanger()
+        provider = T3KProvider()
+        callback = "http://localhost:9000/api/v1/auth/callback"
 
-        # Mock httpx client
+        url = provider.build_login_url(callback)
+
+        assert "tone3000.com" in url
+        assert "redirect_url=" in url
+        assert callback in url
+
+    async def test_exchange_api_key_posts_to_session_endpoint(self) -> None:
+        """Test exchange_api_key sends POST to /api/v1/auth/session."""
+        from webapp.auth.providers.t3k import T3KProvider
+
+        provider = T3KProvider()
+
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "access_token": "test_token",
-            "token_type": "Bearer",
+            "refresh_token": "test_refresh",
         }
+        mock_response.raise_for_status = MagicMock()
 
         with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
-            await exchanger.exchange_code(
-                token_url="https://provider.com/oauth/token",
-                client_id="test_client",
-                client_secret="test_secret",
-                code="auth_code",
-                redirect_uri="http://localhost/callback",
-            )
+            result = await provider.exchange_api_key("test_api_key")
 
-            # Verify POST was called
             mock_post.assert_called_once()
-
-            # Verify correct URL
             call_args = mock_post.call_args
-            assert call_args[0][0] == "https://provider.com/oauth/token"
+            assert "/api/v1/auth/session" in call_args[0][0]
+            assert call_args[1]["json"] == {"api_key": "test_api_key"}
+            assert result["access_token"] == "test_token"
 
-    async def test_exchange_code_includes_required_parameters(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test token exchange includes all required OAuth parameters."""
-        from webapp.auth.token import TokenExchanger
+    async def test_get_user_info_sends_bearer_token(self) -> None:
+        """Test get_user_info sends Bearer token in Authorization header."""
+        from webapp.auth.providers.t3k import T3KProvider
 
-        exchanger = TokenExchanger()
+        provider = T3KProvider()
 
-        # Mock httpx client
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "access_token": "test_token",
-            "token_type": "Bearer",
+            "id": "user_123",
+            "username": "testuser",
+            "email": "test@example.com",
         }
+        mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = mock_response
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
 
-            await exchanger.exchange_code(
-                token_url="https://provider.com/oauth/token",
-                client_id="test_client",
-                client_secret="test_secret",
-                code="auth_code",
-                redirect_uri="http://localhost/callback",
-            )
+            result = await provider.get_user_info("test_access_token")
 
-            # Verify parameters
-            call_args = mock_post.call_args
-            data = call_args.kwargs.get("data") or call_args.kwargs.get("json")
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert "/api/v1/user" in call_args[0][0]
+            assert call_args[1]["headers"]["Authorization"] == "Bearer test_access_token"
+            assert result["username"] == "testuser"
 
-            assert data["grant_type"] == "authorization_code"
-            assert data["code"] == "auth_code"
-            assert data["client_id"] == "test_client"
-            assert data["client_secret"] == "test_secret"
-            assert data["redirect_uri"] == "http://localhost/callback"
+    async def test_exchange_api_key_raises_on_http_error(self) -> None:
+        """Test exchange_api_key raises exception on HTTP error."""
+        from webapp.auth.providers.t3k import T3KProvider
 
-    async def test_exchange_code_returns_token_response(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test token exchange returns parsed token response."""
-        from webapp.auth.token import TokenExchanger
+        provider = T3KProvider()
 
-        exchanger = TokenExchanger()
-
-        # Mock httpx client
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "access_token": "test_access_token",
-            "token_type": "Bearer",
-            "expires_in": 3600,
-            "refresh_token": "test_refresh_token",
-            "scope": "read write",
-        }
-
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = mock_response
-
-            result = await exchanger.exchange_code(
-                token_url="https://provider.com/oauth/token",
-                client_id="test_client",
-                client_secret="test_secret",
-                code="auth_code",
-                redirect_uri="http://localhost/callback",
-            )
-
-            # Verify all token fields returned
-            assert result["access_token"] == "test_access_token"
-            assert result["token_type"] == "Bearer"
-            assert result["expires_in"] == 3600
-            assert result["refresh_token"] == "test_refresh_token"
-            assert result["scope"] == "read write"
-
-    async def test_exchange_code_raises_on_http_error(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test token exchange raises exception on HTTP error response."""
-        from webapp.auth.token import TokenExchanger
-
-        exchanger = TokenExchanger()
-
-        # Mock HTTP error
         mock_response = Response(
-            status_code=400,
-            json={"error": "invalid_grant", "error_description": "Invalid code"},
+            status_code=401,
+            json={"error": "invalid_api_key"},
         )
-        mock_request = Request("POST", "https://provider.com/oauth/token")
+        mock_request = Request("POST", "https://www.tone3000.com/api/v1/auth/session")
 
         with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = HTTPStatusError(
-                "HTTP error",
+                "Unauthorized",
                 request=mock_request,
                 response=mock_response,
             )
 
-            # Should raise HTTPStatusError
             with pytest.raises(HTTPStatusError):
-                await exchanger.exchange_code(
-                    token_url="https://provider.com/oauth/token",
-                    client_id="test_client",
-                    client_secret="test_secret",
-                    code="invalid_code",
-                    redirect_uri="http://localhost/callback",
-                )
+                await provider.exchange_api_key("invalid_key")
 
-    async def test_exchange_code_handles_network_errors(
-        self, db_session: AsyncSession, test_provider: OAuthProvider
-    ) -> None:
-        """Test token exchange handles network errors gracefully."""
-        from webapp.auth.token import TokenExchanger
+    async def test_get_user_info_raises_on_http_error(self) -> None:
+        """Test get_user_info raises exception on HTTP error."""
+        from webapp.auth.providers.t3k import T3KProvider
 
-        exchanger = TokenExchanger()
+        provider = T3KProvider()
 
-        # Mock network error
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.side_effect = Exception("Network timeout")
+        mock_response = Response(
+            status_code=401,
+            json={"error": "invalid_token"},
+        )
+        mock_request = Request("GET", "https://www.tone3000.com/api/v1/user")
 
-            # Should raise exception
-            with pytest.raises(Exception, match="Network timeout"):
-                await exchanger.exchange_code(
-                    token_url="https://provider.com/oauth/token",
-                    client_id="test_client",
-                    client_secret="test_secret",
-                    code="auth_code",
-                    redirect_uri="http://localhost/callback",
-                )
+        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = HTTPStatusError(
+                "Unauthorized",
+                request=mock_request,
+                response=mock_response,
+            )
+
+            with pytest.raises(HTTPStatusError):
+                await provider.get_user_info("invalid_token")
