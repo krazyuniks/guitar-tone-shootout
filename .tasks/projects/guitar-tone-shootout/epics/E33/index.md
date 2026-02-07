@@ -27,7 +27,7 @@ T43 → T46
 | T36 | [Task]: B2 - Convert GearRepository | complete | webapp | T35 |
 | T37 | [Task]: C1 - Convert UserRepository | complete | webapp | T34 |
 | T38 | [Task]: C2 - Refactor UserRepositor | complete | webapp | T37 |
-| T39 | [Task]: D1 - Convert SignalChainRep | validating | webapp | T34 |
+| T39 | [Task]: D1 - Convert SignalChainRep | complete | webapp | T34 |
 | T40 | [Task]: E1 - Convert ShootoutReposi | pending | webapp | T34 |
 | T41 | [Task]: E2 - Convert ShootoutReposi | pending | webapp | T40 |
 | T42 | [Task]: F1 - Add query counting fix | pending | webapp | - |
