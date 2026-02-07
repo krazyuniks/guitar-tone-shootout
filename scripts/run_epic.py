@@ -1156,6 +1156,7 @@ def run_state_machine(
                 log(f"  [dry-run] Would run: tdd-red {task_id_str}")
                 log(f"  [dry-run] Would run: tdd-lock {task_id_str}")
                 log(f"  [dry-run] Would update state: pending → locked")
+                update_task_state(epic_dir, task.task_id, "locked")
 
         elif task.state == "locked":
             # --- IMPLEMENTATION PHASE ---
@@ -1225,6 +1226,7 @@ def run_state_machine(
                 log(f"  [dry-run] Would run: tdd-green {task_id_str}")
                 log(f"  [dry-run] Would commit implementation files")
                 log(f"  [dry-run] Would update state: locked → validating")
+                update_task_state(epic_dir, task.task_id, "validating")
 
         elif task.state == "validating":
             # --- VALIDATION PHASE ---
@@ -1253,6 +1255,7 @@ def run_state_machine(
             else:
                 log(f"  [dry-run] Would run: tdd-complete {task_id_str}")
                 log(f"  [dry-run] Would update state: validating → complete")
+                update_task_state(epic_dir, task.task_id, "complete")
 
         else:
             die(f"Unexpected task state: {task.state} for T{task.task_id}")

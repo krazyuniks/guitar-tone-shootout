@@ -71,17 +71,25 @@ def collect_test_files() -> list[Path]:
 
 
 def get_snapshot_dir(task_id: str) -> Path:
-    """Find or create snapshot directory for task."""
-    # Try to find existing epic directory
-    parts = task_id.replace("-", "/").split("/")
+    """Find or create snapshot directory for task.
 
-    # Search for epic directory
-    for epic_dir in Path(".tasks").rglob("E*"):
-        if epic_dir.is_dir() and epic_dir.name.startswith("E"):
+    Locates the epic directory by searching for the task file (e.g. T34.md)
+    under .tasks/, then returns the sibling snapshots/ directory.
+    """
+    # Extract numeric part from task_id (e.g. "T34" -> "34")
+    num = task_id.lstrip("T")
+    task_filename = f"T{num}.md"
+
+    # Search for the task file to find the correct epic
+    for task_file in Path(".tasks").rglob(task_filename):
+        # Task files live at .tasks/E{n}/tasks/T{n}.md
+        # Epic dir is the grandparent of the task file
+        epic_dir = task_file.parent.parent
+        if epic_dir.name.startswith("E"):
             return epic_dir / "snapshots"
 
     # Default location
-    return Path(f".tasks/snapshots")
+    return Path(".tasks/snapshots")
 
 
 def create_snapshot(task_id: str) -> TestSnapshot:
