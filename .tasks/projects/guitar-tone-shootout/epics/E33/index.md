@@ -30,7 +30,7 @@ T43 → T46
 | T39 | [Task]: D1 - Convert SignalChainRep | complete | webapp | T34 |
 | T40 | [Task]: E1 - Convert ShootoutReposi | complete | webapp | T34 |
 | T41 | [Task]: E2 - Convert ShootoutReposi | complete | webapp | T40 |
-| T42 | [Task]: F1 - Add query counting fix | locked | webapp | - |
+| T42 | [Task]: F1 - Add query counting fix | validating | webapp | - |
 | T43 | [Task]: F2 - Add integration tests  | pending | webapp | T42 |
 | T44 | [Task]: F3 - Add integration tests  | pending | webapp | T42 |
 | T45 | [Task]: F4 - Add integration tests  | pending | webapp | T42 |
