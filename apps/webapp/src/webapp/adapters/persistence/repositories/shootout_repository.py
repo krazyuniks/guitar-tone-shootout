@@ -123,16 +123,29 @@ class SQLAlchemyShootoutRepository:
         Returns:
             List of processed Shootouts ordered by created_at desc
         """
+        # Step 1: resolve the correct page of IDs
+        id_stmt = (
+            select(Shootout.id)
+            .where(Shootout.status == ShootoutStatus.COMPLETED)
+            .order_by(Shootout.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        id_result = await self.session.execute(id_stmt)
+        shootout_ids = id_result.scalars().all()
+
+        if not shootout_ids:
+            return []
+
+        # Step 2: hydrate those IDs with full JOINs
         stmt = (
             select(Shootout)
-            .where(Shootout.status == ShootoutStatus.COMPLETED)
+            .where(Shootout.id.in_(shootout_ids))
             .options(
                 joinedload(Shootout.di_track),
                 joinedload(Shootout.chains),
             )
             .order_by(Shootout.created_at.desc())
-            .limit(limit)
-            .offset(offset)
         )
         result = await self.session.execute(stmt)
         shootouts = result.unique().scalars().all()
