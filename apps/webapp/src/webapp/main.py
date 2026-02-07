@@ -7,7 +7,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.api import pages
-from webapp.api.v1 import auth, gear, health, html, jobs, library, shootouts, signal_chains
+from webapp.api.v1 import (
+    auth,
+    di_tracks,
+    gear,
+    health,
+    html,
+    jobs,
+    library,
+    shootouts,
+    signal_chains,
+)
 from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
@@ -55,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(html.router)
     app.include_router(library.router)
     app.include_router(signal_chains.router)
+    app.include_router(di_tracks.router)
 
     # Include page routers
     app.include_router(pages.router)
@@ -64,7 +75,7 @@ def create_app() -> FastAPI:
     # Modules like pages and html already fall back to get_db internally,
     # and overriding them would break test session injection via _session_override.
     if database_url:
-        for module in [health, auth, gear, shootouts, jobs]:
+        for module in [health, auth, gear, shootouts, jobs, di_tracks]:
             if hasattr(module, "get_db_session"):
                 app.dependency_overrides[module.get_db_session] = get_db
 

@@ -1,0 +1,376 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ pack.title }} - Guitar Tone Shootout{% endblock %}
+{% block description %}{{ description }}{% endblock %}
+
+{% block head %}
+<!-- SEO Meta Tags (STORY-004) -->
+<meta property="og:title" content="{{ pack.title }}" />
+<meta property="og:description" content="{{ description }}" />
+<meta property="og:type" content="product" />
+<meta property="og:url" content="{{ canonical_url }}" />
+{% if pack.image_url %}
+<meta property="og:image" content="{{ pack.image_url }}" />
+{% endif %}
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{ pack.title }}" />
+<meta name="twitter:description" content="{{ description }}" />
+<link rel="canonical" href="{{ canonical_url }}" />
+
+<!-- JSON-LD Structured Data (STORY-004) -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "{{ pack.title | escape }}",
+  "description": "{{ description | escape }}",
+  "url": "{{ canonical_url }}",
+  {% if pack.image_url %}
+  "image": "{{ pack.image_url }}",
+  {% endif %}
+  "brand": {
+    "@type": "Brand",
+    "name": "{{ pack.creator_username | default('Unknown', true) | escape }}"
+  },
+  "category": "{{ pack.gear_type | title }}",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "availability": "https://schema.org/InStock",
+    "url": "{{ pack.t3k_url }}"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "5",
+    "bestRating": "5",
+    "ratingCount": "{{ pack.favorites_count }}",
+    "reviewCount": "{{ pack.downloads_count }}"
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+{% set gear_styles = {
+  'amp': {'bg': 'bg-orange-500/10', 'label': 'Amp Head Capture', 'text': 'text-orange-500'},
+  'full-rig': {'bg': 'bg-orange-500/10', 'label': 'Full Rig / Combo Capture', 'text': 'text-orange-500'},
+  'ir': {'bg': 'bg-green-500/10', 'label': 'Cabinet IR', 'text': 'text-green-500'},
+  'pedal': {'bg': 'bg-purple-500/10', 'label': 'Pedal Capture', 'text': 'text-purple-500'},
+  'outboard': {'bg': 'bg-blue-500/10', 'label': 'Outboard Gear', 'text': 'text-blue-500'}
+} %}
+{% set styles = gear_styles.get(pack.gear_type, {'bg': 'bg-gray-500/10', 'label': pack.gear_type|title, 'text': 'text-gray-400'}) %}
+
+{% set platform_styles = {
+  'nam': {'bg': 'bg-amber-500/25', 'text': 'text-amber-500'},
+  'aida-x': {'bg': 'bg-purple-500/25', 'text': 'text-purple-500'},
+  'ir': {'bg': 'bg-green-500/25', 'text': 'text-green-500'}
+} %}
+{% set platform = platform_styles.get(pack.platform, {'bg': 'bg-gray-500/25', 'text': 'text-gray-400'}) %}
+
+<div
+  data-testid="gear-detail-page"
+  class="container mx-auto px-4 py-8 max-w-6xl"
+>
+  <!-- Back link -->
+  <a
+    href="/gear"
+    class="inline-flex items-center gap-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)] transition-colors mb-6"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+      <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
+    </svg>
+    Browse Gear
+  </a>
+
+  <!-- Two-column layout: sticky image left, scrolling content right -->
+  <div class="flex flex-col lg:flex-row gap-8">
+    <!-- Left column: Image (standardized sizing, left-aligned at all breakpoints) -->
+    <div class="w-full max-w-xs sm:max-w-sm lg:w-96 lg:max-w-none flex-shrink-0">
+      <div class="lg:sticky lg:top-24">
+        {% if pack.image_url %}
+          <img
+            src="{{ pack.image_url }}"
+            alt="{{ pack.title }}"
+            class="w-full aspect-square object-cover rounded-lg"
+            data-testid="pack-image"
+          />
+        {% else %}
+          <!-- Placeholder with gear type styling -->
+          <div class="w-full aspect-square flex items-center justify-center rounded-lg {{ styles.bg }}">
+            <svg viewBox="0 0 48 48" fill="currentColor" class="w-32 h-32 {{ styles.text }} opacity-40">
+              <circle cx="24" cy="24" r="16" fill-opacity="0.2"/>
+              <circle cx="24" cy="24" r="8" fill-opacity="0.3"/>
+            </svg>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Right column: Scrolling content -->
+    <div class="flex-1 min-w-0">
+      <!-- Title -->
+      <h1
+        data-testid="pack-detail-title"
+        class="text-2xl md:text-3xl lg:text-4xl font-bold text-[var(--color-text-primary)] mb-4"
+      >
+        {{ pack.title }}
+      </h1>
+
+      <!-- Badges row: Gear type + Platform + Model count -->
+      <div class="flex items-center gap-3 mb-4 flex-wrap">
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-medium {{ styles.bg }} {{ styles.text }}">
+          {{ styles.label }}
+        </span>
+        <span class="inline-flex px-3 py-1 rounded-full text-sm font-semibold {{ platform.bg }} {{ platform.text }}">
+          {{ pack.platform|upper }}
+        </span>
+        <!-- Model count link -->
+        <a href="#models" class="flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)]">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+            <path d="M3.196 12.87l-.825.483a.75.75 0 000 1.294l7.25 4.25a.75.75 0 00.758 0l7.25-4.25a.75.75 0 000-1.294l-.825-.484-5.666 3.322a2.25 2.25 0 01-2.276 0L3.196 12.87z"/>
+            <path d="M3.196 8.87l-.825.483a.75.75 0 000 1.294l7.25 4.25a.75.75 0 00.758 0l7.25-4.25a.75.75 0 000-1.294l-.825-.484-5.666 3.322a2.25 2.25 0 01-2.276 0L3.196 8.87z"/>
+            <path d="M10.38 1.103a.75.75 0 00-.76 0l-7.25 4.25a.75.75 0 000 1.294l7.25 4.25a.75.75 0 00.76 0l7.25-4.25a.75.75 0 000-1.294l-7.25-4.25z"/>
+          </svg>
+          {{ pack.models_count | format_number }}
+        </a>
+      </div>
+
+      <!-- Stats row: Downloads + Favorites -->
+      <div data-testid="pack-detail-stats" class="flex items-center gap-6 text-[var(--color-text-secondary)] mb-6">
+        <span class="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+            <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z"/>
+            <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z"/>
+          </svg>
+          <span class="font-semibold">{{ pack.downloads_count | format_number }}</span>
+        </span>
+        <span class="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+            <path d="M9.653 16.915l-.005-.003-.019-.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-1.9C4.045 12.733 2 10.352 2 7.5a4.5 4.5 0 018-2.828A4.5 4.5 0 0118 7.5c0 2.852-2.044 5.233-3.885 6.82a22.049 22.049 0 01-3.744 2.582l-.019.01-.005.003h-.002a.739.739 0 01-.69.001l-.002-.001z"/>
+          </svg>
+          <span class="font-semibold">{{ pack.favorites_count | format_number }}</span>
+        </span>
+      </div>
+
+      <!-- Creator info with View on T3K -->
+      <div class="flex items-center gap-4 mb-8 pb-8 border-b border-[var(--border)]">
+        {% if pack.creator_username %}
+        <a
+          href="https://www.tone3000.com/{{ pack.creator_username }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          data-testid="creator-link"
+        >
+          {% if pack.creator_avatar %}
+            <img
+              src="{{ pack.creator_avatar }}"
+              alt="{{ pack.creator_username }}"
+              class="w-10 h-10 rounded-full object-cover"
+            />
+          {% else %}
+            <div class="w-10 h-10 rounded-full bg-[var(--color-bg-secondary)] flex items-center justify-center">
+              <span class="text-sm font-medium text-[var(--color-text-muted)]">
+                {{ pack.creator_username[0]|upper }}
+              </span>
+            </div>
+          {% endif %}
+          <span class="font-medium text-[var(--color-text-primary)]">
+            {{ pack.creator_username }}
+          </span>
+        </a>
+        {% endif %}
+        {% if pack.created_at %}
+        <span class="text-sm text-[var(--color-text-muted)]">{{ pack.created_at }}</span>
+        {% endif %}
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+        <!-- View on T3K link -->
+        <a
+          href="{{ pack.t3k_url }}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors text-sm font-medium"
+          data-testid="view-on-t3k-link"
+        >
+          View on Tone3000
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+            <path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z" clip-rule="evenodd"/>
+            <path fill-rule="evenodd" d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z" clip-rule="evenodd"/>
+          </svg>
+        </a>
+      </div>
+
+      <!-- Description section -->
+      {% if pack.description %}
+      <div class="mb-8">
+        <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-3">Description</h2>
+        <div class="prose prose-invert max-w-none">
+          <p class="text-[var(--color-text-secondary)] whitespace-pre-wrap leading-relaxed">{{ pack.description }}</p>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Makes section (like T3K "Makes and Models") -->
+      {% if pack.makes %}
+      <div data-testid="pack-makes" class="mb-8">
+        <h3 class="text-lg font-semibold text-[var(--color-text-primary)] mb-3">Makes and Models</h3>
+        <div class="flex flex-wrap gap-2">
+          {% for make in pack.makes %}
+          <a
+            href="/gear?makes={{ make | urlencode }}"
+            class="px-3 py-1.5 text-sm rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-accent-primary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+          >
+            {{ make }}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Videos section -->
+      {% if pack.videos %}
+      <div data-testid="pack-videos" class="mb-8">
+        <div class="space-y-4">
+          {% for video_url in pack.videos %}
+            {% set video_id = video_url | extract_youtube_id %}
+            {% if video_id %}
+            <div class="aspect-video rounded-lg overflow-hidden bg-[var(--color-bg-secondary)]" data-testid="video-embed">
+              <iframe
+                src="https://www.youtube.com/embed/{{ video_id }}"
+                class="w-full h-full"
+                frameborder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+                loading="lazy"
+              ></iframe>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Tags section -->
+      {% if pack.tags %}
+      <div data-testid="pack-tags" class="mb-8">
+        <h3 class="text-lg font-semibold text-[var(--color-text-primary)] mb-3">Tags</h3>
+        <div class="flex flex-wrap gap-2">
+          {% for tag in pack.tags %}
+          <a
+            href="/gear?tags={{ tag | urlencode }}"
+            class="px-3 py-1.5 text-sm rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+          >
+            {{ tag }}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Models section -->
+      <div class="mb-8" id="models">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-[var(--color-text-primary)]">
+            Models
+            <span class="text-[var(--color-text-muted)] font-normal ml-2">{{ pack.models_count | format_number }} {{ 'model' if pack.models_count == 1 else 'models' }}</span>
+          </h2>
+          <!-- Login prompt for unauthenticated users -->
+          {% if not user %}
+          <div data-testid="login-to-save-prompt" class="flex items-center gap-2 text-sm">
+            <a
+              href="/login?next={{ request.url.path | urlencode }}"
+              class="text-[var(--color-accent-primary)] hover:text-[var(--color-accent-secondary)] transition-colors font-medium"
+            >
+              Login to save models
+            </a>
+          </div>
+          {% endif %}
+        </div>
+
+        <div data-testid="pack-models-list" class="border border-[var(--border)] rounded-lg overflow-hidden divide-y divide-[var(--border)]">
+          {% for model in pack.models %}
+          <div
+            data-testid="model-row"
+            data-model-id="{{ model.id }}"
+            class="flex items-center justify-between px-4 py-3 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <!-- Model size badge -->
+              {% if model.model_size %}
+              <span class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)]">
+                {{ model.model_size | upper }}
+              </span>
+              {% endif %}
+              <!-- Model name -->
+              <span class="text-[var(--color-text-primary)] truncate" data-testid="model-name">
+                {{ model.name }}
+              </span>
+              <!-- Saved badge -->
+              {% if model.is_saved %}
+              <span class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-green-500/20 text-green-500" data-testid="saved-badge">
+                Saved
+              </span>
+              {% endif %}
+            </div>
+
+            <!-- Save checkbox for authenticated users -->
+            {% if user %}
+            <div class="flex-shrink-0">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  data-testid="model-save-checkbox"
+                  data-model-id="{{ model.id }}"
+                  {{ 'checked' if model.is_saved else '' }}
+                  disabled
+                  class="w-5 h-5 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
+                />
+                <span class="text-sm text-[var(--color-text-muted)]">Save</span>
+              </label>
+            </div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="px-4 py-6 text-center text-[var(--color-text-muted)]">
+            No models found in this pack.
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- External links section -->
+      {% if pack.external_links %}
+      <div class="mb-8">
+        <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-3">External Links</h2>
+        <div class="space-y-2">
+          {% for link_url in pack.external_links %}
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-[var(--color-text-muted)]">
+              <path d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z" />
+              <path d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z" />
+            </svg>
+            <a
+              href="{{ link_url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-[var(--color-accent-primary)] hover:text-[var(--color-accent-secondary)] transition-colors break-all"
+            >
+              {{ link_url }}
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- License info (like T3K) -->
+      <div class="text-sm text-[var(--color-text-muted)] mt-8 pt-6 border-t border-[var(--border)]">
+        <span class="font-medium">License:</span> T3K - Users may download and use the data file in software and publish the resulting outputs without royalties or restrictions. However, they may not upload, republish, or distribute the data file without the author's permission.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

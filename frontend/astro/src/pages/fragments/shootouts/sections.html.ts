@@ -1,0 +1,77 @@
+/**
+ * fragments/shootouts/sections.html.ts - Outputs dist/fragments/shootouts/sections.html
+ *
+ * Shootouts page sections container (renamed from browse).
+ * This is a Jinja2 fragment template for HTMX partial updates.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `{# Shootouts page sections container #}
+<div data-testid="shootouts-sections">
+  {# Hero section #}
+  <div class="text-center py-12 px-4" data-testid="shootouts-hero">
+    <h1 class="text-3xl md:text-4xl font-bold text-[var(--color-text-primary)] mb-4">
+      Browse Tone Shootouts
+    </h1>
+    <p class="text-lg text-[var(--color-text-secondary)] max-w-2xl mx-auto">
+      Discover and compare guitar tones from the community. Find your perfect sound.
+    </p>
+  </div>
+
+  {# Sections container - will be populated by HTMX #}
+  <div class="space-y-2 pb-12" data-testid="shootouts-section-rows">
+    {% if sections %}
+      {% for section in sections %}
+        <div class="section-row" data-testid="section-row" data-section="{{ section.category }}">
+          <div class="flex items-center justify-between px-4 mb-4">
+            <div class="flex items-center gap-2">
+              {% if section.icon %}
+                <span class="icon">{{ section.icon | safe }}</span>
+              {% endif %}
+              <h2 class="text-xl font-semibold text-[var(--color-text-primary)]">
+                {{ section.title }}
+              </h2>
+            </div>
+            {% if section.view_all_href %}
+              <a href="{{ section.view_all_href }}"
+                 class="text-sm text-amber-500 hover:text-amber-400 transition-colors">
+                View All
+              </a>
+            {% endif %}
+          </div>
+
+          <div class="overflow-x-auto pb-4">
+            <div class="flex gap-4 px-4 min-w-max">
+              {% for shootout in section.shootouts %}
+                {% include "fragments/shootouts/shootout_card.html" %}
+              {% endfor %}
+
+              {% if not section.shootouts %}
+                <div class="text-[var(--color-text-muted)] italic px-4">
+                  {{ section.empty_message | default("No shootouts available") }}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center py-8 text-[var(--color-text-muted)]" data-testid="shootouts-empty">
+        No shootouts available yet. Be the first to create one!
+      </div>
+    {% endif %}
+  </div>
+</div>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

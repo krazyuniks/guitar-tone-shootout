@@ -1,0 +1,250 @@
+{# Shootout detail page fragment for HTMX #}
+<div
+  data-testid="shootout-detail"
+  data-shootout-id="{{ shootout.id }}"
+  data-status="{{ shootout.status }}"
+  class="container mx-auto px-4 py-6 max-w-6xl"
+>
+  {# Back link #}
+  <a
+    href="/shootouts"
+    class="inline-flex items-center gap-2 text-[var(--color-text-secondary)] hover:text-amber-400 transition-colors mb-6"
+    data-testid="back-link"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+      <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
+    </svg>
+    Back to Browse
+  </a>
+
+  {# Video Player / Processing Placeholder #}
+  {% if shootout.status == 'completed' and shootout.output_path %}
+    <div class="aspect-video bg-[var(--color-bg-surface)] rounded-lg mb-6 border border-[var(--border)] overflow-hidden" data-testid="video-container">
+      <video
+        controls
+        class="w-full h-full"
+        src="{{ shootout.output_path }}"
+        data-testid="video-player"
+      >
+        Your browser does not support the video tag.
+      </video>
+    </div>
+  {% else %}
+    <div class="aspect-video bg-[var(--color-bg-surface)] rounded-lg flex items-center justify-center mb-6 border border-[var(--border)]" data-testid="processing-placeholder">
+      <div class="text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="w-16 h-16 mx-auto mb-4 text-[var(--color-text-muted)]">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <h3 class="text-lg font-medium text-[var(--color-text-primary)] mb-2">
+          {% if shootout.status == 'pending' %}
+            Pending Processing
+          {% elif shootout.status == 'processing' %}
+            Processing in Progress
+          {% elif shootout.status == 'failed' %}
+            Processing Failed
+          {% else %}
+            Video Not Available
+          {% endif %}
+        </h3>
+        <p class="text-sm text-[var(--color-text-secondary)]">
+          {% if shootout.status == 'pending' %}
+            This shootout is queued for processing.
+          {% elif shootout.status == 'processing' %}
+            This shootout is still being rendered. Check back soon!
+          {% elif shootout.status == 'failed' %}
+            There was an error processing this shootout.
+          {% else %}
+            The video for this shootout is not available.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Title and metadata #}
+  <div class="mb-6" data-testid="shootout-header">
+    <h1 class="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2" data-testid="shootout-title">
+      {{ shootout.name }}
+    </h1>
+    <div class="flex flex-wrap items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+      <span data-testid="tone-count">{{ tone_count }} {{ 'tone' if tone_count == 1 else 'tones' }}</span>
+      <span class="text-[var(--color-text-muted)]">-</span>
+      <span data-testid="relative-time">{{ relative_time }}</span>
+      {% if shootout.status != 'completed' %}
+        <span class="text-[var(--color-text-muted)]">-</span>
+        <span class="px-2 py-0.5 rounded-full text-xs
+          {% if shootout.status == 'pending' %}bg-yellow-500/20 text-yellow-400
+          {% elif shootout.status == 'processing' %}bg-blue-500/20 text-blue-400
+          {% elif shootout.status == 'failed' %}bg-red-500/20 text-red-400
+          {% else %}bg-gray-500/20 text-gray-400{% endif %}
+        " data-testid="status-badge">
+          {{ shootout.status | capitalize }}
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Description #}
+  {% if shootout.description %}
+    <div class="mb-8" data-testid="description-section">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
+          <path fill-rule="evenodd" d="M4.125 3C3.089 3 2.25 3.84 2.25 4.875V18a3 3 0 003 3h15a3 3 0 01-3-3V4.875C17.25 3.839 16.41 3 15.375 3H4.125zM12 9.75a.75.75 0 000 1.5h1.5a.75.75 0 000-1.5H12zm-.75-2.25a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H12a.75.75 0 01-.75-.75zM6 12.75a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5H6zm-.75 3.75a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5H6a.75.75 0 01-.75-.75zM6 6.75a.75.75 0 00-.75.75v3c0 .414.336.75.75.75h3a.75.75 0 00.75-.75v-3A.75.75 0 009 6.75H6z" clip-rule="evenodd"/>
+        </svg>
+        Description
+      </h2>
+      <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+        <p class="text-[var(--color-text-secondary)] whitespace-pre-wrap">{{ shootout.description }}</p>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Segments Section #}
+  {% if chains %}
+    <div class="mb-8" data-testid="segments-section">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
+          <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm14.024-.983a1.125 1.125 0 010 1.966l-5.603 3.113A1.125 1.125 0 019 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113z" clip-rule="evenodd"/>
+        </svg>
+        Segments
+      </h2>
+      <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-[var(--color-bg-elevated)]">
+        {% for chain in chains %}
+          <button
+            class="flex-shrink-0 min-w-[120px] px-4 py-3 rounded-lg border bg-[var(--color-bg-surface)] border-[var(--border)] text-left hover:border-amber-500/50 hover:text-[var(--color-text-primary)] transition-all"
+            data-testid="segment-button"
+            data-chain-id="{{ chain.id }}"
+            data-position="{{ chain.position }}"
+          >
+            <div class="font-medium text-sm line-clamp-1">
+              {{ chain.chain_name or ('Chain ' ~ chain.position) }}
+            </div>
+            <div class="text-xs text-[var(--color-text-muted)] mt-1">
+              Position {{ chain.position }}
+            </div>
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# Signal Chain Section for active segment #}
+    <div class="mb-8" data-testid="signal-chain-section">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
+          <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd"/>
+        </svg>
+        Signal Chain: {{ chains[0].chain_name or 'Chain 1' }}
+      </h2>
+      <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+        <p class="text-[var(--color-text-muted)] text-sm">Signal chain visualization deferred to future story.</p>
+      </div>
+    </div>
+
+    {# Analytics Section with Alpine.js Tabs #}
+    {% if shootout.status == 'completed' %}
+      <div class="mb-8" data-testid="analytics-section" x-data="{ activeTab: 'metrics' }">
+        <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
+            <path fill-rule="evenodd" d="M2.25 13.5a8.25 8.25 0 018.25-8.25.75.75 0 01.75.75v6.75H18a.75.75 0 01.75.75 8.25 8.25 0 01-16.5 0z" clip-rule="evenodd" />
+            <path fill-rule="evenodd" d="M12.75 3a.75.75 0 01.75-.75 8.25 8.25 0 018.25 8.25.75.75 0 01-.75.75h-7.5a.75.75 0 01-.75-.75V3z" clip-rule="evenodd" />
+          </svg>
+          Audio Analysis
+        </h2>
+
+        {# Tab Navigation #}
+        <div class="flex gap-1 mb-4 bg-[var(--color-bg-surface)] rounded-lg p-1 border border-[var(--border)]">
+          <button
+            x-on:click="activeTab = 'metrics'"
+            x-bind:class="activeTab === 'metrics' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+            data-testid="tab-metrics"
+          >
+            Metrics
+          </button>
+          <button
+            x-on:click="activeTab = 'evaluation'"
+            x-bind:class="activeTab === 'evaluation' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+            data-testid="tab-evaluation"
+          >
+            AI Evaluation
+          </button>
+          <button
+            x-on:click="activeTab = 'comparison'"
+            x-bind:class="activeTab === 'comparison' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+            data-testid="tab-comparison"
+          >
+            Compare
+          </button>
+          <button
+            x-on:click="activeTab = 'technical'"
+            x-bind:class="activeTab === 'technical' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+            data-testid="tab-technical"
+          >
+            Technical
+          </button>
+        </div>
+
+        {# Tab Content #}
+        <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-6">
+          {# Metrics Tab #}
+          <div x-show="activeTab === 'metrics'" data-testid="metrics-content">
+            <div class="text-center py-8 text-[var(--color-text-muted)]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
+                <path fill-rule="evenodd" d="M2.25 13.5a8.25 8.25 0 018.25-8.25.75.75 0 01.75.75v6.75H18a.75.75 0 01.75.75 8.25 8.25 0 01-16.5 0z" clip-rule="evenodd" />
+                <path fill-rule="evenodd" d="M12.75 3a.75.75 0 01.75-.75 8.25 8.25 0 018.25 8.25.75.75 0 01-.75.75h-7.5a.75.75 0 01-.75-.75V3z" clip-rule="evenodd" />
+              </svg>
+              <p>Metrics feature deferred to future story</p>
+            </div>
+          </div>
+
+          {# AI Evaluation Tab #}
+          <div x-show="activeTab === 'evaluation'" data-testid="evaluation-content">
+            <div class="text-center py-8 text-[var(--color-text-muted)]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+              </svg>
+              <p>AI Evaluation feature deferred to future story</p>
+            </div>
+          </div>
+
+          {# Comparison Tab #}
+          <div x-show="activeTab === 'comparison'" data-testid="comparison-content">
+            <div class="text-center py-8 text-[var(--color-text-muted)]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
+                <path d="M18.375 2.25c-1.035 0-1.875.84-1.875 1.875v15.75c0 1.035.84 1.875 1.875 1.875h.75c1.035 0 1.875-.84 1.875-1.875V4.125c0-1.036-.84-1.875-1.875-1.875h-.75zM9.75 8.625c0-1.036.84-1.875 1.875-1.875h.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-.75a1.875 1.875 0 01-1.875-1.875V8.625zM3 13.125c0-1.036.84-1.875 1.875-1.875h.75c1.036 0 1.875.84 1.875 1.875v6.75c0 1.035-.84 1.875-1.875 1.875h-.75A1.875 1.875 0 013 19.875v-6.75z" />
+              </svg>
+              <p>Comparison feature deferred to future story</p>
+            </div>
+          </div>
+
+          {# Technical Tab #}
+          <div x-show="activeTab === 'technical'" data-testid="technical-content">
+            <div class="text-center py-8 text-[var(--color-text-muted)]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
+                <path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 00-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 00-2.282.819l-.922 1.597a1.875 1.875 0 00.432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 000 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 00-.432 2.385l.922 1.597a1.875 1.875 0 002.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 002.28-.819l.923-1.597a1.875 1.875 0 00-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 000-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 00-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 00-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 00-1.85-1.567h-1.843zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" clip-rule="evenodd" />
+              </svg>
+              <p>Technical details feature deferred to future story</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {# Comments Section Container (loaded via HTMX) #}
+  <div
+    class="mb-8"
+    data-testid="comments-section"
+    hx-get="/api/v1/html/shootouts/{{ shootout.id }}/comments"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <div class="animate-pulse">
+      <div class="h-6 bg-[var(--color-bg-elevated)] rounded w-32 mb-4"></div>
+      <div class="h-20 bg-[var(--color-bg-elevated)] rounded"></div>
+    </div>
+  </div>
+</div>

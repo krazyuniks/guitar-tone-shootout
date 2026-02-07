@@ -1,191 +1,113 @@
 /**
- * Shootout Detail Page Template
+ * pages/shootout_detail.html.ts - Outputs dist/pages/shootout_detail.html
  *
- * Protected page showing shootout details.
- * Full page template served by FastAPI's Jinja2 renderer.
- *
- * Build output: frontend/astro/dist/pages/shootout_detail.html
- * FastAPI route: templates.TemplateResponse(request, "pages/shootout_detail.html", {...})
+ * Shootout detail page.
+ * This is a Jinja2 template for the SSR page.
  */
 
-export async function GET() {
-  const html = `{% extends "layouts/base.html" %}
+import type { APIRoute } from 'astro';
 
-{% block title %}{{ shootout.name }} - Guitar Tone Shootout{% endblock %}
+// Import CSS so Tailwind scans this file's classes
+import '../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `{% extends "layouts/base.html" %}
+
+{% block title %}{{ title }} - Shootout{% endblock %}
+{% block description %}View and compare guitar amp tones in this shootout comparison.{% endblock %}
 
 {% block content %}
 <div
   data-testid="shootout-detail-page"
-  class="container mx-auto px-4 py-8"
+  class="min-h-screen"
 >
-  <!-- Header -->
-  <div class="mb-6">
-    <div class="flex justify-between items-start mb-4">
-      <div>
-        <h1
-          class="text-[var(--color-text-primary)] text-3xl font-bold mb-2"
-        >
-          {{ shootout.name }}
-        </h1>
-        {% if shootout.description %}
-          <p class="text-[var(--color-text-secondary)] text-lg">
-            {{ shootout.description }}
-          </p>
-        {% endif %}
-      </div>
-      <a
-        href="/library/shootouts"
-        data-testid="back-to-library-btn"
-        class="px-4 py-2 bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] rounded-lg hover:opacity-90"
-      >
-        Back to Library
-      </a>
-    </div>
+  <!-- HTMX-powered shootout detail content -->
+  <div
+    id="shootout-detail-container"
+    hx-get="/api/v1/html/shootouts/{{ shootout_id }}"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <!-- Loading state while HTMX fetches content -->
+    <div class="container mx-auto px-4 py-6 max-w-6xl">
+      <!-- Back link skeleton -->
+      <div class="h-6 w-32 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-6"></div>
 
-    <!-- Status -->
-    <div class="flex gap-4 text-sm">
-      <div class="text-[var(--color-text-secondary)]">
-        <span class="font-semibold">DI Track:</span>
-        <span data-testid="di-track-name">{{ di_track.name }}</span>
-      </div>
-      <div class="text-[var(--color-text-secondary)]">
-        <span class="font-semibold">Chains:</span>
-        <span data-testid="chain-count">{{ shootout.chain_count }}</span>
-      </div>
-      <div>
-        {% if shootout.is_processed %}
-          <span
-            data-testid="processing-status"
-            class="text-green-600 font-semibold"
-          >
-            • Processed
-          </span>
-        {% else %}
-          <span
-            data-testid="processing-status"
-            class="text-yellow-600 font-semibold"
-          >
-            • Pending
-          </span>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+      <!-- Video player skeleton -->
+      <div class="aspect-video bg-[var(--color-bg-elevated)] rounded-lg animate-pulse mb-6"></div>
 
-  <!-- Chains Section -->
-  <div class="mb-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-[var(--color-text-primary)] text-2xl font-bold">
-        Signal Chains
-      </h2>
-      <button
-        data-testid="add-chain-btn"
-        class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90"
-        hx-get="/fragments/shootouts/{{ shootout.id }}/add-chain-form"
-        hx-target="#add-chain-container"
-        hx-swap="innerHTML"
-      >
-        Add Chain
-      </button>
-    </div>
+      <!-- Title skeleton -->
+      <div class="mb-6">
+        <div class="h-8 bg-[var(--color-bg-elevated)] rounded w-3/4 animate-pulse mb-2"></div>
+        <div class="flex gap-3">
+          <div class="h-5 w-20 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+          <div class="h-5 w-24 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+        </div>
+      </div>
 
-    <!-- Add Chain Form Container -->
-    <div id="add-chain-container" class="mb-4"></div>
-
-    <!-- Chains List -->
-    {% if chains %}
-      <div class="space-y-3">
-        {% for chain in chains %}
-          <div
-            data-testid="shootout-chain-item"
-            class="bg-[var(--color-bg-elevated)] rounded-lg p-4 border border-[var(--color-border)]"
-          >
-            <div class="flex justify-between items-center">
-              <div class="flex-1">
-                <div class="flex items-center gap-3">
-                  <span
-                    data-testid="chain-position"
-                    class="text-[var(--color-text-secondary)] font-mono text-sm"
-                  >
-                    #{{ chain.position + 1 }}
-                  </span>
-                  <div>
-                    <div class="text-[var(--color-text-primary)] font-semibold">
-                      {{ chain.label }}
-                    </div>
-                    <div class="text-[var(--color-text-secondary)] text-sm">
-                      {{ chain.chain_name }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <button
-                  data-testid="remove-chain-btn"
-                  class="px-3 py-1 text-[var(--color-error)] hover:bg-[var(--color-bg-base)] rounded"
-                  hx-delete="/fragments/shootouts/{{ shootout.id }}/chains/{{ chain.signal_chain_id }}"
-                  hx-confirm="Remove this chain from the shootout?"
-                  hx-target="closest [data-testid='shootout-chain-item']"
-                  hx-swap="outerHTML swap:0.3s"
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
+      <!-- Description skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-32 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+          <div class="space-y-2">
+            <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-full animate-pulse"></div>
+            <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-5/6 animate-pulse"></div>
+            <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-4/6 animate-pulse"></div>
           </div>
-        {% endfor %}
+        </div>
       </div>
-    {% else %}
-      <div class="text-center py-8 bg-[var(--color-bg-elevated)] rounded-lg">
-        <p class="text-[var(--color-text-secondary)]">
-          No chains added yet. Add chains to start comparing.
-        </p>
+
+      <!-- Segments skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-28 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="flex gap-3 overflow-x-auto pb-2">
+          {% for i in range(4) %}
+          <div class="flex-shrink-0 w-32 h-16 bg-[var(--color-bg-elevated)] rounded-lg animate-pulse"></div>
+          {% endfor %}
+        </div>
       </div>
-    {% endif %}
-  </div>
 
-  <!-- Actions Section -->
-  <div class="flex gap-3 mt-8">
-    {% if not shootout.is_processed and shootout.chain_count >= 2 %}
-      <button
-        data-testid="process-shootout-btn"
-        class="px-6 py-3 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 font-semibold"
-      >
-        Process Shootout
-      </button>
-    {% endif %}
+      <!-- Analytics tabs skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-36 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+          <div class="flex gap-1 mb-4">
+            {% for i in range(4) %}
+            <div class="flex-1 h-10 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+            {% endfor %}
+          </div>
+          <div class="h-40 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+        </div>
+      </div>
 
-    {% if shootout.is_processed and shootout.output_path %}
-      <a
-        href="{{ shootout.output_path }}"
-        data-testid="download-video-btn"
-        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:opacity-90 font-semibold"
-        download
-      >
-        Download Video
-      </a>
-    {% endif %}
-
-    <button
-      data-testid="delete-shootout-detail-btn"
-      class="px-6 py-3 bg-[var(--color-error)] text-white rounded-lg hover:opacity-90"
-      hx-delete="/fragments/shootouts/{{ shootout.id }}"
-      hx-confirm="Delete this shootout? This cannot be undone."
-      hx-target="body"
-      hx-swap="none"
-      hx-on::after-request="if(event.detail.successful) window.location.href = '/library/shootouts'"
-    >
-      Delete Shootout
-    </button>
+      <!-- Comments skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-28 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="h-24 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors for auth
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
+    }
+  });
+</script>
+{% endblock %}
 `;
 
-  return new Response(html, {
-    status: 200,
+  return new Response(template, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
     },
   });
-}
+};

@@ -1,0 +1,80 @@
+/**
+ * fragments/library/chain_item.html.ts - Outputs dist/fragments/library/chain_item.html
+ *
+ * Library Signal Chain Item Card - displays a single chain with status icon,
+ * name, description, platform badge, block count, and timestamp.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `<!-- Library Signal Chain Item Card -->
+<div
+  data-testid="chain-item"
+  data-chain-id="{{ chain.id }}"
+  class="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition-colors"
+>
+  <div class="flex items-start gap-4">
+    <!-- Status Icon -->
+    <a href="/chain/{{ chain.id }}" class="flex-shrink-0 w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors">
+      {% if chain.is_complete %}
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+        </svg>
+      {% else %}
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-500" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+      {% endif %}
+    </a>
+
+    <!-- Content -->
+    <a href="/chain/{{ chain.id }}" class="flex-1 min-w-0">
+      <h3 class="text-white font-medium truncate">{{ chain.name }}</h3>
+      {% if chain.description %}
+        <p class="text-gray-400 text-sm truncate mt-1">{{ chain.description }}</p>
+      {% endif %}
+      <div class="flex items-center gap-3 mt-2 text-xs">
+        <span class="px-2 py-0.5 bg-gray-700 rounded text-gray-300">{{ chain.platform }}</span>
+        <span class="text-gray-500">{{ chain.block_count }} block{{ 's' if chain.block_count != 1 else '' }}</span>
+        <span class="text-gray-500">{{ chain.relative_time }}</span>
+      </div>
+    </a>
+
+    <!-- Delete button (or shootout link if in use) -->
+    {% if chain.is_used_in_shootout %}
+      <a
+        href="/shootout/{{ chain.shootouts[0].id }}"
+        data-testid="chain-item-shootout-link"
+        class="flex-shrink-0 px-3 py-2 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors whitespace-nowrap"
+        title="Used in {{ chain.shootouts | length }} shootout(s)"
+      >
+        In shootout →
+      </a>
+    {% else %}
+      <button
+        type="button"
+        data-testid="chain-item-delete-btn"
+        onclick="handleDelete('/api/v1/signal-chains/{{ chain.id }}', '{{ chain.name | replace("'", "\\'") }}', '[data-chain-id=\\'{{ chain.id }}\\']')"
+        class="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+        title="Delete chain"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+        </svg>
+      </button>
+    {% endif %}
+  </div>
+</div>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

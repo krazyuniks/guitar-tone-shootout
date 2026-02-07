@@ -1,0 +1,120 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import Container from "../../../components/ui/Container.astro";
+import Card from "../../../components/ui/Card.astro";
+
+const colors = [
+  { name: "Blue", class: "bg-blue-500" },
+  { name: "Purple", class: "bg-purple-500" },
+  { name: "Amber", class: "bg-amber-500" },
+  { name: "Green", class: "bg-green-500" },
+  { name: "Red", class: "bg-red-500" },
+];
+
+const grays = [
+    { name: "Base", class: "bg-[#0a0a0a]", hex: "#0a0a0a" },
+    { name: "Surface", class: "bg-[#141414]", hex: "#141414" },
+    { name: "Elevated", class: "bg-[#1f1f1f]", hex: "#1f1f1f" },
+    { name: "Muted", class: "bg-[#262626]", hex: "#262626" },
+    { name: "Border", class: "bg-[#333333]", hex: "#333333" },
+];
+---
+
+<Layout title="Style Guide">
+  <div class="py-12 bg-[#0a0a0a] min-h-screen text-white">
+    <Container>
+      <div class="mb-12 border-b border-white/10 pb-6">
+        <h1 class="text-3xl font-bold mb-2">Design Tokens</h1>
+        <p class="text-gray-400">Core values for colors, typography, and spacing.</p>
+      </div>
+
+      <!-- Colors -->
+      <section class="mb-16">
+        <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+            <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
+            Colors
+        </h2>
+
+        <div class="space-y-8">
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Backgrounds</h3>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {grays.map((color) => (
+                    <div class="space-y-2">
+                    <div class:list={["h-24 rounded-lg border border-white/10 shadow-lg", color.class]}></div>
+                    <div>
+                        <p class="font-medium text-sm">{color.name}</p>
+                        <p class="text-xs text-gray-500 font-mono">{color.hex}</p>
+                    </div>
+                    </div>
+                ))}
+                </div>
+            </div>
+
+            <div>
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-4">Accents</h3>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {colors.map((color) => (
+                    <div class="space-y-2">
+                    <div class:list={["h-24 rounded-lg shadow-lg", color.class]}></div>
+                    <div>
+                        <p class="font-medium text-sm">{color.name}</p>
+                        <p class="text-xs text-gray-500 font-mono">500</p>
+                    </div>
+                    </div>
+                ))}
+                </div>
+            </div>
+        </div>
+      </section>
+
+      <!-- Typography -->
+      <section class="mb-16">
+        <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+            <span class="w-2 h-6 bg-purple-500 rounded-full"></span>
+            Typography
+        </h2>
+        <Card class="space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline border-b border-white/5 pb-8">
+                <span class="text-gray-500 font-mono text-sm">text-4xl font-bold</span>
+                <h1 class="text-4xl font-bold md:col-span-2">The quick brown fox jumps</h1>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline border-b border-white/5 pb-8">
+                <span class="text-gray-500 font-mono text-sm">text-2xl font-semibold</span>
+                <h2 class="text-2xl font-semibold md:col-span-2">Over the lazy dog</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline border-b border-white/5 pb-8">
+                <span class="text-gray-500 font-mono text-sm">text-xl font-medium</span>
+                <h3 class="text-xl font-medium md:col-span-2">Sphinx of black quartz, judge my vow</h3>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-baseline">
+                <span class="text-gray-500 font-mono text-sm">text-base text-gray-400</span>
+                <p class="text-base text-gray-400 md:col-span-2">
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                </p>
+            </div>
+        </Card>
+      </section>
+
+      <!-- Shadows & Depth -->
+      <section>
+        <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
+            <span class="w-2 h-6 bg-amber-500 rounded-full"></span>
+            Depth & Glass
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="p-6 rounded-xl bg-[#141414] border border-white/5">
+                <p class="text-center text-gray-400">Flat (Surface)</p>
+            </div>
+            <div class="p-6 rounded-xl bg-[#1f1f1f] border border-white/10 shadow-lg">
+                <p class="text-center text-gray-200">Elevated</p>
+            </div>
+            <div class="p-6 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <p class="text-center text-white">Glass (Overlay)</p>
+            </div>
+        </div>
+      </section>
+
+    </Container>
+  </div>
+</Layout>

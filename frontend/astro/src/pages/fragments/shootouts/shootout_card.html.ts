@@ -1,0 +1,77 @@
+/**
+ * fragments/shootouts/shootout_card.html.ts - Outputs dist/fragments/shootouts/shootout_card.html
+ *
+ * Single shootout card component (renamed from browse).
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `{# Single shootout card component #}
+<a href="/shootout/{{ shootout.id }}"
+   data-testid="shootout-card"
+   data-shootout-id="{{ shootout.id }}"
+   class="group block rounded-lg overflow-hidden bg-[var(--color-bg-surface)] border border-[var(--border)] transition-all duration-200 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 w-64 flex-shrink-0">
+
+  {# Thumbnail / Preview #}
+  <div class="aspect-video bg-[var(--color-bg-elevated)] relative overflow-hidden">
+    {% if shootout.status == 'completed' and shootout.output_path %}
+      {# Processed - show play icon placeholder #}
+      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-900/20 to-amber-700/20">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+             class="w-12 h-12 text-amber-500/60 group-hover:text-amber-500 transition-colors">
+          <path fill-rule="evenodd"
+                d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+                clip-rule="evenodd"/>
+        </svg>
+      </div>
+    {% else %}
+      {# Processing or pending #}
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               class="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="text-xs text-[var(--color-text-muted)]">Processing...</span>
+        </div>
+      </div>
+    {% endif %}
+
+    {# Tone count badge #}
+    <div class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium text-white">
+      {{ shootout.tone_count | default(0) }} {{ 'tone' if shootout.tone_count == 1 else 'tones' }}
+    </div>
+  </div>
+
+  {# Card content #}
+  <div class="p-4">
+    <h3 class="font-semibold text-[var(--color-text-primary)] line-clamp-2 group-hover:text-amber-400 transition-colors">
+      {{ shootout.name }}
+    </h3>
+
+    {% if shootout.description %}
+      <p class="mt-1 text-sm text-[var(--color-text-secondary)] line-clamp-2">
+        {{ shootout.description }}
+      </p>
+    {% endif %}
+
+    <div class="mt-3 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+      <span>{{ shootout.relative_time | default('Recently') }}</span>
+    </div>
+  </div>
+</a>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

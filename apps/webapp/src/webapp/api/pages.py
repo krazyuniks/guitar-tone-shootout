@@ -1,7 +1,11 @@
 """SSR page routes for public and protected pages."""
 
+import contextlib
+import os
 from datetime import UTC
+from math import ceil
 from typing import Annotated
+from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -20,7 +24,7 @@ from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
 from webapp.services.shootout_service import ShootoutService
-from webapp.templates import templates
+from webapp.templates import _relative_time, templates
 
 router = APIRouter(tags=["pages"])
 
@@ -95,6 +99,70 @@ async def require_current_user(
     return current_user
 
 
+# --- Gear mapping helpers ---
+
+
+def _gear_to_pack(gear) -> dict:
+    """Map Gear domain entity to pack dict for browse templates."""
+    platform = "nam"
+    if gear.models:
+        p = gear.models[0].platform
+        platform = p.value if hasattr(p, "value") else str(p)
+
+    return {
+        "id": str(gear.id),
+        "slug": gear.slug,
+        "title": gear.name,
+        "gear_type": gear.gear_type.value.replace("_", "-"),
+        "platform": platform,
+        "image_url": gear.thumbnail_url,
+        "downloads_count": 0,
+        "favorites_count": 0,
+        "models_count": len(gear.models),
+        "creator_username": gear.manufacturer,
+        "creator_avatar": None,
+        "relative_time": _relative_time(gear.created_at),
+    }
+
+
+def _gear_to_detail_pack(gear) -> dict:
+    """Map Gear domain entity to detailed pack dict for detail template."""
+    pack = _gear_to_pack(gear)
+    pack.update(
+        {
+            "description": gear.description,
+            "tags": gear.tags,
+            "makes": [],
+            "videos": [],
+            "external_links": [],
+            "t3k_url": (
+                f"https://www.tone3000.com/tones/{gear.source.source_record_id}"
+                if gear.source
+                else "#"
+            ),
+            "created_at": (
+                gear.created_at.strftime("%B %d, %Y") if gear.created_at else None
+            ),
+            "models": [
+                {
+                    "id": str(m.id),
+                    "name": (
+                        f"{gear.name} ({m.size.value})"
+                        if hasattr(m.size, "value")
+                        else gear.name
+                    ),
+                    "model_size": (
+                        m.size.value if hasattr(m.size, "value") else str(m.size)
+                    ),
+                    "is_saved": False,
+                }
+                for m in gear.models
+            ],
+        }
+    )
+    return pack
+
+
 # --- Public pages ---
 
 
@@ -103,16 +171,77 @@ async def gear_browse_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User | None, Depends(get_current_user)],
+    search: str | None = Query(None),
+    gear_type: str | None = Query(None),
+    sort: str = Query("newest"),
+    tags: str | None = Query(None),
+    makes: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(24, ge=1, le=100),
 ) -> HTMLResponse:
-    """Render gear browse page.
+    """Render gear browse page with full SSR.
 
-    Public page showing all gear with filtering controls.
-    Uses HTMX for dynamic list updates.
+    All data rendered server-side — no HTMX, no client-side loading.
+    Filters and pagination via standard form submissions and links.
     """
+    repo = SQLAlchemyGearRepository(db)
+
+    gt_filter = None
+    if gear_type:
+        with contextlib.suppress(ValueError):
+            gt_filter = GearType(gear_type.replace("-", "_"))
+
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+
+    offset = (page - 1) * page_size
+    total = await repo.count(query=search, gear_type=gt_filter, tags=tag_list)
+    gear_items = await repo.search(
+        query=search,
+        gear_type=gt_filter,
+        tags=tag_list,
+        limit=page_size,
+        offset=offset,
+    )
+
+    packs = [_gear_to_pack(g) for g in gear_items if g.is_public]
+    total_pages = max(1, ceil(total / page_size))
+
+    def build_url(**overrides: object) -> str:
+        params = {
+            k: v
+            for k, v in {
+                "search": search,
+                "gear_type": gear_type,
+                "sort": sort,
+                "tags": tags,
+                "makes": makes,
+                **overrides,
+            }.items()
+            if v
+        }
+        qs = urlencode(params)
+        return f"/gear?{qs}" if qs else "/gear"
+
     return templates.TemplateResponse(
         request,
-        "pages/gear_browse.html",
-        {"user": current_user},
+        "pages/gear.html",
+        {
+            "packs": packs,
+            "total_count": total,
+            "page": page,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_url": build_url(page=page - 1) if page > 1 else "",
+            "next_url": build_url(page=page + 1) if page < total_pages else "",
+            "gear_type_filter": gear_type or "",
+            "search": search or "",
+            "sort_order": sort,
+            "tags_filter": tag_list or [],
+            "makes_filter": [],
+            "creator_filter": "",
+            "user": current_user,
+        },
     )
 
 
@@ -123,24 +252,33 @@ async def gear_detail_page(
     db: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User | None, Depends(get_current_user)],
 ) -> HTMLResponse:
-    """Render gear detail page.
+    """Render gear detail page with full SSR.
 
-    Public page showing full details for a specific gear item.
+    All data rendered server-side — pack dict includes models, tags, creator info.
     """
     repo = SQLAlchemyGearRepository(db)
     gear = await repo.get_by_slug(slug)
 
-    # Return 404 if gear not found or not public (hide existence)
     if not gear or not gear.is_public:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Gear not found",
         )
 
+    pack = _gear_to_detail_pack(gear)
+    description = gear.description or f"{gear.name} - guitar tone capture"
+    public_url = os.getenv("PUBLIC_URL", str(request.base_url).rstrip("/"))
+    canonical = f"{public_url}/gear/{slug}"
+
     return templates.TemplateResponse(
         request,
-        "pages/gear_detail.html",
-        {"gear": gear, "user": current_user},
+        "gear/detail.html",
+        {
+            "pack": pack,
+            "user": current_user,
+            "description": description,
+            "canonical_url": canonical,
+        },
     )
 
 
@@ -199,6 +337,22 @@ async def shootouts_page(
         request,
         "pages/shootouts.html",
         {"user": None},
+    )
+
+
+@router.get("/di-tracks", response_class=HTMLResponse)
+async def di_tracks_browse_page(
+    request: Request,
+    current_user: Annotated[User | None, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render DI tracks browse page.
+
+    Public page with HTMX-loaded content.
+    """
+    return templates.TemplateResponse(
+        request,
+        "pages/di-tracks.html",
+        {"user": current_user},
     )
 
 
@@ -571,3 +725,103 @@ async def shootout_delete_fragment(
         await service.delete(UUID(shootout_id))
 
     return HTMLResponse(content="", status_code=200)
+
+
+@router.get("/chain/{chain_id}", response_class=HTMLResponse)
+async def chain_detail_page(
+    request: Request,
+    chain_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(require_current_user)],
+) -> HTMLResponse:
+    """Render signal chain detail page.
+
+    Protected page showing full chain details with blocks.
+    """
+    from webapp.adapters.persistence.models.gear import Gear
+
+    repo = SQLAlchemySignalChainRepository(db)
+    chain = await repo.get_by_id(UUID(chain_id))
+
+    if not chain or chain.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chain not found",
+        )
+
+    # Build block data with gear names (join through UserGear → Gear)
+    block_items = []
+    for block in chain.blocks:
+        gear_name = block.gear_type.value.replace("_", " ").title()
+        if block.user_gear_id:
+            ug_result = await db.execute(
+                select(UserGear, Gear)
+                .join(Gear, UserGear.gear_id == Gear.id)
+                .where(UserGear.id == block.user_gear_id)
+            )
+            row = ug_result.first()
+            if row:
+                _, gear = row
+                gear_name = gear.name
+
+        block_items.append({
+            "gear_type": block.gear_type.value.replace("_", "-"),
+            "gear_name": gear_name,
+            "position": block.position,
+        })
+
+    block_items.sort(key=lambda x: x["position"])
+
+    return templates.TemplateResponse(
+        request,
+        "pages/chain_detail.html",
+        {
+            "chain": {
+                "id": str(chain.id),
+                "name": chain.name,
+                "description": chain.description,
+                "platform": chain.platform.value,
+                "block_count": chain.block_count,
+                "is_complete": chain.is_complete(),
+                "blocks": block_items,
+                "created_at": chain.created_at,
+                "updated_at": chain.updated_at,
+            },
+            "user": current_user,
+        },
+    )
+
+
+@router.get("/shootout/create", response_class=HTMLResponse)
+async def shootout_create_page(
+    request: Request,
+    current_user: Annotated[User, Depends(require_current_user)],
+) -> HTMLResponse:
+    """Render shootout creation wizard page.
+
+    Protected page — wizard steps load via HTMX.
+    """
+    return templates.TemplateResponse(
+        request,
+        "pages/shootout_create.html",
+        {
+            "title": "Create Shootout",
+            "user": current_user,
+        },
+    )
+
+
+@router.get("/library/di-tracks", response_class=HTMLResponse)
+async def library_di_tracks_page(
+    request: Request,
+    current_user: Annotated[User, Depends(require_current_user)],
+) -> HTMLResponse:
+    """Render user's DI tracks library page.
+
+    Protected page — content loads via HTMX.
+    """
+    return templates.TemplateResponse(
+        request,
+        "pages/library/di-tracks.html",
+        {"user": current_user},
+    )

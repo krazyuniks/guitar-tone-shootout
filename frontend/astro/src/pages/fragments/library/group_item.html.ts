@@ -1,0 +1,80 @@
+/**
+ * fragments/library/group_item.html.ts - Outputs dist/fragments/library/group_item.html
+ *
+ * Library Signal Chain Group Item Card - displays a single group with chain count,
+ * component counts (DI, Amps, IRs), and action buttons on hover.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `<!-- Library Signal Chain Group Item Card -->
+<div
+  data-testid="group-item"
+  data-group-id="{{ group.id }}"
+  class="group relative border border-border rounded-lg overflow-hidden bg-card hover:bg-[var(--color-bg-elevated)] transition-colors"
+>
+  <div class="p-4">
+    <!-- Header with badge and actions -->
+    <div class="flex items-start justify-between gap-2 mb-3">
+      <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]">
+        {{ group.chain_count }} chain{{ 's' if group.chain_count != 1 else '' }}
+      </span>
+
+      <!-- Actions - appear on hover -->
+      <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <a
+          href="/library/chains/group?id={{ group.id }}"
+          class="p-1.5 rounded text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] transition-colors"
+          title="View details"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+            <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+            <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Name - clickable link to detail page -->
+    <a
+      href="/library/chains/group?id={{ group.id }}"
+      class="font-medium text-[var(--color-text-primary)] line-clamp-2 mb-3 hover:text-[var(--color-accent-primary)] transition-colors block"
+    >
+      {{ group.name }}
+    </a>
+
+    <!-- Component counts -->
+    <div class="flex flex-wrap items-center gap-2 mb-3 text-sm text-[var(--color-text-secondary)]">
+      <span class="flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        {{ group.di_track_count }} DI
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+        {{ group.amp_count }} Amp{{ 's' if group.amp_count != 1 else '' }}
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="w-2 h-2 rounded-full bg-green-500"></span>
+        {{ group.ir_count }} IR{{ 's' if group.ir_count != 1 else '' }}
+      </span>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex items-center justify-between text-xs text-[var(--color-text-muted)]">
+      <span>{{ group.relative_time }}</span>
+    </div>
+  </div>
+</div>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

@@ -1,92 +1,76 @@
 {% extends "layouts/base.html" %}
 
 {% block title %}My Shootouts - Guitar Tone Shootout{% endblock %}
+{% block description %}View and manage your tone comparison shootouts.{% endblock %}
 
 {% block content %}
 <div
-  data-testid="library-shootouts-page"
+  data-testid="shootouts-library"
   class="container mx-auto px-4 py-8"
 >
-  <div class="flex justify-between items-center mb-6">
-    <h1
-      class="text-[var(--color-text-primary)] text-3xl font-bold"
-    >
-      My Shootouts
-    </h1>
-    <a
-      href="/shootout/new"
-      data-testid="create-shootout-btn"
-      class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90"
-    >
-      Create Shootout
-    </a>
-  </div>
-
-  <!-- Shootout List Container -->
-  <div
-    id="shootout-list-container"
-    hx-get="/fragments/shootouts/list"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-    class="space-y-4"
-  >
-    {% if shootouts %}
-      {% for shootout in shootouts %}
-        <div
-          data-testid="shootout-item"
-          class="bg-[var(--color-bg-elevated)] rounded-lg p-4 border border-[var(--color-border)]"
-        >
-          <div class="flex justify-between items-start mb-2">
-            <div class="flex-1">
-              <h3 class="text-[var(--color-text-primary)] font-semibold text-lg">
-                {{ shootout.name }}
-              </h3>
-              {% if shootout.description %}
-                <p class="text-[var(--color-text-secondary)] text-sm mt-1">
-                  {{ shootout.description }}
-                </p>
-              {% endif %}
-              <div class="text-[var(--color-text-secondary)] text-xs mt-2">
-                {{ shootout.chain_count }} chains
-                {% if shootout.is_processed %}
-                  <span class="text-green-600 ml-2">• Processed</span>
-                {% else %}
-                  <span class="text-yellow-600 ml-2">• Pending</span>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-          <div class="flex justify-end gap-2 mt-3">
-            <a
-              href="/shootout/{{ shootout.id }}"
-              data-testid="view-shootout-btn"
-              class="px-3 py-1 text-[var(--color-primary)] hover:bg-[var(--color-bg-base)] rounded"
-            >
-              View
-            </a>
-            <button
-              data-testid="delete-shootout-btn"
-              class="px-3 py-1 text-[var(--color-error)] hover:bg-[var(--color-bg-base)] rounded"
-              hx-delete="/fragments/shootouts/{{ shootout.id }}"
-              hx-confirm="Delete this shootout?"
-              hx-target="closest [data-testid='shootout-item']"
-              hx-swap="outerHTML swap:0.3s"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      {% endfor %}
-    {% else %}
-      <div class="text-center py-12">
-        <p class="text-[var(--color-text-secondary)] text-lg mb-4">
-          No shootouts yet
-        </p>
-        <p class="text-[var(--color-text-secondary)] text-sm">
-          Create your first shootout to compare signal chains
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+          My Shootouts
+        </h1>
+        <p class="text-[var(--color-text-secondary)]">
+          View and manage your tone comparison shootouts
         </p>
       </div>
-    {% endif %}
+      <a
+        href="/shootout/create"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
+        data-testid="create-shootout-btn"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+        </svg>
+        Create Shootout
+      </a>
+    </div>
+  </div>
+
+  <!-- HTMX-powered shootouts list -->
+  <div
+    id="shootouts-list-container"
+    hx-get="/api/v1/html/library/shootouts"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <!-- Loading state while HTMX fetches content -->
+    <div class="space-y-4">
+      {% for i in range(4) %}
+      <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4 animate-pulse">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-24 h-24 bg-[var(--color-bg-secondary)] rounded-lg"></div>
+          <div class="flex-1">
+            <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 mb-2"></div>
+            <div class="h-4 bg-[var(--color-bg-secondary)] rounded w-1/2 mb-2"></div>
+            <div class="flex gap-2">
+              <div class="h-4 w-16 bg-[var(--color-bg-secondary)] rounded"></div>
+              <div class="h-4 w-24 bg-[var(--color-bg-secondary)] rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors for auth
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
+    }
+  });
+</script>
 {% endblock %}

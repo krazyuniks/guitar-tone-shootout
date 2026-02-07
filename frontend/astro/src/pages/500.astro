@@ -1,107 +1,117 @@
 ---
-import '../styles/global.css';
-
-const title = '500 - Server Error | Guitar Tone Shootout';
-const description = 'An unexpected error occurred. Please try again later.';
+import Layout from '../layouts/Layout.astro';
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content={description} />
-    <title>{title}</title>
-  </head>
-  <body class="min-h-screen">
-    <!-- Header -->
-    <header class="border-b border-[var(--color-bg-elevated)]">
-      <div class="container mx-auto px-4 py-4">
-        <nav class="flex items-center justify-between">
-          <div class="flex items-center space-x-8">
-            <h1 class="text-2xl font-bold text-[var(--color-text-primary)]">
-              Guitar Tone Shootout
-            </h1>
-            <div class="hidden md:flex space-x-6">
-              <a href="/" class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                Home
-              </a>
-              <a href="/about" class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                About
-              </a>
-            </div>
-          </div>
-          <a
-            href="/login"
-            class="bg-[var(--color-accent-primary)] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+<Layout title="Server Error" description="Something went wrong on our end.">
+  <section class="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden py-20">
+    <!-- Background gradient with error tint -->
+    <div
+      class="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(239,68,68,0.1),transparent)]"
+      aria-hidden="true"
+    ></div>
+
+    <div class="container mx-auto px-4 text-center">
+      <!-- Error Code -->
+      <div class="mb-6">
+        <span class="font-mono text-8xl font-bold text-red-500/80 md:text-9xl">500</span>
+      </div>
+
+      <!-- Error Icon -->
+      <div class="mb-8 flex justify-center">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-16 w-16 text-muted-foreground"
+          aria-hidden="true"
+        >
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      </div>
+
+      <!-- Error Message -->
+      <h1 class="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+        Something Went Wrong
+      </h1>
+      <p class="mx-auto mb-8 max-w-md text-lg text-muted-foreground">
+        We encountered an unexpected error while processing your request.
+        Our team has been notified and is working on a fix.
+      </p>
+
+      <!-- Actions -->
+      <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <button
+          onclick="window.location.reload()"
+          class="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-amber-600 px-8 text-base font-semibold text-white shadow-lg transition-colors hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
           >
-            Login
-          </a>
-        </nav>
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M16 16h5v5" />
+          </svg>
+          Try Again
+        </button>
+        <a
+          href="/"
+          class="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-border bg-background px-8 text-base font-semibold transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+          Go Home
+        </a>
       </div>
-    </header>
 
-    <!-- Error Content -->
-    <main class="flex-grow">
-      <div class="container mx-auto px-4 py-20">
-        <div class="max-w-2xl mx-auto text-center">
-          <!-- Error Code -->
-          <div class="mb-8">
-            <h1 class="text-9xl font-bold text-[var(--color-accent-error)] mb-4">
-              500
-            </h1>
-            <h2 class="text-3xl font-semibold text-[var(--color-text-primary)] mb-4">
-              Internal Server Error
-            </h2>
-            <p class="text-lg text-[var(--color-text-secondary)]">
-              Something went wrong on our end. We're working to fix the issue.
-            </p>
-          </div>
-
-          <!-- Helpful Actions -->
-          <div class="space-y-4">
-            <p class="text-[var(--color-text-muted)]">
-              You can try the following:
-            </p>
-            <ul class="text-left text-[var(--color-text-secondary)] max-w-md mx-auto space-y-2">
-              <li class="flex items-start">
-                <span class="text-[var(--color-accent-primary)] mr-2">•</span>
-                <span>Refresh the page and try again</span>
-              </li>
-              <li class="flex items-start">
-                <span class="text-[var(--color-accent-primary)] mr-2">•</span>
-                <span>Return to the home page</span>
-              </li>
-              <li class="flex items-start">
-                <span class="text-[var(--color-accent-primary)] mr-2">•</span>
-                <span>If the problem persists, contact support</span>
-              </li>
-            </ul>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-              <a
-                href="/"
-                class="bg-[var(--color-accent-primary)] text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Go Home
-              </a>
-              <button
-                onclick="window.location.reload()"
-                class="bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] px-6 py-3 rounded-lg hover:bg-[var(--color-bg-surface)] transition-colors border border-[var(--color-bg-elevated)]"
-              >
-                Try Again
-              </button>
-            </div>
-          </div>
-        </div>
+      <!-- Error ID Display (for correlation) -->
+      <div class="mt-12 rounded-lg border border-border bg-bg-surface p-4">
+        <p class="mb-2 text-sm text-muted-foreground">
+          If the problem persists, please contact support with this error ID:
+        </p>
+        <code id="error-id" class="font-mono text-sm text-amber-500">
+          <!-- Error ID will be populated by client-side JS if available -->
+        </code>
       </div>
-    </main>
+    </div>
+  </section>
 
-    <!-- Footer -->
-    <footer class="border-t border-[var(--color-bg-elevated)] mt-auto">
-      <div class="container mx-auto px-4 py-8">
-        <div class="text-center text-[var(--color-text-muted)]">
-          <p>&copy; 2024 Guitar Tone Shootout. All rights reserved.</p>
-        </div>
-      </div>
-    </footer>
-  </body>
-</html>
+  <script>
+    // Generate a random error ID for correlation (in production, this would come from headers)
+    const errorId = document.getElementById('error-id');
+    if (errorId) {
+      // Check for correlation ID in URL params or generate one
+      const urlParams = new URLSearchParams(window.location.search);
+      const correlationId = urlParams.get('error_id') ||
+        'ERR-' + Date.now().toString(36).toUpperCase() + '-' +
+        Math.random().toString(36).substring(2, 7).toUpperCase();
+      errorId.textContent = correlationId;
+    }
+  </script>
+</Layout>

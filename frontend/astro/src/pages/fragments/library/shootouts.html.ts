@@ -1,0 +1,40 @@
+/**
+ * fragments/library/shootouts.html.ts - Outputs dist/fragments/library/shootouts.html
+ *
+ * Library Shootouts List Fragment - displays a list of shootouts
+ * or an empty state encouraging users to create their first tone comparison.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `<!-- Library Shootouts List Fragment -->
+<div data-testid="shootout-list" data-empty="{{ 'true' if not shootouts else 'false' }}" class="space-y-4">
+  {% if shootouts %}
+    {% for shootout in shootouts %}
+      {% include 'fragments/library/shootout_item.html' %}
+    {% endfor %}
+  {% else %}
+    <div class="text-center py-12">
+      <div class="text-gray-400 mb-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      </div>
+      <p class="text-gray-500">No shootouts yet</p>
+      <p class="text-gray-400 text-sm mt-1">Create your first tone comparison to get started</p>
+    </div>
+  {% endif %}
+</div>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

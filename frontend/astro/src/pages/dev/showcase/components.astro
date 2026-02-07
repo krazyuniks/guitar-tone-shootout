@@ -1,0 +1,161 @@
+---
+import Layout from "../../../layouts/Layout.astro";
+import Container from "../../../components/ui/Container.astro";
+import Button from "../../../components/ui/Button.astro";
+import Card from "../../../components/ui/Card.astro";
+import Badge from "../../../components/ui/Badge.astro";
+---
+
+<Layout title="UI Components">
+  <div class="min-h-screen bg-[#0a0a0a] text-white pb-24">
+    <!-- Toolbar -->
+    <div class="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-md">
+      <Container>
+        <div class="flex h-16 items-center justify-between">
+          <h1 class="text-lg font-bold">Component Library</h1>
+
+          <!-- Viewport Controls -->
+          <div class="flex items-center gap-2 bg-white/5 rounded-lg p-1 border border-white/10">
+            <button
+              data-viewport="mobile"
+              class="viewport-btn p-2 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Mobile (375px)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="10" height="18" x="7" y="3" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+            </button>
+            <button
+              data-viewport="tablet"
+              class="viewport-btn p-2 rounded-md text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+              title="Tablet (768px)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+            </button>
+            <button
+              data-viewport="desktop"
+              class="viewport-btn active bg-blue-600 text-white p-2 rounded-md shadow-sm"
+              title="Desktop (100%)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2" ry="2"/><path d="M12 17h.01"/></svg>
+            </button>
+          </div>
+        </div>
+      </Container>
+    </div>
+
+    <!-- Preview Canvas -->
+    <div class="py-12 bg-gray-900/50 min-h-[calc(100vh-4rem)] transition-all duration-300 ease-in-out mx-auto w-full" id="preview-canvas">
+      <Container>
+        <div class="space-y-16">
+
+          <!-- Buttons -->
+          <section id="buttons" class="scroll-mt-24">
+            <div class="mb-6">
+              <h2 class="text-xl font-bold mb-2">Buttons</h2>
+              <p class="text-gray-400">Interactive elements for user actions.</p>
+            </div>
+
+            <Card class="space-y-8">
+              <div class="space-y-4">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Variants</h3>
+                <div class="flex flex-wrap gap-4">
+                  <Button variant="primary">Primary</Button>
+                  <Button variant="secondary">Secondary</Button>
+                  <Button variant="outline">Outline</Button>
+                  <Button variant="ghost">Ghost</Button>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">Sizes</h3>
+                <div class="flex flex-wrap items-center gap-4">
+                  <Button size="sm">Small</Button>
+                  <Button size="md">Medium</Button>
+                  <Button size="lg">Large</Button>
+                </div>
+              </div>
+
+               <div class="space-y-4">
+                <h3 class="text-sm font-medium text-gray-500 uppercase tracking-wider">States</h3>
+                <div class="flex flex-wrap gap-4">
+                  <Button disabled>Disabled</Button>
+                  <Button variant="outline" disabled>Disabled Outline</Button>
+                </div>
+              </div>
+            </Card>
+          </section>
+
+          <!-- Badges -->
+          <section id="badges" class="scroll-mt-24">
+             <div class="mb-6">
+              <h2 class="text-xl font-bold mb-2">Badges</h2>
+              <p class="text-gray-400">Labels for status and categories.</p>
+            </div>
+             <Card>
+                <div class="flex flex-wrap gap-4">
+                  <Badge variant="default">Default</Badge>
+                  <Badge variant="blue">Blue</Badge>
+                  <Badge variant="amber">Amber</Badge>
+                  <Badge variant="green">Green</Badge>
+                  <Badge variant="purple">Purple</Badge>
+                  <Badge variant="red">Red</Badge>
+                </div>
+             </Card>
+          </section>
+
+           <!-- Cards -->
+          <section id="cards" class="scroll-mt-24">
+             <div class="mb-6">
+              <h2 class="text-xl font-bold mb-2">Cards</h2>
+              <p class="text-gray-400">Containers for grouped content.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                    <h3 class="font-bold text-lg mb-2">Basic Card</h3>
+                    <p class="text-gray-400">Standard content container with hover effect.</p>
+                </Card>
+                <Card href="#">
+                    <h3 class="font-bold text-lg mb-2 text-blue-400">Link Card ↗</h3>
+                    <p class="text-gray-400">This card is rendered as an anchor tag.</p>
+                </Card>
+            </div>
+          </section>
+
+        </div>
+      </Container>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  // Viewport Toggle Logic
+  const canvas = document.getElementById('preview-canvas');
+  const buttons = document.querySelectorAll('.viewport-btn');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const viewport = btn.getAttribute('data-viewport');
+
+      // Update active state
+      buttons.forEach(b => {
+          b.classList.remove('bg-blue-600', 'text-white', 'shadow-sm', 'active');
+          b.classList.add('text-gray-400', 'hover:text-white', 'hover:bg-white/10');
+      });
+      btn.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/10');
+      btn.classList.add('bg-blue-600', 'text-white', 'shadow-sm', 'active');
+
+      // Update canvas width
+      if (!canvas) return;
+
+      canvas.style.maxWidth = '100%'; // Reset
+      canvas.classList.remove('border-x', 'border-white/10');
+
+      if (viewport === 'mobile') {
+        canvas.style.maxWidth = '375px';
+        canvas.classList.add('border-x', 'border-white/10');
+      } else if (viewport === 'tablet') {
+        canvas.style.maxWidth = '768px';
+        canvas.classList.add('border-x', 'border-white/10');
+      }
+    });
+  });
+</script>

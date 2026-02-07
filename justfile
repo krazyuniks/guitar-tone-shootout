@@ -142,6 +142,9 @@ test:
 
 # Run E2E golden path tests (on host, hits Docker containers)
 test-golden-path:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -f .env.local ] && set -a && source .env.local && set +a
     cd tests/e2e/python && uv run pytest tests/ -v
 
 # Run a single test file or test (TDD mode, in Docker)

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 @pytest.fixture(scope="session")
 def frontend_url() -> str:
     """Base URL for the frontend."""
-    return os.getenv("FRONTEND_URL", "http://localhost:9000")
+    return os.getenv("BASE_URL", os.getenv("FRONTEND_URL", "http://localhost:9000"))
 
 
 @pytest.fixture(scope="session")

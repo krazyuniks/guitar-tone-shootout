@@ -192,3 +192,27 @@ async def get_shootout(
         created_at=shootout.created_at,
         updated_at=shootout.updated_at,
     )
+
+
+@router.delete("/{shootout_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_shootout(
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Delete a shootout by ID.
+
+    Protected endpoint - requires authentication.
+    Returns 404 if shootout not found or not owned by user.
+    """
+    service = ShootoutService(db)
+    shootout = await service.get_by_id(shootout_id)
+
+    if not shootout or shootout.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    async with db.begin():
+        await service.delete(shootout_id)

@@ -5,26 +5,34 @@ Fragments are used by HTMX for dynamic page updates without full page reloads.
 All fragments return HTMLResponse with Jinja2 templates.
 """
 
+from math import ceil
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.shootout import Shootout
+from webapp.adapters.persistence.models.shootout import DITrack, Shootout
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
+from webapp.adapters.persistence.repositories.di_track_repository import (
+    SQLAlchemyDITrackRepository,
+)
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
+)
+from webapp.adapters.persistence.repositories.shootout_repository import (
+    SQLAlchemyShootoutRepository,
 )
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
-from webapp.templates import templates
+from webapp.api.pages import _gear_to_pack
+from webapp.templates import _relative_time, templates
 
 router = APIRouter(prefix="/api/v1/html", tags=["html-fragments"])
 
@@ -93,6 +101,29 @@ async def get_current_user(
             detail="Not authenticated",
         )
     return user
+
+
+async def get_optional_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> User | None:
+    """Get current user if authenticated, None otherwise."""
+    if _user_override:
+        return _user_override
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    return result.scalar_one_or_none()
+
+
+def _format_duration(seconds: float | None) -> str:
+    """Format seconds to mm:ss string."""
+    if seconds is None:
+        return "0:00"
+    mins = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{mins}:{secs:02d}"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -339,5 +370,487 @@ async def library_shootouts_list_fragment(
         "fragments/shootouts/list.html",
         {
             "shootouts": shootout_items,
+        },
+    )
+
+
+# --- New fragment endpoints matching restored frontend templates ---
+
+
+# Library My-Gear Results (page-based)
+
+
+@router.get("/my-gear/results", response_class=HTMLResponse)
+async def my_gear_results_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    search: str | None = Query(None),
+    gear_type: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(24, ge=1, le=100),
+) -> HTMLResponse:
+    """Render user's saved gear with filters and pagination."""
+    query = (
+        select(UserGear, Gear)
+        .join(Gear, UserGear.gear_id == Gear.id)
+        .where(UserGear.user_id == current_user.id)
+    )
+
+    if gear_type:
+        try:
+            gt = GearType(gear_type.replace("-", "_"))
+            query = query.where(Gear.gear_type == gt)
+        except ValueError:
+            pass
+
+    if search:
+        query = query.where(Gear.name.ilike(f"%{search}%"))
+
+    # Count total
+    count_q = (
+        select(func.count())
+        .select_from(UserGear)
+        .join(Gear, UserGear.gear_id == Gear.id)
+        .where(UserGear.user_id == current_user.id)
+    )
+    if gear_type:
+        try:
+            gt = GearType(gear_type.replace("-", "_"))
+            count_q = count_q.where(Gear.gear_type == gt)
+        except ValueError:
+            pass
+    if search:
+        count_q = count_q.where(Gear.name.ilike(f"%{search}%"))
+
+    total_result = await db.execute(count_q)
+    total_count = total_result.scalar() or 0
+
+    offset = (page - 1) * page_size
+    query = query.limit(page_size).offset(offset)
+    result = await db.execute(query)
+    rows = result.all()
+
+    packs = [_gear_to_pack(gear) for _ug, gear in rows]
+    total_models = sum(p["models_count"] for p in packs)
+    total_pages = max(1, ceil(total_count / page_size))
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/library/my_gear.html",
+        {
+            "packs": packs,
+            "total_models": total_models,
+            "total_packs": total_count,
+            "gear_type_filter": gear_type or "",
+            "search": search or "",
+            "page": page,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+        },
+    )
+
+
+# Public DI Tracks Browse
+
+
+@router.get("/di-tracks/results", response_class=HTMLResponse)
+async def di_tracks_results_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User | None, Depends(get_optional_user)],
+    search: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> HTMLResponse:
+    """Render public DI tracks browse results."""
+    query = (
+        select(DITrack)
+        .order_by(DITrack.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    if search:
+        query = query.where(DITrack.name.ilike(f"%{search}%"))
+
+    count_q = select(func.count()).select_from(DITrack)
+    if search:
+        count_q = count_q.where(DITrack.name.ilike(f"%{search}%"))
+
+    total_result = await db.execute(count_q)
+    total_count = total_result.scalar() or 0
+
+    result = await db.execute(query)
+    tracks_orm = result.scalars().all()
+
+    tracks = []
+    for t in tracks_orm:
+        tracks.append({
+            "id": str(t.id),
+            "title": t.name,
+            "description": t.description,
+            "is_public": True,
+            "duration_seconds": t.duration_seconds,
+            "duration_formatted": _format_duration(t.duration_seconds),
+            "sample_rate": t.sample_rate,
+            "guitar": t.guitar,
+            "tuning": None,
+            "pickups": t.pickup,
+            "is_system_track": False,
+            "relative_time": _relative_time(t.created_at),
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/di-tracks/public_browse.html",
+        {
+            "tracks": tracks,
+            "total_count": total_count,
+            "offset": offset,
+            "search": search or "",
+            "tuning_filter": "",
+            "user": current_user,
+            "prev_url": f"/di-tracks?offset={max(0, offset - limit)}" if offset > 0 else None,
+            "next_url": f"/di-tracks?offset={offset + limit}" if offset + limit < total_count else None,
+        },
+    )
+
+
+# Library DI Tracks
+
+
+@router.get("/library/tracks", response_class=HTMLResponse)
+async def library_tracks_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's DI tracks list."""
+    repo = SQLAlchemyDITrackRepository(db)
+    track_entities = await repo.get_by_user_id(current_user.id)
+
+    tracks = []
+    for t in track_entities:
+        tracks.append({
+            "id": str(t.id),
+            "title": t.name,
+            "description": t.description,
+            "is_public": False,
+            "duration_seconds": t.duration_seconds,
+            "duration_formatted": _format_duration(t.duration_seconds),
+            "sample_rate": t.sample_rate,
+            "guitar": t.guitar,
+            "tuning": None,
+            "pickups": t.pickup,
+            "is_system_track": False,
+            "relative_time": _relative_time(t.created_at),
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/library/tracks.html",
+        {"tracks": tracks},
+    )
+
+
+# Toggle DI Track Public/Private
+
+
+@router.post("/library/tracks/{track_id}/toggle-public", response_class=HTMLResponse)
+async def library_track_toggle_public(
+    request: Request,
+    track_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Toggle a DI track's public visibility. Returns updated track_item."""
+    result = await db.execute(
+        select(DITrack).where(DITrack.id == UUID(track_id))
+    )
+    track = result.scalar_one_or_none()
+
+    if not track or track.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Track not found",
+        )
+
+    # DITrack doesn't have is_public field yet — stub: return the same card
+    track_data = {
+        "id": str(track.id),
+        "title": track.name,
+        "description": track.description,
+        "is_public": False,
+        "duration_seconds": track.duration_seconds,
+        "duration_formatted": _format_duration(track.duration_seconds),
+        "sample_rate": track.sample_rate,
+        "guitar": track.guitar,
+        "tuning": None,
+        "pickups": track.pickup,
+        "is_system_track": False,
+        "relative_time": _relative_time(track.created_at),
+    }
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/library/track_item.html",
+        {"track": track_data, "is_library_view": True},
+    )
+
+
+# Save DI Track to Library (stub)
+
+
+@router.post("/library/tracks/{track_id}/save", response_class=HTMLResponse)
+async def library_track_save(
+    track_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Save a public DI track to user's library. Stub endpoint."""
+    return HTMLResponse(content="", status_code=200)
+
+
+# Library Chains (new URL, same data as /library/chains/list)
+
+
+@router.get("/library/chains", response_class=HTMLResponse)
+async def library_chains_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's signal chains list for library page."""
+    repo = SQLAlchemySignalChainRepository(db)
+    chains = await repo.get_by_user_id(current_user.id)
+
+    chain_items = []
+    for chain in chains:
+        chain_items.append({
+            "id": str(chain.id),
+            "name": chain.name,
+            "description": chain.description,
+            "platform": chain.platform.value,
+            "block_count": chain.block_count,
+            "is_complete": chain.is_complete(),
+            "relative_time": _relative_time(chain.created_at),
+            "is_used_in_shootout": False,
+            "shootouts": [],
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/library/chains.html",
+        {"chains": chain_items},
+    )
+
+
+# Library Shootouts (new URL, same data)
+
+
+@router.get("/library/shootouts", response_class=HTMLResponse)
+async def library_shootouts_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's shootouts list for library page."""
+    query = (
+        select(Shootout)
+        .where(Shootout.user_id == current_user.id)
+        .order_by(Shootout.created_at.desc())
+    )
+    result = await db.execute(query)
+    shootouts_orm = result.scalars().all()
+
+    shootout_items = []
+    for s in shootouts_orm:
+        shootout_items.append({
+            "id": str(s.id),
+            "name": s.name,
+            "description": s.description,
+            "status": s.status.value if hasattr(s.status, "value") else str(s.status),
+            "tone_count": len(s.chains) if s.chains else 0,
+            "relative_time": _relative_time(s.created_at),
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/library/shootouts.html",
+        {"shootouts": shootout_items},
+    )
+
+
+# Shootout Create Wizard - Step 1: Chain List
+
+
+@router.get("/shootout-create/chains", response_class=HTMLResponse)
+async def shootout_create_chains_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    search: str | None = Query(None),
+) -> HTMLResponse:
+    """Render chain list for shootout creation wizard."""
+    repo = SQLAlchemySignalChainRepository(db)
+    chains = await repo.get_by_user_id(current_user.id)
+
+    chain_items = []
+    for chain in chains:
+        if search and search.lower() not in chain.name.lower():
+            continue
+        chain_items.append({
+            "id": str(chain.id),
+            "name": chain.name,
+            "block_count": chain.block_count,
+            "platform": chain.platform.value,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/create/chain-list.html",
+        {"chains": chain_items, "search": search or ""},
+    )
+
+
+# Shootout Create Wizard - Step 2: DI Track List
+
+
+@router.get("/shootout-create/ditracks", response_class=HTMLResponse)
+async def shootout_create_ditracks_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render DI track list for shootout creation wizard."""
+    repo = SQLAlchemyDITrackRepository(db)
+    track_entities = await repo.get_by_user_id(current_user.id)
+
+    tracks = []
+    for t in track_entities:
+        tracks.append({
+            "id": str(t.id),
+            "title": t.name,
+            "duration_seconds": t.duration_seconds,
+            "sample_rate": t.sample_rate,
+            "guitar": t.guitar,
+            "description": t.description,
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/create/ditrack-list.html",
+        {"tracks": tracks},
+    )
+
+
+# Shootout Create - POST (create shootout from form)
+
+
+@router.post("/shootout-create", response_class=HTMLResponse)
+async def shootout_create_submit(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Create a shootout from the wizard form submission."""
+    from uuid import uuid4
+
+    from core.domain.entities.shootout import Shootout as ShootoutEntity
+    from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
+    from webapp.services.shootout_service import ShootoutService
+
+    form = await request.form()
+    name = form.get("name", "Untitled Shootout")
+    di_track_id = form.get("di_track_id")
+    chain_ids = form.getlist("chain_ids[]") or form.getlist("chain_ids")
+
+    chains = []
+    for i, chain_id in enumerate(chain_ids):
+        chains.append(ShootoutChainVO(
+            id=uuid4(),
+            shootout_id=uuid4(),  # placeholder, overwritten
+            signal_chain_id=UUID(chain_id),
+            position=i,
+            label=f"Chain {i + 1}",
+        ))
+
+    shootout_id = uuid4()
+    for chain in chains:
+        object.__setattr__(chain, "shootout_id", shootout_id)
+
+    shootout = ShootoutEntity(
+        id=shootout_id,
+        user_id=current_user.id,
+        name=str(name),
+        di_track_id=UUID(str(di_track_id)) if di_track_id else None,
+        chains=chains,
+    )
+
+    service = ShootoutService(db)
+    async with db.begin():
+        await service.create(shootout)
+
+    response = HTMLResponse(content="", status_code=200)
+    response.headers["HX-Redirect"] = f"/shootout/{shootout_id}"
+    return response
+
+
+# Public Shootouts Sections (trending/latest)
+
+
+@router.get("/shootouts/sections", response_class=HTMLResponse)
+async def shootouts_sections_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> HTMLResponse:
+    """Render public shootouts sections (trending, latest)."""
+    repo = SQLAlchemyShootoutRepository(db)
+    recent = await repo.get_public(limit=10)
+
+    sections = []
+    if recent:
+        shootout_cards = []
+        for s in recent:
+            shootout_cards.append({
+                "id": str(s.id),
+                "name": s.name,
+                "description": s.description,
+                "chain_count": len(s.chains) if s.chains else 0,
+                "relative_time": _relative_time(s.created_at),
+            })
+
+        sections.append({
+            "category": "latest",
+            "icon": None,
+            "title": "Latest Shootouts",
+            "view_all_href": None,
+            "shootouts": shootout_cards,
+            "empty_message": "No shootouts yet",
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/sections.html",
+        {"sections": sections},
+    )
+
+
+# Shootout Comments (stub)
+
+
+@router.get("/shootouts/{shootout_id}/comments", response_class=HTMLResponse)
+async def shootout_comments_fragment(
+    request: Request,
+    shootout_id: str,
+) -> HTMLResponse:
+    """Render shootout comments section (stub - no comments yet)."""
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/comments.html",
+        {
+            "shootout_id": shootout_id,
+            "comments": [],
         },
     )

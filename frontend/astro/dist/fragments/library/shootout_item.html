@@ -1,0 +1,57 @@
+<!-- Library Shootout Item Card -->
+<div
+  data-testid="shootout-item"
+  data-shootout-id="{{ shootout.id }}"
+  class="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-700 transition-colors"
+>
+  <div class="flex items-start gap-4 p-4">
+    <!-- Thumbnail -->
+    <a href="/shootout/{{ shootout.id }}" class="flex-shrink-0 w-24 h-24 bg-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors">
+      {% if shootout.status == 'completed' %}
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+        </svg>
+      {% elif shootout.status == 'failed' %}
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+      {% else %}
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-yellow-500 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      {% endif %}
+    </a>
+
+    <!-- Content -->
+    <a href="/shootout/{{ shootout.id }}" class="flex-1 min-w-0">
+      <h3 class="text-white font-medium truncate">{{ shootout.name }}</h3>
+      {% if shootout.description %}
+        <p class="text-gray-400 text-sm truncate mt-1">{{ shootout.description }}</p>
+      {% endif %}
+      <div class="flex items-center gap-4 mt-2 text-sm">
+        <span class="text-gray-500">
+          {{ shootout.tone_count }} tone{{ 's' if shootout.tone_count != 1 else '' }}
+        </span>
+        <span class="text-gray-500">{{ shootout.relative_time }}</span>
+        {% if shootout.status == 'pending' %}
+          <span class="text-yellow-500 text-xs">Processing...</span>
+        {% elif shootout.status == 'failed' %}
+          <span class="text-red-500 text-xs">Failed</span>
+        {% endif %}
+      </div>
+    </a>
+
+    <!-- Delete button -->
+    <button
+      type="button"
+      data-testid="shootout-item-delete-btn"
+      onclick="handleDelete('/api/v1/shootouts/{{ shootout.id }}', '{{ shootout.name | replace("'", "\'") }}', '[data-shootout-id=\'{{ shootout.id }}\']')"
+      class="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+      title="Delete shootout"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+      </svg>
+    </button>
+  </div>
+</div>
