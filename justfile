@@ -362,11 +362,23 @@ uninstall-hooks:
 
 # --- Epic Management ---
 
-# Sync epic from GitHub to .tasks/
+# Materialise tasks from TASKS.md to .tasks/ (local-only, no GH issues)
 epic-sync epic:
+    #!/usr/bin/env bash
+    set -e
+    TASKS_MD=$(find .planning/epics/ -name TASKS.md -path "*" 2>/dev/null | head -1)
+    if [ -z "$TASKS_MD" ]; then
+        echo "Error: No TASKS.md found in .planning/epics/"
+        echo "Run: just plan {{epic}}"
+        exit 1
+    fi
+    python scripts/tasks_from_plan.py "$TASKS_MD" {{epic}}
+
+# [Deprecated] Sync from GitHub issues (for E1/E33 backward compat)
+epic-sync-gh epic:
     python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}}
 
-# Sync with validation (warns on sparse issues)
+# [Deprecated] Sync from GitHub with validation
 epic-sync-validate epic:
     python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}} --validate
 
@@ -385,7 +397,7 @@ dispatch agent +prompt:
 # Show epic status
 epic-status epic:
     @echo "=== Epic E{{epic}} Status ==="
-    @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just epic-sync {{epic}}"
+    @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just plan {{epic}}"
 
 # Plan an epic - full agent pipeline
 plan epic *FLAGS:
@@ -395,15 +407,12 @@ plan epic *FLAGS:
 plan-dry epic *FLAGS:
     python scripts/plan_epic.py {{epic}} --dry-run {{FLAGS}}
 
-# Full workflow: plan -> sync -> start
+# Full workflow: plan -> start (no separate sync needed)
 epic-full epic:
     #!/usr/bin/env bash
     set -e
     echo "=== Planning Epic #{{epic}} ==="
     just plan {{epic}}
-    echo ""
-    echo "=== Syncing to .tasks/ ==="
-    just epic-sync {{epic}}
     echo ""
     echo "=== Starting Orchestration ==="
     just epic-start {{epic}}

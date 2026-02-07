@@ -9,7 +9,7 @@ Pipeline:
   4. epic-goal-backward     → GOALS.md
   5. epic-task-breakdown    → TASKS.md
   6. plan-reviewer          → REVIEW.md (gate: APPROVE or REVISE)
-  7. epic-github-creator    → GitHub issues + created.json
+  7. tasks_from_plan.py     → .tasks/ files + created.json (local, no GH issues)
 
 Usage:
     python scripts/plan_epic.py 33
@@ -39,6 +39,7 @@ PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
 RUN_EPIC = PROJECT_ROOT / "scripts" / "run_epic.py"
 
 REPO = "krazyuniks/guitar-tone-shootout"
+TASKS_FROM_PLAN = PROJECT_ROOT / "scripts" / "tasks_from_plan.py"
 
 # Steps in the pipeline
 STEPS = {
@@ -48,7 +49,7 @@ STEPS = {
     4: "epic-goal-backward",
     5: "epic-task-breakdown",
     6: "plan-reviewer",
-    7: "epic-github-creator",
+    7: "task-materialisation",
 }
 
 MAX_REVIEW_RETRIES = 1  # re-run task-breakdown once if REVISE
@@ -361,23 +362,82 @@ def step_6_review_gate(slug: str, epic_dir: Path, *, dry_run: bool = False) -> N
     die("Plan review rejected after retry. Fix issues manually and re-run with --from-step 5")
 
 
-def step_7_github_creator(
-    slug: str, epic: dict, epic_number: int, *, dry_run: bool = False
+def step_7_materialise_tasks(
+    slug: str, epic: dict, epic_number: int, epic_dir: Path, *, dry_run: bool = False
 ) -> None:
-    """Step 7: Create GitHub issues from TASKS.md."""
-    print("=== Step 7: GitHub Issue Creator ===")
+    """Step 7: Materialise tasks locally and update epic GH issue."""
+    print("=== Step 7: Task Materialisation (local) ===")
 
-    prompt = (
-        f"slug: {slug}\n"
-        f"epic_title: {epic['title']}\n"
-        f"existing_epic_number: {epic_number}\n\n"
-        f"IMPORTANT: Epic #{epic_number} already exists. Do NOT create a new epic issue.\n"
-        f"Instead:\n"
-        f"1. Create task issues only\n"
-        f"2. Update epic #{epic_number} body with the task checklist\n"
-        f"3. Use `--repo {REPO}` on ALL gh commands\n"
-    )
-    dispatch_agent("epic-github-creator", prompt, dry_run=dry_run, max_turns=30)
+    tasks_md = epic_dir / "TASKS.md"
+    if not tasks_md.exists():
+        die(f"TASKS.md not found at {tasks_md}")
+
+    # 1. Run tasks_from_plan.py to write .tasks/ files
+    cmd = [sys.executable, str(TASKS_FROM_PLAN), str(tasks_md), str(epic_number)]
+    if dry_run:
+        cmd.append("--dry-run")
+
+    print(f"  Running: tasks_from_plan.py ...")
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT)
+    if result.returncode != 0:
+        die("tasks_from_plan.py failed")
+
+    # 2. Update the epic GH issue body with a task summary
+    created_path = epic_dir / "created.json"
+    if not dry_run and created_path.exists():
+        created = json.loads(created_path.read_text())
+        task_lines = []
+        for t in created.get("tasks", []):
+            local_id = t["local_id"]
+            plan_id = t["id"]
+            title = t["title"]
+            task_lines.append(f"- [ ] T{local_id}: {plan_id} - {title}")
+
+        task_summary = "\n".join(task_lines)
+        body_update = (
+            f"## Tasks\n\n"
+            f"{task_summary}\n\n"
+            f"---\n"
+            f"*Tasks are local (.tasks/E{epic_number}/). "
+            f"Run `just epic-start {epic_number}` to begin TDD execution.*"
+        )
+
+        # Read current epic body and append/replace Tasks section
+        current_body = epic.get("body", "")
+        if "## Tasks" in current_body:
+            # Replace existing Tasks section
+            new_body = re.sub(
+                r"## Tasks\s*\n.*?(?=\n## |\Z)",
+                body_update,
+                current_body,
+                flags=re.DOTALL,
+            )
+        else:
+            new_body = current_body.rstrip() + "\n\n" + body_update
+
+        # Write updated body to temp file and apply
+        body_file = epic_dir / "epic-body-updated.md"
+        body_file.write_text(new_body)
+
+        print(f"  Updating epic #{epic_number} on GitHub...")
+        gh_result = subprocess.run(
+            [
+                "gh", "issue", "edit", str(epic_number),
+                "--repo", REPO,
+                "--body-file", str(body_file),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+        )
+        if gh_result.returncode != 0:
+            print(f"  WARNING: Failed to update epic body: {gh_result.stderr.strip()}")
+            print("  (Tasks were still written locally — GH update can be retried)")
+        else:
+            print(f"  Updated epic #{epic_number} body with task summary")
+    elif dry_run:
+        print("  [dry-run] Would update epic body on GitHub with task summary")
+
     print()
 
 
@@ -448,9 +508,9 @@ def run_pipeline(
     if from_step <= 6:
         step_6_review_gate(slug, epic_dir, dry_run=dry_run)
 
-    # Step 7: GitHub issue creation
+    # Step 7: Task materialisation (local, no GH issues)
     if from_step <= 7:
-        step_7_github_creator(slug, epic, epic_number, dry_run=dry_run)
+        step_7_materialise_tasks(slug, epic, epic_number, epic_dir, dry_run=dry_run)
 
     # Done
     print("=" * 60)
@@ -463,7 +523,6 @@ def run_pipeline(
             print(f"  {f.relative_to(PROJECT_ROOT)}")
     print()
     print("Next steps:")
-    print(f"  just epic-sync {epic_number}   # Sync to .tasks/")
     print(f"  just epic-status {epic_number} # Check status")
     print(f"  just epic-start {epic_number}  # Begin TDD execution")
 

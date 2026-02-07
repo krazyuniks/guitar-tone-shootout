@@ -6,7 +6,7 @@ context: fork
 
 # Epic Builder Skill
 
-**Activation:** Epic creation, feature planning, GitHub issue generation, TDD task breakdown
+**Activation:** Epic creation, feature planning, local task materialisation, TDD task breakdown
 
 **Command:** `/epic-build` - See `.claude/commands/epic-build.md`
 
@@ -16,15 +16,16 @@ context: fork
 
 The epic-build command uses a subagent architecture to reduce context usage by ~78%:
 
-| Phase | Agent | Model | Purpose |
-|-------|-------|-------|---------|
+| Phase | Agent/Script | Model | Purpose |
+|-------|--------------|-------|---------|
 | Context | `epic-context-loader` | haiku | Load wiki docs, write CONTEXT.md |
 | Gray Areas | `epic-gray-area-analyst` | haiku | Detect areas, return questions |
 | Goals | `epic-goal-backward` | sonnet | Derive truths, write GOALS.md |
 | Tasks | `epic-task-breakdown` | sonnet | Break down, write TASKS.md |
-| GitHub | `epic-github-creator` | haiku | Create issues, write created.json |
+| Materialise | `tasks_from_plan.py` | (deterministic) | Parse TASKS.md, write .tasks/ + created.json |
 
 Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the orchestrator.
+Task materialisation is a deterministic Python script — no AI agent needed.
 
 **Agents:** Located in `.claude/agents/epic-*.md`
 
@@ -50,16 +51,16 @@ Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the
 | Goal-Backward | Autonomous (subagent) | Derive truths, artifacts, wiring |
 | Task Breakdown | Autonomous (subagent) | Generate task structure |
 | Decision Gate | Interactive | User approves or revises |
-| GitHub Creation | Autonomous (subagent) | Create issues, validate, save state |
+| Task Materialisation | Deterministic (script) | Parse TASKS.md → .tasks/ files + created.json |
 
 ### State File Contract
 
 | File | Written By | Read By |
 |------|------------|---------|
 | `CONTEXT.md` | epic-context-loader + orchestrator | epic-goal-backward |
-| `GOALS.md` | epic-goal-backward | epic-task-breakdown, epic-github-creator |
-| `TASKS.md` | epic-task-breakdown | epic-github-creator |
-| `created.json` | epic-github-creator | external tools |
+| `GOALS.md` | epic-goal-backward | epic-task-breakdown |
+| `TASKS.md` | epic-task-breakdown | `tasks_from_plan.py` |
+| `created.json` | `tasks_from_plan.py` | run_epic.py, external tools |
 
 ### Phase Prerequisites (MANDATORY)
 
@@ -114,7 +115,7 @@ Before deriving ANY artifact (model, repository, service, API):
 | Run single test | `just tdd <path>` | `docker compose exec webapp pytest` |
 | Lint/type check | `just check` | `ruff check`, `mypy` |
 | Build frontend | `just build-astro` | `pnpm build`, `npm run build` |
-| Validate sync | `just epic-sync {epic}` | `python scripts/gh_tasks_sync.py` |
+| Materialise tasks | `just plan {epic}` (step 7 auto-writes .tasks/) | `python scripts/tasks_from_plan.py` |
 
 **Why:** All project code runs in Docker. The `justfile` wraps commands with correct container context, volumes, and environment.
 
@@ -129,7 +130,7 @@ Before deriving ANY artifact (model, repository, service, API):
 | `references/question-bank.md` | Before Core Understanding | GTS-specific questions for each phase |
 | `references/gray-areas.md` | Before Gray Areas | Detection patterns and area definitions |
 | `references/goal-backward.md` | **Before Goal-Backward** | Planning guide with GTS test patterns |
-| `references/github-templates.md` | Before GitHub Creation | Issue body templates for gh_tasks_sync.py |
+| `references/github-templates.md` | Before Task Materialisation | Issue body templates (legacy, for reference) |
 
 **CRITICAL:** These are not optional references. READ the relevant file BEFORE executing each phase.
 
@@ -194,17 +195,17 @@ Each task must have:
 
 ## Integration with TDD Workflow
 
-After epic creation:
+After epic planning completes (step 7 materialises tasks automatically):
 
 ```bash
-# Validate issue structure
-just epic-sync-validate {epic}
-
-# Sync GitHub issues to .tasks/
-just epic-sync {epic}
+# Check task status
+just epic-status {epic}
 
 # Start TDD orchestration
 just epic-start {epic}
 ```
+
+Tasks are materialised locally by `tasks_from_plan.py` during planning step 7.
+No separate sync step is needed. The epic GH issue body is updated with a task summary.
 
 **Note:** Always use `just` commands, never direct `python scripts/...` calls. See `.claude/rules/container-execution.md`.

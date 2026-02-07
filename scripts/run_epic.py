@@ -1053,7 +1053,7 @@ def run_state_machine(
     epic_dir = TASKS_BASE / f"E{epic_number}"
 
     if not epic_dir.exists():
-        die(f"Epic directory not found: {epic_dir}\nRun: just epic-sync {epic_number}")
+        die(f"Epic directory not found: {epic_dir}\nRun: just plan {epic_number}")
 
     # Ensure log directories exist
     (epic_dir / "logs" / "errors").mkdir(parents=True, exist_ok=True)
@@ -1275,15 +1275,13 @@ def run_state_machine(
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Run the TDD state machine."""
-    # Sync epic first (idempotent)
-    print(f"Syncing epic #{args.epic}...")
-    result = subprocess.run(
-        ["just", "epic-sync", str(args.epic)],
-        cwd=PROJECT_ROOT,
-    )
-    if result.returncode != 0:
-        die(f"Failed to sync epic #{args.epic}")
-    print()
+    # Verify .tasks/ exists (created by plan_epic.py step 7 via tasks_from_plan.py)
+    epic_dir = TASKS_BASE / f"E{args.epic}"
+    if not epic_dir.exists():
+        die(
+            f"Epic directory not found: {epic_dir}\n"
+            f"Run `just plan {args.epic}` first to generate task files."
+        )
 
     run_state_machine(
         epic_number=args.epic,
