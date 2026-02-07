@@ -171,6 +171,12 @@ class SQLAlchemyGearRepository:
     ) -> list[GearEntity]:
         """Search for gear with filters.
 
+        Uses two-step ID-subquery pattern for paginated queries:
+        1. Step 1: ID-subquery with LIMIT/OFFSET to resolve correct page of IDs
+        2. Step 2: Hydration query with joinedload() for all relationships
+
+        This prevents row multiplication from JOINs affecting pagination.
+
         Args:
             query: Optional text search on name/description
             gear_type: Optional filter by gear type
@@ -182,12 +188,8 @@ class SQLAlchemyGearRepository:
         Returns:
             List of matching Gear ordered by name
         """
-        stmt = select(Gear).options(
-            selectinload(Gear.models),
-            selectinload(Gear.tags),
-            selectinload(Gear.source),
-            selectinload(Gear.make),
-        )
+        # Step 1: Build ID-subquery with filters and pagination
+        id_stmt = select(Gear.id)
 
         # Apply filters
         conditions = []
@@ -220,13 +222,34 @@ class SQLAlchemyGearRepository:
             conditions.append(Gear.id.in_(tag_count))
 
         if conditions:
-            stmt = stmt.where(and_(*conditions))
+            id_stmt = id_stmt.where(and_(*conditions))
 
-        # Order by name and apply pagination
-        stmt = stmt.order_by(Gear.name).limit(limit).offset(offset)
+        # Apply ordering and pagination to ID query
+        id_stmt = id_stmt.order_by(Gear.name).limit(limit).offset(offset)
+
+        # Execute ID query to get list of IDs
+        id_result = await self.session.execute(id_stmt)
+        gear_ids = list(id_result.scalars().all())
+
+        # If no IDs found, return empty list
+        if not gear_ids:
+            return []
+
+        # Step 2: Hydrate those IDs with full JOINs
+        stmt = (
+            select(Gear)
+            .where(Gear.id.in_(gear_ids))
+            .options(
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
+            )
+            .order_by(Gear.name)
+        )
 
         result = await self.session.execute(stmt)
-        gear_items = result.scalars().unique().all()
+        gear_items = result.unique().scalars().all()
 
         return [self._to_entity(gear) for gear in gear_items]
 
