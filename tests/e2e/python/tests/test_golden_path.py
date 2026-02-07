@@ -5,6 +5,7 @@ No browser needed — just verify status codes and key content.
 """
 
 import os
+import re
 
 import httpx
 import pytest
@@ -151,3 +152,12 @@ class TestGearSSRContent:
         assert r.status_code == 200
         assert 'hx-trigger="load"' not in r.text
         assert "animate-pulse" not in r.text
+
+    def test_gear_packs_have_models(self, client: httpx.Client) -> None:
+        """Verify gear packs show non-zero model counts."""
+        r = client.get("/gear")
+        assert r.status_code == 200
+        assert 'data-testid="pack-models-count"' in r.text
+        counts = re.findall(r'data-testid="pack-models-count"[^>]*>.*?(\d+)\s+models', r.text, re.DOTALL)
+        non_zero = [int(c) for c in counts if int(c) > 0]
+        assert len(non_zero) > 0, "Expected at least one pack with models_count > 0"

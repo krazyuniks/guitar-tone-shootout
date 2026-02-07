@@ -17,12 +17,10 @@ from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
-from webapp.adapters.persistence.repositories.gear_repository import (
-    SQLAlchemyGearRepository,
-)
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
+from webapp.services.gear_service import GearService
 from webapp.services.shootout_service import ShootoutService
 from webapp.templates import _relative_time, templates
 
@@ -184,7 +182,7 @@ async def gear_browse_page(
     All data rendered server-side — no HTMX, no client-side loading.
     Filters and pagination via standard form submissions and links.
     """
-    repo = SQLAlchemyGearRepository(db)
+    service = GearService(db)
 
     gt_filter = None
     if gear_type:
@@ -194,8 +192,8 @@ async def gear_browse_page(
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
 
     offset = (page - 1) * page_size
-    total = await repo.count(query=search, gear_type=gt_filter, tags=tag_list)
-    gear_items = await repo.search(
+    total = await service.count(query=search, gear_type=gt_filter, tags=tag_list)
+    gear_items = await service.search(
         query=search,
         gear_type=gt_filter,
         tags=tag_list,
@@ -256,8 +254,8 @@ async def gear_detail_page(
 
     All data rendered server-side — pack dict includes models, tags, creator info.
     """
-    repo = SQLAlchemyGearRepository(db)
-    gear = await repo.get_by_slug(slug)
+    service = GearService(db)
+    gear = await service.get_by_slug(slug)
 
     if not gear or not gear.is_public:
         raise HTTPException(
@@ -293,15 +291,15 @@ async def gear_list_fragment(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> HTMLResponse:
     """Render gear list fragment for HTMX updates."""
-    repo = SQLAlchemyGearRepository(db)
+    service = GearService(db)
 
-    total = await repo.count(
+    total = await service.count(
         query=query,
         gear_type=gear_type,
         manufacturer=manufacturer,
     )
 
-    all_gear = await repo.search(
+    all_gear = await service.search(
         query=query,
         gear_type=gear_type,
         manufacturer=manufacturer,
