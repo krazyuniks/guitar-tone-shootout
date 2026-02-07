@@ -190,28 +190,72 @@ async def process_shootout(job_id: str, shootout_id: int) -> str:
 
 ## Database Operations
 
-### Queries
+### Queries — Single Query Per Use Case
+
+**CRITICAL:** See `.claude/rules/query-patterns.md` for hard constraints. Never use `selectinload`, `subqueryload`, or `lazyload`. Always use `joinedload` for single-query aggregate hydration.
 
 ```python
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
-# Get with eager loading
+# Single entity — full aggregate in ONE query
 stmt = (
-    select(Shootout)
-    .where(Shootout.user_id == user_id)
-    .options(selectinload(Shootout.jobs))
-    .order_by(Shootout.created_at.desc())
+    select(Gear)
+    .where(Gear.id == gear_id)
+    .options(
+        joinedload(Gear.make),      # scalar (N:1)
+        joinedload(Gear.source),    # scalar (1:1)
+        joinedload(Gear.models),    # collection (1:N)
+        joinedload(Gear.tags),      # collection (M:N)
+    )
 )
 result = await db.execute(stmt)
-shootouts = result.scalars().all()
+gear = result.unique().scalar_one_or_none()  # .unique() REQUIRED with collections
 
-# Pagination
-stmt = (
-    select(Shootout)
+# Paginated list — use ID subquery to avoid LIMIT on cartesian rows
+id_stmt = (
+    select(Shootout.id)
+    .where(Shootout.user_id == user_id)
+    .order_by(Shootout.created_at.desc())
     .offset(skip)
     .limit(limit)
 )
+stmt = (
+    select(Shootout)
+    .where(Shootout.id.in_(id_stmt))
+    .options(joinedload(Shootout.chains))
+    .order_by(Shootout.created_at.desc())
+)
+result = await db.execute(stmt)
+shootouts = result.unique().scalars().all()
+
+# Chained relationships — nested JOINs in one query
+stmt = (
+    select(User)
+    .where(User.id == user_id)
+    .options(
+        joinedload(User.identities).joinedload(UserIdentity.provider)
+    )
+)
+result = await db.execute(stmt)
+user = result.unique().scalar_one_or_none()
+```
+
+### ORM Relationship Defaults
+
+All relationships MUST use `lazy="raise"` to prevent implicit loading:
+
+```python
+# CORRECT
+models: Mapped[list[GearModel]] = relationship(
+    "GearModel", back_populates="gear",
+    cascade="all, delete-orphan",
+    lazy="raise",
+)
+
+# BANNED — fires separate query
+models: Mapped[list[GearModel]] = relationship(..., lazy="selectin")
+```
 ```
 
 ### Transactions

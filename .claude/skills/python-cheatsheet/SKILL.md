@@ -150,28 +150,66 @@ class Shootout(Base):
     user: Mapped["User"] = relationship(back_populates="shootouts")
 ```
 
-### Queries:
+### Queries — Single Query via joinedload:
+
+**CRITICAL:** See `.claude/rules/query-patterns.md`. Never use `selectinload` — always `joinedload`.
 
 ```python
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
-# Get with eager loading
+# Single entity — full aggregate in ONE query
 stmt = (
-    select(Shootout)
-    .where(Shootout.user_id == user_id)
-    .options(selectinload(Shootout.jobs))
-    .order_by(Shootout.created_at.desc())
+    select(Gear)
+    .where(Gear.id == gear_id)
+    .options(
+        joinedload(Gear.make),
+        joinedload(Gear.source),
+        joinedload(Gear.models),
+        joinedload(Gear.tags),
+    )
 )
 result = await db.execute(stmt)
-shootouts = result.scalars().all()
+gear = result.unique().scalar_one_or_none()  # .unique() REQUIRED
 
-# Pagination
-stmt = (
-    select(Shootout)
+# Paginated list — ID subquery avoids LIMIT on cartesian rows
+id_stmt = (
+    select(Shootout.id)
+    .where(Shootout.user_id == user_id)
+    .order_by(Shootout.created_at.desc())
     .offset(skip)
     .limit(limit)
 )
+stmt = (
+    select(Shootout)
+    .where(Shootout.id.in_(id_stmt))
+    .options(joinedload(Shootout.chains))
+    .order_by(Shootout.created_at.desc())
+)
+result = await db.execute(stmt)
+shootouts = result.unique().scalars().all()
+
+# Chained — nested JOINs in one query
+stmt = (
+    select(User)
+    .options(
+        joinedload(User.identities).joinedload(UserIdentity.provider)
+    )
+)
+```
+
+### ORM relationship defaults:
+
+```python
+# CORRECT — lazy="raise" forces explicit joinedload in repositories
+models: Mapped[list[GearModel]] = relationship(
+    "GearModel", back_populates="gear",
+    cascade="all, delete-orphan",
+    lazy="raise",
+)
+
+# BANNED — fires separate query
+models: Mapped[list[GearModel]] = relationship(..., lazy="selectin")
 ```
 
 ---

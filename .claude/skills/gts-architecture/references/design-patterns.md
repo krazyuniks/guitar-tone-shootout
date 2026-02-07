@@ -33,7 +33,9 @@ Aggregate-oriented data access behind protocol interfaces. Presents collection s
 **Key Characteristics:**
 - Protocol-based (dependency inversion -- domain depends on protocol, not implementation)
 - Aggregate-oriented queries (business-focused, not table-oriented)
-- Eager loading with `selectinload()` to prevent N+1 queries
+- **Full aggregate hydration in one query** via `joinedload()` (see `.claude/rules/query-patterns.md`)
+- `selectinload`, `subqueryload`, and `lazyload` are **banned** -- they fire separate queries
+- All ORM relationships use `lazy="raise"` to prevent implicit loading
 - Full CRUD operations with complex queries
 - Hides all persistence details from domain layer
 
@@ -148,6 +150,9 @@ These patterns are explicitly prohibited.
 | **Active Record** | Domain entities coupled to persistence (`entity.save()`) | Adding SQLAlchemy imports to `libs/core/` |
 | **Exposing ORM outside service layer** | ORM models leaked to API routes or templates | Returning `UserModel` from a route handler instead of a schema |
 | **Business logic in persistence** | Validation or rules in repository or ORM model | Computing signal chain validity inside a repository query |
+| **Multiple queries per aggregate** | Using `selectinload`/`subqueryload` instead of `joinedload` | `.options(selectinload(Gear.models))` fires a second query |
+| **Implicit lazy loading** | Missing `lazy="raise"` on relationships | `lazy="selectin"` or default `lazy="select"` fire queries on attribute access |
+| **N+1 query pattern** | Accessing unloaded relationships in a loop | `for gear in items: print(gear.make.name)` without eager loading |
 
 ## Docker-First Development
 
