@@ -79,6 +79,9 @@ class SQLAlchemyUserRepository:
     ) -> UserEntity | None:
         """Get a user by an external identity.
 
+        Uses a single query with chained JOINs through User → UserIdentity → OAuthProvider
+        to filter by provider name and external_id in one query.
+
         Args:
             provider: The identity provider name
             external_id: The ID from the external provider
@@ -86,20 +89,13 @@ class SQLAlchemyUserRepository:
         Returns:
             The User entity if found, None otherwise
         """
-        # First get the provider
-        provider_stmt = select(OAuthProvider).where(OAuthProvider.name == provider)
-        provider_result = await self.session.execute(provider_stmt)
-        provider_obj = provider_result.scalar_one_or_none()
-
-        if not provider_obj:
-            return None
-
-        # Then find the identity
+        # Single query with chained JOINs: User → UserIdentity → OAuthProvider
         stmt = (
             select(User)
             .join(UserIdentity, User.id == UserIdentity.user_id)
+            .join(OAuthProvider, UserIdentity.provider_id == OAuthProvider.id)
             .where(
-                UserIdentity.provider_id == provider_obj.id,
+                OAuthProvider.name == provider,
                 UserIdentity.external_id == external_id,
             )
             .options(joinedload(User.identities).joinedload(UserIdentity.provider))
