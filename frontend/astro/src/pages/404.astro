@@ -1,93 +1,101 @@
 ---
-import '../styles/global.css';
-
-const title = '404 - Page Not Found | Guitar Tone Shootout';
-const description = 'The page you are looking for could not be found.';
+import Layout from '../layouts/Layout.astro';
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content={description} />
-    <title>{title}</title>
-  </head>
-  <body class="min-h-screen">
-    <!-- Header -->
-    <header class="border-b border-[var(--color-bg-elevated)]">
-      <div class="container mx-auto px-4 py-4">
-        <nav class="flex items-center justify-between">
-          <div class="flex items-center space-x-8">
-            <h1 class="text-2xl font-bold text-[var(--color-text-primary)]">
-              Guitar Tone Shootout
-            </h1>
-            <div class="hidden md:flex space-x-6">
-              <a href="/" class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                Home
-              </a>
-              <a href="/about" class="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-                About
-              </a>
-            </div>
-          </div>
-          <a
-            href="/login"
-            class="bg-[var(--color-accent-primary)] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+<Layout title="Page Not Found" description="The page you're looking for doesn't exist.">
+  <section class="relative flex min-h-[70vh] flex-col items-center justify-center overflow-hidden py-20">
+    <!-- Background gradient matching Hero -->
+    <div
+      class="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(239,68,68,0.1),transparent)]"
+      aria-hidden="true"
+    ></div>
+
+    <div class="container mx-auto px-4 text-center">
+      <!-- Error Code -->
+      <div class="mb-6">
+        <span class="font-mono text-8xl font-bold text-red-500/80 md:text-9xl">404</span>
+      </div>
+
+      <!-- Error Icon -->
+      <div class="mb-8 flex justify-center">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-16 w-16 text-muted-foreground"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <path d="m15 9-6 6" />
+          <path d="m9 9 6 6" />
+        </svg>
+      </div>
+
+      <!-- Error Message -->
+      <h1 class="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+        Page Not Found
+      </h1>
+      <p class="mx-auto mb-8 max-w-md text-lg text-muted-foreground">
+        The page you're looking for doesn't exist or has been moved.
+        Check the URL or head back to explore our tone comparisons.
+      </p>
+
+      <!-- Actions -->
+      <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a
+          href="/"
+          class="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-amber-600 px-8 text-base font-semibold text-white shadow-lg transition-colors hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
           >
-            Login
-          </a>
-        </nav>
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+          Go Home
+        </a>
+        <a
+          href="/shootouts"
+          class="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-border bg-background px-8 text-base font-semibold transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          </svg>
+          Browse Shootouts
+        </a>
       </div>
-    </header>
 
-    <!-- Error Content -->
-    <main class="flex-grow">
-      <div class="container mx-auto px-4 py-20">
-        <div class="max-w-2xl mx-auto text-center">
-          <!-- Error Code -->
-          <div class="mb-8">
-            <h1 class="text-9xl font-bold text-[var(--color-accent-primary)] mb-4">
-              404
-            </h1>
-            <h2 class="text-3xl font-semibold text-[var(--color-text-primary)] mb-4">
-              Page Not Found
-            </h2>
-            <p class="text-lg text-[var(--color-text-secondary)]">
-              The page you are looking for doesn't exist or has been moved.
-            </p>
-          </div>
-
-          <!-- Helpful Actions -->
-          <div class="space-y-4">
-            <p class="text-[var(--color-text-muted)]">
-              Here are some helpful links instead:
-            </p>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href="/"
-                class="bg-[var(--color-accent-primary)] text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Go Home
-              </a>
-              <a
-                href="/about"
-                class="bg-[var(--color-bg-elevated)] text-[var(--color-text-primary)] px-6 py-3 rounded-lg hover:bg-[var(--color-bg-surface)] transition-colors border border-[var(--color-bg-elevated)]"
-              >
-                About
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-[var(--color-bg-elevated)] mt-auto">
-      <div class="container mx-auto px-4 py-8">
-        <div class="text-center text-[var(--color-text-muted)]">
-          <p>&copy; 2024 Guitar Tone Shootout. All rights reserved.</p>
-        </div>
-      </div>
-    </footer>
-  </body>
-</html>
+      <!-- Help Text -->
+      <p class="mt-12 text-sm text-muted-foreground">
+        Looking for something specific? Try searching on the
+        <a href="/shootouts" class="text-amber-500 hover:text-amber-400 underline underline-offset-4">
+          browse page
+        </a>.
+      </p>
+    </div>
+  </section>
+</Layout>

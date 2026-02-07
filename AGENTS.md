@@ -19,15 +19,14 @@ just build-astro             # Build frontend (if changed)
 
 **Use `just` for ALL commands. Use `just --list` for discovery.**
 
-Commands change over time - always discover dynamically rather than memorising. Before constructing any ad-hoc Docker, uv, or pnpm command, check if `just` already provides it.
+Commands change over time — always discover dynamically rather than memorising. Before constructing any ad-hoc Docker, uv, or pnpm command, check if `just` already provides it.
 
-**Quick reference:**
 ```bash
 just --list           # Find ANY command (ALWAYS check here first)
 just check            # Quality gates (runs in Docker)
 just fix-lint         # Auto-fix issues (runs in Docker)
 just test-regression  # Stack tests (runs in Docker)
-just test-golden-path # Golden path E2E tests (runs on host)
+just test-golden-path # Golden path tests (runs on host)
 just build-astro      # Build Astro frontend
 ```
 
@@ -45,124 +44,6 @@ just build-astro      # Build Astro frontend
 | **Infrastructure** | Docker (db, redis, webapp, nginx, worker, scheduler) |
 
 **Note:** Astro is pre-bundled (`frontend/astro/dist/` committed to git). No Vite dev server at runtime.
-
-## Infrastructure Architecture
-
-**Hard separation between build system and runtime.**
-
-| Concern | What It Is | Runtime Reference |
-|---------|------------|-------------------|
-| Build system | Astro, Tailwind, `frontend/astro/` dir | **None** - implementation detail |
-| Static assets | HTML/CSS/JS in `frontend/astro/dist/` | "static" or "assets" |
-| SSR pages | Jinja2 templates via FastAPI | "webapp" |
-
-### Dual Database Architecture
-
-| Database | Purpose | Access |
-|----------|---------|--------|
-| `gts_core` | Application data (users, shootouts, chains) | Webapp, worker |
-| `gts_t3k_source` | T3K source data (packs, models, presets) | Worker only |
-
-**Critical**: Webapp has NO direct access to T3K source database. Worker bridges the two databases via pgmq message queues.
-
-### Runtime Stack
-```
-db, redis, webapp, nginx, worker, scheduler
-```
-No astro container at runtime.
-
-### Build-Only Services
-```bash
-# Astro container only starts with --profile build
-docker compose --profile build up astro
-just build-astro        # Starts astro, runs build
-just watch-astro        # Starts astro, watches for changes
-```
-
-### nginx Configuration
-Single `nginx.conf.template` for all environments, processed via envsubst at container startup.
-- Static files served from `/static` (bind-mounted `frontend/astro/dist/`)
-- SSR pages proxied to webapp
-- API routes proxied to webapp
-
-### Docker Compose Architecture
-
-**Overlay pattern for environment-specific configuration.**
-
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Base config (no ports, no worktree-specific values) |
-| `docker-compose.override.yml` | Worktree-specific ports, container names |
-| `docker-compose.traefik.yml` | Traefik integration for HTTPS/subdomain routing |
-| `docker-compose.ci.yml` | CI ephemeral volumes, isolation |
-
-**Usage:**
-```bash
-# Local development (auto-loads override)
-docker compose up -d
-
-# With Traefik (public deployment)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.traefik.yml up -d
-
-# CI
-docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
-```
-
-### Dockerfiles
-
-| File | Purpose | Has uv? |
-|------|---------|---------|
-| `Dockerfile.dev` | Development with bind mounts, live reload | Yes |
-| `Dockerfile.webapp` | Production multi-stage, minimal | No (venv only) |
-| `Dockerfile.worker` | Production worker | No |
-
-**Development uses `Dockerfile.dev`** - single stage, uv installed, supports `docker compose exec webapp pytest`.
-
-## Development Workflow
-
-**Single path. No optional steps. Both developers and Claude follow identical workflow.**
-
-```bash
-# Start services
-just up-d                   # Start all services
-
-# Development cycle
-just build-astro            # Build frontend (if changed)
-just check                  # Run quality gates (in Docker)
-just test-regression        # Run stack tests (in Docker)
-just test-golden-path       # Run golden path E2E tests (on host)
-```
-
-**No host .venv.** All project code executes in Docker. Golden path E2E tests are the only exception (they hit Docker containers from the host).
-
-## Container-First Execution
-
-**All project commands run in Docker. The ONLY host execution is golden path E2E tests.**
-
-| Command Type | Runs In | How |
-|--------------|---------|-----|
-| Lint, type check | Docker | `just check` → `docker compose exec -T webapp ruff/mypy` |
-| Unit tests | Docker | `just test-unit` → `docker compose exec -T webapp pytest` |
-| Integration tests | Docker | `just test-integration` → `docker compose exec -T webapp pytest` |
-| Golden path E2E | **Host** | `just test-golden-path` → `cd tests/e2e/python && uv run pytest` |
-| Astro build | Docker | `just build-astro` → `docker compose --profile build run astro` |
-
-**Astro Architecture:** `frontend/astro/dist/` is committed to git. Nginx serves static files directly. Astro container is build-only (not in runtime stack).
-
-### NEVER Run on Host
-
-These commands should NEVER be run directly on the host:
-
-```bash
-# FORBIDDEN - always use Docker equivalents via just
-uv run pytest tests/unit/     # Use: just test-unit
-uv run ruff check             # Use: just check-lint
-uv run mypy                   # Use: just check-types
-uv sync                       # Not needed - deps managed in Docker
-pytest                        # Use: just tdd <path>
-```
-
-**The ONLY `uv run` on host is in `tests/e2e/python/` for E2E tests.**
 
 ## Project Structure
 
@@ -260,142 +141,31 @@ gts/
 - **Pydantic for validation**: All API input/output via schemas
 - **Domain isolation**: `libs/core/` has zero framework dependencies
 
-### Frontend (Astro Build System)
-- **Astro SSG**: Static pages (`/`, `/about`, `/login`) pre-built to `frontend/astro/dist/`, served by nginx
-- **Jinja2 SSR**: Dynamic pages (`/shootouts`, `/library/*`, `/shootout/*`) served by FastAPI
+### Frontend
+- **Astro SSG**: Static pages pre-built to `frontend/astro/dist/`, served by nginx
+- **Jinja2 SSR**: Dynamic pages served by FastAPI
 - **HTMX + Alpine.js**: Interactivity on SSR pages
 - **React island**: SignalChainBuilder only (`/library/chains/build`)
-- **Tailwind for styling**: Utility classes, design tokens compiled at build time
-- **Pre-bundled**: `frontend/astro/dist/` is committed to git - no Vite dev server at runtime
-- **Full docs**: See [Frontend Architecture](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Frontend-Architecture) in the wiki
+- **Pre-bundled**: `frontend/astro/dist/` committed to git — no Vite dev server
 
-### Testing Strategy
-
-**Clear boundary: Unit/Integration in Docker, E2E on Host.**
-
-| Test Type | Location | Runs In | Command | Purpose |
-|-----------|----------|---------|---------|---------|
-| Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM → Repo → DB) |
-| Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
-| Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
-| Golden path (Playwright) | `tests/e2e/python/` | Host | `just test-golden-path` | Full user journey |
-
-**Regression tests** validate the ORM → Repository → Database stack works:
-- User and Job entity round-trips
-- Uses SQLite in-memory for speed (~0.2s)
-- Run before commits to catch fundamental breaks
-
-**Commands:**
-```bash
-just test-regression  # Stack connectivity (< 1s) - run before commits
-just test             # Unit + Integration (< 30s) - run before PRs
-just tdd <path>       # Single test during development (Docker)
-just test-golden-path # Golden path E2E (host, requires running containers)
-```
-
-**E2E test isolation:**
-- `tests/e2e/python/pyproject.toml` - standalone package with pytest-playwright, httpx
-- `cd tests/e2e/python && uv run pytest` - uv creates isolated venv automatically
-- No dependency on main workspace `.venv`
-
-See `tests/AGENTS.md` for test structure and patterns.
-
-### Dependency Management
-
-**Three isolation boundaries:**
-
-| Tool | Dependency Source | Where Runs | Notes |
-|------|-------------------|------------|-------|
-| Project code | uv workspace (`pyproject.toml`) | Docker | `docker compose exec webapp pytest` |
-| E2E tests | `tests/e2e/python/pyproject.toml` | Host | Isolated from workspace |
-| `worktree.py` | PEP 723 inline deps | Host | Self-contained, no venv needed |
-
-**No host .venv.** There should be no `.venv` directory at project root. All project code executes in Docker.
-
-## Skills Reference
-
-### Global Skills (from ~/.claude/)
-| Skill | Purpose |
-|-------|---------|
-| `/commit` | Create conventional commits |
-| `/check` | Run quality gates |
-| `/playwright` | Browser testing, screenshots |
-| `/htmx` | HTMX patterns |
-| `/gh-workflow` | GitHub issue management, dependencies |
-| `/security-review` | Security review methodology |
-
-### GTS-Specific Skills
-| Skill | Purpose |
-|-------|---------|
-| `gts-backend-dev` | FastAPI patterns, SQLAlchemy, async Python |
-| `gts-frontend-dev` | Jinja2 SSR, HTMX, Tailwind |
-| `gts-testing` | pytest fixtures, integration patterns |
-| `docker-infra` | Container configuration |
-| `chrome-devtools` | Interactive debugging |
-| `hot-reload` | Astro rebuild workflow (pre-bundled, no Vite) |
-
-## Agents Reference
-
-### Global Agents (from ~/.claude/)
-| Agent | Purpose |
-|-------|---------|
-| `architect` | Architecture decisions, system design |
-| `code-reviewer` | Reviewing code changes, checking conventions |
-| `test-runner` | Run tests in isolation, report failures |
-| `plan-reviewer` | Validate implementation plans |
-
-### GTS-Specific Agents
-| Agent | Purpose |
-|-------|---------|
-| `gts-lint-checker` | Check GTS code quality without fixing |
-| `gts-workflow-verifier` | Verify hot reload infrastructure |
-| `gts-quality-reviewer` | Full pre-merge validation report |
-| `gts-error-resolver` | Debug and fix build/lint/test errors |
-| `gts-log-monitor` | Monitor Docker logs for errors |
-
-### Epic Builder Subagents
-| Agent | Model | Purpose |
-|-------|-------|---------|
-| `epic-context-loader` | haiku | Load wiki docs, write CONTEXT.md |
-| `epic-gray-area-analyst` | haiku | Detect areas, return questions |
-| `epic-goal-backward` | sonnet | Derive truths, write GOALS.md |
-| `epic-task-breakdown` | sonnet | Break down, write TASKS.md |
-| `epic-github-creator` | haiku | Create issues, write created.json |
+### Testing
+- Unit/Integration in Docker, E2E on Host
+- `just test-regression` before commits, `just test` before PRs
+- See `tests/AGENTS.md` for structure and patterns
 
 ## Conversation UX (CLI Environment)
 
-**CRITICAL:** User is in a CLI with limited screen real estate. They cannot see content at the top while reading the bottom.
+**CRITICAL:** User is in a CLI with limited screen real estate.
 
-### Rules
-
-1. **One question at a time** - Never dump pages of content then ask multiple questions at the bottom
-2. **Context adjacent to question** - Show ONLY the relevant snippet immediately before the question
-3. **Build iteratively** - Synthesize each answer into all the next questions
-4. **Summarize periodically** - After 3-5 questions, briefly recap decisions made
-5. **No scroll-dependent layouts** - Never assume user can see content from earlier in your response
-
-### Bad Pattern
-```
-[huge table of 20 items]
-...scrolling...
-Questions:
-1. Is item 3 a duplicate?
-2. Should item 7 go under X?
-3. What about item 15?
-```
-
-### Good Pattern
-```
-## Item #3: "Fix authentication"
-Similar to #42 "Auth refactor"
-
-Is this a **duplicate** of #42, or a **separate issue**?
-```
-*(wait for answer, then show next item with its context)*
+1. **One question at a time** — never dump pages then ask multiple questions
+2. **Context adjacent to question** — show ONLY the relevant snippet before asking
+3. **Build iteratively** — synthesise each answer into subsequent questions
+4. **Summarise periodically** — after 3-5 questions, recap decisions
+5. **No scroll-dependent layouts** — never assume user can see earlier content
 
 ## Rules
 
-### CRITICAL: Do Not Assume - Always Ask
+### CRITICAL: Do Not Assume — Always Ask
 
 **Never assume. Always ask.** This is the most important rule.
 
@@ -406,16 +176,6 @@ When uncertain about ANY of the following, STOP and ask the user:
 - File locations or naming conventions
 - Configuration values or settings
 - Whether a feature exists or how it works
-
-**Bad behaviour:**
-- "I'll assume this runs on host since it's a Python script"
-- "I'll use approach X since it's common"
-- "This probably works like Y"
-
-**Good behaviour:**
-- "Should this run on host or in Docker?"
-- "I see two possible approaches. Which do you prefer?"
-- "I'm not sure where this config goes. Can you clarify?"
 
 **The cost of asking is low. The cost of wrong assumptions is high.**
 
@@ -429,412 +189,65 @@ When uncertain about ANY of the following, STOP and ask the user:
 - Source entities stay in source adapters (`sources/t3k/`)
 
 **The domain model is defined in:**
-- `libs/core/src/core/domain/` - Entity definitions
-- `../wiki/GTS-Technical-Architecture.md#domain-model` - Authoritative documentation
+- `libs/core/src/core/domain/` — Entity definitions
+- `../wiki/GTS-Technical-Architecture.md#domain-model` — Authoritative documentation
 
-### CRITICAL: READ Before DERIVE - No Summarization
+### CRITICAL: READ Before DERIVE — No Summarisation
 
 **NEVER assume data models exist. ALWAYS read the source file directly.**
 
 Before deriving ANY artifact (model, repository, service, API):
 1. Use the **Read tool directly** on the authoritative file
-2. **NO Task agents** for domain model exploration - they summarize and lose precision
+2. **NO Task agents** for domain model exploration — they summarise and lose precision
 3. Cite the exact file and line where the entity/field is defined
 4. If you cannot cite a source, **STOP and ASK**
 
-**Forbidden:**
-- Assuming fields exist because "they make sense"
-- Deriving models from external system names
-- Using summarization agents to explore domain model
-
 ### Other Rules
 
-1. **Run in containers** - Not on host (except explicit host tools like worktree.py)
-2. **Review auto-fixes after commit** - Pre-commit auto-fixes lint/format
-3. **Use `/merge` when done** - Single command: pre-merge checks → PR → auto-merge
-4. **Follow existing patterns** - Check skills for examples
-5. **Test against real services** - No mocking internal systems
-6. **Commit working code** - Don't commit if tests fail
-7. **Use provided tooling for infrastructure** - See below
-8. **Respect dependency rules** - Webapp never imports from sources
+1. **Run in containers** — not on host (except E2E, worktree.py, git/gh)
+2. **Review auto-fixes after commit** — pre-commit auto-fixes lint/format
+3. **Use `/merge` when done** — pre-merge checks → PR → auto-merge
+4. **Follow existing patterns** — check skills for examples
+5. **Test against real services** — no mocking internal systems
+6. **Commit working code** — don't commit if tests fail
+7. **Use provided tooling** — `just` + `worktree.py`, never ad-hoc Docker
+8. **Respect dependency rules** — webapp never imports from sources
 
-### Infrastructure Management Policy
-
-**CRITICAL: NEVER run ad-hoc Docker commands or manually edit generated files.**
-
-This project has declarative infrastructure. Generated files (docker-compose.override.yml, .env.local) are output, not input. Manual patches break idempotency - the next `worktree.py setup` will overwrite them.
-
-**The rule is absolute:**
-1. **Fix source code** (`worktree/*.py`, `justfile`, templates) - NOT generated output
-2. **Use `just` commands** - NOT raw Docker commands
-3. **Use `worktree.py`** - NOT manual file edits
-
-| Need | Use This | NOT This |
-|------|----------|----------|
-| Start services | `just up-d` | `docker compose up -d` |
-| Stop services | `just down` | `docker compose down` |
-| Fix infra issues | `./worktree.py setup <name>` | Manual file edits |
-| Run unit tests | `just test-unit` | `uv run pytest` on host |
-| Run golden path E2E | `just test-golden-path` | - |
-| Run lint/types | `just check` | `ruff check` on host |
-| TDD single test | `just tdd <path>` | `pytest <path>` on host |
-| Reset data | Ask user to run `just reset` | `docker compose down -v` |
-| Build Astro | `just build-astro` | `cd frontend/astro && pnpm build` |
-| Watch Astro | `just watch-astro` | `cd frontend/astro && pnpm dev` |
-
-**NEVER do these:**
-- Edit `docker-compose.override.yml` directly (it's auto-generated)
-- Edit `.env.local` directly (it's auto-generated)
-- Run `docker compose` commands directly (use `just`)
-- Run `uv run pytest` on host (except in `tests/e2e/python/`)
-- Manually patch ANY generated file
-
-**If tooling is missing or broken:**
-1. **STOP** - Don't work around it
-2. **Fix the source** - `worktree/*.py`, `justfile`, templates
-3. Or **ask the user** to run a command manually
-
-**Why this matters:**
-- Manual patches get overwritten on next setup
-- Inconsistent state between worktrees
-- Breaks reproducibility
-- Creates hidden dependencies on manual steps
-
-**Destructive commands are blocked** by `.claude/hooks/block-volume-deletion.sh`.
-
-See `.claude/rules/infrastructure-protection.md` for details.
-
-## MCP (Browser Tools)
-
-MCP servers enable browser inspection and automation. They're **not installed** - they're loaded dynamically via `npx` when Claude starts.
-
-### How to Enable MCP
+## Git & GitHub
 
 ```bash
-opus              # No MCP servers (default)
-opus c            # Chrome DevTools MCP
-opus p            # Playwright MCP
-opus cp           # Both (recommended for UI work)
-sonnet cp         # Both with Sonnet model
-```
-
-**What happens:**
-- Shell function detects Chromium (`/usr/bin/chromium`) automatically
-- Runs MCP servers via `npx chrome-devtools-mcp@latest` and `npx @playwright/mcp@latest`
-- Headless mode auto-enabled when no display (servers, SSH)
-
-### Checking MCP Status
-
-If `mcp__chrome-devtools__*` or `mcp__playwright__*` tools are unavailable:
-1. MCP was not enabled when Claude started
-2. **STOP immediately** - do not attempt workarounds
-3. Tell user: "I need MCP for this UI work. Please restart with `opus cp`"
-4. **Do NOT try to install anything** - MCP runs via npx, not global install
-5. **Do NOT use curl/grep as substitutes** - they cannot see JS errors or DOM state
-
-### When MCP Is Required
-
-MCP required **only for UI/browser work**:
-- Debugging UI issues (click doesn't work, page blank)
-- Verifying visual changes
-- Inspecting console/network errors
-
-MCP **not required** for: planning, backend work, documentation, admin tasks.
-
-### Available MCP Tools
-
-| Tool | Purpose |
-|------|---------|
-| `mcp__chrome-devtools__navigate_page` | Go to URL |
-| `mcp__chrome-devtools__take_snapshot` | DOM/a11y tree (preferred over screenshot) |
-| `mcp__chrome-devtools__take_screenshot` | Visual capture |
-| `mcp__chrome-devtools__list_console_messages` | JS console output |
-| `mcp__chrome-devtools__list_network_requests` | Network activity |
-| `mcp__chrome-devtools__click` | Click element by uid |
-| `mcp__chrome-devtools__fill` | Type into input |
-| `mcp__playwright__browser_snapshot` | Similar to chrome-devtools snapshot |
-| `mcp__playwright__browser_click` | Click by ref |
-
-**Prefer `take_snapshot` over `take_screenshot`** - snapshots show element uids for interaction.
-
-## Debugging Workflow
-
-### During Development
-
-1. **Tail docker logs** (in background):
-   ```bash
-   docker compose logs -f --tail=50
-   ```
-
-2. **Use Chrome DevTools MCP** - REQUIRED for UI work:
-   - `navigate_page` → `take_snapshot` → inspect DOM
-   - `list_console_messages` → see JS errors
-   - `list_network_requests` → see failed API calls
-
-3. **Verify behaviour live** - Don't assume code works
-
-### When Something Doesn't Work
-
-1. **Get console logs via MCP** - See actual JS errors
-2. **Get network logs via MCP** - See actual failed requests
-3. **Check docker logs** - Backend errors
-4. **Do NOT guess** - Use the tools
-5. **Ask the user** - If tools don't reveal the cause, ASK rather than hypothesise
-
-### After Implementation
-
-1. **Write Playwright tests** - Required for CI validation
-2. **Run smoke tests** - `pytest -m smoke`
-3. **Capture screenshot evidence** - For PR
-
-### Common Issues
-
-| Symptom | Check via MCP |
-|---------|---------------|
-| Link click does nothing | Console logs (JS error) |
-| Page loads but empty | Network logs (failed API) |
-| 404 on route | Network logs, docker logs |
-| Styles missing | Console logs, network logs |
-
-## Git
-
-```bash
-# Never commit to main directly
-# Always work in feature branches
-
-# Before PR
+# Never commit to main directly. Always work in feature branches.
+# Before PR:
 just check
 git push
 ```
 
-## GitHub-First Workflow
-
-**GitHub issues are the source of truth.** All work must trace back to a GitHub issue.
-
-### Flow
-
-```
-GitHub Issue (source of truth)
-    ↓
-Feature Branch (from issue number)
-    ↓
-Implementation
-    ↓
-PR (references issue)
-```
-
-### Rules
-
-1. **Create GH issue first** - Before any work, ensure a GitHub issue exists
-2. **Branch from issue** - `git checkout -b 42-feature-name`
-3. **Use GitHub dependencies** - Use `is:blocked` / `is:blocking` for dependencies
+**GitHub issues are the source of truth.** All work traces back to a GitHub issue.
+- Create GH issue first, branch from issue (`42-feature-name`)
+- Use GitHub dependencies (`is:blocked` / `is:blocking`)
 
 ## Session Context Management
 
-**Separate exploration from execution.** A session used for research, planning, or exploration should NOT be used for implementation.
+**Separate exploration from execution.** Research sessions should NOT be used for implementation.
 
-### Why
-
-- Exploration consumes significant context (file reads, searches, agent results)
-- Starting execution in a depleted session risks hitting context limits mid-task
-- Incomplete work due to context limits leaves codebase in broken state
-
-### Rules
-
-1. **Exploration sessions** - Research, planning, epic creation, codebase analysis
-2. **Execution sessions** - Implementation, one task at a time, fresh context
-3. **Never mix** - If you've done significant exploration, hand off to fresh session
-
-### Handoff Pattern
-
-After exploration/planning, provide:
-```
-Issue #XXX created with N tasks.
-Start fresh session for implementation.
-```
+1. **Exploration sessions** — research, planning, epic creation, codebase analysis
+2. **Execution sessions** — implementation, one task at a time, fresh context
+3. **Never mix** — if you've done significant exploration, hand off to fresh session
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**Work is NOT complete until `git push` succeeds.**
 
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **File issues for remaining work**
+2. **Run quality gates** (if code changed)
+3. **Update issue status**
+4. **PUSH TO REMOTE** — MANDATORY:
    ```bash
    git pull --rebase
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Verify** - All changes committed AND pushed
-6. **Hand off** - Provide context for next session
+5. **Verify** — all changes committed AND pushed
+6. **Hand off** — provide context for next session
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-
----
-
-## AI Development Workflow (Optional)
-
-Automated TDD workflow for epic/feature development. A deterministic Python state machine (`scripts/run_epic.py`) controls all state transitions and validation. AI agents do creative work only (writing tests, writing code).
-
-See [Wiki: AI-Development-Workflow](https://github.com/krazyuniks/guitar-tone-shootout/wiki/AI-Development-Workflow) for full documentation.
-
-### Quick Start
-
-```bash
-just epic-sync 42      # Sync epic from GitHub to .tasks/
-just epic-start 42     # Run TDD state machine
-just epic-status 42    # Check status
-just epic-dry-run 42   # Preview without dispatching agents
-```
-
-### TDD Phases
-
-Every task goes through these phases, controlled by `run_epic.py`:
-
-| Phase | What happens | Who |
-|-------|-------------|-----|
-| Test | test-author agent writes tests | AI |
-| Red | `just tdd-red` verifies tests fail | Python (deterministic) |
-| Lock | `just tdd-lock` snapshots tests | Python (deterministic) |
-| Impl | implementer agent writes code | AI |
-| Green | `just tdd-green` verifies tests pass | Python (deterministic) |
-| Validate | `just tdd-complete` full validation | Python (deterministic) |
-
-**Stop on failure.** Any validation gate failure halts the entire epic with an error report.
-
-### Agent Invocation
-
-Agents are dispatched via `run_epic.py`:
-
-```bash
-# Automated (via state machine)
-python scripts/run_epic.py run 42
-
-# Manual dispatch
-python scripts/run_epic.py dispatch test-author "Write tests for T43"
-python scripts/run_epic.py dispatch implementer --project webapp "Implement T44"
-```
-
-Tool enforcement: `run_epic.py` reads the `tools:` list from each agent's YAML frontmatter and passes `--allowedTools` to the Claude CLI. Agents only get the tools they're defined to use.
-
-### Agents
-
-| Agent | Role | Constraints |
-|-------|------|-------------|
-| test-author | Writes pytest tests | No implementation files, no state updates |
-| implementer | Makes tests pass | No test files, no state updates |
-
-### State Location
-
-```
-.tasks/projects/guitar-tone-shootout/epics/E{n}/
-├── index.md      # Dependency graph, status table (rebuilt by run_epic.py)
-├── tasks/        # Individual task specs (source of truth)
-├── snapshots/    # Test file hashes (TDD enforcement)
-└── logs/         # Execution logs and error reports
-```
-
-### Key Rules
-
-1. **Tests are immutable** during implementation phase
-2. **All state in `.tasks/`** - task files are the source of truth
-3. **Python controls state** - AI agents never update task state
-4. **Stop on failure** - validation failures halt the epic
-5. **Docker-first** - all test commands run via `docker compose exec`
-
----
-
-## Ralph Hybrid (Autonomous Development)
-
-For complex features, use Ralph Hybrid to run autonomous development loops.
-
-### Workflow
-
-```
-1. Plan:    /ralph-hybrid-plan "description"   (in Claude Code)
-2. Run:     ralph-hybrid run                    (in terminal)
-3. Verify:  (automatic after stories complete)
-4. Archive: ralph-hybrid archive               (or prompted after verify)
-```
-
-### When to Use Ralph
-
-- Multi-story features (3+ related tasks)
-- Features derived from GitHub issues
-- Work that benefits from TDD iteration
-- When you want autonomous implementation with human checkpoints
-
-### Commands
-
-| Command | Where | Purpose |
-|---------|-------|---------|
-| `/ralph-hybrid-plan` | Claude Code | Interactive planning, creates spec.md + prd.json |
-| `/ralph-hybrid-plan --regenerate` | Claude Code | Regenerate prd.json from updated spec.md |
-| `/ralph-hybrid-amend` | Claude Code | Modify requirements mid-implementation |
-| `ralph-hybrid run` | Terminal | Execute autonomous loop |
-| `ralph-hybrid run --skip-verification` | Terminal | Run without goal-backward verification |
-| `ralph-hybrid verify` | Terminal | Run goal-backward verification manually |
-| `ralph-hybrid status` | Terminal | Show feature progress |
-
-### Key Concepts
-
-- **Fresh context per iteration**: Each loop iteration starts Claude fresh
-- **Memory in files**: prd.json tracks story completion, progress.txt logs history
-- **Branch = feature folder**: `.ralph-hybrid/{branch-name}/` holds all state
-- **Fail fast**: Circuit breaker trips after 2 same errors or no progress
-- **Goal-backward verification**: After stories complete, verifies feature actually works
-
-### GTS Customizations
-
-GTS has customized Ralph Hybrid with project-specific features:
-
-#### Backpressure Hooks
-
-Post-iteration verification at `.ralph-hybrid/hooks/post_iteration.sh`:
-- Runs `ruff check` and `ruff format --check` for linting
-- Runs `mypy` for type checking (non-blocking)
-- Runs `pytest` for unit and integration tests
-- Returns exit code 75 (VERIFICATION_FAILED) on failure
-- Auto-detects Docker vs host execution
-
-```bash
-# Test the hook
-.ralph-hybrid/hooks/post_iteration.sh context.json --dry-run
-```
-
-#### Project Memories
-
-Cross-session learning at `.ralph-hybrid/memories.md`:
-
-| Section | Purpose |
-|---------|---------|
-| **Patterns** | Astro + Jinja2 rendering, transaction handling, testing patterns, container rules |
-| **Decisions** | PostgreSQL/SQLAlchemy, pre-bundled Astro, worktrees, Python Playwright |
-| **Fixes** | Navigation issues, E2E test fixes, auth centralization |
-| **Context** | Domain concepts (shootouts, signal chains, gear, auth patterns) |
-
-Memories are automatically injected into each iteration prompt.
-
-#### Customized Skills
-
-GTS-specific skills for specialised tasks:
-
-| Skill | When to Use | Location |
-|-------|-------------|----------|
-| `/security-review` | Security audits, pre-merge checks | Global (`~/.claude/skills/`) |
-| `/code-archaeology` | Legacy code investigation | Global (`~/.claude/skills/`) |
-| `incident-response` | Production issues | `.claude/skills/incident-response/` |
-
-**incident-response** covers:
-- GTS Docker Compose architecture
-- Diagnostic procedures (health checks, logs)
-- Mitigation for DB/Redis/worker/nginx issues
-- Rollback procedures (code, migrations, full system)
-- GTS-specific incidents (T3K OAuth, job backlog)
+**NEVER stop before pushing.** NEVER say "ready to push when you are" — YOU must push.

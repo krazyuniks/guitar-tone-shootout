@@ -1,0 +1,113 @@
+/**
+ * pages/shootout_detail.html.ts - Outputs dist/pages/shootout_detail.html
+ *
+ * Shootout detail page.
+ * This is a Jinja2 template for the SSR page.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `{% extends "layouts/base.html" %}
+
+{% block title %}{{ title }} - Shootout{% endblock %}
+{% block description %}View and compare guitar amp tones in this shootout comparison.{% endblock %}
+
+{% block content %}
+<div
+  data-testid="shootout-detail-page"
+  class="min-h-screen"
+>
+  <!-- HTMX-powered shootout detail content -->
+  <div
+    id="shootout-detail-container"
+    hx-get="/api/v1/html/shootouts/{{ shootout_id }}"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <!-- Loading state while HTMX fetches content -->
+    <div class="container mx-auto px-4 py-6 max-w-6xl">
+      <!-- Back link skeleton -->
+      <div class="h-6 w-32 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-6"></div>
+
+      <!-- Video player skeleton -->
+      <div class="aspect-video bg-[var(--color-bg-elevated)] rounded-lg animate-pulse mb-6"></div>
+
+      <!-- Title skeleton -->
+      <div class="mb-6">
+        <div class="h-8 bg-[var(--color-bg-elevated)] rounded w-3/4 animate-pulse mb-2"></div>
+        <div class="flex gap-3">
+          <div class="h-5 w-20 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+          <div class="h-5 w-24 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+        </div>
+      </div>
+
+      <!-- Description skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-32 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+          <div class="space-y-2">
+            <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-full animate-pulse"></div>
+            <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-5/6 animate-pulse"></div>
+            <div class="h-4 bg-[var(--color-bg-elevated)] rounded w-4/6 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Segments skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-28 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="flex gap-3 overflow-x-auto pb-2">
+          {% for i in range(4) %}
+          <div class="flex-shrink-0 w-32 h-16 bg-[var(--color-bg-elevated)] rounded-lg animate-pulse"></div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Analytics tabs skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-36 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+          <div class="flex gap-1 mb-4">
+            {% for i in range(4) %}
+            <div class="flex-1 h-10 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+            {% endfor %}
+          </div>
+          <div class="h-40 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+        </div>
+      </div>
+
+      <!-- Comments skeleton -->
+      <div class="mb-8">
+        <div class="h-6 w-28 bg-[var(--color-bg-elevated)] rounded animate-pulse mb-4"></div>
+        <div class="h-24 bg-[var(--color-bg-elevated)] rounded animate-pulse"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors for auth
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
+    }
+  });
+</script>
+{% endblock %}
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

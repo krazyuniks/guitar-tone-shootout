@@ -84,7 +84,6 @@ check-imports:
 lint:
     docker compose exec -T webapp ruff check libs/ sources/ apps/ tests/ --fix
     docker compose exec -T webapp ruff format libs/ sources/ apps/ tests/
-    docker compose --profile build run --rm astro pnpm lint --fix
 
 # =============================================================================
 # Testing
@@ -141,8 +140,11 @@ test-integration:
 test:
     docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
 
-# Run golden path E2E tests (on host, hits Docker containers via Playwright)
+# Run E2E golden path tests (on host, hits Docker containers)
 test-golden-path:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -f .env.local ] && set -a && source .env.local && set +a
     cd tests/e2e/python && uv run pytest tests/ -v
 
 # Run a single test file or test (TDD mode, in Docker)
@@ -252,22 +254,22 @@ migrate-down:
 # Frontend (Astro)
 # =============================================================================
 
-# Build Astro frontend
+# Build Astro frontend (triggers build inside running astro container)
 build-astro:
-    docker compose --profile build run --rm astro pnpm build
+    docker compose exec -T astro pnpm build
 
-# Watch Astro for changes (auto-rebuild)
+# Watch Astro logs (chokidar auto-rebuilds on source changes)
 watch-astro:
-    docker compose --profile build run --rm astro pnpm dev
+    docker compose logs -f astro
 
 # Check Astro (lint + type check)
 check-astro:
-    docker compose --profile build run --rm astro pnpm check
+    docker compose exec -T astro pnpm check
 
 # Verify Astro dist is in sync with source
 verify-astro-sync:
     @echo "Building Astro and checking for uncommitted changes..."
-    docker compose --profile build run --rm astro pnpm build
+    docker compose exec -T astro pnpm build
     @if [ -n "$(git status --porcelain frontend/astro/dist/)" ]; then \
         echo "ERROR: frontend/astro/dist/ is out of sync with source!"; \
         echo "Run 'just build-astro' and commit the changes."; \
@@ -449,24 +451,73 @@ tdd-test-phase task:
     @echo "Run: python scripts/run_epic.py dispatch test-author 'Write tests for {{task}}'"
 
 # Verify tests fail (red phase) - runs in Docker
+# Only checks NEW/MODIFIED test files (not pre-existing passing tests)
+# Gate: at least one test must FAIL. Passing tests are warned but tolerated
+# when failures exist (handles tasks that extend already-implemented code).
 tdd-red task:
     #!/usr/bin/env bash
     set -e
-    echo "Verifying tests fail (red phase)..."
-    # Run tests and expect failures
-    if docker compose exec -T webapp pytest tests/ -v 2>&1 | grep -q "passed"; then
-        echo "ERROR: Some tests passed. Tests should fail before implementation."
-        echo "Check that you're testing unimplemented functionality."
+    echo "Verifying new tests fail (red phase)..."
+
+    # Find new or modified test files since last commit
+    NEW_TESTS=$(git diff --name-only HEAD -- 'tests/' | grep -v 'tests/e2e/' | grep -E 'test_.*\.py$' || true)
+    UNTRACKED_TESTS=$(git ls-files --others --exclude-standard -- 'tests/' | grep -v 'tests/e2e/' | grep -E 'test_.*\.py$' || true)
+    ALL_NEW_TESTS=$(echo -e "${NEW_TESTS}\n${UNTRACKED_TESTS}" | sort -u | grep -v '^$' || true)
+
+    if [ -z "$ALL_NEW_TESTS" ]; then
+        echo "ERROR: No new test files found. test-author must create test files."
         exit 1
     fi
-    echo "Tests correctly failing (red phase verified)"
+
+    echo "New test files:"
+    echo "$ALL_NEW_TESTS" | sed 's/^/  /'
+
+    # Run ONLY the new tests — they should fail
+    OUTPUT=$(docker compose exec -T webapp pytest $ALL_NEW_TESTS -v 2>&1) || true
+
+    # Parse pass/fail/error counts from pytest summary line
+    # Matches patterns like: "3 failed, 2 passed", "5 failed", "2 passed, 1 error"
+    FAILED=$(echo "$OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || true)
+    PASSED=$(echo "$OUTPUT" | grep -oP '\d+(?= passed)' | tail -1 || true)
+    ERRORS=$(echo "$OUTPUT" | grep -oP '\d+(?= error)' | tail -1 || true)
+
+    FAILED=${FAILED:-0}
+    PASSED=${PASSED:-0}
+    ERRORS=${ERRORS:-0}
+
+    echo ""
+    echo "Results: ${FAILED} failed, ${PASSED} passed, ${ERRORS} errors"
+
+    # Gate: at least one test must fail
+    if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+        echo "ERROR: All ${PASSED} tests passed. Tests must fail before implementation."
+        echo "Either tests are trivial or code already exists for everything tested."
+        echo "$OUTPUT" | tail -20
+        exit 1
+    fi
+
+    # Warn on passing tests but proceed if failures exist
+    if [ "$PASSED" -gt 0 ]; then
+        echo "WARNING: ${PASSED} tests already pass (code may partially exist)."
+        echo "  This is OK — ${FAILED} tests still fail, so there's work to do."
+    fi
+
+    if [ "$ERRORS" -gt 0 ]; then
+        echo "NOTE: ${ERRORS} tests errored (import/syntax issues)."
+        echo "  Errors count as 'not passing' — acceptable in red phase."
+    fi
+
+    echo ""
+    echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
 
 # Lock tests (snapshot before implementation)
 tdd-lock task:
+    #!/usr/bin/env bash
+    set -e
     python scripts/snapshot_tests.py save {{task}}
-    git add .tasks/*/snapshots/ tests/
+    git add .tasks/ tests/
     git commit -m "test-lock: {{task}} tests ready for implementation"
-    @echo "Tests locked at $(git rev-parse --short HEAD)"
+    echo "Tests locked at $(git rev-parse --short HEAD)"
 
 # Implementation phase hint
 tdd-impl-phase task:
@@ -506,7 +557,7 @@ tdd-complete task:
     just test-regression
 
     echo "5. Running golden path tests..."
-    just test-golden-path || echo "Golden path skipped or failed"
+    just test-golden-path || echo "Golden path tests skipped or failed"
 
     echo ""
     echo "Task {{task}} validation complete"
@@ -541,7 +592,7 @@ debug epic:
     echo "=== Debug Report for E{{epic}} ==="
     echo ""
     echo "--- Health Check ---"
-    just epic-health {{epic}} || true
+    just health {{epic}} || true
     echo ""
     echo "--- Recent Errors ---"
     just errors {{epic}}

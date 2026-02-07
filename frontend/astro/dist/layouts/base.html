@@ -1,26 +1,239 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Guitar Tone Shootout{% endblock %}</title>
+<!DOCTYPE html><html lang="en" class="dark"> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="description" content="{% block description %}Compare guitar amp tones with NAM models, IRs, and AIDA-X profiles. Create side-by-side video comparisons.{% endblock %}"><meta name="theme-color" content="#0a0a0a"><meta name="color-scheme" content="dark"><!-- Fonts: Inter (UI) and JetBrains Mono (code) --><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"><!-- Open Graph --><meta property="og:title" content="{% block og_title %}{{ title }} | Guitar Tone Shootout{% endblock %}"><meta property="og:description" content="{% block og_description %}Compare guitar amp tones with NAM models, IRs, and AIDA-X profiles.{% endblock %}"><meta property="og:type" content="website"><meta property="og:url" content="{{ request.url }}"><!-- Twitter --><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{% block twitter_title %}{{ title }} | Guitar Tone Shootout{% endblock %}"><meta name="twitter:description" content="{% block twitter_description %}Compare guitar amp tones with NAM models, IRs, and AIDA-X profiles.{% endblock %}"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><title>{% block title %}{{ title }}{% endblock %} | Guitar Tone Shootout</title><!-- HTMX: Progressive enhancement for server-driven interactions --><script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script><!-- Alpine.js: Lightweight reactivity for UI state --><script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script><!-- Additional head content from child templates -->{% block head %}{% endblock %}<link rel="stylesheet" href="/_astro/about.CGYyzrQz.css"></head> <body class="flex min-h-screen flex-col" x-data="{ mobileMenuOpen: false }"> {% include "partials/header.html" %} <main class="flex-1"> {% block content %}{% endblock %} </main> {% include "partials/footer.html" %} <!-- WebSocket connection for notifications --> <script>
+    (function() {
+      // Only connect WebSocket if user is authenticated
+      var userElement = document.querySelector('[data-user-id]');
+      if (!userElement) return;
 
-  <!-- Compiled Tailwind CSS with design tokens -->
-  <link rel="stylesheet" href="/_astro/index.CKfN-jZC.css">
+      var wsToken = userElement.dataset.wsToken;
+      if (!wsToken) return;
 
-  <!-- HTMX for dynamic HTML fragments -->
-  <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+      // Get WebSocket URL from current location
+      var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var wsUrl = protocol + '//' + window.location.host + '/api/v1/ws/notifications?token=' + wsToken;
 
-  <!-- Alpine.js for client-side interactivity -->
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</head>
-<body class="min-h-screen">
-  {% block content %}
-  <!-- SSR page content goes here -->
-  {% endblock %}
+      var ws = null;
+      var reconnectAttempts = 0;
+      var maxReconnectAttempts = 5;
+      var reconnectDelay = 3000;
 
-  {% block scripts %}
-  <!-- Page-specific scripts go here -->
-  {% endblock %}
-</body>
-</html>
+      function connect() {
+        if (reconnectAttempts >= maxReconnectAttempts) {
+          console.log('Max WebSocket reconnection attempts reached');
+          return;
+        }
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+          console.log('WebSocket connected for notifications');
+          reconnectAttempts = 0;
+        };
+
+        ws.onmessage = function(event) {
+          try {
+            var data = JSON.parse(event.data);
+            // Dispatch custom event for notification handling
+            window.dispatchEvent(new CustomEvent('gts:notification', { detail: data }));
+          } catch (e) {
+            console.error('Failed to parse WebSocket message:', e);
+          }
+        };
+
+        ws.onclose = function() {
+          console.log('WebSocket disconnected');
+          reconnectAttempts++;
+          setTimeout(connect, reconnectDelay);
+        };
+
+        ws.onerror = function(error) {
+          console.error('WebSocket error:', error);
+        };
+      }
+
+      // Start connection
+      connect();
+
+      // Expose for external use
+      window.gtsNotificationWs = { getSocket: function() { return ws; } };
+    })();
+  </script> <!-- Toast Notification Container (STORY-005) --> <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2" aria-live="polite"></div> <!-- Global Confirm Modal --> <div id="confirm-modal" x-data="confirmModal()" x-show="isOpen" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center" @keydown.escape.window="isOpen && cancel()"> <!-- Backdrop --> <div x-show="isOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="cancel()"></div> <!-- Modal --> <div x-show="isOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="relative z-10 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--color-bg-surface)] shadow-xl"> <!-- Header --> <div class="px-6 pt-6"> <h3 class="text-lg font-semibold text-[var(--color-text-primary)]" x-text="title"></h3> </div> <!-- Body --> <div class="px-6 py-4"> <p class="text-[var(--color-text-secondary)]" x-text="message"></p> </div> <!-- Footer --> <div class="flex items-center justify-end gap-3 border-t border-[var(--border)] px-6 py-4"> <button type="button" @click="cancel()" class="px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] rounded-lg transition-colors">
+Cancel
+</button> <button type="button" @click="confirm()" :disabled="isLoading" class="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-2"> <svg x-show="isLoading" class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle> <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path> </svg> <span x-text="confirmText"></span> </button> </div> </div> </div> <!-- Confirm Modal Script --> <script>
+    /* global Alpine */
+    // Alpine.js store and component for confirm modal
+    // Using Alpine.store() for proper reactivity across all pages
+    document.addEventListener('alpine:init', function() {
+      // Register reactive store - Alpine tracks all changes to this object
+      Alpine.store('confirmModal', {
+        isOpen: false,
+        title: 'Confirm',
+        message: 'Are you sure?',
+        confirmText: 'Delete',
+        isLoading: false,
+        onConfirm: null,
+        onCancel: null,
+      });
+
+      // Component provides methods and binds to the store
+      Alpine.data('confirmModal', function() {
+        return {
+          // Getters read from the reactive store
+          get isOpen() { return Alpine.store('confirmModal').isOpen; },
+          set isOpen(val) { Alpine.store('confirmModal').isOpen = val; },
+          get title() { return Alpine.store('confirmModal').title; },
+          get message() { return Alpine.store('confirmModal').message; },
+          get confirmText() { return Alpine.store('confirmModal').confirmText; },
+          get isLoading() { return Alpine.store('confirmModal').isLoading; },
+          set isLoading(val) { Alpine.store('confirmModal').isLoading = val; },
+
+          cancel: function() {
+            var store = Alpine.store('confirmModal');
+            if (store.onCancel) {
+              store.onCancel();
+            }
+            this.close();
+          },
+
+          confirm: function() {
+            var store = Alpine.store('confirmModal');
+            if (store.onConfirm) {
+              store.onConfirm();
+            }
+          },
+
+          close: function() {
+            var store = Alpine.store('confirmModal');
+            store.isOpen = false;
+            store.isLoading = false;
+            store.onConfirm = null;
+            store.onCancel = null;
+          }
+        };
+      });
+    });
+
+    // Global function to show confirm modal
+    window.showConfirmModal = function(options) {
+      options = options || {};
+      var store = Alpine.store('confirmModal');
+      store.title = options.title || 'Confirm Delete';
+      store.message = options.message || 'Are you sure you want to delete this item?';
+      store.confirmText = options.confirmText || 'Delete';
+      store.isLoading = false;
+      store.isOpen = true;
+
+      return new Promise(function(resolve) {
+        store.onConfirm = function() {
+          store.isLoading = true;
+          resolve(true);
+        };
+        store.onCancel = function() {
+          resolve(false);
+        };
+      });
+    };
+
+    // Close modal from anywhere
+    window.closeConfirmModal = function() {
+      var store = Alpine.store('confirmModal');
+      store.isOpen = false;
+      store.isLoading = false;
+    };
+
+    // Global delete handler function
+    window.handleDelete = async function(url, itemName, targetSelector) {
+      var confirmed = await window.showConfirmModal({
+        title: 'Confirm Delete',
+        message: 'Delete "' + itemName + '"? This cannot be undone.',
+        confirmText: 'Delete'
+      });
+
+      if (!confirmed) return;
+
+      try {
+        var response = await fetch(url, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+
+        if (response.ok || response.status === 204) {
+          // Find and remove the target element
+          var target = document.querySelector(targetSelector);
+          if (target) {
+            target.remove();
+          }
+          window.showToast('Deleted successfully', 'success');
+        } else if (response.status === 401) {
+          window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+        } else {
+          throw new Error('Delete failed');
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        window.showToast('Failed to delete. Please try again.', 'error');
+      } finally {
+        window.closeConfirmModal();
+      }
+    };
+  </script> <!-- Toast Notification Handler (STORY-005) --> <script>
+    (function() {
+      // Deduplication: track recently shown toasts to prevent duplicates
+      var recentToasts = {};
+      var DEDUP_WINDOW_MS = 500; // Ignore duplicate messages within 500ms
+
+      // Toast notification system
+      window.showToast = function(message, type) {
+        type = type || 'info';
+
+        // Deduplication check
+        var toastKey = message + ':' + type;
+        var now = Date.now();
+        if (recentToasts[toastKey] && (now - recentToasts[toastKey]) < DEDUP_WINDOW_MS) {
+          return; // Skip duplicate toast
+        }
+        recentToasts[toastKey] = now;
+
+        var container = document.getElementById('toast-container');
+        if (!container) return;
+
+        // Create toast element
+        var toast = document.createElement('div');
+        toast.className = 'toast-notification px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full opacity-0';
+
+        // Set colors based on type
+        if (type === 'success') {
+          toast.className += ' bg-green-500/20 border border-green-500/50 text-green-400';
+        } else if (type === 'error') {
+          toast.className += ' bg-red-500/20 border border-red-500/50 text-red-400';
+        } else {
+          toast.className += ' bg-[var(--color-bg-elevated)] border border-[var(--border)] text-[var(--color-text-primary)]';
+        }
+
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(function() {
+          toast.classList.remove('translate-x-full', 'opacity-0');
+        });
+
+        // Auto-remove after 3 seconds
+        setTimeout(function() {
+          toast.classList.add('translate-x-full', 'opacity-0');
+          setTimeout(function() {
+            if (toast.parentNode) {
+              toast.parentNode.removeChild(toast);
+            }
+          }, 300);
+        }, 3000);
+      };
+
+      // Listen for HTMX showToast trigger
+      document.body.addEventListener('showToast', function(event) {
+        var detail = event.detail || {};
+        var message = detail.message || 'Action completed';
+        var type = detail.type || 'info';
+        window.showToast(message, type);
+      });
+    })();
+  </script> <!-- Additional scripts from child templates --> {% block scripts %}{% endblock %} </body></html>

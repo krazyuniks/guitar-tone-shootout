@@ -13,7 +13,7 @@ services:
   # PostgreSQL - Dual database with pgmq extension
   # ==========================================================================
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: gts
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
@@ -36,7 +36,7 @@ services:
   redis:
     profiles:
       - jobs
-    image: redis:7-alpine
+    image: redis:8-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -74,6 +74,7 @@ services:
       - ./libs:/app/libs:ro
       - ./apps/webapp:/app/apps/webapp
       - ./frontend/astro/dist:/app/static:ro
+      - ./frontend/astro:/app/frontend/astro:ro
       - upload_data:/app/uploads
       # Source code for execution
       - ./src:/app/src:ro
@@ -105,6 +106,8 @@ services:
       - ./frontend/astro/dist:/usr/share/nginx/html/static:ro
     depends_on:
       webapp:
+        condition: service_healthy
+      astro:
         condition: service_healthy
     restart: unless-stopped
 
@@ -177,18 +180,19 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Astro - Build-only service (not in runtime stack)
+  # Astro - Watches source files and auto-rebuilds on change
   # ==========================================================================
   astro:
-    profiles:
-      - build
     build:
       context: ./frontend/astro
       dockerfile: Dockerfile
+    environment:
+      SHELL: /bin/sh
     volumes:
       - ./frontend/astro:/app
       - /app/node_modules
     working_dir: /app
+    restart: unless-stopped
 
   # ==========================================================================
   # CloudBeaver - Web-based database management (tools profile only)

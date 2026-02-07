@@ -1,0 +1,42 @@
+/**
+ * fragments/library/tracks.html.ts - Outputs dist/fragments/library/tracks.html
+ *
+ * Library DI Tracks List Fragment - displays a list of DI tracks
+ * or an empty state encouraging users to upload raw guitar recordings.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `<!-- Library DI Tracks List Fragment -->
+<div data-testid="track-list" data-empty="{{ 'true' if not tracks else 'false' }}" class="space-y-3">
+  {% if tracks %}
+    {% for track in tracks %}
+      {% with is_library_view=true %}
+        {% include 'fragments/library/track_item.html' %}
+      {% endwith %}
+    {% endfor %}
+  {% else %}
+    <div class="text-center py-12">
+      <div class="text-gray-400 mb-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+      </div>
+      <p class="text-gray-500">No DI tracks yet</p>
+      <p class="text-gray-400 text-sm mt-1">Upload your raw guitar recordings to use in shootouts</p>
+    </div>
+  {% endif %}
+</div>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

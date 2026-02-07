@@ -2,7 +2,7 @@
 name = "gts-audio"
 version = "0.1.0"
 description = "GTS Audio Processing - NAM, IR, pedalboard, video composition"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "gts-core",
     "pedalboard>=0.9.0",

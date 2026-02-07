@@ -17,7 +17,7 @@ Test that file changes trigger the expected rebuilds and reloads. Diagnose infra
 
 - When changes don't appear in browser
 - After setting up a new worktree
-- When `just watch-templates` seems broken
+- When Astro auto-rebuild seems broken
 - When debugging development workflow issues
 
 ## Prerequisites Check
@@ -28,11 +28,11 @@ Before testing, verify:
 # Services running?
 docker compose ps
 
-# Watch process running?
-docker compose exec -T frontend pgrep -f "chokidar" || echo "Watch not running"
+# Astro chokidar watcher running?
+docker compose exec -T astro pgrep -f "chokidar" || echo "Astro watcher not running"
 
-# Check if just watch-templates is needed
-docker compose logs frontend --tail=5
+# Check Astro service logs
+docker compose logs astro --tail=5
 ```
 
 ## Verification Tests
@@ -131,7 +131,7 @@ fi
 
 ### Prerequisites
 - Docker services: [RUNNING | NOT RUNNING]
-- Watch process: [RUNNING | NOT RUNNING - run `just watch-templates`]
+- Astro chokidar watcher: [RUNNING | NOT RUNNING - check `docker compose logs astro`]
 
 ### Results
 
@@ -159,8 +159,8 @@ fi
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No CSS changes | Watch not running | `just watch-templates` in separate terminal |
-| Astro not rebuilding | chokidar not started | Restart frontend or run watch |
+| No CSS changes | Astro watcher not running | Check `docker compose logs astro` and restart if needed |
+| Astro not rebuilding | chokidar not started | `docker compose restart astro` |
 | Python not reloading | uvicorn polling | Normal - uses inotify on Linux, polling on Mac |
 | Islands not updating | Separate build needed | `docker compose exec astro pnpm build:islands` |
 

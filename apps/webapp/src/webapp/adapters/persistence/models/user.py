@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, Uuid
+from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin, UUIDMixin
+from .user_identity import UserIdentity  # Re-export for backwards compatibility
+
+__all__ = ["OAuthProvider", "User", "UserIdentity"]
 
 if TYPE_CHECKING:
     from .job import Job
     from .shootout import DITrack, Shootout
     from .signal_chain import SignalChain, SignalChainGroup
+    from .user_gear import UserGear
 
 
 class OAuthProvider(UUIDMixin, Base):
@@ -23,12 +26,16 @@ class OAuthProvider(UUIDMixin, Base):
     Attributes:
         id: Primary key (UUIDv7)
         name: Provider name (e.g., 't3k', 'google')
+        client_id: OAuth client ID for this provider
+        client_secret: OAuth client secret for this provider
         enabled: Whether this provider is currently active
     """
 
     __tablename__ = "oauth_providers"
 
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    client_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    client_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationship to identities
@@ -50,6 +57,7 @@ class User(UUIDMixin, TimestampMixin, Base):
         username: Display name
         email: Email address (optional, indexed)
         avatar_url: Profile image URL (optional)
+        is_active: Whether the user account is active
         created_at: When the user was created
         updated_at: When the user was last updated
         identities: List of linked external identities
@@ -60,6 +68,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationship to identities
     identities: Mapped[list[UserIdentity]] = relationship(
@@ -100,56 +109,9 @@ class User(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
 
-    # TODO: Add relationship to Gear once that model exists
-
-
-class UserIdentity(UUIDMixin, TimestampMixin, Base):
-    """User identity model for linking external providers.
-
-    Each UserIdentity represents a link between a User and an external
-    OAuth provider. Users can have multiple identities (one per provider).
-
-    Attributes:
-        id: Primary key (UUIDv7)
-        user_id: Foreign key to users table
-        provider_id: Foreign key to oauth_providers table
-        external_id: ID from the external provider
-        username: Display name from the provider
-        avatar_url: Profile image URL from provider (optional)
-        created_at: When the identity link was created
-        updated_at: When the identity was last updated
-        user: Reference to the User
-        provider: Reference to the OAuthProvider
-    """
-
-    __tablename__ = "user_identities"
-
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    provider_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("oauth_providers.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    username: Mapped[str] = mapped_column(String(255), nullable=False)
-    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-
-    # Relationships
-    user: Mapped[User] = relationship("User", back_populates="identities")
-    provider: Mapped[OAuthProvider] = relationship(
-        "OAuthProvider",
-        back_populates="identities",
-        lazy="selectin",  # Eager load provider by default
-    )
-
-    # Indexes for common query patterns
-    __table_args__ = (
-        # Composite index for provider + external_id lookups
-        Index("ix_user_identities_provider_external", "provider_id", "external_id"),
-        # Index for user_id lookups
-        Index("ix_user_identities_user_id", "user_id"),
+    # Relationship to user gear library
+    user_gear: Mapped[list[UserGear]] = relationship(
+        "UserGear",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )

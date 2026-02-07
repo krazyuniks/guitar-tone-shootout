@@ -117,13 +117,33 @@ Capture each task issue number.
 
 ### 4. Update Epic with Task List
 
-After all tasks are created, update the epic body with the task list:
+After all tasks are created, build a task checklist and append it to the epic body.
+
+**Build the checklist** from the task numbers captured in step 3, sorted by issue number:
+
+```
+## Tasks
+
+- [ ] #43 - FastAPI Application Skeleton
+- [ ] #44 - Health Endpoints
+- [ ] #45 - User ORM Model
+...
+```
+
+**Append to the epic** using `--body-file` with the full updated body:
+
+1. Read the current epic body: `gh issue view {epic_number} --repo krazyuniks/guitar-tone-shootout --json body -q '.body'`
+2. Replace the placeholder `## Tasks` section (containing "(To be updated after task creation)") with the generated checklist
+3. Write the updated body to `.planning/epics/{slug}/epic-body-updated.md`
+4. Apply the update:
 
 ```bash
 gh issue edit {epic_number} \
   --repo krazyuniks/guitar-tone-shootout \
-  --body "$(cat .planning/epics/{slug}/epic-body-updated.md)"
+  --body-file .planning/epics/{slug}/epic-body-updated.md
 ```
+
+**This step is CRITICAL** — `epic-sync` relies on `- [ ] #N` entries in the epic body to discover child tasks. If this step is skipped, `epic-sync` falls back to label search which may return unrelated tasks.
 
 ### 5. Write created.json
 

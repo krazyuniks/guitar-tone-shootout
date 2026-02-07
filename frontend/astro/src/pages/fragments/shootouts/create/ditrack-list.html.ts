@@ -1,0 +1,97 @@
+/**
+ * fragments/shootouts/create/ditrack-list.html.ts - Outputs dist/fragments/shootouts/create/ditrack-list.html
+ *
+ * DI track list partial for shootout create wizard Step 2.
+ * Displays selectable DI tracks from user's library.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `<!-- DI Track list for shootout create wizard Step 2 -->
+{% if tracks %}
+  <div class="space-y-2">
+    {% for track in tracks %}
+      <button
+        type="button"
+        @click="selectTrack('{{ track.id }}', '{{ track.title | e }}', {{ track.duration_seconds }}, {{ track.sample_rate }}, '{{ (track.guitar or '') | e }}', '{{ (track.description or '') | e }}')"
+        :class="{
+          'border-[var(--color-accent-primary)] bg-[var(--color-accent-primary)]/10': selectedTrack?.id === '{{ track.id }}',
+          'border-border hover:border-[var(--color-accent-primary)]/50': selectedTrack?.id !== '{{ track.id }}'
+        }"
+        class="w-full p-4 rounded-lg border text-left transition-all"
+        data-testid="ditrack-option"
+        data-track-id="{{ track.id }}"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-medium">{{ track.title }}</div>
+            <div class="text-sm text-[var(--color-text-secondary)]">
+              {% set mins = (track.duration_seconds // 60) | int %}
+              {% set secs = (track.duration_seconds % 60) | int %}
+              {{ mins }}:{{ '%02d' | format(secs) }} ·
+              {% if track.sample_rate >= 1000 %}
+                {{ (track.sample_rate / 1000) | round(1 if track.sample_rate % 1000 != 0 else 0) }} kHz
+              {% else %}
+                {{ track.sample_rate }} Hz
+              {% endif %}
+              {% if track.guitar %} · {{ track.guitar }}{% endif %}
+            </div>
+            {% if track.description %}
+              <div class="text-sm text-[var(--color-text-muted)] mt-1 line-clamp-1">
+                {{ track.description }}
+              </div>
+            {% endif %}
+          </div>
+          <svg
+            x-show="selectedTrack?.id === '{{ track.id }}'"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            class="w-5 h-5 text-[var(--color-accent-primary)]"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </div>
+      </button>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="text-center py-8">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      class="w-12 h-12 text-[var(--color-block-di)] mx-auto"
+    >
+      <path
+        fill-rule="evenodd"
+        d="M19.952 1.651a.75.75 0 01.298.599V16.303a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.403-4.909l2.311-.66a1.5 1.5 0 001.088-1.442V6.994l-9 2.572v9.737a3 3 0 01-2.176 2.884l-1.32.377a2.553 2.553 0 11-1.402-4.909l2.31-.66a1.5 1.5 0 001.088-1.442V5.25a.75.75 0 01.544-.721l10.5-3a.75.75 0 01.658.122z"
+        clip-rule="evenodd"
+      />
+    </svg>
+    <p class="text-[var(--color-text-secondary)] mt-4 mb-4">No DI tracks uploaded yet</p>
+    <a
+      href="/library/di-tracks"
+      class="inline-flex items-center px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors"
+    >
+      Upload DI Track
+    </a>
+  </div>
+{% endif %}
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

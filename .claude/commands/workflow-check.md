@@ -17,8 +17,8 @@ First verify the development environment is running:
 # Check services are running
 docker compose ps
 
-# Check watch is running (should show chokidar process)
-docker compose exec -T frontend pgrep -f "chokidar" || echo "Watch NOT running - run 'just watch-templates' first"
+# Check Astro chokidar watcher is running
+docker compose exec -T astro pgrep -f "chokidar" || echo "Astro watcher NOT running - check 'docker compose logs astro'"
 ```
 
 If prerequisites fail, inform the user and stop.
@@ -125,7 +125,7 @@ Report results as a table:
 
 ### Prerequisites
 - Services: [RUNNING / NOT RUNNING]
-- Watch process: [RUNNING / NOT RUNNING]
+- Astro chokidar watcher: [RUNNING / NOT RUNNING]
 
 ### Results
 
@@ -148,7 +148,7 @@ Common fixes:
 
 | Failure | Fix |
 |---------|-----|
-| Watch not running | Run `just watch-templates` in separate terminal |
-| Astro not rebuilding | Restart: `docker compose restart frontend` |
+| Astro watcher not running | Check `docker compose logs astro`, restart: `docker compose restart astro` |
+| Astro not rebuilding | Restart: `docker compose restart astro` |
 | Python not reloading | Restart: `docker compose restart backend` |
 | All failing | Full restart: `just down && just up-d` |

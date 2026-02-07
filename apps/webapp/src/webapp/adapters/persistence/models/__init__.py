@@ -7,14 +7,16 @@ from webapp.adapters.persistence.models.base import (
     UUIDMixin,
     get_async_session,
 )
+from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearMake,
-    GearModel,
     GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.job import AuditLog, Job
+from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
     DITrack,
@@ -23,13 +25,13 @@ from webapp.adapters.persistence.models.shootout import (
     ShootoutStatus,
 )
 from webapp.adapters.persistence.models.signal_chain import (
-    BlockType,
-    Preset,
     SignalChain,
     SignalChainBlock,
     SignalChainGroup,
 )
-from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
+from webapp.adapters.persistence.models.user import OAuthProvider, User
+from webapp.adapters.persistence.models.user_gear import UserGear
+from webapp.adapters.persistence.models.user_identity import UserIdentity
 
 __all__ = [
     "AudioSegment",
@@ -55,6 +57,7 @@ __all__ = [
     "TimestampMixin",
     "UUIDMixin",
     "User",
+    "UserGear",
     "UserIdentity",
     "get_async_session",
 ]

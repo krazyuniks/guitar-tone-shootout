@@ -1,28 +1,67 @@
 """Gear ORM models for persistence layer."""
 
-import uuid
-from datetime import datetime
+from __future__ import annotations
 
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import (
-    GearType,
-    ModelSize,
-    Platform,
-)
+import re
+import uuid
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
     Boolean,
     Column,
-    DateTime,
     ForeignKey,
     Index,
     String,
     Table,
     Text,
     Uuid,
+    event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from core.domain.value_objects.signal_chain_enums import GearType
+
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+from .gear_model import GearModel
+from .gear_source import GearSource
+
+if TYPE_CHECKING:
+    from .user_gear import UserGear
+
+
+def _slugify(text: str, manufacturer: str | None = None) -> str:
+    """Convert text to a URL-friendly slug.
+
+    Args:
+        text: The text to slugify
+        manufacturer: Optional manufacturer name to prepend
+
+    Returns:
+        A lowercase, hyphenated slug
+    """
+    # Check if manufacturer is already in the name
+    if manufacturer:
+        # Case-insensitive check if name starts with manufacturer
+        if text.lower().startswith(manufacturer.lower()):
+            # Manufacturer already in name, don't duplicate
+            combined = text
+        else:
+            # Prepend manufacturer
+            combined = f"{manufacturer} {text}"
+    else:
+        combined = text
+
+    # Convert to lowercase
+    slug = combined.lower()
+    # Normalize unicode characters (ö -> o, etc.)
+    import unicodedata
+    slug = unicodedata.normalize('NFKD', slug)
+    slug = slug.encode('ascii', 'ignore').decode('ascii')
+    # Replace non-alphanumeric characters with hyphens
+    slug = re.sub(r'[^a-z0-9-]+', '-', slug)
+    # Remove leading/trailing hyphens and collapse multiple hyphens
+    slug = re.sub(r'-+', '-', slug).strip('-')
+    return slug
 
 # Junction table for gear-tag many-to-many relationship
 gear_tags_table = Table(
@@ -50,7 +89,7 @@ class GearTag(UUIDMixin, Base):
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
 
     # Relationship to gear (many-to-many)
-    gear_items: Mapped[list["Gear"]] = relationship(
+    gear_items: Mapped[list[Gear]] = relationship(
         "Gear",
         secondary=gear_tags_table,
         back_populates="tags",
@@ -74,95 +113,9 @@ class GearMake(UUIDMixin, Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
     # Relationship to gear
-    gear_items: Mapped[list["Gear"]] = relationship(
+    gear_items: Mapped[list[Gear]] = relationship(
         "Gear",
         back_populates="make",
-    )
-
-
-class GearSource(UUIDMixin, TimestampMixin, Base):
-    """Source tracking for gear data.
-
-    Tracks where gear came from (T3K, user upload, etc.) for sync
-    and attribution purposes.
-
-    Attributes:
-        id: Primary key (UUIDv7)
-        source_name: Name of source (e.g., 't3k', 'user_upload')
-        source_record_id: ID in the source system
-        source_updated_at: Last update time in source system
-        created_at: When source record was created
-        updated_at: When source record was last updated
-        gear: The gear item this source belongs to
-    """
-
-    __tablename__ = "gear_sources"
-
-    source_name: Mapped[str] = mapped_column(String(50), nullable=False)
-    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    source_updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-
-    # Relationship to gear (one-to-one)
-    gear: Mapped["Gear"] = relationship("Gear", back_populates="source", uselist=False)
-
-    # Composite index for source lookups
-    __table_args__ = (
-        Index("ix_gear_sources_source_lookup", "source_name", "source_record_id"),
-    )
-
-
-class GearModel(UUIDMixin, Base):
-    """Downloadable model file for gear.
-
-    Represents a specific model file variant (platform, size) for a
-    piece of gear. A single gear item can have multiple model files.
-
-    Attributes:
-        id: Primary key (UUIDv7)
-        gear_id: Foreign key to gear table
-        platform: Target platform (NAM, AIDA-X, etc.)
-        size: Model size variant (standard, lite, etc.)
-        file_path: Local path to model file (if downloaded)
-        download_url: URL to download the model
-        download_status: Current download status
-        file_hash: SHA256 hash for integrity verification
-        gear: The gear item this model belongs to
-    """
-
-    __tablename__ = "gear_models"
-
-    gear_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
-        ForeignKey("gear.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    platform: Mapped[Platform] = mapped_column(
-        EnumByValue(Platform),
-        nullable=False,
-    )
-    size: Mapped[ModelSize] = mapped_column(
-        EnumByValue(ModelSize),
-        nullable=False,
-    )
-    file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    download_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    download_status: Mapped[DownloadStatus] = mapped_column(
-        EnumByValue(DownloadStatus),
-        nullable=False,
-        default=DownloadStatus.PENDING,
-    )
-    file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-
-    # Relationship to gear
-    gear: Mapped["Gear"] = relationship("Gear", back_populates="models")
-
-    # Indexes for common query patterns
-    __table_args__ = (
-        Index("ix_gearmodel_gear_id", "gear_id"),
-        Index("ix_gearmodel_platform", "platform"),
     )
 
 
@@ -175,6 +128,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         id: Primary key (UUIDv7)
         name: Display name
         gear_type: Type of gear (amp, pedal, ir, etc.)
+        platform: Primary platform for this gear (optional, derived from models)
         description: Optional description
         manufacturer: Manufacturer name (legacy field, prefer make_id)
         make_id: Foreign key to gear_makes table
@@ -192,10 +146,12 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "gear"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     gear_type: Mapped[GearType] = mapped_column(
         EnumByValue(GearType),
         nullable=False,
     )
+    platform: Mapped[str | None] = mapped_column(String(50), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
     make_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -212,25 +168,30 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     )
 
     # Relationships
-    make: Mapped["GearMake | None"] = relationship(
+    make: Mapped[GearMake | None] = relationship(
         "GearMake",
         back_populates="gear_items",
     )
-    source: Mapped["GearSource | None"] = relationship(
+    source: Mapped[GearSource | None] = relationship(
         "GearSource",
         back_populates="gear",
     )
-    models: Mapped[list["GearModel"]] = relationship(
+    models: Mapped[list[GearModel]] = relationship(
         "GearModel",
         back_populates="gear",
         cascade="all, delete-orphan",
         lazy="selectin",  # Eager load models
     )
-    tags: Mapped[list["GearTag"]] = relationship(
+    tags: Mapped[list[GearTag]] = relationship(
         "GearTag",
         secondary=gear_tags_table,
         back_populates="gear_items",
         lazy="selectin",  # Eager load tags
+    )
+    user_gear: Mapped[list[UserGear]] = relationship(
+        "UserGear",
+        back_populates="gear",
+        cascade="all, delete-orphan",
     )
 
     # Indexes for common query patterns
@@ -240,3 +201,11 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         Index("ix_gear_make_id", "make_id"),
         Index("ix_gear_source_id", "source_id"),
     )
+
+
+# Event listener to auto-generate slug before insert
+@event.listens_for(Gear, 'before_insert')
+def generate_slug(mapper, connection, target):
+    """Automatically generate slug if not provided."""
+    if not target.slug:
+        target.slug = _slugify(target.name, target.manufacturer)

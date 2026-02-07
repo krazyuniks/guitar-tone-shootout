@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
+from core.domain.value_objects.block_position import BlockPosition
 from core.domain.value_objects.signal_chain_enums import GearType
 
 
@@ -17,6 +18,7 @@ class ValidationRule(str, Enum):
     MULTIPLE_AMPS = "MULTIPLE_AMPS"
     IR_REQUIRED = "IR_REQUIRED"
     IR_FORBIDDEN = "IR_FORBIDDEN"
+    LOOP_FORBIDDEN = "LOOP_FORBIDDEN"
     MULTIPLE_IRS = "MULTIPLE_IRS"
     INVALID_ORDER = "INVALID_ORDER"
 
@@ -149,32 +151,53 @@ class SignalChainValidator:
                     )
                 )
 
-        # Rules that depend on having exactly one amp
-        if total_amps == 1:
-            is_full_rig = len(full_rig_blocks) == 1
-            amp_position = full_rig_blocks[0][0] if is_full_rig else amp_blocks[0][0]
+        # Rules that depend on having at least one amp
+        if total_amps >= 1:
+            is_full_rig = len(full_rig_blocks) >= 1
+            # Use the first amp position for order checks (even if there are multiple)
+            amp_position = (
+                full_rig_blocks[0][0] if full_rig_blocks else amp_blocks[0][0]
+            )
 
-            # Rule: IR required for head amp (IR_REQUIRED)
-            if not is_full_rig and len(ir_blocks) == 0:
-                errors.append(
-                    ValidationError(
-                        code=ValidationRule.IR_REQUIRED,
-                        message="Head amp capture requires an IR block after it",
-                        position=amp_position,
-                    )
-                )
-
-            # Rule: IR forbidden for full-rig (IR_FORBIDDEN)
-            if is_full_rig and len(ir_blocks) > 0:
-                for pos, _ in ir_blocks:
+            # Rules that only apply when there's exactly one amp
+            if total_amps == 1:
+                # Rule: IR required for head amp (IR_REQUIRED)
+                if not is_full_rig and len(ir_blocks) == 0:
                     errors.append(
                         ValidationError(
-                            code=ValidationRule.IR_FORBIDDEN,
-                            message="Full-rig amp has baked-in IR; no IR allowed",
-                            position=pos,
+                            code=ValidationRule.IR_REQUIRED,
+                            message="Head amp capture requires an IR block after it",
+                            position=amp_position,
                         )
                     )
 
+                # Rule: IR forbidden for full-rig (IR_FORBIDDEN)
+                if is_full_rig and len(ir_blocks) > 0:
+                    for pos, _ in ir_blocks:
+                        errors.append(
+                            ValidationError(
+                                code=ValidationRule.IR_FORBIDDEN,
+                                message="Full-rig amp has baked-in IR; no IR allowed",
+                                position=pos,
+                            )
+                        )
+
+                # Rule: Loop position forbidden for full-rig (LOOP_FORBIDDEN)
+                if is_full_rig:
+                    for i, block in enumerate(chain.blocks):
+                        if block.block_position == BlockPosition.LOOP:
+                            errors.append(
+                                ValidationError(
+                                    code=ValidationRule.LOOP_FORBIDDEN,
+                                    message=(
+                                        "Loop position effects are incompatible with "
+                                        "full-rig amps"
+                                    ),
+                                    position=i,
+                                )
+                            )
+
+            # Order validation rules apply even with multiple amps
             # Rule: Invalid order - Pedals must precede amp
             for pos, _ in pedal_blocks:
                 if pos > amp_position:

@@ -1,0 +1,204 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}My DI Tracks - Guitar Tone Shootout{% endblock %}
+{% block description %}View and manage your DI track recordings.{% endblock %}
+
+{% block content %}
+<div
+  data-testid="di-tracks-library"
+  class="container mx-auto px-4 py-8"
+>
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+          My DI Tracks
+        </h1>
+        <p class="text-[var(--color-text-secondary)]">
+          Upload and manage your raw guitar recordings for shootouts
+        </p>
+      </div>
+      <button
+        type="button"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
+        data-testid="upload-track-btn"
+        onclick="document.getElementById('upload-modal').showModal()"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+          <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+          <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+        </svg>
+        Upload Track
+      </button>
+    </div>
+  </div>
+
+  <!-- HTMX-powered tracks list -->
+  <div
+    id="tracks-list-container"
+    hx-get="/api/v1/html/library/tracks"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <!-- Loading state while HTMX fetches content -->
+    <div class="space-y-3">
+      {% for i in range(4) %}
+      <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4 animate-pulse">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-16 h-12 bg-[var(--color-bg-secondary)] rounded"></div>
+          <div class="flex-1">
+            <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 mb-2"></div>
+            <div class="h-4 bg-[var(--color-bg-secondary)] rounded w-1/2 mb-2"></div>
+            <div class="flex gap-2">
+              <div class="h-4 w-16 bg-[var(--color-bg-secondary)] rounded"></div>
+              <div class="h-4 w-20 bg-[var(--color-bg-secondary)] rounded"></div>
+              <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Upload Modal (placeholder - full implementation in future story) -->
+  <dialog id="upload-modal" class="modal bg-transparent">
+    <div class="modal-box bg-[var(--color-bg-surface)] border border-[var(--border)] max-w-lg">
+      <form method="dialog">
+        <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 text-[var(--color-text-secondary)]">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </button>
+      </form>
+      <h3 class="font-bold text-lg text-[var(--color-text-primary)] mb-4">Upload DI Track</h3>
+      <form
+        id="upload-form"
+        hx-post="/api/v1/di-tracks/upload"
+        hx-encoding="multipart/form-data"
+        hx-target="#tracks-list-container"
+        hx-swap="innerHTML"
+        class="space-y-4"
+      >
+        <div>
+          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+            Title *
+          </label>
+          <input
+            type="text"
+            name="title"
+            required
+            maxlength="255"
+            class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
+            placeholder="e.g., Clean Tone Test Riff"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+            Audio File (WAV) *
+          </label>
+          <input
+            type="file"
+            name="file"
+            accept=".wav"
+            required
+            class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-[var(--color-accent-primary)] file:text-white file:font-medium file:cursor-pointer"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+            Guitar
+          </label>
+          <input
+            type="text"
+            name="guitar"
+            maxlength="255"
+            class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
+            placeholder="e.g., Fender Stratocaster"
+          />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+              Pickups
+            </label>
+            <input
+              type="text"
+              name="pickups"
+              maxlength="255"
+              class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
+              placeholder="e.g., Bridge Humbucker"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+              Tuning
+            </label>
+            <input
+              type="text"
+              name="tuning"
+              maxlength="50"
+              class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
+              placeholder="e.g., E Standard"
+            />
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+            Description
+          </label>
+          <textarea
+            name="description"
+            rows="2"
+            class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none resize-none"
+            placeholder="Optional notes about this recording..."
+          ></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            class="px-4 py-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+            onclick="document.getElementById('upload-modal').close()"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
+          >
+            Upload
+          </button>
+        </div>
+      </form>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-black/50">
+      <button>close</button>
+    </form>
+  </dialog>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors for auth
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
+    }
+  });
+
+  // Close upload modal on successful upload
+  document.body.addEventListener('htmx:afterSwap', (event) => {
+    if (event.detail.target.id === 'tracks-list-container' && event.detail.successful) {
+      const modal = document.getElementById('upload-modal');
+      if (modal && modal.open) {
+        modal.close();
+      }
+    }
+  });
+</script>
+{% endblock %}

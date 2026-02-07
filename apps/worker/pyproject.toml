@@ -2,7 +2,7 @@
 name = "gts-worker"
 version = "0.1.0"
 description = "GTS Worker - TaskIQ background jobs and pgmq message consumer"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "gts-core",
     "gts-audio",

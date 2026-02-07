@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
+
+from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy.orm import selectinload
 
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import GearModel as GearModelVO
 from core.domain.entities.gear import GearSource as GearSourceVO
-from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.orm import selectinload
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearModel,
@@ -20,8 +22,44 @@ from webapp.adapters.persistence.models.gear import (
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from core.domain.value_objects.signal_chain_enums import GearType
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from core.domain.value_objects.signal_chain_enums import GearType
+
+
+def _slugify(text: str, manufacturer: str | None = None) -> str:
+    """Convert text to a URL-friendly slug.
+
+    Args:
+        text: The text to slugify
+        manufacturer: Optional manufacturer name to prepend
+
+    Returns:
+        A lowercase, hyphenated slug
+    """
+    # Check if manufacturer is already in the name
+    if manufacturer:
+        # Case-insensitive check if name starts with manufacturer
+        if text.lower().startswith(manufacturer.lower()):
+            # Manufacturer already in name, don't duplicate
+            combined = text
+        else:
+            # Prepend manufacturer
+            combined = f"{manufacturer} {text}"
+    else:
+        combined = text
+
+    # Convert to lowercase
+    slug = combined.lower()
+    # Normalize unicode characters (ö -> o, etc.)
+    import unicodedata
+    slug = unicodedata.normalize('NFKD', slug)
+    slug = slug.encode('ascii', 'ignore').decode('ascii')
+    # Replace non-alphanumeric characters with hyphens
+    slug = re.sub(r'[^a-z0-9-]+', '-', slug)
+    # Remove leading/trailing hyphens and collapse multiple hyphens
+    slug = re.sub(r'-+', '-', slug).strip('-')
+    return slug
 
 
 class SQLAlchemyGearRepository:
@@ -51,6 +89,33 @@ class SQLAlchemyGearRepository:
         stmt = (
             select(Gear)
             .where(Gear.id == gear_id)
+            .options(
+                selectinload(Gear.models),
+                selectinload(Gear.tags),
+                selectinload(Gear.source),
+                selectinload(Gear.make),
+            )
+        )
+        result = await self.session.execute(stmt)
+        gear = result.scalar_one_or_none()
+        return self._to_entity(gear) if gear else None
+
+    async def get_by_slug(self, slug: str) -> GearEntity | None:
+        """Get gear by its URL slug.
+
+        Slug lookup is case-insensitive.
+
+        Args:
+            slug: The gear's URL slug
+
+        Returns:
+            The Gear entity if found, None otherwise
+        """
+        # Normalize slug to lowercase for case-insensitive lookup
+        normalized_slug = slug.lower()
+        stmt = (
+            select(Gear)
+            .where(func.lower(Gear.slug) == normalized_slug)
             .options(
                 selectinload(Gear.models),
                 selectinload(Gear.tags),
@@ -233,6 +298,8 @@ class SQLAlchemyGearRepository:
         if existing:
             # Update existing gear
             existing.name = gear.name
+            # Generate slug if not provided
+            existing.slug = gear.slug if gear.slug else _slugify(gear.name, gear.manufacturer)
             existing.gear_type = gear.gear_type
             existing.description = gear.description
             existing.manufacturer = gear.manufacturer
@@ -263,9 +330,12 @@ class SQLAlchemyGearRepository:
             await self._update_models(existing, gear.models)
         else:
             # Create new gear
+            # Generate slug if not provided
+            slug = gear.slug if gear.slug else _slugify(gear.name, gear.manufacturer)
             new_gear = Gear(
                 id=gear.id,
                 name=gear.name,
+                slug=slug,
                 gear_type=gear.gear_type,
                 description=gear.description,
                 manufacturer=gear.manufacturer,
@@ -436,6 +506,7 @@ class SQLAlchemyGearRepository:
         return GearEntity(
             id=gear.id,
             name=gear.name,
+            slug=gear.slug,
             gear_type=gear.gear_type,
             description=gear.description,
             manufacturer=gear.manufacturer,

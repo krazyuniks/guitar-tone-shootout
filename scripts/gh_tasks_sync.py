@@ -2,14 +2,16 @@
 """
 Sync GitHub epic to .tasks/ with structure validation.
 
+Uses `gh` CLI for GitHub access (no external Python dependencies).
+
 Usage:
     python scripts/gh_tasks_sync.py owner/repo 42
     python scripts/gh_tasks_sync.py owner/repo 42 --validate  # Warn on sparse issues
 """
 
 import json
-import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -42,12 +44,6 @@ class WorkspaceProject(str, Enum):
         """Only webapp needs browser automation."""
         return self == WorkspaceProject.WEBAPP
 
-try:
-    from ghapi.all import GhApi
-except ImportError:
-    print("Install ghapi: pip install ghapi")
-    sys.exit(1)
-
 
 @dataclass
 class ValidationResult:
@@ -55,7 +51,7 @@ class ValidationResult:
     title: str
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    
+
     @property
     def is_valid(self) -> bool:
         return len(self.errors) == 0
@@ -91,102 +87,150 @@ class Issue:
 def parse_issue_body(issue: Issue) -> Issue:
     """Parse structured sections from issue body."""
     body = issue.body or ""
-    
+
     # Extract Objective
     match = re.search(r"## Objective\s*\n(.*?)(?=\n##|\Z)", body, re.DOTALL | re.I)
     if match:
         issue.objective = match.group(1).strip()
-    
+
     # Extract Acceptance Criteria
     match = re.search(r"## Acceptance Criteria\s*\n(.*?)(?=\n##|\Z)", body, re.DOTALL | re.I)
     if match:
         criteria_text = match.group(1)
         issue.acceptance_criteria = re.findall(r"- \[[ x]\] (.+)", criteria_text)
-    
+
     # Extract Scope
     match = re.search(r"## Scope\s*\n(.*?)(?=\n##|\Z)", body, re.DOTALL | re.I)
     if match:
         scope_text = match.group(1)
-        
+
         # Create section
         create_match = re.search(r"\*\*Create:?\*\*\s*\n(.*?)(?=\*\*|\Z)", scope_text, re.DOTALL)
         if create_match:
             issue.scope_create = re.findall(r"`([^`]+)`", create_match.group(1))
-        
+
         # Modify section
         modify_match = re.search(r"\*\*Modify:?\*\*\s*\n(.*?)(?=\*\*|\Z)", scope_text, re.DOTALL)
         if modify_match:
             issue.scope_modify = re.findall(r"`([^`]+)`", modify_match.group(1))
-    
+
     # Extract Dependencies
     for pattern in [r"[Bb]locked by:?\s*#(\d+)", r"[Dd]epends on:?\s*#(\d+)"]:
         for match in re.finditer(pattern, body):
             issue.blocked_by.append(int(match.group(1)))
-    
+
     # Technical Notes
     match = re.search(r"## Technical Notes\s*\n(.*?)(?=\n##|\Z)", body, re.DOTALL | re.I)
     if match:
         issue.technical_notes = match.group(1).strip()
-    
+
     return issue
 
 
 def validate_issue(issue: Issue) -> ValidationResult:
     """Validate issue has required structure."""
     result = ValidationResult(issue.number, issue.title)
-    
+
     # Required: Objective
     if not issue.objective:
         result.errors.append("Missing ## Objective section")
     elif len(issue.objective) < 20:
         result.warnings.append("Objective is very short (< 20 chars)")
-    
+
     # Required: Acceptance Criteria
     if not issue.acceptance_criteria:
         result.errors.append("Missing ## Acceptance Criteria section")
     elif len(issue.acceptance_criteria) < 2:
         result.warnings.append("Only 1 acceptance criterion (recommend 3-5)")
-    
+
     # Required: Scope
     if not issue.scope_create and not issue.scope_modify:
         result.errors.append("Missing ## Scope section with file paths")
-    
+
     # Warning: No technical notes (optional but helpful)
     if not issue.technical_notes:
         result.warnings.append("No ## Technical Notes (optional)")
-    
+
     return result
 
 
+def _gh_issue_view(repo: str, number: int) -> dict:
+    """Fetch an issue using gh CLI. Returns JSON dict."""
+    result = subprocess.run(
+        [
+            "gh", "issue", "view", str(number),
+            "--repo", repo,
+            "--json", "number,title,body,state,labels",
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def _gh_issue_list(repo: str, label: str) -> list[dict]:
+    """List issues by label using gh CLI. Returns list of JSON dicts."""
+    result = subprocess.run(
+        [
+            "gh", "issue", "list",
+            "--repo", repo,
+            "--label", label,
+            "--limit", "200",
+            "--state", "all",
+            "--json", "number,title,body,state,labels",
+        ],
+        capture_output=True, text=True, check=True,
+    )
+    return json.loads(result.stdout)
+
+
 class GitHubEpicSync:
-    def __init__(self, owner: str, repo: str, token: str = None):
+    def __init__(self, owner: str, repo: str):
         self.owner = owner
         self.repo = repo
-        self.api = GhApi(owner=owner, repo=repo, token=token or os.getenv("GITHUB_TOKEN"))
+        self.repo_slug = f"{owner}/{repo}"
 
     def fetch_epic(self, epic_number: int) -> tuple[Issue, list[Issue]]:
-        epic_data = self.api.issues.get(epic_number)
+        epic_data = _gh_issue_view(self.repo_slug, epic_number)
         epic = self._to_issue(epic_data)
-        
+
+        # Try checklist references in epic body first
+        child_numbers = [
+            int(m.group(1))
+            for m in re.finditer(r"- \[[ x]\] #(\d+)", epic.body)
+        ]
+
+        # Fallback: find task-labelled issues if no checklist found
+        if not child_numbers:
+            print("  No task checklist in epic body, searching by 'task' label...")
+            task_issues = _gh_issue_list(self.repo_slug, "task")
+            child_numbers = sorted(d["number"] for d in task_issues)
+            # Use the already-fetched data to avoid re-fetching
+            children = []
+            for data in sorted(task_issues, key=lambda d: d["number"]):
+                child = self._to_issue(data)
+                child = parse_issue_body(child)
+                children.append(child)
+            return epic, children
+
         children = []
-        for match in re.finditer(r"- \[[ x]\] #(\d+)", epic.body):
+        for num in child_numbers:
             try:
-                child_data = self.api.issues.get(int(match.group(1)))
+                child_data = _gh_issue_view(self.repo_slug, num)
                 child = self._to_issue(child_data)
                 child = parse_issue_body(child)
                 children.append(child)
             except Exception as e:
-                print(f"Warning: Could not fetch #{match.group(1)}: {e}")
-        
+                print(f"Warning: Could not fetch #{num}: {e}")
+
         return epic, children
 
-    def _to_issue(self, data) -> Issue:
+    def _to_issue(self, data: dict) -> Issue:
         return Issue(
-            number=data.number,
-            title=data.title,
-            body=data.body or "",
-            state=data.state,
-            labels=[l.name for l in (data.labels or [])],
+            number=data["number"],
+            title=data["title"],
+            body=data.get("body") or "",
+            state=data["state"].lower(),
+            labels=[l["name"] for l in (data.get("labels") or [])],
         )
 
 
@@ -199,28 +243,41 @@ class TasksWriter:
     def write_epic(self, epic: Issue, children: list[Issue]):
         epic_dir = self.base_path / f"E{epic.number}"
         tasks_dir = epic_dir / "tasks"
-        
-        for d in [tasks_dir, epic_dir / "snapshots", 
-                  epic_dir / "logs/orchestrator", 
-                  epic_dir / "logs/tasks", 
+
+        for d in [tasks_dir, epic_dir / "snapshots",
+                  epic_dir / "logs/orchestrator",
+                  epic_dir / "logs/tasks",
                   epic_dir / "logs/errors"]:
             d.mkdir(parents=True, exist_ok=True)
 
         self._write_index(epic_dir / "index.md", epic, children)
-        
+
         for child in children:
             self._write_task_file(tasks_dir / f"T{child.number}.md", child, epic.number)
 
     def _write_task_file(self, path: Path, task: Issue, epic_number: int):
-        """Generate task file from parsed issue."""
-        
+        """Generate task file from parsed issue.
+
+        Preserves local State if the file already exists (local state is
+        managed by run_epic.py, not GitHub).
+        """
+        # Preserve local state if file already exists
+        local_state = None
+        if path.exists():
+            existing = path.read_text()
+            state_match = re.search(
+                r"\|\s*State\s*\|\s*(\w+)\s*\|", existing, re.IGNORECASE
+            )
+            if state_match:
+                local_state = state_match.group(1).strip().lower()
+
         blocked_by = ", ".join(f"T{n}" for n in task.blocked_by) or "None"
-        
+
         # Format acceptance criteria
         criteria = "\n".join(f"- [ ] {c}" for c in task.acceptance_criteria)
         if not criteria:
             criteria = "- [ ] TODO: Add acceptance criteria"
-        
+
         # Format scope
         scope_lines = []
         if task.scope_create:
@@ -231,15 +288,15 @@ class TasksWriter:
                 scope_lines.append("")
             scope_lines.append("**Modify:**")
             scope_lines.extend(f"- `{f}`" for f in task.scope_modify)
-        
+
         scope = "\n".join(scope_lines) if scope_lines else "**TODO:** Add file paths"
-        
+
         # Objective
         objective = task.objective or task.body[:500] or "See GitHub issue"
-        
+
         # Technical notes
         notes = f"\n## Technical Notes\n\n{task.technical_notes}" if task.technical_notes else ""
-        
+
         content = f"""# T{task.number}: {task.title}
 
 > GitHub: https://github.com/{self.owner}/{self.repo}/issues/{task.number}
@@ -249,7 +306,7 @@ class TasksWriter:
 
 | Field | Value |
 |-------|-------|
-| State | {"complete" if task.state == "closed" else "pending"} |
+| State | {local_state or ("complete" if task.state == "closed" else "pending")} |
 | Phase | - |
 | Project | {task.project.value if task.project else "-"} |
 | Blocked By | {blocked_by} |
@@ -291,9 +348,9 @@ just e2e
 
 ## Outputs
 
-- Files created: 
-- Files modified: 
-- Notes: 
+- Files created:
+- Files modified:
+- Notes:
 """
         path.write_text(content)
 
@@ -348,22 +405,22 @@ def main():
     parser.add_argument("repo", help="owner/repo")
     parser.add_argument("epic", type=int, help="Epic issue number")
     parser.add_argument("--out", default=".tasks/projects")
-    parser.add_argument("--validate", action="store_true", 
+    parser.add_argument("--validate", action="store_true",
                         help="Validate issue structure and warn on problems")
     args = parser.parse_args()
-    
+
     owner, repo = args.repo.split("/")
     syncer = GitHubEpicSync(owner, repo)
     epic, children = syncer.fetch_epic(args.epic)
-    
+
     # Validation
     if args.validate:
         print(f"Validating {len(children)} tasks...\n")
         has_errors = False
-        
+
         for child in children:
             result = validate_issue(child)
-            
+
             if result.errors or result.warnings:
                 print(f"#{child.number}: {child.title}")
                 for err in result.errors:
@@ -372,17 +429,17 @@ def main():
                 for warn in result.warnings:
                     print(f"  ⚠️  {warn}")
                 print()
-        
+
         if has_errors:
             print("Some issues have missing required sections.")
             print("Run `just plan {epic}` to enrich them, or fix manually.")
             print()
-    
+
     # Write files
     out_path = Path(args.out) / repo / "epics"
     writer = TasksWriter(out_path, owner, repo)
     writer.write_epic(epic, children)
-    
+
     print(f"✓ Synced E{args.epic} with {len(children)} tasks to {out_path}/E{args.epic}/")
 
 

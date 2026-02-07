@@ -1,0 +1,12 @@
+{# Shootout cards list fragment - for HTMX partial updates #}
+<div data-testid="shootouts-list">
+  {% if shootouts %}
+    {% for shootout in shootouts %}
+      {% include "fragments/shootouts/shootout_card.html" %}
+    {% endfor %}
+  {% else %}
+    <div data-testid="shootouts-empty" class="text-center py-8 text-[var(--color-text-muted)]">
+      No shootouts found.
+    </div>
+  {% endif %}
+</div>

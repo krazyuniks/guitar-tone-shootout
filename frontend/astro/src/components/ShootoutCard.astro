@@ -1,0 +1,154 @@
+---
+/**
+ * ShootoutCard - Astro component for displaying shootout previews
+ *
+ * STORY-015: Updated to match browse/ShootoutCard.tsx React version.
+ * Now includes proper data-testid attributes per frontend standards.
+ *
+ * Used in:
+ * - Static Astro pages for server-rendered shootout displays
+ * - Consistent with HTMX/Jinja2 shootout_card.html template
+ *
+ * For React contexts (interactive lists), use ShootoutCard.tsx instead.
+ */
+interface Props {
+  /** Unique identifier for the shootout */
+  id: number;
+  /** Shootout title/name */
+  name: string;
+  /** Optional description */
+  description?: string;
+  /** Number of tones in the shootout */
+  toneCount?: number;
+  /** Processing status */
+  status?: 'pending' | 'processing' | 'completed' | 'failed';
+  /** Whether the shootout has been processed */
+  isProcessed?: boolean;
+  /** Path to output video (if processed) */
+  outputPath?: string;
+  /** When the shootout was created (ISO string) */
+  createdAt?: string;
+  /** Optional class name */
+  class?: string;
+}
+
+const {
+  id,
+  name,
+  description,
+  toneCount = 0,
+  status,
+  isProcessed,
+  outputPath,
+  createdAt,
+  class: className,
+} = Astro.props;
+
+// Determine if shootout is ready (processed with output)
+const isReady = (status === 'completed' || isProcessed) && outputPath;
+
+/**
+ * Format a relative time string (e.g., "2 days ago", "5 hours ago")
+ */
+function formatRelativeTime(dateString?: string): string {
+  if (!dateString) return 'Recently';
+
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+
+  if (diffMonths > 0) {
+    return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`;
+  }
+  if (diffWeeks > 0) {
+    return diffWeeks === 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+  }
+  if (diffDays > 0) {
+    return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+  }
+  if (diffHours > 0) {
+    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+  }
+  if (diffMinutes > 0) {
+    return diffMinutes === 1 ? '1 minute ago' : `${diffMinutes} minutes ago`;
+  }
+  return 'Just now';
+}
+
+const relativeTime = formatRelativeTime(createdAt);
+const linkHref = `/shootout/${id}`;
+---
+
+<a
+  href={linkHref}
+  data-testid="shootout-card"
+  data-shootout-id={id}
+  class:list={[
+    'group block rounded-lg overflow-hidden bg-[var(--color-bg-surface)] border border-[var(--border)] transition-all duration-200 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 w-64 flex-shrink-0',
+    className,
+  ]}
+>
+  {/* Thumbnail / Preview */}
+  <div class="aspect-video bg-[var(--color-bg-elevated)] relative overflow-hidden">
+    {isReady ? (
+      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-900/20 to-amber-700/20">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          class="w-12 h-12 text-amber-500/60 group-hover:text-amber-500 transition-colors"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+            clip-rule="evenodd"
+          />
+        </svg>
+      </div>
+    ) : (
+      <div class="absolute inset-0 flex items-center justify-center">
+        <div class="text-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-2"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="text-xs text-[var(--color-text-muted)]">Processing...</span>
+        </div>
+      </div>
+    )}
+
+    <!-- Tone count badge -->
+    <div class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium text-white">
+      {toneCount} {toneCount === 1 ? 'tone' : 'tones'}
+    </div>
+  </div>
+
+  <!-- Card content -->
+  <div class="p-4">
+    <h3 class="font-semibold text-[var(--color-text-primary)] line-clamp-2 group-hover:text-amber-400 transition-colors">
+      {name}
+    </h3>
+
+    {description && (
+      <p class="mt-1 text-sm text-[var(--color-text-secondary)] line-clamp-2">
+        {description}
+      </p>
+    )}
+
+    <div class="mt-3 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+      <span>{relativeTime}</span>
+    </div>
+  </div>
+</a>

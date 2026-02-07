@@ -138,6 +138,21 @@ A1 ─── A2
 ...
 ```
 
+## Task Sizing Enforcement
+
+**CRITICAL:** Every task MUST meet these constraints:
+
+- **Max 10-15 tests** per task
+- **Max 3 implementation files** per task
+- **Single layer boundary** — repository+service OR api+schemas, never both
+
+If a story's acceptance criteria would produce >15 tests:
+1. Split by layer (persistence vs API vs frontend)
+2. Split by entity (one entity per task)
+3. Split by complexity (CRUD vs business logic)
+
+Tasks that are too large cause the implementer agent to exhaust its 30-turn budget.
+
 ## Task Quality Checklist
 
 Each task must have:

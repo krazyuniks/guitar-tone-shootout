@@ -1,0 +1,119 @@
+---
+/**
+ * Report Error page - Submit error reports with context.
+ *
+ * Features:
+ * - Pre-fills error code, message, and URL from query params
+ * - Allows user to add additional context/comments
+ * - Submits to backend which creates GitHub issue via HTMX
+ * - Shows confirmation with GitHub issue link
+ *
+ * Part of STORY-013: Error Report Form Page.
+ */
+import Layout from '../layouts/Layout.astro';
+
+// Parse URL params for error context
+const errorCode = Astro.url.searchParams.get('code') || null;
+const errorMessage = Astro.url.searchParams.get('message') || 'An error occurred';
+const pageUrl = Astro.url.searchParams.get('url') || '';
+const requestId = Astro.url.searchParams.get('request_id') || null;
+---
+
+<Layout title="Report an Issue">
+  <div class="container mx-auto px-4 py-8">
+    <div class="max-w-lg mx-auto space-y-6">
+      <!-- Page Header -->
+      <div class="text-center">
+        <h1 class="mb-2 text-2xl font-bold tracking-tight">
+          Help Us Fix This Issue
+        </h1>
+        <p class="text-muted-foreground">
+          Your report helps us improve Guitar Tone Shootout for everyone.
+        </p>
+      </div>
+
+      <!-- Error Context (Read-only) -->
+      <div class="rounded-lg border border-border bg-bg-surface p-4 space-y-3">
+        <h2 class="text-sm font-medium text-foreground">Error Details</h2>
+
+        <!-- Error Code -->
+        {errorCode && (
+          <div class="space-y-1">
+            <p class="text-xs text-muted-foreground">Error Code</p>
+            <p class="font-mono text-sm text-amber-500">{errorCode}</p>
+          </div>
+        )}
+
+        <!-- Error Message -->
+        <div class="space-y-1">
+          <p class="text-xs text-muted-foreground">Error Message</p>
+          <p class="text-sm text-foreground">{errorMessage}</p>
+        </div>
+
+        <!-- Page URL -->
+        {pageUrl && (
+          <div class="space-y-1">
+            <p class="text-xs text-muted-foreground">Page URL</p>
+            <p class="break-all text-sm text-muted-foreground">
+              {pageUrl}
+            </p>
+          </div>
+        )}
+
+        <!-- Request ID -->
+        {requestId && (
+          <div class="space-y-1">
+            <p class="text-xs text-muted-foreground">Request ID</p>
+            <p class="font-mono text-sm text-muted-foreground">
+              {requestId}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <!-- User Comment Form -->
+      <form
+        hx-post="/api/v1/html/error-reports"
+        hx-target="#error-message"
+        hx-swap="innerHTML"
+        class="space-y-4"
+      >
+        <!-- Hidden fields for error context -->
+        <input type="hidden" name="error_code" value={errorCode || 'UNKNOWN'} />
+        <input type="hidden" name="error_message" value={errorMessage} />
+        <input type="hidden" name="page_url" value={pageUrl || Astro.url.href} />
+        {requestId && <input type="hidden" name="request_id" value={requestId} />}
+
+        <div class="space-y-2">
+          <label for="user-comment" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Your Comment
+          </label>
+          <p class="text-sm text-muted-foreground">
+            What were you doing when this error occurred? Any details help us
+            understand and fix the problem.
+          </p>
+          <textarea
+            id="user-comment"
+            name="user_comment"
+            placeholder="I was trying to create a new shootout when..."
+            rows="4"
+            class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Error Message Container -->
+        <div id="error-message"></div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-[var(--color-accent-primary)] text-primary-foreground hover:bg-[var(--color-accent-primary)]/90 h-10 px-4 py-2"
+          >
+            Submit Report
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</Layout>

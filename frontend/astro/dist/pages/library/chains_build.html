@@ -1,0 +1,97 @@
+{% extends "layouts/base.html" %}
+
+{% block description %}Create audio signal chains with visual stages and domain-driven guidance.{% endblock %}
+
+{% block head %}
+<!-- SignalChainBuilder React island CSS - built from frontend/src/styles/global.css -->
+<link rel="stylesheet" href="/static/islands/guitar-tone-shootout-frontend.css">
+
+<!-- SignalChainBuilder React island styles - additional overrides -->
+<style>
+  /* Ensure the React component container has proper styling */
+  #signal-chain-builder-root {
+    min-height: 400px;
+  }
+
+  /* Loading state styling */
+  .react-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    color: oklch(0.708 0 0);
+  }
+
+  .react-loading .spinner {
+    animation: spin 1s linear infinite;
+    width: 24px;
+    height: 24px;
+    border: 2px solid oklch(0.269 0 0);
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    margin-right: 12px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Hide until React mounts */
+  #signal-chain-builder-root:empty::before {
+    content: '';
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" data-testid="chains-build-page">
+  <!-- Page Header -->
+  <header class="mb-8">
+    <div class="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+      <a href="/library/chains" class="hover:text-foreground">Signal Chains</a>
+      <span>/</span>
+      <span class="text-foreground">Build</span>
+    </div>
+    <h1 class="mb-2 text-3xl font-bold text-foreground" data-testid="page-title">
+      Build Signal Chain
+    </h1>
+    <p class="text-muted-foreground">
+      Create your audio signal chain by selecting gear for each stage.
+    </p>
+  </header>
+
+  <!-- Signal Chain Builder React Component Container -->
+  <div class="rounded-lg border border-border bg-card p-6">
+    <div id="signal-chain-builder-root" data-testid="signal-chain-builder-container">
+      <!-- Loading state shown until React mounts -->
+      <div class="react-loading" data-testid="react-loading">
+        <div class="spinner"></div>
+        <span>Loading Signal Chain Builder...</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load the SignalChainBuilder React island bundle -->
+<script src="/static/islands/signal-chain-builder.js"></script>
+<script>
+  // Mount the React component when the script loads
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.SignalChainBuilder && window.SignalChainBuilder.mount) {
+      window.SignalChainBuilder.mount('signal-chain-builder-root');
+    } else {
+      console.error('SignalChainBuilder not loaded');
+      const container = document.getElementById('signal-chain-builder-root');
+      if (container) {
+        container.innerHTML = '<div class="text-red-500 p-4">Failed to load Signal Chain Builder. Please refresh the page.</div>';
+      }
+    }
+  });
+</script>
+{% endblock %}

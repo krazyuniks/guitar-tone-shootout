@@ -1,0 +1,96 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Account Settings - Guitar Tone Shootout{% endblock %}
+{% block description %}Manage your account and linked authentication providers{% endblock %}
+
+{% block content %}
+<div data-testid="settings-account-page" class="min-h-screen">
+  <div class="container mx-auto max-w-2xl px-4 py-8">
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+        Account Settings
+      </h1>
+      <p class="text-[var(--color-text-secondary)]">
+        Manage your profile and linked authentication providers
+      </p>
+    </div>
+
+    <!-- Profile section -->
+    <div class="mb-8 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-6">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Profile</h2>
+      <div class="flex items-center gap-4">
+        {% if user.avatar_url %}
+        <img src="{{ user.avatar_url }}" alt="{{ user.username }}" class="h-16 w-16 rounded-full border border-[var(--color-border)]" />
+        {% else %}
+        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-accent)] text-xl font-bold text-white">
+          {{ user.username[0]|upper }}
+        </div>
+        {% endif %}
+        <div>
+          <p class="text-lg font-medium text-[var(--color-text-primary)]" data-testid="settings-username">{{ user.username }}</p>
+          {% if user.email %}
+          <p class="text-sm text-[var(--color-text-secondary)]">{{ user.email }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Linked providers -->
+    <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-6">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4">Linked Providers</h2>
+      <div class="space-y-4">
+        {% for provider in providers %}
+        <div class="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4" data-testid="provider-{{ provider.name }}">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg {% if provider.linked %}bg-green-500/10 text-green-400{% else %}bg-[var(--color-surface-elevated)] text-[var(--color-text-muted)]{% endif %}">
+              {% if provider.name == 't3k' %}
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 19V6l12-3v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="15" r="3" />
+              </svg>
+              {% elif provider.name == 'google' %}
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" /></svg>
+              {% elif provider.name == 'github' %}
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" /></svg>
+              {% else %}
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /></svg>
+              {% endif %}
+            </div>
+            <div>
+              <p class="font-medium text-[var(--color-text-primary)]">{{ provider.display_name }}</p>
+              {% if provider.linked %}
+              <p class="text-sm text-green-400">Linked as {{ provider.username }}</p>
+              {% elif provider.available %}
+              <p class="text-sm text-[var(--color-text-muted)]">Not linked</p>
+              {% else %}
+              <p class="text-sm text-[var(--color-text-muted)]">Not Available</p>
+              {% endif %}
+            </div>
+          </div>
+          <div>
+            {% if provider.linked %}
+            <button
+              {% if provider.is_last_provider %}disabled{% endif %}
+              data-testid="unlink-{{ provider.name }}"
+              hx-delete="/api/v1/auth/unlink/{{ provider.name }}"
+              hx-confirm="Are you sure you want to unlink {{ provider.display_name }}?"
+              class="rounded-lg border border-red-500/30 px-3 py-1.5 text-sm text-red-400 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Unlink
+            </button>
+            {% elif provider.available %}
+            <a
+              href="/api/v1/auth/login/{{ provider.name }}"
+              data-astro-reload
+              class="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
+            >
+              Link
+            </a>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -19,7 +19,7 @@ def _get_expected_services(worktree_path: Path) -> set[str]:
     Feature worktrees only run core services (nginx, webapp, db).
     """
     # Core services for all worktrees
-    expected = {"nginx", "webapp", "db"}
+    expected = {"nginx", "webapp", "db", "astro"}
 
     # Main worktree includes jobs profile services
     main_path = get_main_worktree_path()
@@ -63,7 +63,7 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
     2. Nginx HTTP response (user-facing entry point)
     3. Webapp HTTP health endpoint (/health)
 
-    Note: Frontend is build-only (--profile build), not part of runtime stack.
+    Note: Astro runs as a chokidar watcher (auto-rebuilds on source changes).
 
     Args:
         worktree_path: Path to the worktree

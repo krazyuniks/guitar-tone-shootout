@@ -2,7 +2,7 @@
 name = "gts-source-t3k"
 version = "0.1.0"
 description = "GTS T3K Source Adapter - Syncs gear data from Tone3000 API"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "gts-core",
     "httpx>=0.28.0",

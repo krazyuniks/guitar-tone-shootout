@@ -14,7 +14,7 @@ description: Docker and Docker Compose configuration and troubleshooting. Use fo
 **Pre-bundled frontend**: `astro/dist/` is committed to git. No Vite dev server at runtime.
 
 **Runtime containers**: db, backend, nginx
-**Build-only container**: frontend (used for `just build-astro`)
+**Persistent container**: astro (auto-rebuilds via chokidar when source files change)
 
 ### Services Overview
 
@@ -22,12 +22,12 @@ description: Docker and Docker Compose configuration and troubleshooting. Use fo
 |---------|------|-------|---------|
 | nginx | 9000 | nginx:alpine | Routes static files + API proxy |
 | backend | 8000 | python:3.12-slim | FastAPI with uvicorn --reload |
-| astro | - | node:24-alpine | Build-only (Astro build) |
+| astro | - | node:24-alpine | Persistent service (chokidar auto-rebuild) |
 | worker | - | python:3.12-slim | TaskIQ workers |
 | db | 5432 | postgres:18-alpine | PostgreSQL database |
 | redis | 6379 | redis:8.4.0-alpine | Job queue + cache |
 
-**Note:** Frontend container is only used for builds (`just build-astro`). At runtime, nginx serves pre-built files from the bind-mounted `astro/dist/` directory.
+**Note:** The Astro container runs persistently with chokidar, auto-rebuilding when source files change. Use `just build-astro` for explicit builds or `just watch-astro` to view rebuild logs. Nginx serves files from the bind-mounted `astro/dist/` directory.
 
 ### Quick Commands
 
@@ -91,9 +91,9 @@ ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 ```
 
-### Frontend (Node.js) - Build Only
+### Frontend (Node.js) - Persistent Chokidar Watcher
 
-The frontend container is used for builds only. No dev server runs at runtime.
+The Astro container runs persistently, watching source files and auto-rebuilding via chokidar.
 
 ```dockerfile
 # astro/Dockerfile.dev
@@ -113,9 +113,8 @@ RUN pnpm install --frozen-lockfile
 # Copy source (volumes override in dev)
 COPY . .
 
-# Build command (not a running server)
-# Used via: docker compose exec astro pnpm build
-CMD ["sleep", "infinity"]
+# Runs chokidar watcher that auto-rebuilds on source changes
+CMD ["pnpm", "watch"]
 ```
 
 **Note:** Frontend builds to `astro/dist/` which is committed to git and bind-mounted into nginx.
@@ -358,11 +357,11 @@ docker compose restart webapp
 **Pre-bundled architecture**: `astro/dist/` is committed to git. nginx serves files directly from bind mount.
 
 ```bash
-# Rebuild templates (one-time)
+# Explicit build
 just build-astro
 
-# Watch mode (run in separate terminal) - auto-rebuilds on file changes
-just watch-templates
+# The Astro service auto-rebuilds via chokidar. View rebuild logs with:
+just watch-astro
 
 # Verify dist/ is updated
 ls -la astro/dist/layouts/

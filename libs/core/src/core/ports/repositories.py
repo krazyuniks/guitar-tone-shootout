@@ -98,6 +98,17 @@ class GearRepository(Protocol):
         """
         ...
 
+    async def get_by_slug(self, slug: str) -> Gear | None:
+        """Get gear by its URL slug.
+
+        Args:
+            slug: The gear's URL slug
+
+        Returns:
+            The Gear if found, None otherwise
+        """
+        ...
+
     async def get_by_source(
         self,
         source_name: str,

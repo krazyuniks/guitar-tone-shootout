@@ -1,0 +1,557 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ title }} - Create Shootout{% endblock %}
+{% block description %}Create a new guitar tone shootout comparison. Select signal chains and a DI track to compare.{% endblock %}
+
+{% block head %}
+<style>
+  /* CSS Custom Properties for wizard theming (consistent with other pages) */
+  :root {
+    --color-accent-primary: #f59e0b;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #a3a3a3;
+    --color-text-muted: #6b7280;
+    --color-bg-surface: #141414;
+    --color-bg-elevated: #1f1f1f;
+    --color-block-di: #3b82f6;
+    --border: oklch(0.269 0 0);
+  }
+
+  /* Progress bar styling */
+  .wizard-progress {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+  }
+  .wizard-progress::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--color-bg-elevated);
+    transform: translateY(-50%);
+    z-index: 0;
+  }
+  .wizard-progress-step {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .wizard-progress-step-circle {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .wizard-progress-step-circle.inactive {
+    background: var(--color-bg-elevated);
+    color: var(--color-text-muted);
+  }
+  .wizard-progress-step-circle.active {
+    background: var(--color-accent-primary);
+    color: white;
+  }
+  .wizard-progress-step-circle.completed {
+    background: var(--color-accent-primary);
+    color: white;
+  }
+  .wizard-progress-step-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+  .wizard-progress-step-label.active {
+    color: var(--color-text-primary);
+    font-weight: 500;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div
+  data-testid="shootout-create-page"
+  class="min-h-screen"
+  x-data="{
+    // Wizard step state
+    step: 1,
+
+    // Step 1: Signal Chain Selection
+    selectedChains: [],
+    chainSearch: '',
+
+    // Step 2: DI Track Selection
+    selectedTrack: null,
+
+    // Step 3: Review & Submit
+    shootoutName: '',
+    shootoutDescription: '',
+    isSubmitting: false,
+    submitError: '',
+
+    // Chain selection methods
+    toggleChain(id, name, blockCount, platform) {
+      const idx = this.selectedChains.findIndex(c => c.id === id);
+      if (idx === -1) {
+        this.selectedChains.push({ id, name, block_count: blockCount, platform });
+      } else {
+        this.selectedChains.splice(idx, 1);
+      }
+    },
+    isChainSelected(id) {
+      return this.selectedChains.some(c => c.id === id);
+    },
+
+    // Track selection method
+    selectTrack(id, title, durationSeconds, sampleRate, guitar, description) {
+      this.selectedTrack = { id, title, duration_seconds: durationSeconds, sample_rate: sampleRate, guitar, description };
+    },
+
+    // Helper methods for display
+    formatDuration(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    },
+    formatSampleRate(rate) {
+      if (rate >= 1000) {
+        return `${(rate / 1000).toFixed(rate % 1000 !== 0 ? 1 : 0)} kHz`;
+      }
+      return `${rate} Hz`;
+    },
+
+    // Submit shootout
+    async submitShootout() {
+      if (this.isSubmitting) return;
+
+      this.isSubmitting = true;
+      this.submitError = '';
+
+      // Build form data
+      const formData = new FormData();
+      formData.append('name', this.shootoutName.trim());
+      if (this.shootoutDescription.trim()) {
+        formData.append('description', this.shootoutDescription.trim());
+      }
+      formData.append('di_track_id', this.selectedTrack.id);
+      this.selectedChains.forEach(chain => {
+        formData.append('chain_ids[]', chain.id);
+      });
+
+      try {
+        const response = await fetch('/api/v1/html/shootout-create', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin',
+        });
+
+        if (response.ok) {
+          // Check for HX-Redirect header
+          const redirectUrl = response.headers.get('HX-Redirect');
+          if (redirectUrl) {
+            window.location.href = redirectUrl;
+            return;
+          }
+        }
+
+        // Handle errors
+        const errorText = await response.text();
+        if (response.status === 401) {
+          window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
+          return;
+        }
+
+        // Try to extract error message from HTML response
+        const errorMatch = errorText.match(/<p[^>]*>(.*?)<\/p>/);
+        this.submitError = errorMatch ? errorMatch[1] : 'Failed to create shootout. Please try again.';
+      } catch (error) {
+        console.error('Submit error:', error);
+        this.submitError = 'Network error. Please check your connection and try again.';
+      } finally {
+        this.isSubmitting = false;
+      }
+    }
+  }"
+>
+  <div class="container mx-auto px-4 py-6 max-w-4xl">
+    <!-- Page Header -->
+    <div class="mb-8">
+      <a
+        href="/library/shootouts"
+        class="inline-flex items-center gap-2 text-[var(--color-text-secondary)] hover:text-amber-400 transition-colors mb-4"
+        data-testid="back-link"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+          <path fill-rule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clip-rule="evenodd"/>
+        </svg>
+        Back to Shootouts
+      </a>
+      <h1 class="text-2xl font-bold text-[var(--color-text-primary)]">Create New Shootout</h1>
+      <p class="text-[var(--color-text-secondary)] mt-1">Compare your signal chains side-by-side</p>
+    </div>
+
+    <!-- Progress Indicator -->
+    <div class="wizard-progress mb-8 px-8">
+      <div class="wizard-progress-step">
+        <div
+          class="wizard-progress-step-circle"
+          :class="{ 'active': step === 1, 'completed': step > 1, 'inactive': step < 1 }"
+        >
+          <template x-if="step > 1">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+            </svg>
+          </template>
+          <template x-if="step <= 1">
+            <span>1</span>
+          </template>
+        </div>
+        <span class="wizard-progress-step-label" :class="{ 'active': step === 1 }">Chains</span>
+      </div>
+      <div class="wizard-progress-step">
+        <div
+          class="wizard-progress-step-circle"
+          :class="{ 'active': step === 2, 'completed': step > 2, 'inactive': step < 2 }"
+        >
+          <template x-if="step > 2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/>
+            </svg>
+          </template>
+          <template x-if="step <= 2">
+            <span>2</span>
+          </template>
+        </div>
+        <span class="wizard-progress-step-label" :class="{ 'active': step === 2 }">DI Track</span>
+      </div>
+      <div class="wizard-progress-step">
+        <div
+          class="wizard-progress-step-circle"
+          :class="{ 'active': step === 3, 'completed': step > 3, 'inactive': step < 3 }"
+        >
+          <span>3</span>
+        </div>
+        <span class="wizard-progress-step-label" :class="{ 'active': step === 3 }">Review</span>
+      </div>
+    </div>
+
+    <!-- Wizard Content Card -->
+    <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-6">
+      <!-- Step 1: Select Signal Chains -->
+      <div class="space-y-6" x-show="step === 1" x-transition data-testid="wizard-step-1">
+        <!-- Step header -->
+        <div class="flex items-center gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent-primary)] text-sm font-bold text-white">
+            1
+          </div>
+          <h2 class="text-xl font-semibold">Select Signal Chains</h2>
+        </div>
+
+        <p class="text-[var(--color-text-secondary)]">
+          Choose 2 or more signal chains from your library to compare.
+        </p>
+
+        <!-- Search -->
+        <div class="relative">
+          <div class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <input
+            type="text"
+            name="search"
+            placeholder="Search chains..."
+            x-model="chainSearch"
+            hx-get="/api/v1/html/shootout-create/chains"
+            hx-trigger="keyup changed delay:300ms"
+            hx-target="#chain-list-container"
+            hx-include="[name='search']"
+            class="w-full pl-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="chain-search-input"
+          />
+        </div>
+
+        <!-- Selected count -->
+        <div class="text-sm text-[var(--color-text-secondary)]">
+          <span x-text="selectedChains.length"></span> selected
+          <span x-show="selectedChains.length < 2">(minimum 2)</span>
+        </div>
+
+        <!-- Chain list container -->
+        <div
+          id="chain-list-container"
+          hx-get="/api/v1/html/shootout-create/chains"
+          hx-trigger="load"
+          hx-swap="innerHTML"
+          data-testid="chain-list-container"
+        >
+          <!-- Loading skeleton -->
+          <div class="space-y-2">
+            <div class="h-16 bg-muted rounded-lg animate-pulse"></div>
+            <div class="h-16 bg-muted rounded-lg animate-pulse"></div>
+            <div class="h-16 bg-muted rounded-lg animate-pulse"></div>
+            <div class="h-16 bg-muted rounded-lg animate-pulse"></div>
+          </div>
+        </div>
+
+        <!-- Selected chips -->
+        <div x-show="selectedChains.length > 0" class="flex flex-wrap gap-2">
+          <template x-for="chain in selectedChains" :key="chain.id">
+            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[var(--color-accent-primary)]/20 text-[var(--color-accent-primary)]">
+              <span x-text="chain.name"></span>
+              <button
+                type="button"
+                @click="toggleChain(chain.id, chain.name, chain.block_count, chain.platform)"
+                class="hover:opacity-70 transition-opacity"
+                data-testid="remove-chain-btn"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
+                </svg>
+              </button>
+            </span>
+          </template>
+        </div>
+
+        <!-- Next button -->
+        <div class="flex justify-end">
+          <button
+            type="button"
+            @click="step = 2"
+            :disabled="selectedChains.length < 2"
+            :class="{
+              'opacity-50 cursor-not-allowed': selectedChains.length < 2,
+              'hover:opacity-90': selectedChains.length >= 2
+            }"
+            class="inline-flex items-center px-4 py-2 bg-[var(--color-accent-primary)] text-white rounded-md text-sm font-medium transition-opacity"
+            data-testid="step1-next-btn"
+          >
+            Next: Select DI Track
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 ml-1">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Select DI Track -->
+      <div class="space-y-6" x-show="step === 2" x-transition data-testid="wizard-step-2">
+        <!-- Step header -->
+        <div class="flex items-center gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent-primary)] text-sm font-bold text-white">
+            2
+          </div>
+          <h2 class="text-xl font-semibold">Select DI Track</h2>
+        </div>
+
+        <p class="text-[var(--color-text-secondary)]">
+          Choose the DI track to process through your selected chains.
+        </p>
+
+        <!-- Track list container (loaded via HTMX) -->
+        <div
+          id="ditrack-list-container"
+          hx-get="/api/v1/html/shootout-create/ditracks"
+          hx-trigger="load"
+          hx-swap="innerHTML"
+          data-testid="ditrack-list-container"
+        >
+          <!-- Loading skeleton -->
+          <div class="space-y-2">
+            <div class="h-20 bg-muted rounded-lg animate-pulse"></div>
+            <div class="h-20 bg-muted rounded-lg animate-pulse"></div>
+            <div class="h-20 bg-muted rounded-lg animate-pulse"></div>
+          </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="flex justify-between">
+          <button
+            type="button"
+            @click="step = 1"
+            class="inline-flex items-center px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors"
+            data-testid="step2-back-btn"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
+              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+            </svg>
+            Back
+          </button>
+          <button
+            type="button"
+            @click="step = 3"
+            :disabled="!selectedTrack"
+            :class="{
+              'opacity-50 cursor-not-allowed': !selectedTrack,
+              'hover:opacity-90': selectedTrack
+            }"
+            class="inline-flex items-center px-4 py-2 bg-[var(--color-accent-primary)] text-white rounded-md text-sm font-medium transition-opacity"
+            data-testid="step2-next-btn"
+          >
+            Next: Review
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 ml-1">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Review & Submit -->
+      <div class="space-y-6" x-show="step === 3" x-transition data-testid="wizard-step-3">
+        <!-- Step header -->
+        <div class="flex items-center gap-3">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent-primary)] text-sm font-bold text-white">
+            3
+          </div>
+          <h2 class="text-xl font-semibold">Review & Submit</h2>
+        </div>
+
+        <!-- Name input -->
+        <div class="space-y-2">
+          <label for="shootout-name" class="text-sm font-medium">
+            Shootout Name <span class="text-destructive">*</span>
+          </label>
+          <input
+            type="text"
+            id="shootout-name"
+            x-model="shootoutName"
+            placeholder="e.g., Marshall vs Mesa Comparison"
+            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="shootout-name-input"
+          />
+        </div>
+
+        <!-- Description input -->
+        <div class="space-y-2">
+          <label for="shootout-description" class="text-sm font-medium">
+            Description (optional)
+          </label>
+          <textarea
+            id="shootout-description"
+            x-model="shootoutDescription"
+            placeholder="Add notes about this comparison..."
+            rows="3"
+            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            data-testid="shootout-description-input"
+          ></textarea>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <!-- Chains summary -->
+          <div class="p-4 rounded-lg border border-border bg-card" data-testid="chains-summary">
+            <h3 class="font-medium mb-3">
+              Signal Chains (<span x-text="selectedChains.length"></span>)
+            </h3>
+            <ul class="space-y-2 text-sm">
+              <template x-for="(chain, index) in selectedChains" :key="chain.id">
+                <li class="flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium" x-text="index + 1"></span>
+                  <span class="truncate" x-text="chain.name"></span>
+                </li>
+              </template>
+            </ul>
+          </div>
+
+          <!-- DI Track summary -->
+          <div class="p-4 rounded-lg border border-border bg-card" data-testid="ditrack-summary">
+            <h3 class="font-medium mb-3">DI Track</h3>
+            <template x-if="selectedTrack">
+              <div class="text-sm space-y-1">
+                <div class="font-medium" x-text="selectedTrack.title"></div>
+                <div class="text-[var(--color-text-secondary)]">
+                  <span x-text="formatDuration(selectedTrack.duration_seconds)"></span> ·
+                  <span x-text="formatSampleRate(selectedTrack.sample_rate)"></span>
+                </div>
+                <template x-if="selectedTrack.guitar">
+                  <div class="text-[var(--color-text-secondary)]">
+                    Guitar: <span x-text="selectedTrack.guitar"></span>
+                  </div>
+                </template>
+                <template x-if="selectedTrack.description">
+                  <div class="text-[var(--color-text-muted)] line-clamp-2" x-text="selectedTrack.description"></div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Error display -->
+        <div
+          x-show="submitError"
+          class="flex items-center gap-2 p-4 rounded-lg border border-destructive/50 bg-destructive/10 text-destructive"
+          x-transition
+          data-testid="submit-error"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 flex-shrink-0">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+          </svg>
+          <p class="text-sm" x-text="submitError"></p>
+        </div>
+
+        <!-- Navigation -->
+        <div class="flex justify-between">
+          <button
+            type="button"
+            @click="step = 2"
+            :disabled="isSubmitting"
+            class="inline-flex items-center px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+            data-testid="step3-back-btn"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
+              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+            </svg>
+            Back
+          </button>
+          <button
+            type="button"
+            @click="submitShootout()"
+            :disabled="isSubmitting || !shootoutName.trim()"
+            :class="{
+              'opacity-50 cursor-not-allowed': isSubmitting || !shootoutName.trim()
+            }"
+            class="inline-flex items-center px-4 py-2 bg-[var(--color-accent-primary)] text-white rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
+            data-testid="submit-shootout-btn"
+          >
+            <template x-if="isSubmitting">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4 mr-1 animate-spin">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+            </template>
+            <template x-if="!isSubmitting">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
+                <path d="M11.983 1.907a.75.75 0 00-1.292-.657l-8.5 9.5A.75.75 0 002.75 12h6.572l-1.305 6.093a.75.75 0 001.292.657l8.5-9.5A.75.75 0 0017.25 8h-6.572l1.305-6.093z"/>
+              </svg>
+            </template>
+            <span x-text="isSubmitting ? 'Creating...' : 'Create Shootout'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors for auth
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
+    }
+  });
+</script>
+{% endblock %}

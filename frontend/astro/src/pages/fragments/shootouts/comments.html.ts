@@ -1,0 +1,71 @@
+/**
+ * fragments/shootouts/comments.html.ts - Outputs dist/fragments/shootouts/comments.html
+ *
+ * Shootout comments fragment for HTMX loading.
+ * Displays comments list or empty state for a shootout.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `{# Shootout comments fragment for HTMX #}
+{# TODO: Comments feature deferred - this is a stub endpoint #}
+<div
+  data-testid="shootout-comments"
+  data-shootout-id="{{ shootout_id }}"
+  data-empty="{{ 'true' if not comments else 'false' }}"
+  class="space-y-4"
+>
+  <h2 class="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
+      <path fill-rule="evenodd" d="M4.848 2.771A49.144 49.144 0 0112 2.25c2.43 0 4.817.178 7.152.52 1.978.292 3.348 2.024 3.348 3.97v6.02c0 1.946-1.37 3.678-3.348 3.97a48.901 48.901 0 01-3.476.383.39.39 0 00-.297.17l-2.755 4.133a.75.75 0 01-1.248 0l-2.755-4.133a.39.39 0 00-.297-.17 48.9 48.9 0 01-3.476-.384c-1.978-.29-3.348-2.024-3.348-3.97V6.741c0-1.946 1.37-3.68 3.348-3.97z" clip-rule="evenodd"/>
+    </svg>
+    Comments
+  </h2>
+
+  {% if comments %}
+    {# Comments list - future implementation #}
+    <div class="space-y-4" data-testid="comments-list">
+      {% for comment in comments %}
+        <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4" data-testid="comment-item">
+          <div class="flex items-start gap-3">
+            <div class="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <span class="text-amber-500 text-sm font-medium">{{ comment.author[0] | upper }}</span>
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-medium text-[var(--color-text-primary)]">{{ comment.author }}</span>
+                <span class="text-xs text-[var(--color-text-muted)]">{{ comment.relative_time }}</span>
+              </div>
+              <p class="text-[var(--color-text-secondary)]">{{ comment.text }}</p>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    {# Empty state #}
+    <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-8 text-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 text-[var(--color-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+      </svg>
+      <p class="text-[var(--color-text-secondary)]">No comments yet</p>
+      <p class="text-sm text-[var(--color-text-muted)] mt-1">Be the first to share your thoughts!</p>
+    </div>
+  {% endif %}
+
+  {# Add comment form - future implementation #}
+  {# TODO: Implement comment submission when comments feature is built #}
+</div>
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};
