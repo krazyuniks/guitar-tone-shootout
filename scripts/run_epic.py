@@ -526,11 +526,12 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
             lines.extend([
                 f"ALL {passed} tests passed. The red gate requires at least one failure.",
                 "",
-                "**You MUST:**",
-                "1. DELETE all test files you created (they test already-implemented code)",
-                "2. Read the existing implementation files listed in scope",
-                "3. Write NEW tests that target genuinely MISSING functionality",
-                "4. If everything is implemented, test edge cases or validation not yet covered",
+                "**Try to find genuinely MISSING functionality to test:**",
+                "1. Read the existing implementation files listed in scope",
+                "2. Check acceptance criteria — is anything NOT yet implemented?",
+                "3. Write tests for missing functionality, edge cases, or validation gaps",
+                "4. If EVERYTHING is truly implemented and tested, it's OK to write passing",
+                "   tests — the orchestrator will detect this and skip the implementer phase",
             ])
         elif passed > 0:
             lines.extend([
@@ -1141,7 +1142,27 @@ def run_state_machine(
 
                     ok, output = run_tdd_red(task_id_str)
                     if not ok:
-                        stop_epic(epic_dir, task.task_id, "red_failed", output)
+                        # Check if all tests PASS (implementation already complete)
+                        passed, failed, errors = parse_pytest_counts(output)
+                        if passed > 0 and failed == 0 and errors == 0:
+                            log(f"\n  SKIP: All {passed} tests pass — implementation already complete")
+                            log(f"  Transitioning T{task.task_id} directly to validating")
+                            log_structured("phase_skip", task_id=task.task_id,
+                                           reason="already_implemented", tests_passing=passed)
+
+                            # Lock tests, then skip implementer → go straight to validating
+                            log(f"\n  Phase: LOCK (snapshotting tests)")
+                            lock_ok, lock_output = run_tdd_lock(task_id_str)
+                            if not lock_ok:
+                                stop_epic(epic_dir, task.task_id, "lock_failed", lock_output)
+
+                            update_task_state(epic_dir, task.task_id, "validating")
+                            log_structured("phase_end", task_id=task.task_id,
+                                           phase="test", result="skip_to_validating")
+                            git_sync()
+                            continue  # Next iteration picks up validating state
+                        else:
+                            stop_epic(epic_dir, task.task_id, "red_failed", output)
 
                 # Lock tests
                 log(f"\n  Phase: LOCK (snapshotting tests)")

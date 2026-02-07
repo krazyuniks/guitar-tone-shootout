@@ -38,7 +38,7 @@ Some tasks extend code that already exists. When the prompt includes a "Pre-flig
 3. **Only test genuinely missing functionality** — if a model field already exists, don't re-test it
 4. **Target gaps**: missing fields, missing methods, missing validations, missing constraints
 5. **If everything appears implemented**, test edge cases (nullability, uniqueness, constraints, invalid inputs)
-6. If you cannot find ANY untested functionality, create a SINGLE test that fails and document why in a comment
+6. If you cannot find ANY genuinely missing functionality or untested edge case, write tests for what IS there — passing tests are acceptable when the implementation is already complete. The orchestrator will detect this and skip the implementer phase.
 
 ## Path Restrictions
 
