@@ -6,6 +6,7 @@ to external identity providers.
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 
@@ -56,33 +57,32 @@ class IdentityService:
         Raises:
             ValueError: If provider not found or disabled
         """
-        # Fetch provider from database
-        provider = await self._get_provider(provider_name)
-
-        # Try to find existing user by provider + external_id
+        # Single query: identity JOIN user JOIN provider
+        # Fetches everything needed in one round-trip
         result = await self.db_session.execute(
             select(UserIdentity)
-            .where(UserIdentity.provider_id == provider.id)
+            .options(joinedload(UserIdentity.user))
+            .join(UserIdentity.provider)
+            .where(OAuthProvider.name == provider_name)
             .where(UserIdentity.external_id == external_id)
         )
-        identity = result.scalar_one_or_none()
+        identity = result.unique().scalar_one_or_none()
 
         if identity is not None:
-            # User exists - update profile with latest OAuth data
+            # User exists — update profile with latest OAuth data
             user = identity.user
             user.username = username
             user.email = email
             user.avatar_url = avatar_url
-
-            # Update identity username/avatar
             identity.username = username
             identity.avatar_url = avatar_url
 
             await self.db_session.commit()
-            await self.db_session.refresh(user)
             return user
 
-        # User doesn't exist - create new user and identity
+        # New user — need provider for the identity link
+        provider = await self._get_provider(provider_name)
+
         user = User(
             username=username,
             email=email,
@@ -90,9 +90,8 @@ class IdentityService:
             is_active=is_active,
         )
         self.db_session.add(user)
-        await self.db_session.flush()  # Get user.id
+        await self.db_session.flush()
 
-        # Create identity linking user to provider
         identity = UserIdentity(
             user_id=user.id,
             provider_id=provider.id,
@@ -103,8 +102,6 @@ class IdentityService:
         self.db_session.add(identity)
 
         await self.db_session.commit()
-        await self.db_session.refresh(user)
-
         return user
 
     async def _get_provider(self, provider_name: str) -> OAuthProvider:
