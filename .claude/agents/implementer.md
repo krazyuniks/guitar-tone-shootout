@@ -9,6 +9,7 @@ tools:
   - Bash
   - Glob
   - Grep
+  - Task
 ---
 
 # Implementer Agent
@@ -59,15 +60,52 @@ See `.claude/skills/gts-testing/SKILL.md` > "Production-Learned Banned Patterns"
 2. **`db_session.begin()` nesting** — conftest uses `_TestAsyncSession` that falls back to `begin_nested()` when autobegin is active
 3. **Inline `FastAPI()` apps** need `set_session_override()` from conftest, not `dependency_overrides`
 
-## Incremental Strategy
+## Systematic Strategy
 
-You have **30 turns** — budget them wisely.
+You have **30 turns** — target completion in 15-20.
 
-1. Read ALL test files first to understand the full scope
-2. Start with the **simplest failing test** (usually an import or model test)
-3. Make ONE group of tests pass at a time
-4. Run `just tdd <path>` after each change to verify progress
-5. Don't plan everything upfront — iterate
+**NEVER fix one file at a time when multiple files need the same change.**
+
+### Phase 1: Analyse (turns 1-3)
+
+1. Read ALL test files to understand the full scope
+2. Use Grep to find ALL instances of the pattern across the codebase before fixing any
+3. Categorise all changes needed by type: model changes, repository changes, service changes, auth changes, test fixture changes
+
+### Phase 2: Plan the batch (turn 4)
+
+1. Group related changes into independent categories (e.g., "all repository files", "all auth dependencies", "all test conftest fixtures")
+2. Identify which groups can be done in parallel vs sequentially
+3. Note: model/schema changes must land BEFORE repository/service changes
+
+### Phase 3: Execute in parallel (turns 5-15)
+
+Use `Task(subagent_type="implementer")` to dispatch parallel subagents for independent file groups. Each subagent handles one category.
+
+Example dispatch pattern:
+```
+Task: "Fix all 4 repository files: replace selectinload→joinedload, add .unique() to results"
+Task: "Fix auth dependencies: add joinedload for user relationships"
+Task: "Fix all test conftest fixtures: add joinedload/refresh for lazy='raise' relationships"
+```
+
+For sequential dependencies (e.g., models must change before repos), do the prerequisite changes yourself first, then dispatch parallel subagents for the dependent changes.
+
+**Run tests only AFTER completing a full category of changes, not after each file.**
+
+### Phase 4: Verify (turns 16-17)
+
+1. Run `just tdd <path>` once after all parallel changes land
+2. Fix any remaining issues from the combined output
+3. If more than 3 failures remain, categorise them again and dispatch targeted subagents
+
+### Key Rules
+
+- **Grep first, fix second**: Always find ALL instances of a pattern before changing any
+- **Batch by category**: Group files by the TYPE of change needed, not by directory
+- **Parallel subagents for independent groups**: Use Task() when 3+ files need independent changes
+- **Single verification pass**: Run tests once after a batch, not after each file
+- **Budget awareness**: If at turn 20 with failures remaining, focus on the highest-impact fixes
 
 ## Frontend Tasks
 
