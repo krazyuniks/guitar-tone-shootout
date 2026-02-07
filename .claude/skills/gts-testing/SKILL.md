@@ -57,19 +57,33 @@ No production code without a failing test first. If you didn't watch the test fa
 | "All tests pass so I'm done" | Tests passing is necessary but not sufficient. Check quality. |
 | "I need to modify the test to handle an edge case" | Edge cases get NEW tests. Existing tests are immutable. |
 
-### Common Mistakes (from Production Runs)
+### Test-Author Workflow
 
-These have actually happened in automated TDD runs. Do not repeat them.
+1. **Read** the task spec — extract acceptance criteria and scope files
+2. **Create** new test file(s) in the correct location (see Placement Decision Tree below)
+3. **Write** tests that import from the expected module paths — even if those modules don't exist yet. A correct red test fails with `ImportError` or `AssertionError`, not `SyntaxError`.
+4. **Run only your files**: `just tdd tests/unit/backend/test_your_file.py` — not the full suite
+5. **Verify** they fail for the right reasons, then stop
 
-| Mistake | Correct Behaviour |
-|---|---|
-| Modified existing test files | Only CREATE new test files. Existing tests are immutable. |
-| Ran the full test suite | Only run YOUR new/modified test files. |
-| Imported from implementation packages that don't exist yet | Use standard imports. Tests should fail with ImportError or AssertionError, not SyntaxError. |
-| Used `conftest.py` fixtures from integration tests in unit tests | Unit and integration fixtures are separate. Check which conftest.py applies. |
-| Created implementation files as test-author | test-author writes ONLY in `tests/`. No `libs/`, `apps/`, `sources/`. |
-| Modified tests as implementer | implementer writes ONLY in `libs/`, `apps/`, `sources/`. No `tests/`. |
-| Hit max turns without finishing | Start with the simplest test/implementation. Iterate. Don't plan everything upfront. |
+### Implementer Workflow
+
+1. **Read** the test files first — they are your specification
+2. **Start small** — pick the simplest failing test, make it pass, then move to the next
+3. **Run iteratively**: `just tdd <your_test_path>` after each change
+4. **Don't over-plan** — write enough code to pass the current test, then reassess
+
+### Fixture Scoping
+
+Fixtures are scoped by directory. Only fixtures from your test's ancestor `conftest.py` files are available:
+
+```
+tests/conftest.py                    → markers, pytest_plugins (all tests)
+tests/unit/conftest.py               → unit-specific (NO database)
+tests/integration/backend/conftest.py → db_session, factories, auth
+tests/e2e/python/conftest.py         → page, browser, frontend_url
+```
+
+Unit tests cannot use integration fixtures (`db_session`, `make_signal_chain`, etc.) — they live in a different conftest hierarchy.
 
 ---
 
