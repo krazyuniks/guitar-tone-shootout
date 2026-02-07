@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import event, select
+from sqlalchemy import select
+
+from tests.fixtures.query_counter import assert_query_count
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.domain.entities.user import User as UserEntity
@@ -119,39 +121,16 @@ async def test_user_get_by_id_single_query(
 
     This test MUST fail with selectinload() which fires 3 queries (1 + 2 relationships).
     """
-    # Track executed queries
-    query_count = 0
-
-    def count_queries(conn, cursor, statement, parameters, context, executemany):
-        nonlocal query_count
-        # Ignore SQLite internal queries (PRAGMA, etc)
-        if not statement.strip().upper().startswith(('PRAGMA', 'BEGIN', 'COMMIT')):
-            query_count += 1
-
-    # Register query counter
-    event.listen(db_session.sync_session.get_bind(), "before_cursor_execute", count_queries)
-
-    try:
-        # Execute get_by_id
+    with assert_query_count(db_session, expected=1):
         result = await user_repository.get_by_id(sample_user_with_identity.id)
 
-        # Verify result is not None
-        assert result is not None, "User should be found"
+    # Verify result is not None
+    assert result is not None, "User should be found"
 
-        # Verify query count = 1 (CRITICAL: this will fail with selectinload)
-        assert query_count == 1, (
-            f"Expected exactly 1 query with joinedload(), got {query_count}. "
-            f"selectinload() would produce 3 queries (1 + 2 relationships)."
-        )
-
-        # Verify all relationships are loaded (no lazy loading should occur)
-        assert len(result.identities) == 1, "Should have 1 identity"
-        assert result.identities[0].provider == "t3k", "Provider should be loaded"
-        assert result.identities[0].external_id == "ext-123", "Identity should be loaded"
-
-    finally:
-        # Cleanup event listener
-        event.remove(db_session.sync_session.get_bind(), "before_cursor_execute", count_queries)
+    # Verify all relationships are loaded (no lazy loading should occur)
+    assert len(result.identities) == 1, "Should have 1 identity"
+    assert result.identities[0].provider == "t3k", "Provider should be loaded"
+    assert result.identities[0].external_id == "ext-123", "Identity should be loaded"
 
 
 async def test_user_get_by_id_uses_unique_scalar_one_or_none(
@@ -192,39 +171,16 @@ async def test_user_get_by_email_single_query(
 
     This test MUST fail with selectinload() which fires 3 queries (1 + 2 relationships).
     """
-    # Track executed queries
-    query_count = 0
-
-    def count_queries(conn, cursor, statement, parameters, context, executemany):
-        nonlocal query_count
-        # Ignore SQLite internal queries (PRAGMA, etc)
-        if not statement.strip().upper().startswith(('PRAGMA', 'BEGIN', 'COMMIT')):
-            query_count += 1
-
-    # Register query counter
-    event.listen(db_session.sync_session.get_bind(), "before_cursor_execute", count_queries)
-
-    try:
-        # Execute get_by_email
+    with assert_query_count(db_session, expected=1):
         result = await user_repository.get_by_email(sample_user_with_identity.email)
 
-        # Verify result is not None
-        assert result is not None, "User should be found"
+    # Verify result is not None
+    assert result is not None, "User should be found"
 
-        # Verify query count = 1 (CRITICAL: this will fail with selectinload)
-        assert query_count == 1, (
-            f"Expected exactly 1 query with joinedload(), got {query_count}. "
-            f"selectinload() would produce 3 queries (1 + 2 relationships)."
-        )
-
-        # Verify all relationships are loaded (no lazy loading should occur)
-        assert len(result.identities) == 1, "Should have 1 identity"
-        assert result.identities[0].provider == "t3k", "Provider should be loaded"
-        assert result.identities[0].external_id == "ext-123", "Identity should be loaded"
-
-    finally:
-        # Cleanup event listener
-        event.remove(db_session.sync_session.get_bind(), "before_cursor_execute", count_queries)
+    # Verify all relationships are loaded (no lazy loading should occur)
+    assert len(result.identities) == 1, "Should have 1 identity"
+    assert result.identities[0].provider == "t3k", "Provider should be loaded"
+    assert result.identities[0].external_id == "ext-123", "Identity should be loaded"
 
 
 async def test_user_get_by_email_uses_unique_scalar_one_or_none(
