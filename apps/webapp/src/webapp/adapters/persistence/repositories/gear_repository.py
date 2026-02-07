@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import GearModel as GearModelVO
@@ -149,14 +149,14 @@ class SQLAlchemyGearRepository:
                 GearSource.source_record_id == source_record_id,
             )
             .options(
-                selectinload(Gear.models),
-                selectinload(Gear.tags),
-                selectinload(Gear.source),
-                selectinload(Gear.make),
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
             )
         )
         result = await self.session.execute(stmt)
-        gear = result.scalar_one_or_none()
+        gear = result.unique().scalar_one_or_none()
         return self._to_entity(gear) if gear else None
 
     async def search(
