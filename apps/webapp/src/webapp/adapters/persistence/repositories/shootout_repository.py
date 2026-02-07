@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.shootout import Shootout as ShootoutEntity
 from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
@@ -48,10 +48,13 @@ class SQLAlchemyShootoutRepository:
         stmt = (
             select(Shootout)
             .where(Shootout.id == shootout_id)
-            .options(selectinload(Shootout.chains))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
         )
         result = await self.session.execute(stmt)
-        shootout = result.scalar_one_or_none()
+        shootout = result.unique().scalar_one_or_none()
 
         if shootout is None:
             return None
@@ -78,13 +81,16 @@ class SQLAlchemyShootoutRepository:
         stmt = (
             select(Shootout)
             .where(Shootout.user_id == user_id)
-            .options(selectinload(Shootout.chains))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
             .order_by(Shootout.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
         result = await self.session.execute(stmt)
-        shootouts = result.scalars().all()
+        shootouts = result.unique().scalars().all()
 
         return [self._to_entity(shootout) for shootout in shootouts]
 
@@ -120,13 +126,16 @@ class SQLAlchemyShootoutRepository:
         stmt = (
             select(Shootout)
             .where(Shootout.status == ShootoutStatus.COMPLETED)
-            .options(selectinload(Shootout.chains))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
             .order_by(Shootout.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
         result = await self.session.execute(stmt)
-        shootouts = result.scalars().all()
+        shootouts = result.unique().scalars().all()
 
         return [self._to_entity(shootout) for shootout in shootouts]
 
@@ -157,10 +166,13 @@ class SQLAlchemyShootoutRepository:
         stmt = (
             select(Shootout)
             .where(Shootout.id == shootout.id)
-            .options(selectinload(Shootout.chains))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
         )
         result = await self.session.execute(stmt)
-        existing = result.scalar_one_or_none()
+        existing = result.unique().scalar_one_or_none()
 
         if existing is None:
             # Create new shootout
