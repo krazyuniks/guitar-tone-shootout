@@ -25,7 +25,7 @@ T43 → T46
 | T34 | [Task]: A1 - Convert all ORM relati | complete | webapp | - |
 | T35 | [Task]: B1 - Convert GearRepository | complete | webapp | T34 |
 | T36 | [Task]: B2 - Convert GearRepository | complete | webapp | T35 |
-| T37 | [Task]: C1 - Convert UserRepository | validating | webapp | T34 |
+| T37 | [Task]: C1 - Convert UserRepository | complete | webapp | T34 |
 | T38 | [Task]: C2 - Refactor UserRepositor | pending | webapp | T37 |
 | T39 | [Task]: D1 - Convert SignalChainRep | pending | webapp | T34 |
 | T40 | [Task]: E1 - Convert ShootoutReposi | pending | webapp | T34 |
