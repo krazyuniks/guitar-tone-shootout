@@ -108,7 +108,11 @@ class IdentityService:
         return user
 
     async def _get_provider(self, provider_name: str) -> OAuthProvider:
-        """Fetch OAuth provider from database.
+        """Fetch OAuth provider from database, auto-creating T3K if missing.
+
+        T3K uses api_key flow and doesn't need client_id/client_secret,
+        so we auto-create the row on first login rather than requiring
+        a migration or manual seed.
 
         Args:
             provider_name: Name of provider to fetch
@@ -125,7 +129,12 @@ class IdentityService:
         provider = result.scalar_one_or_none()
 
         if provider is None:
-            raise ValueError(f"Provider '{provider_name}' not found")
+            if provider_name == "t3k":
+                provider = OAuthProvider(name="t3k", enabled=True)
+                self.db_session.add(provider)
+                await self.db_session.flush()
+            else:
+                raise ValueError(f"Provider '{provider_name}' not found")
 
         if not provider.enabled:
             raise ValueError(f"Provider '{provider_name}' is not enabled")
