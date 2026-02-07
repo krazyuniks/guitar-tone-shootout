@@ -128,7 +128,7 @@ GTS-specific questions for structured epic planning.
 - What user journeys are critical? (tests/e2e/python/)
 - Playwright page interactions?
 - Three-layer validation (UI > DOM > Database)?
-- Runs on HOST via `just test-e2e`
+- Runs on HOST via `just test-golden-path`
 
 ### Mocking
 - Mock: T3K API, email services, external APIs

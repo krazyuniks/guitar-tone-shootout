@@ -141,8 +141,8 @@ test-integration:
 test:
     docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
 
-# Run E2E tests (on host, hits Docker containers)
-test-e2e:
+# Run golden path E2E tests (on host, hits Docker containers via Playwright)
+test-golden-path:
     cd tests/e2e/python && uv run pytest tests/ -v
 
 # Run a single test file or test (TDD mode, in Docker)
@@ -505,8 +505,8 @@ tdd-complete task:
     echo "4. Running regression tests..."
     just test-regression
 
-    echo "5. Running E2E tests..."
-    just test-e2e || echo "E2E skipped or failed"
+    echo "5. Running golden path tests..."
+    just test-golden-path || echo "Golden path skipped or failed"
 
     echo ""
     echo "Task {{task}} validation complete"
@@ -530,7 +530,7 @@ test-quality:
     python scripts/test_quality_check.py tests/
 
 # Health check for epic
-health epic:
+epic-health epic:
     python scripts/health_check.py {{epic}}
 
 # --- Debugging ---
@@ -541,7 +541,7 @@ debug epic:
     echo "=== Debug Report for E{{epic}} ==="
     echo ""
     echo "--- Health Check ---"
-    just health {{epic}} || true
+    just epic-health {{epic}} || true
     echo ""
     echo "--- Recent Errors ---"
     just errors {{epic}}

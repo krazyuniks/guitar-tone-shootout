@@ -27,7 +27,7 @@ just --list           # Find ANY command (ALWAYS check here first)
 just check            # Quality gates (runs in Docker)
 just fix-lint         # Auto-fix issues (runs in Docker)
 just test-regression  # Stack tests (runs in Docker)
-just test-e2e         # E2E tests (runs on host)
+just test-golden-path # Golden path E2E tests (runs on host)
 just build-astro      # Build Astro frontend
 ```
 
@@ -130,21 +130,21 @@ just up-d                   # Start all services
 just build-astro            # Build frontend (if changed)
 just check                  # Run quality gates (in Docker)
 just test-regression        # Run stack tests (in Docker)
-just test-e2e               # Run E2E tests (on host)
+just test-golden-path       # Run golden path E2E tests (on host)
 ```
 
-**No host .venv.** All project code executes in Docker. E2E tests are the only exception (they hit Docker containers from the host).
+**No host .venv.** All project code executes in Docker. Golden path E2E tests are the only exception (they hit Docker containers from the host).
 
 ## Container-First Execution
 
-**All project commands run in Docker. The ONLY host execution is E2E tests.**
+**All project commands run in Docker. The ONLY host execution is golden path E2E tests.**
 
 | Command Type | Runs In | How |
 |--------------|---------|-----|
 | Lint, type check | Docker | `just check` → `docker compose exec -T webapp ruff/mypy` |
 | Unit tests | Docker | `just test-unit` → `docker compose exec -T webapp pytest` |
 | Integration tests | Docker | `just test-integration` → `docker compose exec -T webapp pytest` |
-| E2E tests | **Host** | `just test-e2e` → `cd tests/e2e/python && uv run pytest` |
+| Golden path E2E | **Host** | `just test-golden-path` → `cd tests/e2e/python && uv run pytest` |
 | Astro build | Docker | `just build-astro` → `docker compose --profile build run astro` |
 
 **Astro Architecture:** `frontend/astro/dist/` is committed to git. Nginx serves static files directly. Astro container is build-only (not in runtime stack).
@@ -278,7 +278,7 @@ gts/
 | Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM → Repo → DB) |
 | Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
 | Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
-| E2E (Playwright) | `tests/e2e/python/` | Host | `just test-e2e` | Full user journey |
+| Golden path (Playwright) | `tests/e2e/python/` | Host | `just test-golden-path` | Full user journey |
 
 **Regression tests** validate the ORM → Repository → Database stack works:
 - User and Job entity round-trips
@@ -290,7 +290,7 @@ gts/
 just test-regression  # Stack connectivity (< 1s) - run before commits
 just test             # Unit + Integration (< 30s) - run before PRs
 just tdd <path>       # Single test during development (Docker)
-just test-e2e         # E2E only (host, requires running containers)
+just test-golden-path # Golden path E2E (host, requires running containers)
 ```
 
 **E2E test isolation:**
@@ -475,7 +475,7 @@ This project has declarative infrastructure. Generated files (docker-compose.ove
 | Stop services | `just down` | `docker compose down` |
 | Fix infra issues | `./worktree.py setup <name>` | Manual file edits |
 | Run unit tests | `just test-unit` | `uv run pytest` on host |
-| Run E2E tests | `just test-e2e` | - |
+| Run golden path E2E | `just test-golden-path` | - |
 | Run lint/types | `just check` | `ruff check` on host |
 | TDD single test | `just tdd <path>` | `pytest <path>` on host |
 | Reset data | Ask user to run `just reset` | `docker compose down -v` |

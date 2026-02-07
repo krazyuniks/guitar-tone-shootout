@@ -312,7 +312,7 @@
 - [ ] GET `/gear` renders browse page
 - [ ] GET `/gear/{slug}` renders detail page
 - [ ] HTMX fragments for list updates
-- [ ] `just test-e2e` passes
+- [ ] `just test-golden-path` passes
 - [ ] Regression test updated with gear browse
 
 **Scope:**
@@ -363,7 +363,7 @@
 - [ ] DELETE `/api/v1/library/gear/{id}` removes gear
 - [ ] GET `/library/my-gear` renders page
 - [ ] HTMX fragments for add/remove
-- [ ] `just test-e2e` passes
+- [ ] `just test-golden-path` passes
 - [ ] Regression test updated with library test
 
 **Scope:**
@@ -538,7 +538,7 @@
 - [ ] GET `/library/chains/build` renders builder page
 - [ ] React component mounts and functions
 - [ ] Integration with chain API
-- [ ] `just test-e2e` passes
+- [ ] `just test-golden-path` passes
 - [ ] Regression test updated with builder test
 
 **Scope:**
@@ -641,7 +641,7 @@
 - [ ] GET `/library/shootouts` renders shootout list
 - [ ] GET `/shootout/{id}` renders shootout detail
 - [ ] HTMX fragments for CRUD operations
-- [ ] `just test-e2e` passes
+- [ ] `just test-golden-path` passes
 
 **Scope:**
 - Create: `frontend/astro/src/pages/pages/library/shootouts.html.ts`
@@ -664,7 +664,7 @@
 **Acceptance Criteria:**
 - [ ] GET `/library/chains` renders chain list
 - [ ] HTMX fragments for list operations
-- [ ] `just test-e2e` passes
+- [ ] `just test-golden-path` passes
 
 **Scope:**
 - Create: `frontend/astro/src/pages/pages/library/chains.html.ts`

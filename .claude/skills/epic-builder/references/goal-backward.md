@@ -127,7 +127,7 @@ Tests:
 | Regression | `just test-regression` | **Quality gate** - E2E test exercising all endpoints + stack connectivity |
 | Unit | `just test-unit` | Isolated logic, no I/O |
 | Integration | `just test-integration` | Real DB/Redis |
-| E2E | `just test-e2e` | Full user journeys |
+| Golden path | `just test-golden-path` | Full user journeys |
 | TDD single | `just tdd <path>` | Single test during development |
 
 **NEVER use raw `docker compose exec`, `pytest`, or `python` commands in acceptance criteria.** The `just` commands wrap the underlying execution - implementation details are hidden.

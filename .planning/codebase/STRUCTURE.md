@@ -387,7 +387,7 @@ gts/
 - Purpose: End-to-end tests with Playwright
 - Isolation: Own `pyproject.toml`, separate uv environment
 - Depends on: No project dependencies (only pytest, playwright, httpx)
-- Run: `just test-e2e` (runs on host, hits Docker containers)
+- Run: `just test-golden-path` (runs on host, hits Docker containers)
 - Not tracked: `.venv/` directory in this folder
 
 **.env.local (Development secrets):**

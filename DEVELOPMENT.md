@@ -227,7 +227,7 @@ Parallel development with isolated Docker environments.
 | Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM → Repo → DB) |
 | Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
 | Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
-| E2E | `tests/e2e/python/` | Host | `just test-e2e` | Full user journey |
+| Golden path | `tests/e2e/python/` | Host | `just test-golden-path` | Full user journey |
 
 ### Test Commands
 
@@ -235,7 +235,7 @@ Parallel development with isolated Docker environments.
 just test-regression  # Stack connectivity (< 1s) - run before commits
 just test             # Unit + Integration (< 30s) - run before PRs
 just tdd <path>       # Single test during development (Docker)
-just test-e2e         # E2E only (host, requires running containers)
+just test-golden-path # Golden path E2E (host, requires running containers)
 ```
 
 ### Philosophy

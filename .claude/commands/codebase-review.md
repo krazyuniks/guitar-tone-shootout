@@ -644,8 +644,8 @@ just --list
 
 # Verify key commands work
 just check --dry-run
-just test-backend --dry-run
-just test-e2e-quick --dry-run
+just test-unit --dry-run
+just test-golden-path --dry-run
 ```
 
 ### 9.2 Pre-commit Hooks

@@ -136,7 +136,7 @@ GTS uses container-first testing:
 - `just test-regression` - E2E quality gate
 - `just test-unit` - Isolated logic (Docker)
 - `just test-integration` - Real DB (Docker)
-- `just test-e2e` - User journeys (host)
+- `just test-golden-path` - User journeys (host)
 - `just tdd <path>` - TDD single test
 
 All acceptance criteria will use `just` commands only.

@@ -102,7 +102,7 @@ Use GTS test mapping:
 - `just test-regression` - Quality gate (E2E)
 - `just test-unit` - Isolated logic
 - `just test-integration` - Real DB/Redis
-- `just test-e2e` - Full user journeys
+- `just test-golden-path` - Full user journeys
 - `just tdd <path>` - Single test during TDD
 
 **NEVER use raw `docker compose exec`, `pytest`, or `python` commands.**

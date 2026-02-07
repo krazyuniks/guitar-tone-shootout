@@ -653,7 +653,7 @@ def run_state_machine(
             print(f"\n  Phase: IMPL (implementing T{task.task_id})")
 
             prompt = build_implementer_prompt(task)
-            dispatch_agent("implementer", prompt, project=task.project, dry_run=dry_run)
+            dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
 
             if not dry_run:
                 # Verify tests pass (green phase)
@@ -665,7 +665,7 @@ def run_state_machine(
                     for attempt in range(MAX_IMPLEMENTER_RETRIES):
                         print(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
                         retry_prompt = build_implementer_prompt(task, retry_context=output)
-                        dispatch_agent("implementer", retry_prompt, project=task.project)
+                        dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
 
                         ok, output = run_tdd_green(task_id_str)
                         if ok:
@@ -674,9 +674,21 @@ def run_state_machine(
                     if not ok:
                         stop_epic(epic_dir, task.task_id, "green_failed", output)
 
+                # Auto-commit implementation work
+                print(f"  Committing implementation for T{task.task_id}...")
+                subprocess.run(
+                    ["git", "add", "libs/", "apps/", "sources/", "infrastructure/"],
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"impl: T{task.task_id} make tests pass"],
+                    capture_output=True,
+                )
+
                 update_task_state(epic_dir, task.task_id, "validating")
             else:
                 print(f"  [dry-run] Would run: tdd-green {task_id_str}")
+                print(f"  [dry-run] Would commit implementation")
                 print(f"  [dry-run] Would update state: locked → validating")
 
         elif task.state == "validating":

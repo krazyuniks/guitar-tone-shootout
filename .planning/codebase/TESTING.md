@@ -20,7 +20,7 @@ just test-regression  # Stack connectivity tests (~0.2s, SQLite in-memory)
 just test             # Unit + Integration tests (~30s)
 just test-unit        # Unit tests only
 just test-integration # Integration tests only
-just test-e2e         # E2E tests with Playwright (requires running containers)
+just test-golden-path         # E2E tests with Playwright (requires running containers)
 just tdd <path>       # Single test during development (Docker, watches)
 ```
 
@@ -252,7 +252,7 @@ pytest --cov=libs --cov=sources --cov=apps --cov-report=html
 - Scope: Full user journeys through web UI
 - Database: Docker PostgreSQL (running containers required)
 - Approach: Browser automation, assert DOM state and database persistence
-- Run: `just test-e2e` (on host, not in Docker)
+- Run: `just test-golden-path` (on host, not in Docker)
 - Note: Standalone package (`tests/e2e/python/pyproject.toml`), isolated from main workspace
 
 ## Common Patterns

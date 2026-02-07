@@ -92,7 +92,7 @@ Before deriving ANY artifact (model, repository, service, API):
    - `just test-regression` - E2E quality gate (stack connectivity + endpoint validation)
    - `just test-unit` - Domain logic
    - `just test-integration` - Real DB
-   - `just test-e2e` - Full user journeys
+   - `just test-golden-path` - Full user journeys
    - `just tdd <path>` - Single test during TDD
 3. **NEVER** use raw `docker compose exec`, `pytest`, or `python` commands for running tests
 4. **NEVER** generate curl-based acceptance tests - use pytest patterns only
@@ -110,7 +110,7 @@ Before deriving ANY artifact (model, repository, service, API):
 | Action | Use This | NEVER This |
 |--------|----------|------------|
 | Run tests | `just test-unit`, `just test-integration` | `pytest`, `python -m pytest` |
-| Run E2E tests | `just test-e2e` | `cd tests/e2e && pytest` |
+| Run golden path E2E | `just test-golden-path` | `cd tests/e2e && pytest` |
 | Run single test | `just tdd <path>` | `docker compose exec webapp pytest` |
 | Lint/type check | `just check` | `ruff check`, `mypy` |
 | Build frontend | `just build-astro` | `pnpm build`, `npm run build` |
