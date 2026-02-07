@@ -497,12 +497,28 @@ tdd-impl-phase task:
     @echo "Or use TDD helper:"
     @echo "  just tdd tests/unit/path/to/test.py"
 
-# Verify tests pass (green phase) - runs in Docker
+# Verify tests pass (green phase) - runs task-scoped tests in Docker
 tdd-green task:
     #!/usr/bin/env bash
     set -e
-    echo "Verifying tests pass..."
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+    echo "Verifying tests pass for {{task}}..."
+    # Find the lock commit for this task
+    LOCK_COMMIT=$(git log --oneline --grep="test-lock: {{task}}" -1 --format="%H")
+    if [ -z "$LOCK_COMMIT" ]; then
+        echo "WARNING: No lock commit found for {{task}}, falling back to full test suite"
+        docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+    else
+        # Extract test files from the lock commit
+        TEST_FILES=$(git diff-tree --no-commit-id --name-only -r "$LOCK_COMMIT" -- tests/)
+        if [ -z "$TEST_FILES" ]; then
+            echo "WARNING: No test files found in lock commit $LOCK_COMMIT, falling back to full test suite"
+            docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+        else
+            echo "Running task-scoped tests from lock commit ${LOCK_COMMIT:0:8}:"
+            echo "$TEST_FILES"
+            docker compose exec -T webapp pytest $TEST_FILES -v
+        fi
+    fi
     echo "Tests passing"
 
 # Full TDD validation
