@@ -45,7 +45,7 @@ class GearSource(UUIDMixin, TimestampMixin, Base):
 
     # Relationship to gear (one-to-one)
     gear: Mapped["Gear"] = relationship(
-        "Gear", back_populates="source", uselist=False, lazy="selectin"
+        "Gear", back_populates="source", uselist=False, lazy="raise"
     )
 
     # Composite index for source lookups

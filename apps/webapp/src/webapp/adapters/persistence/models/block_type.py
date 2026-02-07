@@ -44,4 +44,5 @@ class BlockType(UUIDMixin, Base):
     blocks: Mapped[list[SignalChainBlock]] = relationship(
         "SignalChainBlock",
         back_populates="block_type",
+        lazy="raise",
     )

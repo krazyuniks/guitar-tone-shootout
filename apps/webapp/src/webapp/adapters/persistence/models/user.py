@@ -43,6 +43,7 @@ class OAuthProvider(UUIDMixin, Base):
         "UserIdentity",
         back_populates="provider",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
 
@@ -75,7 +76,7 @@ class User(UUIDMixin, TimestampMixin, Base):
         "UserIdentity",
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="selectin",  # Eager load identities by default
+        lazy="raise",
     )
 
     # Relationships to signal chains
@@ -83,11 +84,13 @@ class User(UUIDMixin, TimestampMixin, Base):
         "SignalChain",
         back_populates="user",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
     signal_chain_groups: Mapped[list[SignalChainGroup]] = relationship(
         "SignalChainGroup",
         back_populates="user",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Relationships to DI tracks and shootouts
@@ -95,11 +98,13 @@ class User(UUIDMixin, TimestampMixin, Base):
         "DITrack",
         back_populates="user",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
     shootouts: Mapped[list[Shootout]] = relationship(
         "Shootout",
         back_populates="user",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Relationship to jobs
@@ -107,6 +112,7 @@ class User(UUIDMixin, TimestampMixin, Base):
         "Job",
         back_populates="user",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Relationship to user gear library
@@ -114,4 +120,5 @@ class User(UUIDMixin, TimestampMixin, Base):
         "UserGear",
         back_populates="user",
         cascade="all, delete-orphan",
+        lazy="raise",
     )

@@ -41,6 +41,7 @@ class Preset(UUIDMixin, Base):
     signal_chain_block: Mapped[SignalChainBlock] = relationship(
         "SignalChainBlock",
         back_populates="presets",
+        lazy="raise",
     )
 
     # Index

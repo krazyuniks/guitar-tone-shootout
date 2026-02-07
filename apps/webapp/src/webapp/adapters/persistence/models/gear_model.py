@@ -57,7 +57,7 @@ class GearModel(UUIDMixin, Base):
     file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Relationship to gear
-    gear: Mapped["Gear"] = relationship("Gear", back_populates="models")  # type: ignore
+    gear: Mapped["Gear"] = relationship("Gear", back_populates="models", lazy="raise")  # type: ignore
 
     # Indexes for common query patterns
     __table_args__ = (
