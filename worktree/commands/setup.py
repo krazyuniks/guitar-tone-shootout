@@ -21,9 +21,10 @@ from ..cli_utils import (
 )
 from ..config import get_worktree_root, settings
 from ..docker import (
+    DockerError,
     build_images,
     collect_container_logs,
-    ensure_backups_dir,
+    export_database,
     format_failure_report,
     get_backups_dir,
     get_main_worktree_path,
@@ -395,9 +396,6 @@ def _get_or_create_backup(status, is_main: bool) -> Path | None:
     Returns:
         Path to backup file, or None if backup failed.
     """
-    import subprocess
-    from datetime import datetime
-
     backups_dir = get_backups_dir()
 
     if is_main:
@@ -436,37 +434,15 @@ def _get_or_create_backup(status, is_main: bool) -> Path | None:
         console.print("[dim]Or use --skip-db-import to start with empty database[/dim]")
         return None
 
-    # Create timestamped backup file
-    ensure_backups_dir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_file = backups_dir / f"shootout.{timestamp}.dump"
-
-    # Run db-export in main worktree
     try:
-        result = subprocess.run(
-            ["just", "db-export", str(backup_file)],
-            cwd=main_path,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        if result.returncode != 0:
-            status.stop()
-            print_error(f"Database export failed: {result.stderr}")
-            console.print()
-            console.print("[dim]Or use --skip-db-import to start with empty database[/dim]")
-            return None
-
+        backup_file = export_database(main_path)
         console.print(f"  [green]✓[/green] Exported: {backup_file.name}")
         return backup_file
-
-    except subprocess.TimeoutExpired:
-        status.stop()
-        print_error("Database export timed out")
-        return None
-    except Exception as e:
+    except DockerError as e:
         status.stop()
         print_error(f"Database export failed: {e}")
+        console.print()
+        console.print("[dim]Or use --skip-db-import to start with empty database[/dim]")
         return None
 
 

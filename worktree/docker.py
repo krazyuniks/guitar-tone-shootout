@@ -730,6 +730,58 @@ def ensure_backups_dir() -> Path:
     return backups_dir
 
 
+def export_database(worktree_path: Path) -> Path:
+    """Export the database to a timestamped dump file in the backups directory.
+
+    Runs pg_dump inside the db container and writes to ../backups/shootout.YYYYMMDD_HHMM.dump.
+
+    Args:
+        worktree_path: Path to the worktree whose db container to use.
+
+    Returns:
+        Path to the created backup file.
+
+    Raises:
+        DockerError: If the db container is not running or the export fails.
+    """
+    # Check db container is running
+    result = subprocess.run(
+        ["docker", "compose", "ps", "--status", "running", "--format", "{{.Service}}", "db"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+    )
+    if "db" not in result.stdout:
+        raise DockerError("Database container is not running")
+
+    # Create timestamped backup file
+    backups_dir = ensure_backups_dir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    backup_file = backups_dir / f"shootout.{timestamp}.dump"
+
+    # Run pg_dump
+    with open(backup_file, "wb") as f:
+        proc = subprocess.run(
+            ["docker", "compose", "exec", "-T", "db", "pg_dump", "-Fc", "-U", "gts", "gts_core"],
+            cwd=worktree_path,
+            stdout=f,
+            stderr=subprocess.PIPE,
+            timeout=300,
+        )
+
+    if proc.returncode != 0:
+        backup_file.unlink(missing_ok=True)
+        raise DockerError(f"pg_dump failed: {proc.stderr.decode().strip()}")
+
+    # Verify file has content
+    size = backup_file.stat().st_size
+    if size < 100:
+        backup_file.unlink(missing_ok=True)
+        raise DockerError("Export file is too small (database may be empty)")
+
+    return backup_file
+
+
 # =============================================================================
 # Orphan Container Detection and Cleanup
 # =============================================================================

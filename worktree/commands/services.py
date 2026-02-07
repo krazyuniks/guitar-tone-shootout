@@ -14,7 +14,7 @@ from ..cli_utils import (
     print_warning,
 )
 from ..config import get_current_worktree_path
-from ..docker import start_services, stop_services, wait_for_healthy
+from ..docker import DockerError, export_database, start_services, stop_services, wait_for_healthy
 from ..registry import WorktreeNotFoundError, get_worktree_by_path
 
 
@@ -51,6 +51,24 @@ def register_services_commands(app: typer.Typer) -> None:
         with console.status("[bold red]Stopping services..."):
             stop_services(current_path)
             print_success("Services stopped")
+
+    @app.command("db-export")
+    def db_export() -> None:
+        """Export database to a timestamped backup in ../backups/."""
+        try:
+            current_path = get_current_worktree_path()
+            get_worktree_by_path(current_path)
+        except WorktreeNotFoundError:
+            print_error("Current directory is not a registered worktree")
+            raise typer.Exit(1) from None
+
+        try:
+            backup_file = export_database(current_path)
+            size = backup_file.stat().st_size
+            print_success(f"Database exported: {backup_file} ({size} bytes)")
+        except DockerError as e:
+            print_error(str(e))
+            raise typer.Exit(1) from None
 
     @app.command()
     def logs(

@@ -155,42 +155,9 @@ tdd PATH:
 # Database
 # =============================================================================
 
-# Export database to custom format dump file
-# Usage: just db-export backup.dump
-db-export file:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    file="{{file}}"
-
-    # Validate file extension
-    if [[ ! "$file" == *.dump ]]; then
-        echo "✗ File must have .dump extension"
-        exit 1
-    fi
-
-    # Check if db container is running
-    if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
-        echo "✗ Database container is not running"
-        exit 1
-    fi
-
-    echo "→ Exporting database to $file..."
-    docker compose exec -T db pg_dump -Fc -U gts gts_core > "$file"
-
-    # Verify file was created and has content
-    if [ ! -f "$file" ]; then
-        echo "✗ Export file was not created"
-        exit 1
-    fi
-
-    size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null)
-    if [ "$size" -lt 100 ]; then
-        rm -f "$file"
-        echo "✗ Export file is too small (database may be empty)"
-        exit 1
-    fi
-
-    echo "✓ Database exported: $file ($size bytes)"
+# Export database to timestamped backup in ../backups/
+db-export:
+    ./worktree.py db-export
 
 # Import database from custom format dump file
 # WARNING: This drops and recreates the database!
