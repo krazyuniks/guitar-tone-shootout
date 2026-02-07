@@ -23,7 +23,7 @@ T43 → T46
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
 | T34 | [Task]: A1 - Convert all ORM relati | complete | webapp | - |
-| T35 | [Task]: B1 - Convert GearRepository | pending | webapp | T34 |
+| T35 | [Task]: B1 - Convert GearRepository | locked | webapp | T34 |
 | T36 | [Task]: B2 - Convert GearRepository | pending | webapp | T35 |
 | T37 | [Task]: C1 - Convert UserRepository | pending | webapp | T34 |
 | T38 | [Task]: C2 - Refactor UserRepositor | pending | webapp | T37 |
