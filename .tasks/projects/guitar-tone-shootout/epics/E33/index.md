@@ -33,7 +33,7 @@ T43 → T46
 | T42 | [Task]: F1 - Add query counting fix | complete | webapp | - |
 | T43 | [Task]: F2 - Add integration tests  | complete | webapp | T42 |
 | T44 | [Task]: F3 - Add integration tests  | complete | webapp | T42 |
-| T45 | [Task]: F4 - Add integration tests  | validating | webapp | T42 |
+| T45 | [Task]: F4 - Add integration tests  | complete | webapp | T42 |
 | T46 | [Task]: G1 - Verify regression and  | pending | webapp | T43 |
 
 ## Commands
