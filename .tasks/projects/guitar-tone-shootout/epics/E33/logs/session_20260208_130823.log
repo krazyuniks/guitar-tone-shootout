@@ -30,3 +30,13 @@ Red phase verified: 1 failing + 0 erroring tests found.
 2026-02-08 14:11:27,414 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-08 14:11:27,414 [INFO]     Running: just tdd-lock T36
+2026-02-08 14:11:27,538 [DEBUG]     just tdd-lock T36 -> OK
+2026-02-08 14:11:27,538 [DEBUG]     Output:
+[main 4a90762] test-lock: T36 tests ready for implementation
+ 16 files changed, 133 insertions(+), 19 deletions(-)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E33/logs/session_20260208_130823.log
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E33/snapshots/T36.json
+  1 test files captured at commit 4a90762bf4a9
+Tests locked at 4a90762
+
+2026-02-08 14:11:27,547 [DEBUG] STRUCTURED: {"event": "phase_end", "timestamp": "2026-02-08T13:11:27.547204+00:00", "task_id": 36, "phase": "test", "result": "locked"}
