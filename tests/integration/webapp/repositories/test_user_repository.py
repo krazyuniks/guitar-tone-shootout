@@ -266,33 +266,17 @@ async def test_user_get_by_id_with_multiple_identities(
     db_session.add(identity2)
     await db_session.commit()
 
-    # Track executed queries
-    query_count = 0
-
-    def count_queries(conn, cursor, statement, parameters, context, executemany):
-        nonlocal query_count
-        if not statement.strip().upper().startswith(('PRAGMA', 'BEGIN', 'COMMIT')):
-            query_count += 1
-
-    # Register query counter
-    event.listen(db_session.sync_session.get_bind(), "before_cursor_execute", count_queries)
-
-    try:
-        # Execute get_by_id
+    # Execute get_by_id with query counting
+    with assert_query_count(db_session, expected=1):
         result = await user_repository.get_by_id(user.id)
 
-        # Verify result
-        assert result is not None, "User should be found"
-        assert query_count == 1, f"Expected 1 query, got {query_count}"
+    # Verify result
+    assert result is not None, "User should be found"
 
-        # Verify both identities are loaded correctly
-        assert len(result.identities) == 2, "Should have 2 identities"
-        providers = {identity.provider for identity in result.identities}
-        assert providers == {"t3k", "google"}, "Should have both providers"
-
-    finally:
-        # Cleanup event listener
-        event.remove(db_session.sync_session.get_bind(), "before_cursor_execute", count_queries)
+    # Verify both identities are loaded correctly
+    assert len(result.identities) == 2, "Should have 2 identities"
+    providers = {identity.provider for identity in result.identities}
+    assert providers == {"t3k", "google"}, "Should have both providers"
 
 
 async def test_user_get_by_id_not_found(
