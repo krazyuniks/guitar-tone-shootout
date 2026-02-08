@@ -171,6 +171,8 @@ class SQLAlchemyGearRepository:
     ) -> list[GearEntity]:
         """Search for gear with filters.
 
+        Uses ID-subquery pattern for pagination to avoid row count issues with JOINs.
+
         Args:
             query: Optional text search on name/description
             gear_type: Optional filter by gear type
@@ -182,14 +184,7 @@ class SQLAlchemyGearRepository:
         Returns:
             List of matching Gear ordered by name
         """
-        stmt = select(Gear).options(
-            joinedload(Gear.models),
-            joinedload(Gear.tags),
-            joinedload(Gear.source),
-            joinedload(Gear.make),
-        )
-
-        # Apply filters
+        # Build filter conditions
         conditions = []
 
         if query:
@@ -219,11 +214,26 @@ class SQLAlchemyGearRepository:
             )
             conditions.append(Gear.id.in_(tag_count))
 
-        if conditions:
-            stmt = stmt.where(and_(*conditions))
+        # Step 1: Resolve the correct page of IDs
+        id_stmt = select(Gear.id).order_by(Gear.name)
 
-        # Order by name and apply pagination
-        stmt = stmt.order_by(Gear.name).limit(limit).offset(offset)
+        if conditions:
+            id_stmt = id_stmt.where(and_(*conditions))
+
+        id_stmt = id_stmt.limit(limit).offset(offset)
+
+        # Step 2: Hydrate those IDs with full JOINs
+        stmt = (
+            select(Gear)
+            .where(Gear.id.in_(id_stmt))
+            .options(
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
+            )
+            .order_by(Gear.name)
+        )
 
         result = await self.session.execute(stmt)
         gear_items = result.unique().scalars().all()
