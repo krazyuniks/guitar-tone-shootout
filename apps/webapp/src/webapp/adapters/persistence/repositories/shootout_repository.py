@@ -110,6 +110,9 @@ class SQLAlchemyShootoutRepository:
     ) -> list[ShootoutEntity]:
         """Get public (processed) shootouts.
 
+        Uses ID-subquery pattern: LIMIT/OFFSET on IDs, not entities,
+        to avoid row multiplication from JOINs.
+
         Args:
             limit: Maximum number of results
             offset: Number of results to skip
@@ -117,13 +120,26 @@ class SQLAlchemyShootoutRepository:
         Returns:
             List of processed Shootouts ordered by created_at desc
         """
-        stmt = (
-            select(Shootout)
+        # Step 1: resolve the correct page of IDs
+        id_stmt = (
+            select(Shootout.id)
             .where(Shootout.status == ShootoutStatus.COMPLETED)
-            .options(joinedload(Shootout.chains))
             .order_by(Shootout.created_at.desc())
             .limit(limit)
             .offset(offset)
+        )
+        id_result = await self.session.execute(id_stmt)
+        ids = [row[0] for row in id_result.all()]
+
+        if not ids:
+            return []
+
+        # Step 2: hydrate those IDs with full JOINs
+        stmt = (
+            select(Shootout)
+            .where(Shootout.id.in_(ids))
+            .options(joinedload(Shootout.chains))
+            .order_by(Shootout.created_at.desc())
         )
         result = await self.session.execute(stmt)
         shootouts = result.unique().scalars().all()
