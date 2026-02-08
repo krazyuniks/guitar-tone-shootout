@@ -6,6 +6,10 @@
 - **Use `just` commands.** Not raw Docker, uv, pytest, ruff, mypy, or pnpm on host.
 - **Astro runs as a persistent service** (chokidar auto-rebuilds on source changes). Use `just build-astro` for explicit builds or `just watch-astro` for logs.
 
+## Hot Reload — Never Restart Containers
+
+Webapp and worker containers use **uvicorn --reload** with WatchFiles. Source edits on the host are detected automatically via bind mounts — the server process restarts within seconds. **Never run `docker compose restart`** for code changes. Just edit the file and wait.
+
 ## NEVER Run on Host
 
 ```bash
