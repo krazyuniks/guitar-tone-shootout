@@ -93,9 +93,9 @@ def register_auth_commands(app: typer.Typer) -> None:
         Args:
             webapp_port: Port of the webapp to use for OAuth callback.
         """
-        from ..auth import get_auth_file_path, start_login_flow
+        from ..auth import get_auth_file_path, get_webapp_url_for_worktree, start_login_flow
 
-        webapp_url = f"http://localhost:{webapp_port}"
+        webapp_url = get_webapp_url_for_worktree()
         auth_path = get_auth_file_path()
 
         console.print("[bold]Starting OAuth login flow...[/bold]")
@@ -133,11 +133,8 @@ def register_auth_commands(app: typer.Typer) -> None:
             restore_session,
         )
 
-        # Determine webapp URL
-        if webapp_port:
-            webapp_url = f"http://localhost:{webapp_port}"
-        else:
-            webapp_url = get_webapp_url_for_worktree()
+        # Always use PUBLIC_URL from .env.local (set by worktree.py setup)
+        webapp_url = get_webapp_url_for_worktree()
 
         console.print("[bold]Restoring session...[/bold]")
         console.print(f"Webapp: {webapp_url}")

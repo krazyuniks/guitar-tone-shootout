@@ -6,7 +6,7 @@ Configuration follows 12-Factor methodology. All settings come from environment 
 
 | Category | Variables | Required |
 |----------|-----------|----------|
-| **Application** | `DEBUG`, `APP_NAME`, `APP_URL`, `FRONTEND_URL` | No (defaults) |
+| **Application** | `DEBUG`, `APP_NAME`, `PUBLIC_URL` | No (defaults) |
 | **Database** | `DATABASE_URL` or `DB_PASSWORD` + components | Yes |
 | **Redis** | `REDIS_URL` | No (default: `redis://redis:6379`) |
 | **Security** | `SECRET_KEY`, `OAUTH_ENCRYPTION_KEY` | Production only |

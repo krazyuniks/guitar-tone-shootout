@@ -48,8 +48,6 @@ services:
     # Only override environment vars for public domain URLs
     environment:
       # Update URLs for public domain
-      - APP_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
-      - FRONTEND_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
       - PUBLIC_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
       - CORS_ORIGINS=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
 

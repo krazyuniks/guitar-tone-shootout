@@ -190,10 +190,6 @@ CLOUDBEAVER_PORT={worktree.ports.cloudbeaver}
 # Uses Traefik HTTPS URL on server, localhost for local development
 PUBLIC_URL={public_url}
 
-# URLs for Playwright E2E tests (run on host, not in Docker)
-BASE_URL=http://localhost:{worktree.ports.nginx}
-WEBAPP_URL=http://localhost:{worktree.ports.webapp}
-
 # Volume names (isolated per worktree)
 POSTGRES_VOLUME={worktree.volumes.postgres}
 REDIS_VOLUME={worktree.volumes.redis}
@@ -265,8 +261,6 @@ services:
     environment:
       # All URLs point to nginx for consistent auth cookie handling
       # Uses Traefik HTTPS URL on server, localhost for local development
-      - APP_URL={public_url}
-      - FRONTEND_URL={public_url}
       - PUBLIC_URL={public_url}
       - CORS_ORIGINS={public_url}
       - GTS_AUTH_FILE=/worktrees/.gts-auth.json

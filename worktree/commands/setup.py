@@ -574,7 +574,7 @@ def _start_and_configure_services(
             raise typer.Exit(1)
 
     # Step 11: Auto-restore auth if available
-    _restore_auth(status, worktree)
+    _restore_auth(status, worktree, worktree_path)
 
 
 def _import_database(status, worktree_path: Path, backup_file: Path, is_main: bool = False) -> None:
@@ -656,14 +656,14 @@ def _handle_service_failure(
     console.print("[bold red]Setup failed. Use --force to override health check.[/bold red]")
 
 
-def _restore_auth(status, worktree) -> None:
+def _restore_auth(status, worktree, worktree_path: Path) -> None:
     """Restore auth if available."""
     status.update("[bold green]Checking auth status...")
-    from ..auth import check_auth_status, restore_session
+    from ..auth import check_auth_status, get_webapp_url_for_worktree, restore_session
 
     auth_status = check_auth_status()
     if auth_status.valid:
-        webapp_url = f"http://localhost:{worktree.ports.webapp}"
+        webapp_url = get_webapp_url_for_worktree(worktree_path)
         success, message = restore_session(webapp_url)
         if success:
             console.print(f"  [green]✓[/green] Auth restored for {auth_status.username}")
@@ -781,7 +781,7 @@ def _handle_resume_path(
             raise typer.Exit(1)
 
     # Step 7: Restore auth
-    _restore_auth(status, worktree)
+    _restore_auth(status, worktree, worktree_path)
 
 
 def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:
