@@ -42,3 +42,4 @@ error: Recipe `tdd-complete` failed with exit code 1
 2026-02-08 11:30:14,965 [INFO]   Dispatching 'implementer' (model=sonnet, max_turns=30)...
 2026-02-08 11:30:14,965 [DEBUG] STRUCTURED: {"event": "agent_dispatch", "timestamp": "2026-02-08T10:30:14.965507+00:00", "agent": "implementer", "model": "sonnet", "max_turns": 30}
 2026-02-08 11:32:55,850 [DEBUG]   Agent 'implementer' exited with code 0
+2026-02-08 11:33:00,493 [INFO]   Git sync: pull --rebase --autostash origin main
