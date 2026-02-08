@@ -1,0 +1,19 @@
+{
+  "task_id": "T44",
+  "created": "2026-02-08T14:01:04.721967+00:00",
+  "commit": "ccd9df8f5a5a",
+  "files": [
+    {
+      "path": "tests/integration/webapp/repositories/test_signal_chain_repository.py",
+      "sha256": "c10fecef7f623d1b6c4d6c7c03d2caf192c755e864b98122bbbdc7baaad0e38a",
+      "size": 6213,
+      "modified": "2026-02-08T14:00:45.923877+00:00"
+    },
+    {
+      "path": "tests/integration/webapp/repositories/test_user_repository.py",
+      "sha256": "7b326fff5958ea177df5ef8878f5fee2467f59d445a0803e05bd6c35d2e83e32",
+      "size": 8529,
+      "modified": "2026-02-08T14:00:23.123883+00:00"
+    }
+  ]
+}
