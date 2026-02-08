@@ -4,7 +4,9 @@ from collections.abc import AsyncGenerator
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.base import Base
@@ -102,8 +104,13 @@ async def test_signal_chain_blocks(session: AsyncSession) -> None:
     session.add_all([block1, block2])
     await session.commit()
 
-    # Refresh to load blocks relationship
-    await session.refresh(chain)
+    # Re-query with joinedload to eagerly load blocks (lazy="raise" on model)
+    result = await session.execute(
+        select(SignalChain)
+        .where(SignalChain.id == chain.id)
+        .options(joinedload(SignalChain.blocks))
+    )
+    chain = result.unique().scalar_one()
 
     # Assert
     assert len(chain.blocks) == 2

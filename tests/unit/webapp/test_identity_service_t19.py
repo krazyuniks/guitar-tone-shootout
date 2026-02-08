@@ -13,6 +13,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
@@ -99,6 +100,14 @@ class TestIdentityService:
         assert user.email == "master@tone3000.com"
         assert user.avatar_url == "https://tone3000.com/avatar.jpg"
         assert user.is_active is True
+
+        # Re-query user with identities eagerly loaded (lazy="raise" on model)
+        result = await db_session.execute(
+            select(User)
+            .where(User.id == user.id)
+            .options(joinedload(User.identities))
+        )
+        user = result.unique().scalar_one()
 
         # User should have identity linked to provider
         assert len(user.identities) == 1
@@ -272,6 +281,15 @@ class TestIdentityService:
         # This test verifies the service CAN handle multiple providers
         # Actual linking of existing user to new provider would be separate method
         assert t3k_user is not None
+
+        # Re-query user with identities eagerly loaded (lazy="raise" on model)
+        result = await db_session.execute(
+            select(User)
+            .where(User.id == t3k_user.id)
+            .options(joinedload(User.identities))
+        )
+        t3k_user = result.unique().scalar_one()
+
         assert len(t3k_user.identities) == 1
 
     async def test_service_creates_inactive_user_when_specified(

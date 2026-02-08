@@ -10,6 +10,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider, User
@@ -121,12 +122,19 @@ async def test_user_identity_foreign_key_to_user_works(db_session: AsyncSession)
     )
     db_session.add(identity)
     await db_session.commit()
-    await db_session.refresh(identity)
+
+    # Re-query with joinedload to eager-load the user relationship
+    result = await db_session.execute(
+        select(UserIdentity)
+        .where(UserIdentity.id == identity.id)
+        .options(joinedload(UserIdentity.user))
+    )
+    loaded_identity = result.unique().scalar_one()
 
     # Verify foreign key relationship works
-    assert identity.user is not None
-    assert identity.user.username == "testuser"
-    assert identity.user_id == user.id
+    assert loaded_identity.user is not None
+    assert loaded_identity.user.username == "testuser"
+    assert loaded_identity.user_id == user.id
 
 
 @pytest.mark.asyncio
