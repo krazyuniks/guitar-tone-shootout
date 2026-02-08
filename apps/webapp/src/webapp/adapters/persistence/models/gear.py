@@ -93,6 +93,7 @@ class GearTag(UUIDMixin, Base):
         "Gear",
         secondary=gear_tags_table,
         back_populates="tags",
+        lazy="raise",
     )
 
 
@@ -116,6 +117,7 @@ class GearMake(UUIDMixin, Base):
     gear_items: Mapped[list[Gear]] = relationship(
         "Gear",
         back_populates="make",
+        lazy="raise",
     )
 
 
@@ -171,27 +173,30 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     make: Mapped[GearMake | None] = relationship(
         "GearMake",
         back_populates="gear_items",
+        lazy="raise",
     )
     source: Mapped[GearSource | None] = relationship(
         "GearSource",
         back_populates="gear",
+        lazy="raise",
     )
     models: Mapped[list[GearModel]] = relationship(
         "GearModel",
         back_populates="gear",
         cascade="all, delete-orphan",
-        lazy="selectin",  # Eager load models
+        lazy="raise",
     )
     tags: Mapped[list[GearTag]] = relationship(
         "GearTag",
         secondary=gear_tags_table,
         back_populates="gear_items",
-        lazy="selectin",  # Eager load tags
+        lazy="raise",
     )
     user_gear: Mapped[list[UserGear]] = relationship(
         "UserGear",
         back_populates="gear",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Indexes for common query patterns

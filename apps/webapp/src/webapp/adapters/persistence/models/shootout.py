@@ -73,11 +73,13 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
     user: Mapped[User] = relationship(
         "User",
         back_populates="di_tracks",
+        lazy="raise",
     )
     shootouts: Mapped[list[Shootout]] = relationship(
         "Shootout",
         back_populates="di_track",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Indexes
@@ -131,18 +133,17 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     user: Mapped[User] = relationship(
         "User",
         back_populates="shootouts",
+        lazy="raise",
     )
     di_track: Mapped[DITrack | None] = relationship(
         "DITrack",
-        back_populates="shootouts",
-        lazy="selectin",  # Eager load di_track
+        back_populates="shootouts", lazy="raise",
     )
     chains: Mapped[list[ShootoutChain]] = relationship(
         "ShootoutChain",
         back_populates="shootout",
         cascade="all, delete-orphan",
-        order_by="ShootoutChain.position",
-        lazy="selectin",  # Eager load chains
+        order_by="ShootoutChain.position", lazy="raise",
     )
 
     # Indexes
@@ -188,14 +189,17 @@ class ShootoutChain(UUIDMixin, Base):
     shootout: Mapped[Shootout] = relationship(
         "Shootout",
         back_populates="chains",
+        lazy="raise",
     )
     signal_chain: Mapped[SignalChain] = relationship(
         "SignalChain",
+        lazy="raise",
     )
     segments: Mapped[list[AudioSegment]] = relationship(
         "AudioSegment",
         back_populates="shootout_chain",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Indexes
@@ -237,6 +241,7 @@ class AudioSegment(UUIDMixin, Base):
     shootout_chain: Mapped[ShootoutChain] = relationship(
         "ShootoutChain",
         back_populates="segments",
+        lazy="raise",
     )
 
     # Index

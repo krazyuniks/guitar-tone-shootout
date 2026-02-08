@@ -57,13 +57,13 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
     user: Mapped[User] = relationship(
         "User",
         back_populates="signal_chains",
+        lazy="raise",
     )
     blocks: Mapped[list[SignalChainBlock]] = relationship(
         "SignalChainBlock",
         back_populates="signal_chain",
         cascade="all, delete-orphan",
-        order_by="SignalChainBlock.position",
-        lazy="selectin",  # Eager load blocks
+        order_by="SignalChainBlock.position", lazy="raise",
     )
 
     # Indexes
@@ -122,15 +122,18 @@ class SignalChainBlock(UUIDMixin, Base):
     signal_chain: Mapped[SignalChain] = relationship(
         "SignalChain",
         back_populates="blocks",
+        lazy="raise",
     )
     block_type: Mapped[BlockType | None] = relationship(
         "BlockType",
         back_populates="blocks",
+        lazy="raise",
     )
     presets: Mapped[list[Preset]] = relationship(
         "Preset",
         back_populates="signal_chain_block",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Indexes for common query patterns
@@ -184,10 +187,12 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
     user: Mapped[User] = relationship(
         "User",
         back_populates="signal_chain_groups",
+        lazy="raise",
     )
     base_chain: Mapped[SignalChain | None] = relationship(
         "SignalChain",
         foreign_keys=[base_chain_id],
+        lazy="raise",
     )
 
     # Indexes

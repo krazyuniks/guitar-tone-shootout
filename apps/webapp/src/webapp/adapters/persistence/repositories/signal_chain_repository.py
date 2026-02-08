@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.signal_chain import (
     SignalChain as SignalChainEntity,
@@ -49,10 +49,10 @@ class SQLAlchemySignalChainRepository:
         stmt = (
             select(SignalChain)
             .where(SignalChain.id == chain_id)
-            .options(selectinload(SignalChain.blocks))
+            .options(joinedload(SignalChain.blocks))
         )
         result = await self.session.execute(stmt)
-        chain = result.scalar_one_or_none()
+        chain = result.unique().scalar_one_or_none()
         return self._to_entity(chain) if chain else None
 
     async def get_by_user_id(
@@ -75,13 +75,13 @@ class SQLAlchemySignalChainRepository:
         stmt = (
             select(SignalChain)
             .where(SignalChain.user_id == user_id)
-            .options(selectinload(SignalChain.blocks))
+            .options(joinedload(SignalChain.blocks))
             .order_by(SignalChain.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
         result = await self.session.execute(stmt)
-        chains = result.scalars().unique().all()
+        chains = result.unique().scalars().all()
         return [self._to_entity(chain) for chain in chains]
 
     async def count_by_user_id(self, user_id: UUID) -> int:
@@ -107,12 +107,14 @@ class SQLAlchemySignalChainRepository:
         Args:
             chain: The chain to save
         """
-        # Check if chain exists
-        existing = await self.session.get(SignalChain, chain.id)
-
-        # If we found an existing chain, expire it to force fresh state
-        if existing:
-            await self.session.refresh(existing)
+        # Check if chain exists - load with blocks
+        stmt = (
+            select(SignalChain)
+            .where(SignalChain.id == chain.id)
+            .options(joinedload(SignalChain.blocks))
+        )
+        result = await self.session.execute(stmt)
+        existing = result.unique().scalar_one_or_none()
 
         if existing:
             # Update existing chain

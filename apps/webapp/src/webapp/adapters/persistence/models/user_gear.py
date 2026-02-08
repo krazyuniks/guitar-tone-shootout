@@ -58,12 +58,12 @@ class UserGear(UUIDMixin, TimestampMixin, Base):
     user: Mapped[User] = relationship(
         "User",
         back_populates="user_gear",
-        lazy="selectin",
+        lazy="raise",
     )
     gear: Mapped[Gear] = relationship(
         "Gear",
         back_populates="user_gear",
-        lazy="selectin",
+        lazy="raise",
     )
 
     # Unique constraint: a user can't add the same gear twice

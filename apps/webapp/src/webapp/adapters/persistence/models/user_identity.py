@@ -50,11 +50,10 @@ class UserIdentity(UUIDMixin, TimestampMixin, Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
-    user: Mapped[User] = relationship("User", back_populates="identities")
+    user: Mapped[User] = relationship("User", back_populates="identities", lazy="raise")
     provider: Mapped[OAuthProvider] = relationship(
         "OAuthProvider",
-        back_populates="identities",
-        lazy="selectin",  # Eager load provider by default
+        back_populates="identities", lazy="raise",
     )
 
     # Indexes for common query patterns
