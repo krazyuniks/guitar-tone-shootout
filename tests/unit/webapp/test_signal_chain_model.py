@@ -102,8 +102,8 @@ async def test_signal_chain_blocks(session: AsyncSession) -> None:
     session.add_all([block1, block2])
     await session.commit()
 
-    # Refresh to load blocks relationship
-    await session.refresh(chain)
+    # Refresh to load blocks relationship (lazy="raise" requires explicit attribute names)
+    await session.refresh(chain, ["blocks"])
 
     # Assert
     assert len(chain.blocks) == 2
