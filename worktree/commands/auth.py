@@ -110,7 +110,7 @@ def register_auth_commands(app: typer.Typer) -> None:
             console.print("[dim]Then run 'auth-restore' in any worktree to activate.[/dim]")
         else:
             print_error("Failed to open browser.")
-            console.print(f"Manually open: {webapp_url}/api/v1/auth/login")
+            console.print(f"Manually open: {webapp_url}/api/v1/auth/login/t3k")
             raise typer.Exit(1)
 
     @app.command("auth-restore")

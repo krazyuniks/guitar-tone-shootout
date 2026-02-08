@@ -146,13 +146,8 @@ def check_auth_status() -> AuthStatus:
             message="No saved auth data. Run `./worktree.py auth-login` to authenticate.",
         )
 
-    # Parse expiration time
-    try:
-        expires_at = datetime.fromisoformat(auth_data.get("token_expires_at", ""))
-        # Handle timezone-naive datetimes
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=UTC)
-    except (ValueError, TypeError):
+    # Check we have tokens (access_token is the minimum requirement)
+    if not auth_data.get("access_token"):
         return AuthStatus(
             valid=False,
             authenticated=False,
@@ -160,6 +155,37 @@ def check_auth_status() -> AuthStatus:
             expires_at=None,
             expires_in_hours=None,
             message="Invalid auth file format. Re-authenticate with `./worktree.py auth-login`.",
+        )
+
+    # Parse expiration time (field name varies: token_expires_at or expires_at)
+    expires_at_raw = auth_data.get("token_expires_at") or auth_data.get("expires_at")
+    username = auth_data.get("username", "unknown")
+
+    if not expires_at_raw:
+        # No expiration info — tokens are valid until revoked
+        return AuthStatus(
+            valid=True,
+            authenticated=True,
+            username=username,
+            expires_at=None,
+            expires_in_hours=None,
+            message=f"Auth valid for {username}. No expiration set.",
+        )
+
+    try:
+        expires_at = datetime.fromisoformat(expires_at_raw)
+        # Handle timezone-naive datetimes
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+    except (ValueError, TypeError):
+        # Can't parse expiration but tokens exist — treat as valid
+        return AuthStatus(
+            valid=True,
+            authenticated=True,
+            username=username,
+            expires_at=None,
+            expires_in_hours=None,
+            message=f"Auth valid for {username}. Could not parse expiration.",
         )
 
     now = datetime.now(UTC)
@@ -180,7 +206,6 @@ def check_auth_status() -> AuthStatus:
     expires_in_hours = expires_delta.total_seconds() / 3600
 
     # Determine status message
-    username = auth_data.get("username", "unknown")
     if expires_in_hours < 1:
         message = f"Auth valid for {username}. Expiring in less than 1 hour!"
     elif expires_in_hours < 24:
@@ -215,7 +240,7 @@ def start_login_flow(webapp_url: str = "http://localhost:8000") -> bool:
     import subprocess
     import sys
 
-    login_url = f"{webapp_url}/api/v1/auth/login"
+    login_url = f"{webapp_url}/api/v1/auth/login/t3k"
 
     try:
         # Use Chrome explicitly (required for proxy setup on dev machines)

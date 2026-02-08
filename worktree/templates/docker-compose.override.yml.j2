@@ -38,6 +38,7 @@ services:
       - FRONTEND_URL={{ public_url }}
       - PUBLIC_URL={{ public_url }}
       - CORS_ORIGINS={{ public_url }}
+      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
 
   astro:
     container_name: {{ worktree.compose_project }}-astro
