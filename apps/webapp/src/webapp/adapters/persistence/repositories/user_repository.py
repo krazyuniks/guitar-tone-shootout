@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity as UserIdentityVO
@@ -48,10 +48,10 @@ class SQLAlchemyUserRepository:
         stmt = (
             select(User)
             .where(User.id == user_id)
-            .options(selectinload(User.identities).selectinload(UserIdentity.provider))
+            .options(joinedload(User.identities).joinedload(UserIdentity.provider))
         )
         result = await self.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        user = result.unique().scalar_one_or_none()
         return self._to_entity(user) if user else None
 
     async def get_by_email(self, email: str) -> UserEntity | None:
@@ -66,10 +66,10 @@ class SQLAlchemyUserRepository:
         stmt = (
             select(User)
             .where(User.email == email)
-            .options(selectinload(User.identities).selectinload(UserIdentity.provider))
+            .options(joinedload(User.identities).joinedload(UserIdentity.provider))
         )
         result = await self.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        user = result.unique().scalar_one_or_none()
         return self._to_entity(user) if user else None
 
     async def get_by_identity(
@@ -102,10 +102,10 @@ class SQLAlchemyUserRepository:
                 UserIdentity.provider_id == provider_obj.id,
                 UserIdentity.external_id == external_id,
             )
-            .options(selectinload(User.identities).selectinload(UserIdentity.provider))
+            .options(joinedload(User.identities).joinedload(UserIdentity.provider))
         )
         result = await self.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        user = result.unique().scalar_one_or_none()
         return self._to_entity(user) if user else None
 
     async def save(self, user: UserEntity) -> None:
@@ -114,8 +114,14 @@ class SQLAlchemyUserRepository:
         Args:
             user: The user entity to save
         """
-        # Check if user exists
-        existing = await self.session.get(User, user.id)
+        # Check if user exists - load with relationships for update
+        stmt = (
+            select(User)
+            .where(User.id == user.id)
+            .options(joinedload(User.identities).joinedload(UserIdentity.provider))
+        )
+        result = await self.session.execute(stmt)
+        existing = result.unique().scalar_one_or_none()
 
         if existing:
             # Update existing user

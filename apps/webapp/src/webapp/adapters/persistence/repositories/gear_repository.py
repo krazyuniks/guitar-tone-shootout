@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import GearModel as GearModelVO
@@ -90,14 +90,14 @@ class SQLAlchemyGearRepository:
             select(Gear)
             .where(Gear.id == gear_id)
             .options(
-                selectinload(Gear.models),
-                selectinload(Gear.tags),
-                selectinload(Gear.source),
-                selectinload(Gear.make),
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
             )
         )
         result = await self.session.execute(stmt)
-        gear = result.scalar_one_or_none()
+        gear = result.unique().scalar_one_or_none()
         return self._to_entity(gear) if gear else None
 
     async def get_by_slug(self, slug: str) -> GearEntity | None:
@@ -117,14 +117,14 @@ class SQLAlchemyGearRepository:
             select(Gear)
             .where(func.lower(Gear.slug) == normalized_slug)
             .options(
-                selectinload(Gear.models),
-                selectinload(Gear.tags),
-                selectinload(Gear.source),
-                selectinload(Gear.make),
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
             )
         )
         result = await self.session.execute(stmt)
-        gear = result.scalar_one_or_none()
+        gear = result.unique().scalar_one_or_none()
         return self._to_entity(gear) if gear else None
 
     async def get_by_source(
@@ -149,14 +149,14 @@ class SQLAlchemyGearRepository:
                 GearSource.source_record_id == source_record_id,
             )
             .options(
-                selectinload(Gear.models),
-                selectinload(Gear.tags),
-                selectinload(Gear.source),
-                selectinload(Gear.make),
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
             )
         )
         result = await self.session.execute(stmt)
-        gear = result.scalar_one_or_none()
+        gear = result.unique().scalar_one_or_none()
         return self._to_entity(gear) if gear else None
 
     async def search(
@@ -183,10 +183,10 @@ class SQLAlchemyGearRepository:
             List of matching Gear ordered by name
         """
         stmt = select(Gear).options(
-            selectinload(Gear.models),
-            selectinload(Gear.tags),
-            selectinload(Gear.source),
-            selectinload(Gear.make),
+            joinedload(Gear.models),
+            joinedload(Gear.tags),
+            joinedload(Gear.source),
+            joinedload(Gear.make),
         )
 
         # Apply filters
@@ -226,7 +226,7 @@ class SQLAlchemyGearRepository:
         stmt = stmt.order_by(Gear.name).limit(limit).offset(offset)
 
         result = await self.session.execute(stmt)
-        gear_items = result.scalars().unique().all()
+        gear_items = result.unique().scalars().all()
 
         return [self._to_entity(gear) for gear in gear_items]
 
@@ -292,8 +292,19 @@ class SQLAlchemyGearRepository:
         Args:
             gear: The gear entity to save
         """
-        # Check if gear exists
-        existing = await self.session.get(Gear, gear.id)
+        # Check if gear exists - load with relationships for update
+        stmt = (
+            select(Gear)
+            .where(Gear.id == gear.id)
+            .options(
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+                joinedload(Gear.source),
+                joinedload(Gear.make),
+            )
+        )
+        result = await self.session.execute(stmt)
+        existing = result.unique().scalar_one_or_none()
 
         if existing:
             # Update existing gear
