@@ -319,7 +319,7 @@ def dispatch_agent(
 
 
 def preflight_scope_check(task: Task) -> list[tuple[str, bool]]:
-    """Parse **Create:** and **Modify:** sections from task spec, check which files exist.
+    """Parse **Create:** section from task spec, check which files exist.
 
     Returns list of (filepath, exists) tuples.
     """
@@ -331,57 +331,25 @@ def preflight_scope_check(task: Task) -> list[tuple[str, bool]]:
 
     content = task_path.read_text()
 
-    # Find **Create:** and **Modify:** sections and extract file paths
+    # Find the **Create:** section and extract file paths
     # Matches lines like: - `apps/webapp/src/webapp/.../file.py`
-    in_scope = False
+    in_create = False
     results: list[tuple[str, bool]] = []
 
     for line in content.splitlines():
         stripped = line.strip()
-        if stripped.startswith("**Create:**") or stripped.startswith("**Modify:**"):
-            in_scope = True
+        if stripped.startswith("**Create:**"):
+            in_create = True
             continue
-        if in_scope:
+        if in_create:
             # Stop at next section header or empty line after files
             if stripped.startswith("**") or (not stripped and results):
-                in_scope = False
-                continue
+                break
             match = re.match(r"^-\s*`([^`]+)`", stripped)
             if match:
                 filepath = match.group(1)
                 exists = (PROJECT_ROOT / filepath).exists()
                 results.append((filepath, exists))
-
-    return results
-
-
-def get_modify_scope(task: Task) -> list[str]:
-    """Extract file paths from the **Modify:** section of a task spec.
-
-    Returns list of file paths that the task explicitly allows modifying.
-    """
-    task_path = (
-        TASKS_BASE / f"E{task.epic_number}" / "tasks" / f"T{task.task_id}.md"
-    )
-    if not task_path.exists():
-        return []
-
-    content = task_path.read_text()
-
-    in_modify = False
-    results: list[str] = []
-
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("**Modify:**"):
-            in_modify = True
-            continue
-        if in_modify:
-            if stripped.startswith("**") or (not stripped and results):
-                break
-            match = re.match(r"^-\s*`([^`]+)`", stripped)
-            if match:
-                results.append(match.group(1))
 
     return results
 
@@ -531,10 +499,6 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
             "All tests should fail (imports will error on missing modules).",
         ])
 
-    # Check if task scope explicitly allows modifying existing test files
-    modify_scope = get_modify_scope(task)
-    modifiable_test_files = [f for f in modify_scope if f.startswith("tests/")]
-
     lines.extend([
         "",
         "## Instructions",
@@ -544,23 +508,9 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
         "3. Run tests to verify they compile and FAIL (not error)",
         "4. Do NOT create any implementation files",
         "5. Do NOT update any .tasks/ state files",
+        "6. Do NOT modify any existing test files — only create new ones",
+        "7. Check if a test file exists before writing. If it does, use a different filename",
     ])
-
-    if modifiable_test_files:
-        lines.extend([
-            "6. You MAY modify the following existing test files (listed in task scope):",
-        ])
-        for f in modifiable_test_files:
-            lines.append(f"   - `{f}`")
-        lines.extend([
-            "7. Do NOT modify any OTHER existing test files — only create new ones or edit the above",
-            "8. Check if a test file exists before writing. If it does, use a different filename",
-        ])
-    else:
-        lines.extend([
-            "6. Do NOT modify any existing test files — only create new ones",
-            "7. Check if a test file exists before writing. If it does, use a different filename",
-        ])
 
     if retry_context:
         passed, failed, errors = parse_pytest_counts(retry_context)
@@ -576,12 +526,11 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
             lines.extend([
                 f"ALL {passed} tests passed. The red gate requires at least one failure.",
                 "",
-                "**Try to find genuinely MISSING functionality to test:**",
-                "1. Read the existing implementation files listed in scope",
-                "2. Check acceptance criteria — is anything NOT yet implemented?",
-                "3. Write tests for missing functionality, edge cases, or validation gaps",
-                "4. If EVERYTHING is truly implemented and tested, it's OK to write passing",
-                "   tests — the orchestrator will detect this and skip the implementer phase",
+                "**You MUST:**",
+                "1. DELETE all test files you created (they test already-implemented code)",
+                "2. Read the existing implementation files listed in scope",
+                "3. Write NEW tests that target genuinely MISSING functionality",
+                "4. If everything is implemented, test edge cases or validation not yet covered",
             ])
         elif passed > 0:
             lines.extend([
@@ -683,25 +632,6 @@ def build_implementer_prompt(
     return "\n".join(lines)
 
 
-def get_scope_test_files(task: Task) -> list[str]:
-    """Extract test file paths from task scope (Create + Modify sections)."""
-    scope_files = preflight_scope_check(task)
-    return sorted(f for f, _ in scope_files if f.startswith("tests/"))
-
-
-def is_test_only_task(task: Task) -> bool:
-    """Check if all scope files are in tests/ (no implementation needed).
-
-    Returns True when the task only modifies/creates test files, meaning the
-    implementer agent has nothing to do.
-    """
-    scope_files = preflight_scope_check(task)
-    if not scope_files:
-        return False
-
-    return all(filepath.startswith("tests/") for filepath, _ in scope_files)
-
-
 def is_likely_test_bug(task: Task, green_output: str) -> bool:
     """Heuristic: did the implementer do the work but tests have bugs?
 
@@ -748,49 +678,26 @@ def find_failing_test_files(green_output: str) -> list[str]:
     return sorted(files)
 
 
-def find_erroring_test_files(green_output: str) -> list[str]:
-    """Extract erroring test file paths from pytest output.
-
-    Catches ERROR lines like:
-      ERROR tests/integration/webapp/repositories/test_user_repository.py::test_foo
-      tests/integration/webapp/repositories/test_user_repository.py:278: NameError
-    """
-    files: set[str] = set()
-    # Match ERROR lines in summary
-    for match in re.finditer(r"ERROR (tests/\S+\.py)::", green_output):
-        files.add(match.group(1))
-    # Match file:line in traceback for NameError/ImportError
-    for match in re.finditer(r"(tests/\S+\.py):\d+: (?:NameError|ImportError)", green_output):
-        files.add(match.group(1))
-    return sorted(files)
-
-
 def build_test_fix_prompt(
     task: Task,
     green_output: str,
     failing_test_files: list[str],
 ) -> str:
     """Build prompt for test-author in FIX mode (bounce-back from green failure)."""
-    # Merge failing files with task scope modify files (both are allowed)
-    modify_scope = get_modify_scope(task)
-    scope_test_files = [f for f in modify_scope if f.startswith("tests/")]
-    all_allowed_files = sorted(set(failing_test_files) | set(scope_test_files))
-
     lines = [
         f"FIX tests for task T{task.task_id}: {task.title}",
         "",
         "## Context",
         "",
-        "Some tests have bugs (missing imports, wrong patterns, etc.).",
-        "You are being called to FIX the failing tests — not write new ones.",
+        "The implementer completed the code, but some tests have bugs.",
+        "You are being called back to FIX the failing tests — not write new ones.",
         "",
-        "## Test Files You MAY Modify",
+        "## Failing Test Files (you MAY modify these)",
         "",
     ]
 
-    for f in all_allowed_files:
-        marker = " (FAILING)" if f in failing_test_files else ""
-        lines.append(f"- `{f}`{marker}")
+    for f in failing_test_files:
+        lines.append(f"- `{f}`")
 
     lines.extend([
         "",
@@ -828,14 +735,9 @@ def build_test_fix_prompt(
 def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
     """Re-snapshot and commit fixed tests after bounce-back.
 
-    Stages test fixes but does NOT commit separately — tdd-lock creates a
-    single commit containing both the test fixes and the snapshot. This avoids
-    the two-commit problem where the snapshot-only commit has no test files in
-    its diff, causing git-based scope discovery to fail.
-
     Returns (success, output).
     """
-    # Stage test fixes (NOT committed — tdd-lock will commit everything)
+    # Stage and commit test fixes
     result = subprocess.run(
         ["git", "add", "tests/"],
         cwd=PROJECT_ROOT, capture_output=True, text=True,
@@ -843,9 +745,16 @@ def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
     if result.returncode != 0:
         return False, result.stderr
 
-    # Re-snapshot — tdd-lock stages .tasks/ + tests/ and creates one commit
+    result = subprocess.run(
+        ["git", "commit", "-m", f"fix(tests): Fix test bugs for {task_id_str} (bounce-back)"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    # commit may fail if nothing changed — that's OK
+    commit_output = result.stdout + result.stderr
+
+    # Re-snapshot
     ok, snapshot_output = run_just_command("tdd-lock", task_id_str)
-    return ok, snapshot_output
+    return ok, commit_output + "\n" + snapshot_output
 
 
 # ---------------------------------------------------------------------------
@@ -1056,30 +965,8 @@ def run_tdd_lock(task_id: str) -> tuple[bool, str]:
     return run_just_command("tdd-lock", task_id)
 
 
-def run_tdd_green(task_id: str, task: Task | None = None) -> tuple[bool, str]:
-    """Verify tests pass (green phase). Returns (passed, output).
-
-    When a Task is provided, runs pytest directly with scope-derived test files
-    instead of `just tdd-green` (which discovers files from git history and can
-    fail when re-lock commits don't contain test file changes).
-    """
-    if task is not None:
-        test_files = get_scope_test_files(task)
-        if test_files:
-            files_display = " ".join(test_files)
-            log(f"    Running scope-derived green: pytest {files_display} -v")
-            result = subprocess.run(
-                ["docker", "compose", "exec", "-T", "webapp", "pytest", *test_files, "-v"],
-                capture_output=True, text=True, cwd=PROJECT_ROOT,
-            )
-            output = result.stdout + result.stderr
-            ok = result.returncode == 0
-            log(f"    scope-derived green -> {'OK' if ok else f'FAILED (exit {result.returncode})'}", "debug")
-            if output.strip():
-                log(f"    Output:\n{output[-3000:]}", "debug")
-            return ok, output
-        else:
-            log("    No test files in task scope, falling back to just tdd-green")
+def run_tdd_green(task_id: str) -> tuple[bool, str]:
+    """Verify tests pass (green phase). Returns (passed, output)."""
     return run_just_command("tdd-green", task_id)
 
 
@@ -1166,7 +1053,7 @@ def run_state_machine(
     epic_dir = TASKS_BASE / f"E{epic_number}"
 
     if not epic_dir.exists():
-        die(f"Epic directory not found: {epic_dir}\nRun: just plan {epic_number}")
+        die(f"Epic directory not found: {epic_dir}\nRun: just epic-sync {epic_number}")
 
     # Ensure log directories exist
     (epic_dir / "logs" / "errors").mkdir(parents=True, exist_ok=True)
@@ -1254,27 +1141,7 @@ def run_state_machine(
 
                     ok, output = run_tdd_red(task_id_str)
                     if not ok:
-                        # Check if all tests PASS (implementation already complete)
-                        passed, failed, errors = parse_pytest_counts(output)
-                        if passed > 0 and failed == 0 and errors == 0:
-                            log(f"\n  SKIP: All {passed} tests pass — implementation already complete")
-                            log(f"  Transitioning T{task.task_id} directly to validating")
-                            log_structured("phase_skip", task_id=task.task_id,
-                                           reason="already_implemented", tests_passing=passed)
-
-                            # Lock tests, then skip implementer → go straight to validating
-                            log(f"\n  Phase: LOCK (snapshotting tests)")
-                            lock_ok, lock_output = run_tdd_lock(task_id_str)
-                            if not lock_ok:
-                                stop_epic(epic_dir, task.task_id, "lock_failed", lock_output)
-
-                            update_task_state(epic_dir, task.task_id, "validating")
-                            log_structured("phase_end", task_id=task.task_id,
-                                           phase="test", result="skip_to_validating")
-                            git_sync()
-                            continue  # Next iteration picks up validating state
-                        else:
-                            stop_epic(epic_dir, task.task_id, "red_failed", output)
+                        stop_epic(epic_dir, task.task_id, "red_failed", output)
 
                 # Lock tests
                 log(f"\n  Phase: LOCK (snapshotting tests)")
@@ -1289,135 +1156,75 @@ def run_state_machine(
                 log(f"  [dry-run] Would run: tdd-red {task_id_str}")
                 log(f"  [dry-run] Would run: tdd-lock {task_id_str}")
                 log(f"  [dry-run] Would update state: pending → locked")
-                update_task_state(epic_dir, task.task_id, "locked")
 
         elif task.state == "locked":
-            # --- CHECK: is this a test-only task? ---
-            test_only = is_test_only_task(task)
+            # --- IMPLEMENTATION PHASE ---
+            log(f"\n  Phase: IMPL (implementing T{task.task_id})")
+            log_structured("phase_start", task_id=task.task_id, phase="impl")
 
-            if test_only:
-                # Test-only tasks (scope is all test files) — dispatch test-author
-                # in fix mode instead of implementer, since implementer can't
-                # modify test files.
-                log(f"\n  Phase: TEST-FIX (test-only task T{task.task_id})")
-                log_structured("phase_start", task_id=task.task_id, phase="test_fix")
+            prompt = build_implementer_prompt(task)
+            dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
 
-                # First check if tests already pass
-                ok, output = run_tdd_green(task_id_str, task)
+            if not dry_run:
+                # Verify tests pass (green phase)
+                log(f"\n  Phase: GREEN (verifying tests pass)")
+                ok, output = run_tdd_green(task_id_str)
 
                 if not ok:
-                    failing_files = find_failing_test_files(output)
-                    # Also include erroring files from pytest output
-                    error_files = find_erroring_test_files(output)
-                    all_problem_files = sorted(set(failing_files) | set(error_files))
+                    # Retry up to MAX_IMPLEMENTER_RETRIES times
+                    for attempt in range(MAX_IMPLEMENTER_RETRIES):
+                        log(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
+                        retry_prompt = build_implementer_prompt(task, retry_context=output)
+                        dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
 
-                    if all_problem_files:
-                        log(f"  Test-only task has {len(all_problem_files)} problem file(s), dispatching test-author FIX...")
-                        fix_prompt = build_test_fix_prompt(task, output, all_problem_files)
-                        dispatch_agent("test-author", fix_prompt, project=task.project, dry_run=dry_run)
-
-                        if not dry_run:
-                            # Re-lock and re-verify
-                            log(f"\n  Re-locking tests after fix...")
-                            lock_ok, lock_output = re_lock_after_bounce(task_id_str)
-                            if not lock_ok:
-                                stop_epic(epic_dir, task.task_id, "test_fix_lock_failed", lock_output)
-
-                            ok, output = run_tdd_green(task_id_str, task)
-                            if not ok:
-                                stop_epic(epic_dir, task.task_id, "test_fix_green_failed", output)
-                    else:
-                        stop_epic(epic_dir, task.task_id, "green_failed", output)
-
-                if not dry_run:
-                    # Commit test fixes + task state
-                    log(f"\n  Committing test fixes...")
-                    subprocess.run(
-                        ["git", "add", "tests/", ".tasks/"],
-                        cwd=PROJECT_ROOT, capture_output=True, text=True,
-                    )
-                    subprocess.run(
-                        ["git", "commit", "-m", f"fix(tests): Fix tests for {task_id_str} — {task.title}"],
-                        cwd=PROJECT_ROOT, capture_output=True, text=True,
-                    )
-                    git_sync()
-
-                    update_task_state(epic_dir, task.task_id, "validating")
-                    log_structured("phase_end", task_id=task.task_id, phase="test_fix", result="validating")
-                else:
-                    log(f"  [dry-run] Would dispatch test-author FIX for test-only task")
-                    log(f"  [dry-run] Would update state: locked → validating")
-                    update_task_state(epic_dir, task.task_id, "validating")
-
-            else:
-                # --- IMPLEMENTATION PHASE (normal) ---
-                log(f"\n  Phase: IMPL (implementing T{task.task_id})")
-                log_structured("phase_start", task_id=task.task_id, phase="impl")
-
-                prompt = build_implementer_prompt(task)
-                dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
-
-                if not dry_run:
-                    # Verify tests pass (green phase)
-                    log(f"\n  Phase: GREEN (verifying tests pass)")
-                    ok, output = run_tdd_green(task_id_str, task)
+                        ok, output = run_tdd_green(task_id_str)
+                        if ok:
+                            break
 
                     if not ok:
-                        # Retry up to MAX_IMPLEMENTER_RETRIES times
-                        for attempt in range(MAX_IMPLEMENTER_RETRIES):
-                            log(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
-                            retry_prompt = build_implementer_prompt(task, retry_context=output)
-                            dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
+                        # --- BOUNCE-BACK: try fixing tests if likely test bug ---
+                        bounced = bounce_backs.get(task.task_id, 0)
+                        if bounced == 0 and is_likely_test_bug(task, output):
+                            bounce_backs[task.task_id] = 1
+                            failing_files = find_failing_test_files(output)
+                            log(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
+                            log(f"  Dispatching test-author in FIX mode...")
 
-                            ok, output = run_tdd_green(task_id_str, task)
-                            if ok:
-                                break
+                            fix_prompt = build_test_fix_prompt(task, output, failing_files)
+                            dispatch_agent("test-author", fix_prompt, project=task.project)
 
-                        if not ok:
-                            # --- BOUNCE-BACK: try fixing tests if likely test bug ---
-                            bounced = bounce_backs.get(task.task_id, 0)
-                            if bounced == 0 and is_likely_test_bug(task, output):
-                                bounce_backs[task.task_id] = 1
-                                failing_files = find_failing_test_files(output)
-                                log(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
-                                log(f"  Dispatching test-author in FIX mode...")
+                            # Re-lock tests and re-verify green
+                            log(f"\n  Re-locking tests after bounce-back...")
+                            lock_ok, lock_output = re_lock_after_bounce(task_id_str)
+                            if not lock_ok:
+                                stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
 
-                                fix_prompt = build_test_fix_prompt(task, output, failing_files)
-                                dispatch_agent("test-author", fix_prompt, project=task.project)
+                            log(f"\n  Re-running GREEN after bounce-back...")
+                            ok, output = run_tdd_green(task_id_str)
+                            if not ok:
+                                stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
+                        else:
+                            stop_epic(epic_dir, task.task_id, "green_failed", output)
 
-                                # Re-lock tests and re-verify green
-                                log(f"\n  Re-locking tests after bounce-back...")
-                                lock_ok, lock_output = re_lock_after_bounce(task_id_str)
-                                if not lock_ok:
-                                    stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
+                # Auto-commit implementation files + task state
+                log(f"\n  Committing implementation...")
+                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", ".tasks/"]
+                subprocess.run(
+                    ["git", "add", *impl_paths],
+                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"feat({task.project or 'impl'}): Implement {task_id_str} — {task.title}"],
+                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                )
+                git_sync()
 
-                                log(f"\n  Re-running GREEN after bounce-back...")
-                                ok, output = run_tdd_green(task_id_str, task)
-                                if not ok:
-                                    stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
-                            else:
-                                stop_epic(epic_dir, task.task_id, "green_failed", output)
-
-                    # Auto-commit implementation files + task state
-                    log(f"\n  Committing implementation...")
-                    impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", ".tasks/"]
-                    subprocess.run(
-                        ["git", "add", *impl_paths],
-                        cwd=PROJECT_ROOT, capture_output=True, text=True,
-                    )
-                    subprocess.run(
-                        ["git", "commit", "-m", f"feat({task.project or 'impl'}): Implement {task_id_str} — {task.title}"],
-                        cwd=PROJECT_ROOT, capture_output=True, text=True,
-                    )
-                    git_sync()
-
-                    update_task_state(epic_dir, task.task_id, "validating")
-                    log_structured("phase_end", task_id=task.task_id, phase="impl", result="validating")
-                else:
-                    log(f"  [dry-run] Would run: tdd-green {task_id_str}")
+                update_task_state(epic_dir, task.task_id, "validating")
+                log_structured("phase_end", task_id=task.task_id, phase="impl", result="validating")
+            else:
+                log(f"  [dry-run] Would run: tdd-green {task_id_str}")
                 log(f"  [dry-run] Would commit implementation files")
                 log(f"  [dry-run] Would update state: locked → validating")
-                update_task_state(epic_dir, task.task_id, "validating")
 
         elif task.state == "validating":
             # --- VALIDATION PHASE ---
@@ -1446,7 +1253,6 @@ def run_state_machine(
             else:
                 log(f"  [dry-run] Would run: tdd-complete {task_id_str}")
                 log(f"  [dry-run] Would update state: validating → complete")
-                update_task_state(epic_dir, task.task_id, "complete")
 
         else:
             die(f"Unexpected task state: {task.state} for T{task.task_id}")
@@ -1466,13 +1272,15 @@ def run_state_machine(
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Run the TDD state machine."""
-    # Verify .tasks/ exists (created by plan_epic.py step 7 via tasks_from_plan.py)
-    epic_dir = TASKS_BASE / f"E{args.epic}"
-    if not epic_dir.exists():
-        die(
-            f"Epic directory not found: {epic_dir}\n"
-            f"Run `just plan {args.epic}` first to generate task files."
-        )
+    # Sync epic first (idempotent)
+    print(f"Syncing epic #{args.epic}...")
+    result = subprocess.run(
+        ["just", "epic-sync", str(args.epic)],
+        cwd=PROJECT_ROOT,
+    )
+    if result.returncode != 0:
+        die(f"Failed to sync epic #{args.epic}")
+    print()
 
     run_state_machine(
         epic_number=args.epic,

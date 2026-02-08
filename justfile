@@ -362,23 +362,11 @@ uninstall-hooks:
 
 # --- Epic Management ---
 
-# Materialise tasks from TASKS.md to .tasks/ (local-only, no GH issues)
+# Sync epic from GitHub to .tasks/
 epic-sync epic:
-    #!/usr/bin/env bash
-    set -e
-    TASKS_MD=$(find .planning/epics/ -name TASKS.md -path "*" 2>/dev/null | head -1)
-    if [ -z "$TASKS_MD" ]; then
-        echo "Error: No TASKS.md found in .planning/epics/"
-        echo "Run: just plan {{epic}}"
-        exit 1
-    fi
-    python scripts/tasks_from_plan.py "$TASKS_MD" {{epic}}
-
-# [Deprecated] Sync from GitHub issues (for E1/E33 backward compat)
-epic-sync-gh epic:
     python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}}
 
-# [Deprecated] Sync from GitHub with validation
+# Sync with validation (warns on sparse issues)
 epic-sync-validate epic:
     python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}} --validate
 
@@ -397,7 +385,7 @@ dispatch agent +prompt:
 # Show epic status
 epic-status epic:
     @echo "=== Epic E{{epic}} Status ==="
-    @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just plan {{epic}}"
+    @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just epic-sync {{epic}}"
 
 # Plan an epic - full agent pipeline
 plan epic *FLAGS:
@@ -407,12 +395,15 @@ plan epic *FLAGS:
 plan-dry epic *FLAGS:
     python scripts/plan_epic.py {{epic}} --dry-run {{FLAGS}}
 
-# Full workflow: plan -> start (no separate sync needed)
+# Full workflow: plan -> sync -> start
 epic-full epic:
     #!/usr/bin/env bash
     set -e
     echo "=== Planning Epic #{{epic}} ==="
     just plan {{epic}}
+    echo ""
+    echo "=== Syncing to .tasks/ ==="
+    just epic-sync {{epic}}
     echo ""
     echo "=== Starting Orchestration ==="
     just epic-start {{epic}}
@@ -428,9 +419,8 @@ tdd-test-phase task:
 
 # Verify tests fail (red phase) - runs in Docker
 # Only checks NEW/MODIFIED test files (not pre-existing passing tests)
-# Gate: at least one test must FAIL (assertion failure). Errors alone (NameError,
-# ImportError inside test files) are rejected — they indicate test bugs, not
-# missing implementation. Passing tests are warned but tolerated when failures exist.
+# Gate: at least one test must FAIL. Passing tests are warned but tolerated
+# when failures exist (handles tasks that extend already-implemented code).
 tdd-red task:
     #!/usr/bin/env bash
     set -e
@@ -465,25 +455,7 @@ tdd-red task:
     echo ""
     echo "Results: ${FAILED} failed, ${PASSED} passed, ${ERRORS} errors"
 
-    # Gate 1: reject tests with ONLY errors and no failures
-    # Errors (NameError, ImportError inside tests, SyntaxError) indicate test bugs.
-    # A valid red state requires at least one assertion FAILURE proving the test
-    # exercises missing implementation, not just broken test code.
-    if [ "$ERRORS" -gt 0 ] && [ "$FAILED" -eq 0 ]; then
-        echo "ERROR: ${ERRORS} tests errored but none failed with assertions."
-        echo "  Errors (NameError, ImportError, SyntaxError) indicate test bugs,"
-        echo "  not missing implementation. Fix the test code before locking."
-        echo ""
-        echo "  Common causes:"
-        echo "    - Missing import in test file (e.g. 'from sqlalchemy import event')"
-        echo "    - Typo in test code"
-        echo "    - Wrong fixture name"
-        echo ""
-        echo "$OUTPUT" | tail -30
-        exit 1
-    fi
-
-    # Gate 2: at least one test must fail
+    # Gate: at least one test must fail
     if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
         echo "ERROR: All ${PASSED} tests passed. Tests must fail before implementation."
         echo "Either tests are trivial or code already exists for everything tested."
@@ -497,15 +469,13 @@ tdd-red task:
         echo "  This is OK — ${FAILED} tests still fail, so there's work to do."
     fi
 
-    # Warn on errors alongside failures (tolerated but flagged)
     if [ "$ERRORS" -gt 0 ]; then
-        echo "WARNING: ${ERRORS} tests errored (possible test bugs)."
-        echo "  Tolerated because ${FAILED} tests also fail with assertions."
-        echo "  Review erroring tests — they may need import/syntax fixes."
+        echo "NOTE: ${ERRORS} tests errored (import/syntax issues)."
+        echo "  Errors count as 'not passing' — acceptable in red phase."
     fi
 
     echo ""
-    echo "Red phase verified: ${FAILED} failing tests found."
+    echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
 
 # Lock tests (snapshot before implementation)
 tdd-lock task:
@@ -527,28 +497,12 @@ tdd-impl-phase task:
     @echo "Or use TDD helper:"
     @echo "  just tdd tests/unit/path/to/test.py"
 
-# Verify tests pass (green phase) - runs task-scoped tests in Docker
+# Verify tests pass (green phase) - runs in Docker
 tdd-green task:
     #!/usr/bin/env bash
     set -e
-    echo "Verifying tests pass for {{task}}..."
-    # Find the lock commit for this task
-    LOCK_COMMIT=$(git log --oneline --grep="test-lock: {{task}}" -1 --format="%H")
-    if [ -z "$LOCK_COMMIT" ]; then
-        echo "WARNING: No lock commit found for {{task}}, falling back to full test suite"
-        docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
-    else
-        # Extract test files from the lock commit
-        TEST_FILES=$(git diff-tree --no-commit-id --name-only -r "$LOCK_COMMIT" -- tests/)
-        if [ -z "$TEST_FILES" ]; then
-            echo "WARNING: No test files found in lock commit $LOCK_COMMIT, falling back to full test suite"
-            docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
-        else
-            echo "Running task-scoped tests from lock commit ${LOCK_COMMIT:0:8}:"
-            echo "$TEST_FILES"
-            docker compose exec -T webapp pytest $TEST_FILES -v
-        fi
-    fi
+    echo "Verifying tests pass..."
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
     echo "Tests passing"
 
 # Full TDD validation

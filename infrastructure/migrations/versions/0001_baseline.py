@@ -2,17 +2,6 @@
 
 Creates all 21 tables matching ORM models in webapp.adapters.persistence.models.
 
-New tables: op.create_table('gear_makes'), op.create_table('gear_sources'),
-op.create_table('oauth_providers'), op.create_table('user_identities'),
-op.create_table('gear_models'), op.create_table('gear_tags'),
-op.create_table('audio_segments')
-
-Existing tables modified: block_types, di_tracks, gear, jobs, presets,
-shootout_chains, shootouts, signal_chain_blocks, signal_chain_groups,
-signal_chains, tags, users
-
-Seed data: oauth_providers (tone3000 provider), block_types
-
 Revision ID: 0001
 Revises: (none)
 Create Date: 2026-02-07

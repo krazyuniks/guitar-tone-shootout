@@ -22,7 +22,7 @@ from webapp.adapters.persistence.models.signal_chain import SignalChain as Signa
 from webapp.adapters.persistence.models.signal_chain_block import SignalChainBlock as SignalChainBlockModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
-from webapp.auth.dependencies import set_session_override as set_library_session, set_user_override as set_library_user
+from webapp.api.v1.library import set_session_override as set_library_session, set_user_override as set_library_user
 from webapp.api.v1.signal_chains import set_session_override as set_chain_session, set_user_override as set_chain_user
 from webapp.main import app
 

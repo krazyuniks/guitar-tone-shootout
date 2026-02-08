@@ -18,67 +18,82 @@ export const GET: APIRoute = () => {
 
 {% block content %}
 <div
-  data-testid="library-my-gear-page"
+  data-testid="my-gear-page"
+  hx-boost="true"
   class="min-h-screen"
 >
+  <!-- Page Header -->
   <div class="container mx-auto px-4 py-8">
     <div class="mb-8">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
-            My Gear
-          </h1>
-          <p class="text-[var(--color-text-secondary)]">
-            Manage your saved gear library
-          </p>
-        </div>
-        <a
-          href="/gear"
-          class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
-          data-testid="add-gear-btn"
-        >
-          Add Gear
-        </a>
-      </div>
+      <h1 class="text-2xl font-bold text-[var(--color-text-primary)] mb-2">
+        My Gear
+      </h1>
+      <p class="text-[var(--color-text-secondary)]">
+        Manage your saved gear library
+      </p>
     </div>
 
-    <!-- Filter controls -->
-    <div class="mb-6">
-      <select data-testid="gear-type-filter" hx-get="/api/v1/html/library/my-gear/list" hx-target="#my-gear-list" hx-swap="innerHTML" name="gear_type" class="rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border)] px-3 py-2 text-[var(--color-text-primary)]">
-        <option value="">All Types</option>
-        <option value="amp">Amps</option>
-        <option value="pedal">Pedals</option>
-        <option value="ir">IRs</option>
-      </select>
-    </div>
-
-    <!-- Gear list (SSR inline) -->
-    <div id="my-gear-list" hx-target="this" hx-swap="innerHTML">
-      {% if gear_items %}
-      <div class="space-y-3">
-        {% for item in gear_items %}
-        <div data-testid="gear-item" class="bg-[var(--color-bg-elevated)] rounded-lg p-4">
-          <div class="flex items-start justify-between">
-            <div>
-              <h3 class="font-medium text-[var(--color-text-primary)]">{{ item.gear_name }}</h3>
-              <span class="text-sm text-[var(--color-text-secondary)]">{{ item.gear_type }} - {{ item.manufacturer }}</span>
-              {% if item.nickname %}
-              <p class="text-sm text-[var(--color-text-secondary)] mt-1">{{ item.nickname }}</p>
-              {% endif %}
-            </div>
-            <button data-testid="remove-gear-btn" hx-delete="/api/v1/html/library/my-gear/{{ item.user_gear_id }}" class="text-sm text-red-500 hover:text-red-400">Remove</button>
+    <!-- HTMX container that loads my-gear results on page load -->
+    <div
+      id="my-gear-results-container"
+      hx-get="/api/v1/html/my-gear/results"
+      hx-trigger="load"
+      hx-swap="outerHTML"
+    >
+      <!-- Loading state - shows until HTMX replaces content -->
+      <div class="space-y-4">
+        <!-- Filter skeleton -->
+        <div class="mb-6 space-y-4">
+          <!-- Search bar skeleton -->
+          <div class="h-10 bg-[var(--color-bg-elevated)] rounded-lg animate-pulse"></div>
+          <!-- Filter buttons skeleton -->
+          <div class="flex gap-2">
+            {% for _ in range(5) %}
+            <div class="h-8 w-16 bg-[var(--color-bg-elevated)] rounded-full animate-pulse"></div>
+            {% endfor %}
           </div>
         </div>
-        {% endfor %}
+
+        <!-- Pack cards skeleton -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {% for _ in range(4) %}
+          <div class="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--color-bg-elevated)]">
+            <div class="flex">
+              <div class="flex-shrink-0 w-28 sm:w-36 aspect-square bg-[var(--color-bg-secondary)] animate-pulse"></div>
+              <div class="flex-1 p-4 space-y-3">
+                <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 animate-pulse"></div>
+                <div class="flex gap-2">
+                  <div class="h-4 w-20 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
+                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
+                </div>
+                <div class="flex gap-4">
+                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
+                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
+                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
       </div>
-      {% else %}
-      <div class="text-center py-12 text-[var(--color-text-secondary)]">
-        <p>No gear yet. Add some gear to your library.</p>
-      </div>
-      {% endif %}
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
+    }
+  });
+</script>
 {% endblock %}
 `;
 

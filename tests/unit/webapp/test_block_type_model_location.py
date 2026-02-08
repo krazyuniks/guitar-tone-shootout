@@ -246,21 +246,13 @@ class TestPresetModelLocation:
         session.add(preset)
         await session.commit()
 
-        # Re-fetch with joinedload to load relationship
-        from sqlalchemy import select
-        from sqlalchemy.orm import joinedload
-
-        result = await session.execute(
-            select(Preset)
-            .where(Preset.id == preset.id)
-            .options(joinedload(Preset.signal_chain_block))
-        )
-        loaded = result.unique().scalar_one()
+        # Refresh to load relationship
+        await session.refresh(preset)
 
         # Verify relationship
-        assert hasattr(loaded, "signal_chain_block")
-        assert loaded.signal_chain_block is not None
-        assert loaded.signal_chain_block.id == block.id
+        assert hasattr(preset, "signal_chain_block")
+        assert preset.signal_chain_block is not None
+        assert preset.signal_chain_block.id == block.id
 
     async def test_preset_cascades_on_block_delete(self, session: AsyncSession) -> None:
         """Preset should be deleted when its SignalChainBlock is deleted."""

@@ -269,6 +269,7 @@ services:
       - FRONTEND_URL={public_url}
       - PUBLIC_URL={public_url}
       - CORS_ORIGINS={public_url}
+      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
 
   # Astro is build-only (--profile build) - nginx serves pre-committed dist/ directly
   astro:

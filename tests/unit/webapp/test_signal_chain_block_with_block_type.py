@@ -153,21 +153,13 @@ async def test_signal_chain_block_has_block_type_relationship(session: AsyncSess
     session.add(block)
     await session.commit()
 
-    # Re-fetch with joinedload to load relationships
-    from sqlalchemy import select
-    from sqlalchemy.orm import joinedload
-
-    result = await session.execute(
-        select(SignalChainBlock)
-        .where(SignalChainBlock.id == block.id)
-        .options(joinedload(SignalChainBlock.block_type))
-    )
-    loaded = result.unique().scalar_one()
+    # Refresh to load relationships
+    await session.refresh(block)
 
     # Assert - Check relationship exists
-    assert hasattr(loaded, "block_type")
-    assert loaded.block_type is not None
-    assert loaded.block_type.name == "Reverb"
+    assert hasattr(block, "block_type")
+    assert block.block_type is not None
+    assert block.block_type.name == "Reverb"
 
 
 @pytest.mark.asyncio

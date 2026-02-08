@@ -13,7 +13,6 @@ import '../../../styles/global.css';
 export const GET: APIRoute = () => {
   const template = `{% extends "layouts/base.html" %}
 
-{% block title %}Build Chain - Guitar Tone Shootout{% endblock %}
 {% block description %}Create audio signal chains with visual stages and domain-driven guidance.{% endblock %}
 
 {% block head %}

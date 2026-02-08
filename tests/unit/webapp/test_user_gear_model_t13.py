@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
@@ -231,13 +230,11 @@ class TestUserGearModel:
 
         # Fetch user_gear and access user via relationship
         result = await session.execute(
-            select(UserGear)
-            .where(UserGear.user_id == user.id)
-            .options(joinedload(UserGear.user))
+            select(UserGear).where(UserGear.user_id == user.id)
         )
-        saved = result.unique().scalar_one()
+        saved = result.scalar_one()
 
-        # Access user via relationship (eagerly loaded)
+        # Access user via relationship (should be lazy-loaded)
         assert saved.user is not None
         assert saved.user.username == "test_user"
 
@@ -259,11 +256,9 @@ class TestUserGearModel:
 
         # Fetch user_gear and access gear via relationship
         result = await session.execute(
-            select(UserGear)
-            .where(UserGear.user_id == user.id)
-            .options(joinedload(UserGear.gear))
+            select(UserGear).where(UserGear.user_id == user.id)
         )
-        saved = result.unique().scalar_one()
+        saved = result.scalar_one()
 
         # Access gear via relationship
         assert saved.gear is not None

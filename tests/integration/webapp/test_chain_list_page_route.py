@@ -14,7 +14,6 @@ from httpx import ASGITransport, AsyncClient
 from core.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
-from webapp.auth.dependencies import get_current_user_required, get_db_session
 from webapp.main import create_app
 
 if TYPE_CHECKING:
@@ -61,9 +60,11 @@ class TestLibraryChainsPageRoute:
         self, db_session: AsyncSession, test_user: User
     ) -> None:
         """Verify GET /library/chains returns HTML page."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -85,9 +86,11 @@ class TestLibraryChainsPageRoute:
         self, db_session: AsyncSession, test_user: User
     ) -> None:
         """Verify chain list page extends base layout."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -108,9 +111,11 @@ class TestLibraryChainsPageRoute:
         self, db_session: AsyncSession, test_user: User
     ) -> None:
         """Verify page shows empty state when user has no chains."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -134,9 +139,11 @@ class TestLibraryChainsPageRoute:
         test_chain: SignalChain,
     ) -> None:
         """Verify page displays user's signal chains."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -155,9 +162,11 @@ class TestLibraryChainsPageRoute:
         self, db_session: AsyncSession, test_user: User
     ) -> None:
         """Verify page has button/link to create a new chain."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -177,9 +186,11 @@ class TestLibraryChainsPageRoute:
         self, db_session: AsyncSession, test_user: User
     ) -> None:
         """Verify page uses HTMX for dynamic operations."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -203,9 +214,11 @@ class TestLibraryChainsPageRoute:
         test_chain: SignalChain,
     ) -> None:
         """Verify each chain item has a delete button."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -228,9 +241,11 @@ class TestLibraryChainsPageRoute:
         test_chain: SignalChain,
     ) -> None:
         """Verify each chain item has a duplicate button."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -253,9 +268,11 @@ class TestLibraryChainsPageRoute:
         test_chain: SignalChain,
     ) -> None:
         """Verify each chain has link to chain builder for editing."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -275,8 +292,10 @@ class TestLibraryChainsPageRoute:
         self, db_session: AsyncSession
     ) -> None:
         """Verify page requires authentication."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
         # Do NOT override get_current_user - should fail with 401
 
         async with AsyncClient(
@@ -294,9 +313,11 @@ class TestLibraryChainsPageRoute:
         test_chain: SignalChain,
     ) -> None:
         """Verify chain items display platform badge."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -325,9 +346,11 @@ class TestChainListFragments:
         test_chain: SignalChain,
     ) -> None:
         """Verify DELETE fragment endpoint exists for chain deletion."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -346,9 +369,11 @@ class TestChainListFragments:
         test_chain: SignalChain,
     ) -> None:
         """Verify POST fragment endpoint exists for chain duplication."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -366,9 +391,11 @@ class TestChainListFragments:
         test_chain: SignalChain,
     ) -> None:
         """Verify chain list fragment returns HTML for HTMX updates."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -390,9 +417,11 @@ class TestChainListFragments:
         self, db_session: AsyncSession, test_user: User
     ) -> None:
         """Verify chain list fragment shows empty state when no chains."""
+        from webapp.api import pages
+
         app = create_app()
-        app.dependency_overrides[get_db_session] = lambda: db_session
-        app.dependency_overrides[get_current_user_required] = lambda: test_user
+        app.dependency_overrides[pages.get_db_session] = lambda: db_session
+        app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"

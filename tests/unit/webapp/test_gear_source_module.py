@@ -148,14 +148,10 @@ class TestGearSourceModule:
         await session.commit()
 
         # Verify relationship
-        from sqlalchemy.orm import joinedload
-
         result = await session.execute(
-            select(GearSource)
-            .where(GearSource.id == source.id)
-            .options(joinedload(GearSource.gear))
+            select(GearSource).where(GearSource.id == source.id)
         )
-        saved_source = result.unique().scalar_one()
+        saved_source = result.scalar_one()
 
         # Should have gear relationship
         assert hasattr(saved_source, "gear")

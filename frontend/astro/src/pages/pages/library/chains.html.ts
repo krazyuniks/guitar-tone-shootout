@@ -18,7 +18,7 @@ export const GET: APIRoute = () => {
 
 {% block content %}
 <div
-  data-testid="library-chains-page"
+  data-testid="chains-library"
   class="container mx-auto px-4 py-8"
 >
   <!-- Header -->
@@ -35,7 +35,7 @@ export const GET: APIRoute = () => {
       <a
         href="/library/chains/build"
         class="inline-flex items-center gap-2 px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
-        data-testid="create-chain-btn"
+        data-testid="build-chain-btn"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
           <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
@@ -45,38 +45,48 @@ export const GET: APIRoute = () => {
     </div>
   </div>
 
-  <!-- Chains list (SSR inline) -->
-  <div id="chains-list-container" hx-target="this" hx-swap="innerHTML">
-    {% if chains %}
+  <!-- HTMX-powered chains list -->
+  <div
+    id="chains-list-container"
+    hx-get="/api/v1/html/library/chains"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <!-- Loading state while HTMX fetches content -->
     <div class="space-y-3">
-      {% for chain in chains %}
-      <div data-testid="chain-item" class="bg-[var(--color-bg-elevated)] rounded-lg p-4">
-        <div class="flex items-start justify-between">
+      {% for i in range(4) %}
+      <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4 animate-pulse">
+        <div class="flex items-start gap-4">
+          <div class="flex-shrink-0 w-10 h-10 bg-[var(--color-bg-secondary)] rounded-lg"></div>
           <div class="flex-1">
-            <h3 class="font-medium text-[var(--color-text-primary)]">{{ chain.name }}</h3>
-            {% if chain.description %}
-            <p class="text-sm text-[var(--color-text-secondary)] mt-1">{{ chain.description }}</p>
-            {% endif %}
-            <div class="flex items-center gap-2 mt-2">
-              <span data-testid="platform-badge" class="text-xs px-2 py-0.5 rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)]">{{ chain.platform }}</span>
+            <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 mb-2"></div>
+            <div class="h-4 bg-[var(--color-bg-secondary)] rounded w-1/2 mb-2"></div>
+            <div class="flex gap-2">
+              <div class="h-4 w-16 bg-[var(--color-bg-secondary)] rounded"></div>
+              <div class="h-4 w-20 bg-[var(--color-bg-secondary)] rounded"></div>
+              <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded"></div>
             </div>
-          </div>
-          <div class="flex items-center gap-2 ml-4">
-            <a href="/library/chains/build?chain_id={{ chain.id }}" data-testid="edit-chain-btn" class="text-sm text-[var(--color-accent-primary)] hover:underline">Edit</a>
-            <button data-testid="duplicate-chain-btn" hx-post="/fragments/chains/{{ chain.id }}/duplicate" class="text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Duplicate</button>
-            <button data-testid="delete-chain-btn" hx-delete="/fragments/chains/{{ chain.id }}" hx-confirm="Delete this chain?" class="text-sm text-red-500 hover:text-red-400">Delete</button>
           </div>
         </div>
       </div>
       {% endfor %}
     </div>
-    {% else %}
-    <div class="text-center py-12 text-[var(--color-text-secondary)]">
-      <p>No chains yet. Build your first chain to get started.</p>
-    </div>
-    {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Handle HTMX response errors for auth
+  document.body.addEventListener('htmx:responseError', (event) => {
+    const xhr = event.detail?.xhr;
+    if (xhr && xhr.status === 401) {
+      // Not authenticated - redirect to login
+      const currentPath = window.location.pathname;
+      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
+    }
+  });
+</script>
 {% endblock %}
 `;
 
