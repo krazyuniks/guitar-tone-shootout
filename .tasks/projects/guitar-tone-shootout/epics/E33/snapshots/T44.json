@@ -5,8 +5,8 @@
   "files": [
     {
       "path": "tests/integration/webapp/repositories/test_signal_chain_repository.py",
-      "sha256": "c10fecef7f623d1b6c4d6c7c03d2caf192c755e864b98122bbbdc7baaad0e38a",
-      "size": 6213,
+      "sha256": "2f9d8592b75937aa415c72c16636bd3c8a4759e09082153259ca707bf58e6617",
+      "size": 6543,
       "modified": "2026-02-08T14:00:45.923877+00:00"
     },
     {
