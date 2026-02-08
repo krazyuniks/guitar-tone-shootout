@@ -34,7 +34,7 @@ T43 → T46
 | T43 | [Task]: F2 - Add integration tests  | complete | webapp | T42 |
 | T44 | [Task]: F3 - Add integration tests  | complete | webapp | T42 |
 | T45 | [Task]: F4 - Add integration tests  | complete | webapp | T42 |
-| T46 | [Task]: G1 - Verify regression and  | pending | webapp | T43 |
+| T46 | [Task]: G1 - Verify regression and  | locked | webapp | T43 |
 
 ## Commands
 

@@ -10,8 +10,8 @@ from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.base import Base
+from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.signal_chain import (
-    BlockType,
     SignalChain,
     SignalChainBlock,
 )

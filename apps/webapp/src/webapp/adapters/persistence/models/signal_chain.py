@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from .block_type import BlockType
+    from .preset import Preset
+    from .user import User
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,11 +19,6 @@ from core.domain.value_objects.signal_chain_enums import (
 )
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
-from .block_type import BlockType
-from .preset import Preset
-
-if TYPE_CHECKING:
-    from .user import User
 
 
 class SignalChain(UUIDMixin, TimestampMixin, Base):
@@ -103,7 +103,7 @@ class SignalChainBlock(UUIDMixin, Base):
         nullable=False,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    user_gear_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_gear_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid,
         nullable=True,
     )
@@ -111,7 +111,7 @@ class SignalChainBlock(UUIDMixin, Base):
         EnumByValue(GearType),
         nullable=True,
     )
-    block_type_id: Mapped[uuid.UUID | None] = mapped_column(
+    block_type_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid,
         ForeignKey("block_types.id", ondelete="CASCADE"),
         nullable=True,
@@ -174,7 +174,7 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    base_chain_id: Mapped[uuid.UUID | None] = mapped_column(
+    base_chain_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid,
         ForeignKey("signal_chains.id", ondelete="CASCADE"),
         nullable=True,

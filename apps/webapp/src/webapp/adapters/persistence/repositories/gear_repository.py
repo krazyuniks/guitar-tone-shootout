@@ -13,11 +13,11 @@ from core.domain.entities.gear import GearModel as GearModelVO
 from core.domain.entities.gear import GearSource as GearSourceVO
 from webapp.adapters.persistence.models.gear import (
     Gear,
-    GearModel,
-    GearSource,
     GearTag,
     gear_tags_table,
 )
+from webapp.adapters.persistence.models.gear_model import GearModel
+from webapp.adapters.persistence.models.gear_source import GearSource
 
 if TYPE_CHECKING:
     from uuid import UUID

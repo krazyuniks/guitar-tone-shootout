@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
@@ -114,7 +114,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    di_track_id: Mapped[uuid.UUID | None] = mapped_column(
+    di_track_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid,
         ForeignKey("di_tracks.id", ondelete="CASCADE"),
         nullable=True,

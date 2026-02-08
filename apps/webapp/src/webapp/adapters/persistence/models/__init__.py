@@ -11,9 +11,9 @@ from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearMake,
-    GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.gear_source import GearSource
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.job import AuditLog, Job
 from webapp.adapters.persistence.models.preset import Preset

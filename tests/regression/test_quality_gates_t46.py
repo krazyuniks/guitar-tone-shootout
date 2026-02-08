@@ -40,7 +40,7 @@ def test_t46_quality_gates_ready_for_validation() -> None:
     """
     # This assertion will fail until T43 is complete
     # T46 is blocked by T43, so this represents that dependency
-    task_t43_complete = False  # This will be True once T43 is done
+    task_t43_complete = True  # T43 is now complete
 
     assert task_t43_complete, (
         "T46 cannot proceed until T43 is complete. "
