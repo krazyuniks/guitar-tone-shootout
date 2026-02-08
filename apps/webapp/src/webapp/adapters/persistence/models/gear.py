@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .gear_model import GearModel
@@ -156,14 +156,14 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     platform: Mapped[str | None] = mapped_column(String(50), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    make_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    make_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("gear_makes.id", ondelete="SET NULL"),
         nullable=True,
     )
     thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    source_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("gear_sources.id", ondelete="SET NULL"),
         nullable=True,
