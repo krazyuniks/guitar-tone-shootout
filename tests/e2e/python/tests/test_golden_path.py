@@ -1,163 +1,176 @@
 """Golden path regression tests — one test per webapp route.
 
-Fast HTTP-level checks using httpx. Each route tested exactly once.
-No browser needed — just verify status codes and key content.
+Browser-level checks using Playwright. Each route tested exactly once.
+Verifies status codes, key content, and SSR rendering.
 """
 
-import os
 import re
 
-import httpx
 import pytest
-
-
-@pytest.fixture(scope="module")
-def app_url() -> str:
-    return os.getenv("BASE_URL", os.getenv("FRONTEND_URL", "http://localhost:9000"))
-
-
-@pytest.fixture(scope="module")
-def client(app_url: str) -> httpx.Client:
-    return httpx.Client(base_url=app_url, follow_redirects=True, timeout=10)
+from playwright.async_api import Page, expect
 
 
 # --- Public pages (200) ---
 
 
+@pytest.mark.asyncio
+@pytest.mark.regression
 class TestPublicPages:
-    def test_homepage(self, client: httpx.Client) -> None:
-        r = client.get("/")
-        assert r.status_code == 200
-        assert "Guitar Tone Shootout" in r.text
+    async def test_homepage(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(frontend_url)
+        assert response is not None and response.status == 200
+        await expect(guest_page.locator("text=Guitar Tone Shootout")).to_be_visible()
 
-    def test_about(self, client: httpx.Client) -> None:
-        r = client.get("/about")
-        assert r.status_code == 200
+    async def test_about(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/about")
+        assert response is not None and response.status == 200
 
-    def test_login(self, client: httpx.Client) -> None:
-        r = client.get("/login")
-        assert r.status_code == 200
+    async def test_login(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/login")
+        assert response is not None and response.status == 200
 
-    def test_gear_browse(self, client: httpx.Client) -> None:
-        r = client.get("/gear")
-        assert r.status_code == 200
-        assert 'data-testid="gear-browse-page"' in r.text
+    async def test_gear_browse(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/gear")
+        assert response is not None and response.status == 200
+        await expect(guest_page.locator('[data-testid="gear-browse-page"]')).to_be_visible()
 
-    def test_gear_browse_filtered(self, client: httpx.Client) -> None:
-        r = client.get("/gear?gear_type=amp")
-        assert r.status_code == 200
-        assert 'data-testid="gear-results"' in r.text
+    async def test_gear_browse_filtered(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/gear?gear_type=amp")
+        assert response is not None and response.status == 200
+        await expect(guest_page.locator('[data-testid="gear-results"]')).to_be_visible()
 
-    def test_gear_browse_search(self, client: httpx.Client) -> None:
-        r = client.get("/gear?search=fender")
-        assert r.status_code == 200
-        assert 'data-testid="gear-results"' in r.text
+    async def test_gear_browse_search(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/gear?search=fender")
+        assert response is not None and response.status == 200
+        await expect(guest_page.locator('[data-testid="gear-results"]')).to_be_visible()
 
-    def test_gear_browse_paginated(self, client: httpx.Client) -> None:
-        r = client.get("/gear?page=2")
-        assert r.status_code == 200
+    async def test_gear_browse_paginated(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/gear?page=2")
+        assert response is not None and response.status == 200
 
-    def test_di_tracks(self, client: httpx.Client) -> None:
-        r = client.get("/di-tracks")
-        assert r.status_code == 200
+    async def test_di_tracks(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/di-tracks")
+        assert response is not None and response.status == 200
 
-    def test_shootouts(self, client: httpx.Client) -> None:
-        r = client.get("/shootouts")
-        assert r.status_code == 200
+    async def test_shootouts(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/shootouts")
+        assert response is not None and response.status == 200
 
 
 # --- Health endpoints (200) ---
 
 
+@pytest.mark.asyncio
+@pytest.mark.regression
 class TestHealth:
-    def test_health(self, client: httpx.Client) -> None:
-        r = client.get("/health")
-        assert r.status_code == 200
+    async def test_health(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/health")
+        assert response is not None and response.status == 200
 
-    def test_api_health(self, client: httpx.Client) -> None:
-        r = client.get("/api/v1/health")
-        assert r.status_code == 200
+    async def test_api_health(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/api/v1/health")
+        assert response is not None and response.status == 200
 
 
 # --- HTMX fragment endpoints (200, public) ---
 
 
+@pytest.mark.asyncio
+@pytest.mark.regression
 class TestPublicFragments:
-    def test_di_tracks_results(self, client: httpx.Client) -> None:
-        r = client.get("/api/v1/html/di-tracks/results")
-        assert r.status_code == 200
+    async def test_di_tracks_results(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/api/v1/html/di-tracks/results")
+        assert response is not None and response.status == 200
 
-    def test_shootouts_sections(self, client: httpx.Client) -> None:
-        r = client.get("/api/v1/html/shootouts/sections")
-        assert r.status_code == 200
-
-
-# --- Protected pages (redirect to login without auth) ---
+    async def test_shootouts_sections(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/api/v1/html/shootouts/sections")
+        assert response is not None and response.status == 200
 
 
+# --- Protected pages (401 without auth) ---
+
+
+@pytest.mark.asyncio
+@pytest.mark.regression
 class TestProtectedPages:
     """Protected pages return 401 for unauthenticated requests."""
 
-    def test_library_my_gear(self, client: httpx.Client) -> None:
-        r = client.get("/library/my-gear", follow_redirects=False)
-        assert r.status_code == 401
+    async def test_library_my_gear(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/library/my-gear")
+        assert response is not None and response.status == 401
 
-    def test_library_chains(self, client: httpx.Client) -> None:
-        r = client.get("/library/chains", follow_redirects=False)
-        assert r.status_code == 401
+    async def test_library_chains(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/library/chains")
+        assert response is not None and response.status == 401
 
-    def test_library_shootouts(self, client: httpx.Client) -> None:
-        r = client.get("/library/shootouts", follow_redirects=False)
-        assert r.status_code == 401
+    async def test_library_shootouts(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/library/shootouts")
+        assert response is not None and response.status == 401
 
-    def test_library_di_tracks(self, client: httpx.Client) -> None:
-        r = client.get("/library/di-tracks", follow_redirects=False)
-        assert r.status_code == 401
+    async def test_library_di_tracks(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/library/di-tracks")
+        assert response is not None and response.status == 401
 
-    def test_shootout_create(self, client: httpx.Client) -> None:
-        r = client.get("/shootout/create", follow_redirects=False)
-        assert r.status_code == 401
+    async def test_shootout_create(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/shootout/create")
+        assert response is not None and response.status == 401
 
 
 # --- 404 responses ---
 
 
+@pytest.mark.asyncio
+@pytest.mark.regression
 class TestNotFound:
-    def test_gear_nonexistent_slug(self, client: httpx.Client) -> None:
-        r = client.get("/gear/nonexistent-slug-12345")
-        assert r.status_code == 404
+    async def test_gear_nonexistent_slug(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/gear/nonexistent-slug-12345")
+        assert response is not None and response.status == 404
 
-    def test_nonexistent_page(self, client: httpx.Client) -> None:
-        r = client.get("/does-not-exist")
-        assert r.status_code == 404
+    async def test_nonexistent_page(self, guest_page: Page, frontend_url: str) -> None:
+        response = await guest_page.goto(f"{frontend_url}/does-not-exist")
+        assert response is not None and response.status == 404
 
 
 # --- SSR content assertions ---
 
 
+@pytest.mark.asyncio
+@pytest.mark.regression
 class TestGearSSRContent:
-    def test_gear_browse_has_pack_cards(self, client: httpx.Client) -> None:
-        r = client.get("/gear")
-        assert r.status_code == 200
-        assert 'data-testid="gear-pack-card"' in r.text or 'data-testid="empty-state"' in r.text
+    async def test_gear_browse_has_pack_cards(self, guest_page: Page, frontend_url: str) -> None:
+        await guest_page.goto(f"{frontend_url}/gear")
+        pack_cards = guest_page.locator('[data-testid="gear-pack-card"]')
+        empty_state = guest_page.locator('[data-testid="empty-state"]')
+        # Either pack cards or empty state should be visible
+        count = await pack_cards.count()
+        empty_count = await empty_state.count()
+        assert count > 0 or empty_count > 0
 
-    def test_gear_browse_has_pagination_or_empty(self, client: httpx.Client) -> None:
-        r = client.get("/gear")
-        assert r.status_code == 200
-        assert 'data-testid="pagination"' in r.text or 'data-testid="results-count"' in r.text
+    async def test_gear_browse_has_pagination_or_empty(self, guest_page: Page, frontend_url: str) -> None:
+        await guest_page.goto(f"{frontend_url}/gear")
+        pagination = guest_page.locator('[data-testid="pagination"]')
+        results_count = guest_page.locator('[data-testid="results-count"]')
+        pagination_count = await pagination.count()
+        results_count_count = await results_count.count()
+        assert pagination_count > 0 or results_count_count > 0
 
-    def test_gear_browse_no_htmx_loading(self, client: httpx.Client) -> None:
+    async def test_gear_browse_no_htmx_loading(self, guest_page: Page, frontend_url: str) -> None:
         """Verify no HTMX loading skeleton — content is SSR."""
-        r = client.get("/gear")
-        assert r.status_code == 200
-        assert 'hx-trigger="load"' not in r.text
-        assert "animate-pulse" not in r.text
+        await guest_page.goto(f"{frontend_url}/gear")
+        # No hx-trigger="load" (would indicate client-side loading)
+        load_triggers = guest_page.locator('[hx-trigger="load"]')
+        assert await load_triggers.count() == 0
+        # No loading skeletons
+        pulse_elements = guest_page.locator(".animate-pulse")
+        assert await pulse_elements.count() == 0
 
-    def test_gear_packs_have_models(self, client: httpx.Client) -> None:
+    async def test_gear_packs_have_models(self, guest_page: Page, frontend_url: str) -> None:
         """Verify gear packs show non-zero model counts."""
-        r = client.get("/gear")
-        assert r.status_code == 200
-        assert 'data-testid="pack-models-count"' in r.text
-        counts = re.findall(r'data-testid="pack-models-count"[^>]*>.*?(\d+)\s+models', r.text, re.DOTALL)
-        non_zero = [int(c) for c in counts if int(c) > 0]
+        await guest_page.goto(f"{frontend_url}/gear")
+        models_counts = guest_page.locator('[data-testid="pack-models-count"]')
+        count = await models_counts.count()
+        assert count > 0, "Expected at least one pack-models-count element"
+        # Check at least one has non-zero count
+        texts = await models_counts.all_text_contents()
+        non_zero = [t for t in texts if re.search(r"[1-9]\d*\s+models?", t)]
         assert len(non_zero) > 0, "Expected at least one pack with models_count > 0"

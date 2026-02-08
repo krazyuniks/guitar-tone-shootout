@@ -81,7 +81,7 @@ class SQLAlchemySignalChainRepository:
             .offset(offset)
         )
         result = await self.session.execute(stmt)
-        chains = result.unique().scalars().all()
+        chains = result.scalars().unique().all()
         return [self._to_entity(chain) for chain in chains]
 
     async def count_by_user_id(self, user_id: UUID) -> int:
@@ -107,7 +107,7 @@ class SQLAlchemySignalChainRepository:
         Args:
             chain: The chain to save
         """
-        # Check if chain exists - load with blocks
+        # Check if chain exists - use joinedload to load blocks relationship
         stmt = (
             select(SignalChain)
             .where(SignalChain.id == chain.id)

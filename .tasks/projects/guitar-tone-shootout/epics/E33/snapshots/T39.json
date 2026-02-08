@@ -1,7 +1,7 @@
 {
-  "task_id": "T41",
-  "created": "2026-02-07T22:59:39.273764+00:00",
-  "commit": "342a80f7fd7f",
+  "task_id": "T39",
+  "created": "2026-02-07T22:48:54.027279+00:00",
+  "commit": "b5736db9a7b9",
   "files": [
     {
       "path": "tests/e2e/python/tests/test_golden_path.py",
@@ -50,18 +50,6 @@
       "sha256": "78f9a3a24848bda3268ea857e902eb1400c6d056d894d3246db8505b81057159",
       "size": 12283,
       "modified": "2026-02-07T22:29:44.439827+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_shootout_repository.py",
-      "sha256": "526d6c8231739f6ddf789c856a94a0979be28a43877247e017ec276836c53b25",
-      "size": 11559,
-      "modified": "2026-02-07T22:53:46.875617+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_shootout_repository_get_public.py",
-      "sha256": "784fa6b067d142d8b2e97913fbf55f692a9db6486c33a494e0b728bc39ba5425",
-      "size": 14631,
-      "modified": "2026-02-07T22:59:05.739563+00:00"
     },
     {
       "path": "tests/integration/webapp/repositories/test_signal_chain_repository.py",

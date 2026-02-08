@@ -1,7 +1,7 @@
 {
-  "task_id": "T41",
-  "created": "2026-02-07T22:59:39.273764+00:00",
-  "commit": "342a80f7fd7f",
+  "task_id": "T37",
+  "created": "2026-02-07T22:41:29.307100+00:00",
+  "commit": "b88f6eb08d2e",
   "files": [
     {
       "path": "tests/e2e/python/tests/test_golden_path.py",
@@ -52,34 +52,10 @@
       "modified": "2026-02-07T22:29:44.439827+00:00"
     },
     {
-      "path": "tests/integration/webapp/repositories/test_shootout_repository.py",
-      "sha256": "526d6c8231739f6ddf789c856a94a0979be28a43877247e017ec276836c53b25",
-      "size": 11559,
-      "modified": "2026-02-07T22:53:46.875617+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_shootout_repository_get_public.py",
-      "sha256": "784fa6b067d142d8b2e97913fbf55f692a9db6486c33a494e0b728bc39ba5425",
-      "size": 14631,
-      "modified": "2026-02-07T22:59:05.739563+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_signal_chain_repository.py",
-      "sha256": "9d4c8301577149d5c917093fdc7c35724e9772a02e7b7d7e2e3df967f69f2a65",
-      "size": 12755,
-      "modified": "2026-02-07T22:48:26.647669+00:00"
-    },
-    {
       "path": "tests/integration/webapp/repositories/test_user_repository.py",
       "sha256": "04fb92c501ad33727b8c0eb387db2d7fc5dd3968819832e0fa9eab67f99f924b",
       "size": 12310,
       "modified": "2026-02-07T22:40:59.587732+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_user_repository_get_by_identity.py",
-      "sha256": "adef54035715adcf952a5aa315fb1ea0154cb6054a7160a378e287a4bbeee68e",
-      "size": 15583,
-      "modified": "2026-02-07T22:45:06.463699+00:00"
     },
     {
       "path": "tests/integration/webapp/test_auth_api_t19.py",

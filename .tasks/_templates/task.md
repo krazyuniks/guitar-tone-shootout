@@ -1,9 +1,8 @@
 # T{number}: {title}
 
 ## Source
-- GitHub: https://github.com/krazyuniks/guitar-tone-shootout/issues/{number}
 - Epic: E{epic_number}
-- Synced: {timestamp}
+- Generated: {timestamp}
 
 ## Status
 - state: pending

@@ -38,7 +38,7 @@ Some tasks extend code that already exists. When the prompt includes a "Pre-flig
 3. **Only test genuinely missing functionality** — if a model field already exists, don't re-test it
 4. **Target gaps**: missing fields, missing methods, missing validations, missing constraints
 5. **If everything appears implemented**, test edge cases (nullability, uniqueness, constraints, invalid inputs)
-6. If you cannot find ANY untested functionality, create a SINGLE test that fails and document why in a comment
+6. If you cannot find ANY genuinely missing functionality or untested edge case, write tests for what IS there — passing tests are acceptable when the implementation is already complete. The orchestrator will detect this and skip the implementer phase.
 
 ## Path Restrictions
 
@@ -47,12 +47,13 @@ Some tasks extend code that already exists. When the prompt includes a "Pre-flig
 
 Do NOT create or modify files outside `tests/`.
 
-### Existing Test Files
+### CRITICAL: Do NOT modify existing test files (unless in task scope)
 
-- **Prefer creating new test files** for each task
-- **You MAY modify existing test files** when the task spec explicitly requires it (e.g. "Modify: tests/...")
-- When modifying, ADD new test functions — do not alter or remove existing tests
-- Before writing a new file, check if the task spec names a specific file to modify
+- Only CREATE new test files — never edit, modify, or append to existing ones
+- **Exception:** If the orchestrator prompt lists specific files you MAY modify (from the task's **Modify:** scope), you can edit those files
+- Before writing, check if the file exists. If it does, choose a different filename (unless it's in the modify list)
+- Existing tests (regression, unit, integration) are owned by previous tasks
+- Your job is to add NEW test files for the current task only (or fix listed files in FIX mode)
 
 ## Banned Patterns
 

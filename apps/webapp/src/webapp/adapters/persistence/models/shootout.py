@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
@@ -114,7 +114,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    di_track_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    di_track_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("di_tracks.id", ondelete="CASCADE"),
         nullable=True,
@@ -137,13 +137,15 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     )
     di_track: Mapped[DITrack | None] = relationship(
         "DITrack",
-        back_populates="shootouts", lazy="raise",
+        back_populates="shootouts",
+        lazy="raise",
     )
     chains: Mapped[list[ShootoutChain]] = relationship(
         "ShootoutChain",
         back_populates="shootout",
         cascade="all, delete-orphan",
-        order_by="ShootoutChain.position", lazy="raise",
+        order_by="ShootoutChain.position",
+        lazy="raise",
     )
 
     # Indexes

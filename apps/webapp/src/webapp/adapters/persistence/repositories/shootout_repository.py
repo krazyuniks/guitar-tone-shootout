@@ -48,7 +48,10 @@ class SQLAlchemyShootoutRepository:
         stmt = (
             select(Shootout)
             .where(Shootout.id == shootout_id)
-            .options(joinedload(Shootout.chains))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
         )
         result = await self.session.execute(stmt)
         shootout = result.unique().scalar_one_or_none()
@@ -67,9 +70,6 @@ class SQLAlchemyShootoutRepository:
     ) -> list[ShootoutEntity]:
         """Get shootouts for a user.
 
-        Uses ID-subquery pattern: LIMIT/OFFSET on IDs, not entities,
-        to avoid row multiplication from JOINs.
-
         Args:
             user_id: The owner's UUID
             limit: Maximum number of results
@@ -78,26 +78,16 @@ class SQLAlchemyShootoutRepository:
         Returns:
             List of Shootouts ordered by created_at desc
         """
-        # Step 1: resolve the correct page of IDs
-        id_stmt = (
-            select(Shootout.id)
+        stmt = (
+            select(Shootout)
             .where(Shootout.user_id == user_id)
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
             .order_by(Shootout.created_at.desc())
             .limit(limit)
             .offset(offset)
-        )
-        id_result = await self.session.execute(id_stmt)
-        ids = [row[0] for row in id_result.all()]
-
-        if not ids:
-            return []
-
-        # Step 2: hydrate those IDs with full JOINs
-        stmt = (
-            select(Shootout)
-            .where(Shootout.id.in_(ids))
-            .options(joinedload(Shootout.chains))
-            .order_by(Shootout.created_at.desc())
         )
         result = await self.session.execute(stmt)
         shootouts = result.unique().scalars().all()
@@ -126,9 +116,6 @@ class SQLAlchemyShootoutRepository:
     ) -> list[ShootoutEntity]:
         """Get public (processed) shootouts.
 
-        Uses ID-subquery pattern: LIMIT/OFFSET on IDs, not entities,
-        to avoid row multiplication from JOINs.
-
         Args:
             limit: Maximum number of results
             offset: Number of results to skip
@@ -145,16 +132,19 @@ class SQLAlchemyShootoutRepository:
             .offset(offset)
         )
         id_result = await self.session.execute(id_stmt)
-        ids = [row[0] for row in id_result.all()]
+        shootout_ids = id_result.scalars().all()
 
-        if not ids:
+        if not shootout_ids:
             return []
 
         # Step 2: hydrate those IDs with full JOINs
         stmt = (
             select(Shootout)
-            .where(Shootout.id.in_(ids))
-            .options(joinedload(Shootout.chains))
+            .where(Shootout.id.in_(shootout_ids))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
             .order_by(Shootout.created_at.desc())
         )
         result = await self.session.execute(stmt)
@@ -189,7 +179,10 @@ class SQLAlchemyShootoutRepository:
         stmt = (
             select(Shootout)
             .where(Shootout.id == shootout.id)
-            .options(joinedload(Shootout.chains))
+            .options(
+                joinedload(Shootout.di_track),
+                joinedload(Shootout.chains),
+            )
         )
         result = await self.session.execute(stmt)
         existing = result.unique().scalar_one_or_none()

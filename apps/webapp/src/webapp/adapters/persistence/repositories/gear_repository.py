@@ -13,11 +13,11 @@ from core.domain.entities.gear import GearModel as GearModelVO
 from core.domain.entities.gear import GearSource as GearSourceVO
 from webapp.adapters.persistence.models.gear import (
     Gear,
+    GearModel,
+    GearSource,
     GearTag,
     gear_tags_table,
 )
-from webapp.adapters.persistence.models.gear_model import GearModel
-from webapp.adapters.persistence.models.gear_source import GearSource
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -171,7 +171,11 @@ class SQLAlchemyGearRepository:
     ) -> list[GearEntity]:
         """Search for gear with filters.
 
-        Uses ID-subquery pattern for pagination to avoid row count issues with JOINs.
+        Uses two-step ID-subquery pattern for paginated queries:
+        1. Step 1: ID-subquery with LIMIT/OFFSET to resolve correct page of IDs
+        2. Step 2: Hydration query with joinedload() for all relationships
+
+        This prevents row multiplication from JOINs affecting pagination.
 
         Args:
             query: Optional text search on name/description
@@ -184,7 +188,10 @@ class SQLAlchemyGearRepository:
         Returns:
             List of matching Gear ordered by name
         """
-        # Build filter conditions
+        # Step 1: Build ID-subquery with filters and pagination
+        id_stmt = select(Gear.id)
+
+        # Apply filters
         conditions = []
 
         if query:
@@ -214,18 +221,24 @@ class SQLAlchemyGearRepository:
             )
             conditions.append(Gear.id.in_(tag_count))
 
-        # Step 1: Resolve the correct page of IDs
-        id_stmt = select(Gear.id).order_by(Gear.name)
-
         if conditions:
             id_stmt = id_stmt.where(and_(*conditions))
 
-        id_stmt = id_stmt.limit(limit).offset(offset)
+        # Apply ordering and pagination to ID query
+        id_stmt = id_stmt.order_by(Gear.name).limit(limit).offset(offset)
+
+        # Execute ID query to get list of IDs
+        id_result = await self.session.execute(id_stmt)
+        gear_ids = list(id_result.scalars().all())
+
+        # If no IDs found, return empty list
+        if not gear_ids:
+            return []
 
         # Step 2: Hydrate those IDs with full JOINs
         stmt = (
             select(Gear)
-            .where(Gear.id.in_(id_stmt))
+            .where(Gear.id.in_(gear_ids))
             .options(
                 joinedload(Gear.models),
                 joinedload(Gear.tags),
@@ -302,15 +315,15 @@ class SQLAlchemyGearRepository:
         Args:
             gear: The gear entity to save
         """
-        # Check if gear exists - load with relationships for update
+        # Check if gear exists - use joinedload to load relationships for lazy='raise'
         stmt = (
             select(Gear)
             .where(Gear.id == gear.id)
             .options(
+                joinedload(Gear.make),
+                joinedload(Gear.source),
                 joinedload(Gear.models),
                 joinedload(Gear.tags),
-                joinedload(Gear.source),
-                joinedload(Gear.make),
             )
         )
         result = await self.session.execute(stmt)

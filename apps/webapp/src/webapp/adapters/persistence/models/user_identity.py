@@ -53,7 +53,8 @@ class UserIdentity(UUIDMixin, TimestampMixin, Base):
     user: Mapped[User] = relationship("User", back_populates="identities", lazy="raise")
     provider: Mapped[OAuthProvider] = relationship(
         "OAuthProvider",
-        back_populates="identities", lazy="raise",
+        back_populates="identities",
+        lazy="raise",
     )
 
     # Indexes for common query patterns

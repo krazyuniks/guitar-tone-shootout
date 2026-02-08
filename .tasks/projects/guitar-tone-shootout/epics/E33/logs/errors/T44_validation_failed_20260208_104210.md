@@ -1,0 +1,51 @@
+# Error Report: T44 — validation_failed
+
+**Time:** 2026-02-08T10:42:10.805385+00:00
+**Phase:** validation_failed
+**Task:** T44
+
+## Output
+
+```
+egration/webapp/test_chain_list_page_route.py::TestLibraryChainsPageRoute::test_library_chains_has_edit_links
+FAILED tests/integration/webapp/test_chain_list_page_route.py::TestLibraryChainsPageRoute::test_library_chains_shows_platform_badge
+FAILED tests/integration/webapp/test_chain_list_page_route.py::TestChainListFragments::test_chain_delete_fragment_endpoint_exists
+FAILED tests/integration/webapp/test_chain_list_page_route.py::TestChainListFragments::test_chain_duplicate_fragment_endpoint_exists
+FAILED tests/integration/webapp/test_chain_list_page_route.py::TestChainListFragments::test_chain_list_fragment_returns_html
+FAILED tests/integration/webapp/test_chain_list_page_route.py::TestChainListFragments::test_chain_list_fragment_empty_state
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearBrowsePageRoute::test_gear_browse_includes_filter_controls
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearBrowsePageRoute::test_gear_browse_has_htmx_attributes
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_route_returns_html
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_renders_all_fields
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_renders_base_layout
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_includes_back_link
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearHTMXFragments::test_gear_list_fragment_endpoint_exists
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearHTMXFragments::test_gear_list_fragment_accepts_filters
+FAILED tests/integration/webapp/test_gear_page_routes.py::TestGearHTMXFragments::test_gear_list_fragment_accepts_search_query
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestGearBrowseFragments::test_gear_list_fragment_endpoint_returns_html
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestGearBrowseFragments::test_gear_list_fragment_accepts_gear_type_filter
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestGearBrowseFragments::test_gear_list_fragment_accepts_manufacturer_filter
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestGearBrowseFragments::test_gear_list_fragment_accepts_search_query
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestGearBrowseFragments::test_gear_list_fragment_accepts_pagination
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestGearBrowseFragments::test_gear_list_fragment_returns_only_public_gear
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestLibraryMyGearFragments::test_library_my_gear_list_fragment_returns_html
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestLibraryMyGearFragments::test_library_my_gear_list_fragment_shows_only_user_gear
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestLibraryMyGearFragments::test_library_my_gear_list_fragment_accepts_filters
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestLibraryChainsFragments::test_library_chains_list_fragment_returns_html
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestLibraryChainsFragments::test_library_chains_list_fragment_shows_only_user_chains
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestLibraryChainsFragments::test_library_chains_list_fragment_accepts_pagination
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestHTMLFragmentResponseFormat::test_fragments_return_html_content_type
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestHTMLFragmentResponseFormat::test_fragments_do_not_return_full_page
+FAILED tests/integration/webapp/test_htmx_fragment_endpoints_t29.py::TestHTMLFragmentResponseFormat::test_fragments_are_embeddable_html
+FAILED tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_route_returns_html
+FAILED tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_shows_empty_state
+FAILED tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_displays_users_gear
+FAILED tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_has_add_gear_button
+FAILED tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_has_remove_buttons
+FAILED tests/integration/webapp/test_migration.py::test_migration_creates_all_tables
+FAILED tests/integration/webapp/test_shootout_repository.py::test_save_persists_chains
+================= 90 failed, 661 passed, 9 warnings in 35.34s ==================
+error: Recipe `tdd-green` failed with exit code 1
+error: Recipe `tdd-complete` failed with exit code 1
+
+```

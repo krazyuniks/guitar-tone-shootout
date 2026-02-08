@@ -1,7 +1,7 @@
 {
-  "task_id": "T41",
-  "created": "2026-02-07T22:59:39.273764+00:00",
-  "commit": "342a80f7fd7f",
+  "task_id": "T34",
+  "created": "2026-02-07T21:12:35.468861+00:00",
+  "commit": "92259df6d305",
   "files": [
     {
       "path": "tests/e2e/python/tests/test_golden_path.py",
@@ -40,48 +40,6 @@
       "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
-      "path": "tests/integration/webapp/repositories/test_gear_repository.py",
-      "sha256": "92b995680bc4c043fb8cfc779276442ed52b8d30d39efedb2f1addeebe63632b",
-      "size": 12708,
-      "modified": "2026-02-07T22:34:55.227771+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_gear_repository_joinedload_t35.py",
-      "sha256": "78f9a3a24848bda3268ea857e902eb1400c6d056d894d3246db8505b81057159",
-      "size": 12283,
-      "modified": "2026-02-07T22:29:44.439827+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_shootout_repository.py",
-      "sha256": "526d6c8231739f6ddf789c856a94a0979be28a43877247e017ec276836c53b25",
-      "size": 11559,
-      "modified": "2026-02-07T22:53:46.875617+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_shootout_repository_get_public.py",
-      "sha256": "784fa6b067d142d8b2e97913fbf55f692a9db6486c33a494e0b728bc39ba5425",
-      "size": 14631,
-      "modified": "2026-02-07T22:59:05.739563+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_signal_chain_repository.py",
-      "sha256": "9d4c8301577149d5c917093fdc7c35724e9772a02e7b7d7e2e3df967f69f2a65",
-      "size": 12755,
-      "modified": "2026-02-07T22:48:26.647669+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_user_repository.py",
-      "sha256": "04fb92c501ad33727b8c0eb387db2d7fc5dd3968819832e0fa9eab67f99f924b",
-      "size": 12310,
-      "modified": "2026-02-07T22:40:59.587732+00:00"
-    },
-    {
-      "path": "tests/integration/webapp/repositories/test_user_repository_get_by_identity.py",
-      "sha256": "adef54035715adcf952a5aa315fb1ea0154cb6054a7160a378e287a4bbeee68e",
-      "size": 15583,
-      "modified": "2026-02-07T22:45:06.463699+00:00"
-    },
-    {
       "path": "tests/integration/webapp/test_auth_api_t19.py",
       "sha256": "16225647909e33e8e324e95102d6f5c801b6aa1be509040dff0df972918f8507",
       "size": 12856,
@@ -91,7 +49,7 @@
       "path": "tests/integration/webapp/test_chain_builder_page_route.py",
       "sha256": "232b1cdf3803d96e343c6873af6fdb0fbd7878357839024da24fa0b006004247",
       "size": 8595,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/integration/webapp/test_chain_list_page_route.py",
@@ -175,7 +133,7 @@
       "path": "tests/integration/webapp/test_shootout_repository.py",
       "sha256": "c5780b304e8c734ae0324bc0168b18c715ad33307a55fb2af996f342b9852ef4",
       "size": 16870,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/integration/webapp/test_shootout_service.py",
@@ -193,7 +151,7 @@
       "path": "tests/integration/webapp/test_shootouts_pages.py",
       "sha256": "83ed2e66a4b24eb3a404b1a6396266a50da7be0dfea2ce659c7e4b290efba601",
       "size": 5894,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/integration/webapp/test_signal_chain_api.py",
@@ -205,7 +163,7 @@
       "path": "tests/integration/webapp/test_signal_chain_builder_api_integration.py",
       "sha256": "654509cc7c160f5b484847ab3be363b9df87dc08e3ed271979742199ddff1dcd",
       "size": 13920,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/integration/webapp/test_signal_chain_repository.py",
@@ -271,7 +229,7 @@
       "path": "tests/unit/backend/persistence/test_orm_lazy_raise_enforcement.py",
       "sha256": "d337d2c0ec4ec2f7f32f4940547c0588a411763e700b490a939892d9a8b8671c",
       "size": 18133,
-      "modified": "2026-02-07T22:14:48.583971+00:00"
+      "modified": "2026-02-07T21:12:05.448614+00:00"
     },
     {
       "path": "tests/unit/backend/services/test_block_type_registry.py",
@@ -361,7 +319,7 @@
       "path": "tests/unit/webapp/test_block_type_model_location.py",
       "sha256": "13147c5b88b7246f5690e14430ecbd0b44b69854cb6c1cb1242a927e8107a2fb",
       "size": 11263,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_gear_model.py",
@@ -379,7 +337,7 @@
       "path": "tests/unit/webapp/test_gear_source_module.py",
       "sha256": "cc1d4170c43fb15a706aa0011c298ef0fb8055d7036a0f94e9837d5c73270b62",
       "size": 11295,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_gear_templates_t23.py",
@@ -427,7 +385,7 @@
       "path": "tests/unit/webapp/test_shootout_model.py",
       "sha256": "aad570b93b438bd5bd047bcee250bedbff20d69118478e5cc9303c0a48ff7a94",
       "size": 11798,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_shootout_schemas.py",
@@ -439,13 +397,13 @@
       "path": "tests/unit/webapp/test_signal_chain_block_with_block_type.py",
       "sha256": "be04735f91bcaa6932ae78b2f5eb5318b4c75674e1ff55a619ebb0e5da0e4259",
       "size": 5528,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_signal_chain_model.py",
       "sha256": "558de5044ddf9d9c5e95ee5c31cac78b151c71be4579cb453cb13504d0b905b3",
       "size": 7940,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_signal_chain_schemas.py",
@@ -469,13 +427,13 @@
       "path": "tests/unit/webapp/test_user_gear_model_t13.py",
       "sha256": "a48e77edb829f90eb93c2955d61390ca6ea705805c45a0894cddf1219ff1a59f",
       "size": 9469,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_user_identity_model_t8.py",
       "sha256": "ff9bbf9c57193ea56e5e307ea99429121e0fa9ecd6127eeec5cc9e9dc7720183",
       "size": 5510,
-      "modified": "2026-02-07T21:48:39.332168+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     },
     {
       "path": "tests/unit/webapp/test_user_is_active_field_t6.py",
@@ -487,7 +445,7 @@
       "path": "tests/unit/webapp/test_user_model.py",
       "sha256": "3b7f49c74229e479325eedf403501714c3be8688d3a04584fc52eae92e2d3b94",
       "size": 6994,
-      "modified": "2026-02-07T21:48:32.464169+00:00"
+      "modified": "2026-02-07T16:52:51.680752+00:00"
     }
   ]
 }
