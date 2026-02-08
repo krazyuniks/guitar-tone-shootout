@@ -39,6 +39,7 @@ class QueryCounter:
     def _before_cursor_execute(self, conn, cursor, statement, parameters, context, executemany):
         """Callback fired before each query execution."""
         self.count += 1
+        print(f"[QUERY {self.count}] {statement[:100]}...")
 
 
 @pytest.fixture
