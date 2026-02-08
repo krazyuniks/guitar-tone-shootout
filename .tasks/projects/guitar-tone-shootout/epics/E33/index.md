@@ -29,7 +29,7 @@ T43 → T46
 | T38 | [Task]: C2 - Refactor UserRepositor | complete | webapp | T37 |
 | T39 | [Task]: D1 - Convert SignalChainRep | complete | webapp | T34 |
 | T40 | [Task]: E1 - Convert ShootoutReposi | complete | webapp | T34 |
-| T41 | [Task]: E2 - Convert ShootoutReposi | locked | webapp | T40 |
+| T41 | [Task]: E2 - Convert ShootoutReposi | complete | webapp | T40 |
 | T42 | [Task]: F1 - Add query counting fix | complete | webapp | - |
 | T43 | [Task]: F2 - Add integration tests  | complete | webapp | T42 |
 | T44 | [Task]: F3 - Add integration tests  | pending | webapp | T42 |

@@ -93,6 +93,48 @@ async def sample_user_with_identity(
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+async def test_user_get_by_id_single_query(
+    user_repository: SQLAlchemyUserRepository,
+    db_session: AsyncSession,
+    db_engine: AsyncEngine,
+    sample_user_with_identity: UserEntity,
+) -> None:
+    """Verify get_by_id loads user and relationships in a single query.
+
+    Citation: .claude/rules/query-patterns.md:51-71
+
+    Tests that get_by_id() uses joinedload for:
+    - User.identities (1:N)
+    - UserIdentity.provider (N:1)
+
+    Expected: 1 SQL query total (not 1 + 2 separate queries).
+    """
+    # Expire all objects to force fresh query
+    db_session.expire_all()
+
+    # Count queries during get_by_id
+    with QueryCounter(db_engine) as counter:
+        result = await user_repository.get_by_id(sample_user_with_identity.id)
+
+    # Verify user loaded
+    assert result is not None
+    assert result.id == sample_user_with_identity.id
+
+    # Verify all relationships loaded without additional queries
+    assert result.username == "testuser"
+    assert result.email == "test@example.com"
+    assert len(result.identities) == 1
+    assert result.identities[0].provider == "t3k"
+    assert result.identities[0].external_id == "ext123"
+    assert result.identities[0].username == "testuser"
+    assert result.identities[0].avatar_url == "https://example.com/avatar.jpg"
+
+    # Critical assertion: only ONE query executed
+    assert counter.count == 1, f"Expected 1 query, got {counter.count}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
 async def test_user_get_by_identity_single_query(
     user_repository: SQLAlchemyUserRepository,
     db_session: AsyncSession,
