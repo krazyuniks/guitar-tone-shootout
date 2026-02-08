@@ -1,0 +1,13 @@
+{
+  "task_id": "T38",
+  "created": "2026-02-08T13:45:46.465697+00:00",
+  "commit": "f806c5ef099d",
+  "files": [
+    {
+      "path": "tests/integration/webapp/repositories/test_user_repository.py",
+      "sha256": "3007694cf113c2cdcc457b81612f8df5bba67cafd52dc1fe0bd5cf759fc4e8c3",
+      "size": 7071,
+      "modified": "2026-02-08T13:45:03.891950+00:00"
+    }
+  ]
+}
