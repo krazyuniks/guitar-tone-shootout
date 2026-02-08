@@ -11,7 +11,7 @@ from core.ports.repositories import (
     SignalChainRepository,
     UserRepository,
 )
-from core.ports.video_composer import VideoComposer
+from core.ports.video_renderer import VideoRenderer
 
 __all__ = [
     "AudioProcessor",
@@ -23,5 +23,5 @@ __all__ = [
     "SignalChainGroupRepository",
     "SignalChainRepository",
     "UserRepository",
-    "VideoComposer",
+    "VideoRenderer",
 ]
