@@ -362,15 +362,35 @@ uninstall-hooks:
 
 # --- Epic Management ---
 
-# Sync epic from GitHub to .tasks/
-epic-sync epic:
-    python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}}
+# Unified epic command — routes to appropriate tool
+# Usage: just epic validate 70, just epic status 70, just epic start 70
+epic subcmd epic_num:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{subcmd}}" in
+        plan)
+            echo "Use '/epic plan {{epic_num}}' in Claude Code (interactive)"
+            ;;
+        validate)
+            python scripts/validate_tasks.py {{epic_num}}
+            ;;
+        fix)
+            echo "Use '/epic fix {{epic_num}}' in Claude Code (interactive)"
+            ;;
+        start)
+            python scripts/run_epic.py run {{epic_num}}
+            ;;
+        status)
+            python scripts/run_epic.py status {{epic_num}}
+            ;;
+        *)
+            echo "Unknown subcommand: {{subcmd}}"
+            echo "Usage: just epic {plan|validate|fix|start|status} {epic_number}"
+            exit 1
+            ;;
+    esac
 
-# Sync with validation (warns on sparse issues)
-epic-sync-validate epic:
-    python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}} --validate
-
-# Run TDD state machine for epic
+# Run TDD state machine for epic (backward compat alias)
 epic-start epic:
     python scripts/run_epic.py run {{epic}}
 
@@ -382,31 +402,17 @@ epic-dry-run epic:
 dispatch agent +prompt:
     python scripts/run_epic.py dispatch {{agent}} {{prompt}}
 
-# Show epic status
+# Show epic status (backward compat alias)
 epic-status epic:
-    @echo "=== Epic E{{epic}} Status ==="
-    @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just epic-sync {{epic}}"
+    python scripts/run_epic.py status {{epic}}
 
-# Plan an epic - full agent pipeline
-plan epic *FLAGS:
-    python scripts/plan_epic.py {{epic}} {{FLAGS}}
+# Validate epic tasks (pre-flight)
+epic-validate epic:
+    python scripts/validate_tasks.py {{epic}}
 
-# Plan with dry run (show prompts only)
-plan-dry epic *FLAGS:
-    python scripts/plan_epic.py {{epic}} --dry-run {{FLAGS}}
-
-# Full workflow: plan -> sync -> start
-epic-full epic:
-    #!/usr/bin/env bash
-    set -e
-    echo "=== Planning Epic #{{epic}} ==="
-    just plan {{epic}}
-    echo ""
-    echo "=== Syncing to .tasks/ ==="
-    just epic-sync {{epic}}
-    echo ""
-    echo "=== Starting Orchestration ==="
-    just epic-start {{epic}}
+# Materialise TASKS.md into .tasks/ files
+epic-materialise epic *FLAGS:
+    python scripts/tasks_from_plan.py {{epic}} {{FLAGS}}
 
 # --- TDD Phases (Docker-first) ---
 

@@ -23,7 +23,7 @@ Receives prompt with:
 ### 1. Load Reference and Context
 
 Read these files:
-- `.claude/skills/epic-builder/references/goal-backward.md` - Planning guide with GTS patterns
+- `.claude/skills/epic/references/goal-backward.md` - Planning guide with GTS patterns
 - `.planning/epics/{slug}/CONTEXT.md` - Locked decisions from gray areas
 
 ### 2. READ Before DERIVE (MANDATORY)

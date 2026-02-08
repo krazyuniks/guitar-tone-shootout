@@ -1,6 +1,6 @@
 ---
 name: epic-builder
-description: "[DEPRECATED] Monolithic agent - use /epic-build command with subagents instead"
+description: "[DEPRECATED] Use /epic command instead"
 model: sonnet
 color: purple
 tools:
@@ -14,17 +14,16 @@ tools:
 
 # Epic Builder Agent
 
-> **DEPRECATED:** This monolithic agent has been replaced by 5 specialized subagents
-> that reduce context usage by ~78%. Use `/epic-build` command instead.
+> **DEPRECATED:** Use `/epic` command instead. This agent is kept for reference only.
 >
-> **New agents:**
-> - `epic-context-loader` (haiku) - Load wiki docs, write CONTEXT.md
-> - `epic-gray-area-analyst` (haiku) - Detect areas, return questions
-> - `epic-goal-backward` (sonnet) - Derive truths, write GOALS.md
-> - `epic-task-breakdown` (sonnet) - Break down, write TASKS.md
-> - `epic-github-creator` (haiku) - Create issues, write created.json
+> The epic lifecycle is now managed by the unified `/epic` skill:
+> - `/epic plan` — planning pipeline (uses subagents)
+> - `/epic validate` — pre-flight validation
+> - `/epic fix` — enrich sparse tasks
+> - `/epic start` — TDD state machine
+> - `/epic status` — show task states
 >
-> This file is kept for reference only. Do not spawn this agent directly.
+> See `.claude/skills/epic/SKILL.md` for details.
 
 Interactive epic creation system that transforms feature ideas into fully-specified GitHub issues through structured questioning, gray area analysis, and goal-backward planning.
 

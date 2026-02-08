@@ -1,6 +1,6 @@
 # GitHub Issue Templates
 
-Templates for creating epic and task issues compatible with gh_tasks_sync.py.
+Templates for creating epic and task issues compatible with tasks_from_plan.py.
 
 ---
 
@@ -60,7 +60,7 @@ Templates for creating epic and task issues compatible with gh_tasks_sync.py.
 
 ## Task Issue Template
 
-**CRITICAL:** This template must be parseable by `scripts/gh_tasks_sync.py`. Required sections cannot be omitted.
+**CRITICAL:** This template must be parseable by `scripts/tasks_from_plan.py`. Required sections cannot be omitted.
 
 ```markdown
 # [Task]: {title}
@@ -97,7 +97,7 @@ Blocked by: #{issue_number}, #{issue_number}
 
 ---
 
-## Required Sections for gh_tasks_sync.py
+## Required Sections for tasks_from_plan.py
 
 | Section | Required | Parsing |
 |---------|----------|---------|
@@ -194,14 +194,11 @@ gh issue edit {epic_number} \
 
 ## Validation
 
-After creating issues, validate structure:
+After materialising tasks, validate structure:
 
 ```bash
-# Validate issue structure for sync compatibility
-just epic-sync-validate {epic_number}
-
-# If validation passes, sync to .tasks/
-just epic-sync {epic_number}
+# Validate task files
+just epic-validate {epic_number}
 ```
 
 **Note:** Always use `just` commands, never direct `python scripts/...` calls.

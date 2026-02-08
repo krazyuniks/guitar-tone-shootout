@@ -21,8 +21,8 @@ Receives prompt with:
 1. **Load Reference Files**
 
    Read these files:
-   - `.claude/skills/epic-builder/references/gray-areas.md` - Detection patterns and area definitions
-   - `.claude/skills/epic-builder/references/question-bank.md` - Questions for each area
+   - `.claude/skills/epic/references/gray-areas.md` - Detection patterns and area definitions
+   - `.claude/skills/epic/references/question-bank.md` - Questions for each area
 
 2. **Detect Areas from Keywords**
 
