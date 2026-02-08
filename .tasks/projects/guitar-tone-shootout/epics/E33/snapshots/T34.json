@@ -1,0 +1,13 @@
+{
+  "task_id": "T34",
+  "created": "2026-02-08T12:46:50.114036+00:00",
+  "commit": "3de4e25db75f",
+  "files": [
+    {
+      "path": "tests/unit/backend/models/test_lazy_raise_enforcement.py",
+      "sha256": "c72c3db1d5e88219ce8950efc7ff34615de6be909d864bb895c6eb84ecae69e5",
+      "size": 7430,
+      "modified": "2026-02-08T12:46:02.532045+00:00"
+    }
+  ]
+}
