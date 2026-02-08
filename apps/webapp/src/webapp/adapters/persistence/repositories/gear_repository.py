@@ -315,8 +315,19 @@ class SQLAlchemyGearRepository:
         Args:
             gear: The gear entity to save
         """
-        # Check if gear exists
-        existing = await self.session.get(Gear, gear.id)
+        # Check if gear exists - use joinedload to load relationships for lazy='raise'
+        stmt = (
+            select(Gear)
+            .where(Gear.id == gear.id)
+            .options(
+                joinedload(Gear.make),
+                joinedload(Gear.source),
+                joinedload(Gear.models),
+                joinedload(Gear.tags),
+            )
+        )
+        result = await self.session.execute(stmt)
+        existing = result.unique().scalar_one_or_none()
 
         if existing:
             # Update existing gear

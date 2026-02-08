@@ -110,8 +110,14 @@ class SQLAlchemyUserRepository:
         Args:
             user: The user entity to save
         """
-        # Check if user exists
-        existing = await self.session.get(User, user.id)
+        # Check if user exists - use joinedload to load relationships for lazy='raise'
+        stmt = (
+            select(User)
+            .where(User.id == user.id)
+            .options(joinedload(User.identities).joinedload(UserIdentity.provider))
+        )
+        result = await self.session.execute(stmt)
+        existing = result.unique().scalar_one_or_none()
 
         if existing:
             # Update existing user
