@@ -1,0 +1,13 @@
+{
+  "task_id": "T46",
+  "created": "2026-02-08T14:21:50.698894+00:00",
+  "commit": "08d0c8a01cb1",
+  "files": [
+    {
+      "path": "tests/regression/test_quality_gates_t46.py",
+      "sha256": "fdf14fc5039eeb2ec080716c3bada185df7a2fd94ea5b9e24b2f8a565a5e8632",
+      "size": 1934,
+      "modified": "2026-02-08T14:21:17.979703+00:00"
+    }
+  ]
+}
