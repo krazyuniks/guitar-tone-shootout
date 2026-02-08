@@ -428,8 +428,9 @@ tdd-test-phase task:
 
 # Verify tests fail (red phase) - runs in Docker
 # Only checks NEW/MODIFIED test files (not pre-existing passing tests)
-# Gate: at least one test must FAIL. Passing tests are warned but tolerated
-# when failures exist (handles tasks that extend already-implemented code).
+# Gate: at least one test must FAIL (assertion failure). Errors alone (NameError,
+# ImportError inside test files) are rejected — they indicate test bugs, not
+# missing implementation. Passing tests are warned but tolerated when failures exist.
 tdd-red task:
     #!/usr/bin/env bash
     set -e
@@ -464,7 +465,25 @@ tdd-red task:
     echo ""
     echo "Results: ${FAILED} failed, ${PASSED} passed, ${ERRORS} errors"
 
-    # Gate: at least one test must fail
+    # Gate 1: reject tests with ONLY errors and no failures
+    # Errors (NameError, ImportError inside tests, SyntaxError) indicate test bugs.
+    # A valid red state requires at least one assertion FAILURE proving the test
+    # exercises missing implementation, not just broken test code.
+    if [ "$ERRORS" -gt 0 ] && [ "$FAILED" -eq 0 ]; then
+        echo "ERROR: ${ERRORS} tests errored but none failed with assertions."
+        echo "  Errors (NameError, ImportError, SyntaxError) indicate test bugs,"
+        echo "  not missing implementation. Fix the test code before locking."
+        echo ""
+        echo "  Common causes:"
+        echo "    - Missing import in test file (e.g. 'from sqlalchemy import event')"
+        echo "    - Typo in test code"
+        echo "    - Wrong fixture name"
+        echo ""
+        echo "$OUTPUT" | tail -30
+        exit 1
+    fi
+
+    # Gate 2: at least one test must fail
     if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
         echo "ERROR: All ${PASSED} tests passed. Tests must fail before implementation."
         echo "Either tests are trivial or code already exists for everything tested."
@@ -478,13 +497,15 @@ tdd-red task:
         echo "  This is OK — ${FAILED} tests still fail, so there's work to do."
     fi
 
+    # Warn on errors alongside failures (tolerated but flagged)
     if [ "$ERRORS" -gt 0 ]; then
-        echo "NOTE: ${ERRORS} tests errored (import/syntax issues)."
-        echo "  Errors count as 'not passing' — acceptable in red phase."
+        echo "WARNING: ${ERRORS} tests errored (possible test bugs)."
+        echo "  Tolerated because ${FAILED} tests also fail with assertions."
+        echo "  Review erroring tests — they may need import/syntax fixes."
     fi
 
     echo ""
-    echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
+    echo "Red phase verified: ${FAILED} failing tests found."
 
 # Lock tests (snapshot before implementation)
 tdd-lock task:
