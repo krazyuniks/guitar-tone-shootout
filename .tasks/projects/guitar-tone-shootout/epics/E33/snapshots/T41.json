@@ -1,0 +1,13 @@
+{
+  "task_id": "T41",
+  "created": "2026-02-08T13:51:05.667069+00:00",
+  "commit": "3bd3822198f2",
+  "files": [
+    {
+      "path": "tests/integration/webapp/repositories/test_shootout_repository.py",
+      "sha256": "adc6f73f78573587c7e32b2f8c3f1a08b5c74fbb87028432d7db1422aae5343d",
+      "size": 6867,
+      "modified": "2026-02-08T13:50:31.995949+00:00"
+    }
+  ]
+}
