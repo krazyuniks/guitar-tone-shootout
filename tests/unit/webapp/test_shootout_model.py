@@ -225,14 +225,26 @@ async def test_shootout_relationships(session: AsyncSession) -> None:
     session.add_all([shootout_chain1, shootout_chain2])
     await session.commit()
 
-    # Refresh shootout in a new session to test eager loading
-    await session.refresh(shootout)
+    # Re-fetch with joinedload to test relationships
+    from sqlalchemy import select
+    from sqlalchemy.orm import joinedload
 
-    assert shootout.user.username == "testuser"
-    assert shootout.di_track.name == "Test DI Track"
-    assert len(shootout.chains) == 2
-    assert shootout.chains[0].label == "Chain A"
-    assert shootout.chains[1].label == "Chain B"
+    result = await session.execute(
+        select(Shootout)
+        .where(Shootout.id == shootout.id)
+        .options(
+            joinedload(Shootout.user),
+            joinedload(Shootout.di_track),
+            joinedload(Shootout.chains),
+        )
+    )
+    loaded = result.unique().scalar_one()
+
+    assert loaded.user.username == "testuser"
+    assert loaded.di_track.name == "Test DI Track"
+    assert len(loaded.chains) == 2
+    assert loaded.chains[0].label == "Chain A"
+    assert loaded.chains[1].label == "Chain B"
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.shootout import (
     ChainNotFoundError,
@@ -173,9 +174,13 @@ async def test_save_persists_chains(
     await db_session.commit()
 
     # Verify chains in database
-    stmt = select(ShootoutModel).where(ShootoutModel.id == shootout.id)
+    stmt = (
+        select(ShootoutModel)
+        .where(ShootoutModel.id == shootout.id)
+        .options(joinedload(ShootoutModel.chains))
+    )
     result = await db_session.execute(stmt)
-    db_shootout = result.scalar_one()
+    db_shootout = result.unique().scalar_one()
 
     assert len(db_shootout.chains) == 1
     assert db_shootout.chains[0].signal_chain_id == test_signal_chain.id
@@ -571,9 +576,13 @@ async def test_update_removes_deleted_chains(
     await db_session.commit()
 
     # Verify only chain2 remains
-    stmt = select(ShootoutModel).where(ShootoutModel.id == shootout.id)
+    stmt = (
+        select(ShootoutModel)
+        .where(ShootoutModel.id == shootout.id)
+        .options(joinedload(ShootoutModel.chains))
+    )
     result = await db_session.execute(stmt)
-    db_shootout = result.scalar_one()
+    db_shootout = result.unique().scalar_one()
 
     assert len(db_shootout.chains) == 1
     assert db_shootout.chains[0].signal_chain_id == chain2_model.id

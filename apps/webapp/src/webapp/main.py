@@ -36,7 +36,12 @@ def create_app() -> FastAPI:
 
     # Middleware order: outermost first (RequestID -> Timing -> CORS)
     # CORS must be added last so it's innermost (FastAPI reverses order)
-    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:9000").split(",")
+    cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:9000")
+    cors_origins = [o.strip() for o in cors_origins_env.split(",")]
+    # Always allow local development origins
+    for dev_origin in ["http://localhost:3000", "http://localhost:9000"]:
+        if dev_origin not in cors_origins:
+            cors_origins.append(dev_origin)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,

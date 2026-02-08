@@ -46,7 +46,7 @@ def _gear_to_pack(gear) -> dict:
         "id": str(gear.id),
         "slug": gear.slug,
         "title": gear.name,
-        "gear_type": gear.gear_type.value.replace("_", "-"),
+        "gear_type": (gear.gear_type.value if hasattr(gear.gear_type, "value") else str(gear.gear_type)).replace("_", "-"),
         "platform": platform,
         "image_url": gear.thumbnail_url,
         "downloads_count": 0,

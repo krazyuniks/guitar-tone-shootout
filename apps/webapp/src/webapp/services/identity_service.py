@@ -78,7 +78,14 @@ class IdentityService:
             identity.avatar_url = avatar_url
 
             await self.db_session.commit()
-            return user
+
+            # Re-fetch user with identities eagerly loaded
+            result = await self.db_session.execute(
+                select(User)
+                .where(User.id == user.id)
+                .options(joinedload(User.identities))
+            )
+            return result.unique().scalar_one()
 
         # New user — need provider for the identity link
         provider = await self._get_provider(provider_name)
@@ -102,7 +109,14 @@ class IdentityService:
         self.db_session.add(identity)
 
         await self.db_session.commit()
-        return user
+
+        # Re-fetch user with identities eagerly loaded
+        result = await self.db_session.execute(
+            select(User)
+            .where(User.id == user.id)
+            .options(joinedload(User.identities))
+        )
+        return result.unique().scalar_one()
 
     async def _get_provider(self, provider_name: str) -> OAuthProvider:
         """Fetch OAuth provider from database, auto-creating T3K if missing.

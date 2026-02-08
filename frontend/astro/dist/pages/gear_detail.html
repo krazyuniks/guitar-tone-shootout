@@ -1,0 +1,11 @@
+{% extends "layouts/base.html" %}
+{% block title %}Gear Detail{% endblock %}
+{% block content %}
+<div data-testid="gear-detail-page">
+  <a href="/gear" data-testid="back-to-browse-link">Back</a>
+  <h1 data-testid="gear-detail-name">{{ gear.name }}</h1>
+  <span data-testid="gear-detail-type">{{ gear.gear_type }}</span>
+  <span data-testid="gear-detail-manufacturer">{{ gear.manufacturer }}</span>
+  <p data-testid="gear-detail-description">{{ gear.description }}</p>
+</div>
+{% endblock %}
