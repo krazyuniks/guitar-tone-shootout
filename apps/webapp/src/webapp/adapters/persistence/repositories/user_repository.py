@@ -86,20 +86,12 @@ class SQLAlchemyUserRepository:
         Returns:
             The User entity if found, None otherwise
         """
-        # First get the provider
-        provider_stmt = select(OAuthProvider).where(OAuthProvider.name == provider)
-        provider_result = await self.session.execute(provider_stmt)
-        provider_obj = provider_result.scalar_one_or_none()
-
-        if not provider_obj:
-            return None
-
-        # Then find the identity
         stmt = (
             select(User)
             .join(UserIdentity, User.id == UserIdentity.user_id)
+            .join(OAuthProvider, UserIdentity.provider_id == OAuthProvider.id)
             .where(
-                UserIdentity.provider_id == provider_obj.id,
+                OAuthProvider.name == provider,
                 UserIdentity.external_id == external_id,
             )
             .options(joinedload(User.identities).joinedload(UserIdentity.provider))
