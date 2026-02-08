@@ -59,6 +59,9 @@ See `.claude/skills/gts-testing/SKILL.md` > "Production-Learned Banned Patterns"
 1. **NEVER use `from __future__ import annotations`** in FastAPI route modules — breaks `Depends()` resolution, causes 422 errors
 2. **`db_session.begin()` nesting** — conftest uses `_TestAsyncSession` that falls back to `begin_nested()` when autobegin is active
 3. **Inline `FastAPI()` apps** need `set_session_override()` from conftest, not `dependency_overrides`
+4. **NEVER put test helpers in production modules** — functions like `set_session_override()` or `set_user_override()` must live in `tests/fixtures/` or `conftest.py`, not in `pages.py` or `library.py`. Putting them in app code causes cascading `ImportError` when the implementer refactors those modules.
+5. **`session.get()` does NOT load `lazy="raise"` relationships** — replace with `select().where().options(joinedload(...))` when you need relationships after fetching
+6. **`session.refresh(obj)` does NOT load `lazy="raise"` relationships** — use `session.refresh(obj, ["relationship_name"])` to explicitly load specific relationships
 
 ## Systematic Strategy
 
@@ -106,6 +109,7 @@ For sequential dependencies (e.g., models must change before repos), do the prer
 - **Parallel subagents for independent groups**: Use Task() when 3+ files need independent changes
 - **Single verification pass**: Run tests once after a batch, not after each file
 - **Budget awareness**: If at turn 20 with failures remaining, focus on the highest-impact fixes
+- **Map ALL downstream consumers before changing model-level attributes**: When changing `lazy=`, relationship names, column types, or removing/renaming functions, grep the entire codebase for ALL usages FIRST. Fix them all in the same batch — not one at a time.
 
 ## Frontend Tasks
 

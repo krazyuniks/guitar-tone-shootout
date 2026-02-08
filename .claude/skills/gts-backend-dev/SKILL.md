@@ -256,6 +256,37 @@ models: Mapped[list[GearModel]] = relationship(
 # BANNED — fires separate query
 models: Mapped[list[GearModel]] = relationship(..., lazy="selectin")
 ```
+
+### lazy="raise" Gotchas
+
+These patterns silently break when relationships use `lazy="raise"`:
+
+| Pattern | Problem | Fix |
+|---------|---------|-----|
+| `session.get(Model, id)` | Does not load relationships | Use `select().where().options(joinedload(...))` |
+| `session.refresh(obj)` | Does not load relationships | Use `session.refresh(obj, ["relationship_name"])` |
+| Auth dependencies loading users | Downstream code accesses `user.identities` | Add `joinedload(User.identities)` to auth query |
+| Service methods returning created objects | Object has no loaded relationships | Refresh with attribute names before returning |
+| `hasattr(obj, "relationship")` | Does not catch `InvalidRequestError` | Use `sa_inspect(Model).relationships` for introspection |
+
+```python
+# WRONG — session.get() won't load lazy="raise" relationships
+gear = await session.get(Gear, gear_id)
+print(gear.models)  # InvalidRequestError!
+
+# RIGHT — explicit joinedload
+stmt = select(Gear).where(Gear.id == gear_id).options(joinedload(Gear.models))
+result = await session.execute(stmt)
+gear = result.unique().scalar_one_or_none()
+print(gear.models)  # OK
+
+# WRONG — session.refresh() without attribute names
+await session.refresh(gear)
+print(gear.models)  # InvalidRequestError!
+
+# RIGHT — refresh with specific relationship names
+await session.refresh(gear, ["models", "tags"])
+print(gear.models)  # OK
 ```
 
 ### Transactions

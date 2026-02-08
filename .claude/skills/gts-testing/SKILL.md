@@ -281,6 +281,45 @@ If the module file doesn't exist, pytest collection fails — that IS the red ph
 
 `conftest.py` can be modified by ALL agents (test-author and implementer). It is not locked by the test snapshot system. Fixture changes go in conftest.
 
+**12. Test helpers in production modules — BANNED**
+
+Never put test utility functions (`set_session_override()`, `set_user_override()`, test factory functions) in production modules like `pages.py`, `library.py`, or service files. When the implementer refactors those modules, the test helpers disappear and cause cascading `ImportError` across unrelated tests.
+
+```python
+# BANNED — test helper in production module
+# apps/webapp/src/webapp/api/pages.py
+def set_session_override(session):  # NO — this breaks when pages.py is refactored
+    ...
+
+# CORRECT — test helper in test fixtures
+# tests/fixtures/overrides.py or tests/conftest.py
+def set_session_override(session):
+    ...
+```
+
+**13. `lazy="raise"` relationship access in tests**
+
+When models use `lazy="raise"`, tests that access relationships after querying MUST either:
+- Use `joinedload()` in the query
+- Use `session.refresh(obj, ["relationship_name"])` to explicitly load
+
+```python
+# BANNED — will raise InvalidRequestError with lazy="raise"
+user = await session.get(User, user_id)
+print(user.identities)  # BOOM
+
+# CORRECT — eager load the relationship
+stmt = select(User).where(User.id == user_id).options(joinedload(User.identities))
+result = await session.execute(stmt)
+user = result.unique().scalar_one()
+print(user.identities)  # OK
+
+# ALSO CORRECT — refresh with specific attribute
+user = await session.get(User, user_id)
+await session.refresh(user, ["identities"])
+print(user.identities)  # OK
+```
+
 ---
 
 ## E2E Testing (Golden Path)

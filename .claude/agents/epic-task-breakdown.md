@@ -145,6 +145,7 @@ A1 ─── A2
 - **Max 10-15 tests** per task
 - **Max 3 implementation files** per task
 - **Single layer boundary** — repository+service OR api+schemas, never both
+- **One aggregate per test task** — never combine User + SignalChain tests in one task
 
 If a story's acceptance criteria would produce >15 tests:
 1. Split by layer (persistence vs API vs frontend)
@@ -152,6 +153,25 @@ If a story's acceptance criteria would produce >15 tests:
 3. Split by complexity (CRUD vs business logic)
 
 Tasks that are too large cause the implementer agent to exhaust its 30-turn budget.
+
+## Breaking Change Rule (MANDATORY)
+
+**Any task that changes model-level attributes, removes/renames public APIs, or alters relationship loading MUST be split into two hard-dependent tasks:**
+
+1. **Task A** — Make the breaking change (e.g., set `lazy="raise"` on all models)
+2. **Task B** — Fix ALL downstream consumers broken by Task A (blocked by A, blocks all subsequent tasks)
+
+**Task B's scope MUST enumerate every affected consumer.** The planner must:
+1. `grep` for all usages of the changed attribute/API across the codebase
+2. List every file that will break (repositories, auth dependencies, services, tests, fixtures)
+3. Include the consumer count in the task description so the implementer knows the scope
+
+**Why:** Breaking changes have 100% predictable blast radius. A `lazy="raise"` change will break every `session.get()`, `session.refresh()`, auth dependency, and test that accesses a relationship. Failing to plan for this caused 97 unplanned test failures in E33.
+
+**Examples:**
+- `lazy="raise"` on models → companion task: fix all `session.get()`, `session.refresh()`, auth deps, test fixtures
+- Removing a public function → companion task: update all callers
+- Renaming a DB column → companion task: update all queries, schemas, templates
 
 ## Task Quality Checklist
 

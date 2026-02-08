@@ -159,6 +159,35 @@ When adding new endpoints, update `tests/e2e/python/tests/test_regression.py` wi
 - Task: "Full gear CRUD" — touches repository + service + API + schemas + template
 - Task: "Implement shootouts and jobs" — crosses entity boundaries
 
+**Bad (crosses aggregates in tests):**
+- Task: "User and SignalChain integration tests" — two aggregates = wider failure surface, harder to debug
+
+**Good (single aggregate per test task):**
+- Task: "User aggregate integration tests"
+- Task: "SignalChain aggregate integration tests"
+
+### Breaking Change Blast Radius Analysis
+
+For refactor epics, the goal-backward phase MUST identify breaking changes and their blast radius:
+
+1. **Identify breaking changes** — any change to model attributes, relationship loading, public APIs, or column types
+2. **Enumerate ALL downstream consumers** — grep the codebase for every usage
+3. **Create two hard-dependent tasks:**
+   - **Task A** — Make the breaking change
+   - **Task B** — Fix all downstream consumers (blocked by A, blocks all subsequent tasks)
+4. **Task B must list every affected file** with the consumer count in the description
+
+**Example (lazy="raise" migration):**
+```
+Breaking change: Set lazy="raise" on all ORM relationships
+Blast radius: 97 test failures
+Consumers: session.get() (4 files), session.refresh() (6 files),
+           auth dependencies (2 files), test fixtures (12 files)
+→ Task A: "Set lazy='raise' on all relationships"
+→ Task B: "Fix 24 downstream consumers of lazy='raise'"
+   Scope: [list every file]
+```
+
 ---
 
 ## Output Format

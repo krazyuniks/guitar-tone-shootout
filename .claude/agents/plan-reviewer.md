@@ -48,6 +48,7 @@ Evaluate TASKS.md against these criteria:
 - Each task should have ≤15 acceptance criteria
 - Each task should touch ≤3 implementation files
 - Tasks crossing layer boundaries (repository + API) should be split
+- Integration test tasks must cover ONE aggregate only (never User + SignalChain in same task)
 
 #### C. Dependency Graph
 - Verify the dependency graph is acyclic
@@ -133,6 +134,8 @@ Blocking issues:
 - Cyclic dependencies
 - Task with >15 acceptance criteria
 - Acceptance criteria too vague for pytest
+- Breaking change without a companion "fix downstream consumers" task (blocked by the breaking change, blocking all subsequent tasks)
+- Test task combining multiple aggregates (e.g., User + SignalChain in one task)
 
 Warnings (non-blocking):
 - Task could be split further

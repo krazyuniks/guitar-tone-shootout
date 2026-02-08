@@ -188,8 +188,23 @@ Each task must have:
 - [ ] Exact GTS file paths in scope
 - [ ] Dependencies noted (`Blocked by: #n`)
 - [ ] `project:{workspace}` label
+- [ ] Breaking changes split into two hard-dependent tasks (change + fix downstream)
+- [ ] Test tasks cover ONE aggregate only (never combine e.g. User + SignalChain)
 
 **Test:** Could a different Claude instance execute this task without asking clarifying questions?
+
+### Breaking Change Detection
+
+If a task changes any of these, it is a **breaking change** and MUST have a companion "fix downstream" task:
+
+| Change Type | Blast Radius |
+|-------------|-------------|
+| `lazy="raise"` on relationships | Every `session.get()`, `session.refresh()`, auth dependency, test fixture that accesses a relationship |
+| Removing/renaming a public function | Every caller across the codebase |
+| Changing a column type or name | Every query, schema, and template that references it |
+| Moving a module | Every import across the codebase |
+
+The companion task MUST enumerate every affected file. Use `grep` to find them.
 
 ---
 
