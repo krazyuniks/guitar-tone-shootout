@@ -75,9 +75,21 @@ async def sample_signal_chain_with_blocks(
     db_session: AsyncSession,
 ) -> SignalChainEntity:
     """Create and persist a signal chain with blocks."""
+    # Import here to avoid circular dependency
+    from webapp.adapters.persistence.models.user import User
+
+    # Create a user first to satisfy foreign key constraint
+    user = User(
+        id=uuid4(),
+        username="testuser",
+        email="test@example.com",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
     chain = SignalChainEntity(
         id=uuid4(),
-        user_id=uuid4(),
+        user_id=user.id,
         name="Test Chain",
         description="A test signal chain",
         platform=Platform.NAM,

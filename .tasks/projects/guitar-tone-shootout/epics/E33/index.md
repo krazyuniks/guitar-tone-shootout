@@ -32,7 +32,7 @@ T43 → T46
 | T41 | [Task]: E2 - Convert ShootoutReposi | complete | webapp | T40 |
 | T42 | [Task]: F1 - Add query counting fix | complete | webapp | - |
 | T43 | [Task]: F2 - Add integration tests  | complete | webapp | T42 |
-| T44 | [Task]: F3 - Add integration tests  | pending | webapp | T42 |
+| T44 | [Task]: F3 - Add integration tests  | locked | webapp | T42 |
 | T45 | [Task]: F4 - Add integration tests  | pending | webapp | T42 |
 | T46 | [Task]: G1 - Verify regression and  | pending | webapp | T43 |
 
