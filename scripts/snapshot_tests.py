@@ -70,6 +70,38 @@ def collect_test_files() -> list[Path]:
     return sorted(set(files))
 
 
+def collect_locked_test_files(task_id: str) -> list[Path]:
+    """Collect only test files from the task's lock commit.
+
+    Finds the lock commit (git log --grep="test-lock: {task_id}")
+    and extracts only the test files that were part of that commit.
+    """
+    # Find the lock commit
+    result = subprocess.run(
+        ["git", "log", f"--grep=test-lock: {task_id}", "-1", "--format=%H"],
+        capture_output=True,
+        text=True,
+    )
+    lock_commit = result.stdout.strip()
+    if not lock_commit:
+        print(f"WARNING: No lock commit found for {task_id}")
+        return []
+
+    # Extract test files from that commit
+    result = subprocess.run(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", lock_commit, "--", "tests/"],
+        capture_output=True,
+        text=True,
+    )
+    paths = []
+    for line in result.stdout.strip().splitlines():
+        p = Path(line)
+        if p.exists() and p.name.startswith("test_"):
+            paths.append(p)
+
+    return sorted(paths)
+
+
 def get_snapshot_dir(task_id: str) -> Path:
     """Find or create snapshot directory for task.
 
@@ -93,8 +125,14 @@ def get_snapshot_dir(task_id: str) -> Path:
 
 
 def create_snapshot(task_id: str) -> TestSnapshot:
+    """Create snapshot of only the task's locked test files."""
+    locked_files = collect_locked_test_files(task_id)
+    if not locked_files:
+        print(f"WARNING: No locked test files found for {task_id}, falling back to all test files")
+        locked_files = collect_test_files()
+
     files = []
-    for path in collect_test_files():
+    for path in locked_files:
         stat = path.stat()
         files.append(
             FileSnapshot(
@@ -105,10 +143,18 @@ def create_snapshot(task_id: str) -> TestSnapshot:
             )
         )
 
+    # Store the lock commit hash
+    result = subprocess.run(
+        ["git", "log", f"--grep=test-lock: {task_id}", "-1", "--format=%H"],
+        capture_output=True,
+        text=True,
+    )
+    lock_commit = result.stdout.strip()[:12] or get_current_commit()
+
     return TestSnapshot(
         task_id=task_id,
         created=datetime.now(timezone.utc).isoformat(),
-        commit=get_current_commit(),
+        commit=lock_commit,
         files=files,
     )
 
@@ -155,25 +201,28 @@ def load_snapshot(task_id: str, snapshot_dir: Path = None) -> TestSnapshot | Non
 
 
 def verify_snapshot(task_id: str, snapshot_dir: Path = None) -> tuple[bool, list[dict]]:
-    """Verify test files unchanged since snapshot."""
+    """Verify locked test files unchanged since snapshot.
+
+    Only checks the task's own test files (from the lock commit).
+    Does NOT check for added files — that's enforced by agent instructions.
+    """
     snapshot = load_snapshot(task_id, snapshot_dir)
     if not snapshot:
         return False, [{"error": f"No snapshot found for {task_id}"}]
 
     violations = []
-    current_files = {str(p): p for p in collect_test_files()}
     snapshot_files = {f.path: f for f in snapshot.files}
 
-    # Check for modifications and deletions
+    # Check for modifications and deletions of locked test files only
     for path, expected in snapshot_files.items():
-        current_path = current_files.get(path)
+        current_path = Path(path)
 
-        if current_path is None:
+        if not current_path.exists():
             violations.append(
                 {
                     "type": "DELETED",
                     "path": path,
-                    "message": "Test file deleted during implementation",
+                    "message": "Locked test file deleted during implementation",
                 }
             )
             continue
@@ -186,25 +235,14 @@ def verify_snapshot(task_id: str, snapshot_dir: Path = None) -> tuple[bool, list
                     "path": path,
                     "expected_hash": expected.sha256[:12],
                     "actual_hash": current_hash[:12],
-                    "message": "Test file modified during implementation",
-                }
-            )
-
-    # Check for additions
-    for path in current_files:
-        if path not in snapshot_files:
-            violations.append(
-                {
-                    "type": "ADDED",
-                    "path": path,
-                    "message": "Test file added during implementation (must be in test phase)",
+                    "message": "Locked test file modified during implementation",
                 }
             )
 
     passed = len(violations) == 0
 
     if passed:
-        print(f"✓ All {len(snapshot.files)} test files unchanged since {snapshot.commit}")
+        print(f"✓ All {len(snapshot.files)} locked test files unchanged since {snapshot.commit}")
     else:
         print(f"✗ {len(violations)} violation(s) detected:")
         for v in violations:

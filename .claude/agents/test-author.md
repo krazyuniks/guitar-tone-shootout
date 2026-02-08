@@ -47,12 +47,12 @@ Some tasks extend code that already exists. When the prompt includes a "Pre-flig
 
 Do NOT create or modify files outside `tests/`.
 
-### CRITICAL: Do NOT modify existing test files
+### Existing Test Files
 
-- Only CREATE new test files — never edit, modify, or append to existing ones
-- Before writing, check if the file exists. If it does, choose a different filename
-- Existing tests (regression, unit, integration) are owned by previous tasks
-- Your job is to add NEW test files for the current task only
+- **Prefer creating new test files** for each task
+- **You MAY modify existing test files** when the task spec explicitly requires it (e.g. "Modify: tests/...")
+- When modifying, ADD new test functions — do not alter or remove existing tests
+- Before writing a new file, check if the task spec names a specific file to modify
 
 ## Banned Patterns
 

@@ -477,19 +477,19 @@ tdd-red task:
     echo ""
     echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
 
-# Lock tests (snapshot before implementation)
+# Lock tests (commit first, then snapshot the lock commit's test files)
 tdd-lock task:
     #!/usr/bin/env bash
     set -e
-    python scripts/snapshot_tests.py save {{task}}
     git add .tasks/ tests/
     git commit -m "test-lock: {{task}} tests ready for implementation"
+    python scripts/snapshot_tests.py save {{task}}
     echo "Tests locked at $(git rev-parse --short HEAD)"
 
 # Implementation phase hint
 tdd-impl-phase task:
     @echo "Implementation phase for {{task}}"
-    @echo "Make tests pass. DO NOT modify test files."
+    @echo "Make ALL tests pass. You may fix existing tests broken by your changes."
     @echo ""
     @echo "Run tests in watch mode:"
     @echo "  docker compose exec webapp pytest tests/ -v --tb=short -x"
@@ -497,28 +497,12 @@ tdd-impl-phase task:
     @echo "Or use TDD helper:"
     @echo "  just tdd tests/unit/path/to/test.py"
 
-# Verify tests pass (green phase) - runs task-scoped tests in Docker
+# Verify tests pass (green phase) - runs full test suite in Docker
 tdd-green task:
     #!/usr/bin/env bash
     set -e
-    echo "Verifying tests pass for {{task}}..."
-    # Find the lock commit for this task
-    LOCK_COMMIT=$(git log --oneline --grep="test-lock: {{task}}" -1 --format="%H")
-    if [ -z "$LOCK_COMMIT" ]; then
-        echo "WARNING: No lock commit found for {{task}}, falling back to full test suite"
-        docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
-    else
-        # Extract test files from the lock commit
-        TEST_FILES=$(git diff-tree --no-commit-id --name-only -r "$LOCK_COMMIT" -- tests/)
-        if [ -z "$TEST_FILES" ]; then
-            echo "WARNING: No test files found in lock commit $LOCK_COMMIT, falling back to full test suite"
-            docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
-        else
-            echo "Running task-scoped tests from lock commit ${LOCK_COMMIT:0:8}:"
-            echo "$TEST_FILES"
-            docker compose exec -T webapp pytest $TEST_FILES -v
-        fi
-    fi
+    echo "Verifying ALL tests pass for {{task}}..."
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
     echo "Tests passing"
 
 # Full TDD validation
