@@ -13,10 +13,10 @@ from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearMake,
-    GearModel,
-    GearSource,
     GearTag,
 )
+from webapp.adapters.persistence.models.gear_model import GearModel
+from webapp.adapters.persistence.models.gear_source import GearSource
 
 
 @pytest.fixture

@@ -31,6 +31,30 @@ from webapp.templates import _relative_time, templates
 
 router = APIRouter(tags=["pages"])
 
+# Session and user overrides for testing
+_session_override: AsyncSession | None = None
+_user_override: User | None = None
+
+
+def set_session_override(session: AsyncSession | None) -> None:
+    """Override the database session for testing.
+
+    Args:
+        session: Test database session or None to clear
+    """
+    global _session_override
+    _session_override = session
+
+
+def set_user_override(user: User | None) -> None:
+    """Override the current user for testing.
+
+    Args:
+        user: Test user to use as CurrentUser or None to clear
+    """
+    global _user_override
+    _user_override = user
+
 
 # --- Gear mapping helpers ---
 

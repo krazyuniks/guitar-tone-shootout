@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from .signal_chain import SignalChainBlock
 
 from sqlalchemy import JSON, ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, UUIDMixin
-
-if TYPE_CHECKING:
-    from .signal_chain import SignalChainBlock
 
 
 class Preset(UUIDMixin, Base):

@@ -4,12 +4,14 @@ from collections.abc import AsyncGenerator
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.base import Base
+from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.signal_chain import (
-    BlockType,
     SignalChain,
     SignalChainBlock,
 )
@@ -153,8 +155,13 @@ async def test_signal_chain_block_has_block_type_relationship(session: AsyncSess
     session.add(block)
     await session.commit()
 
-    # Refresh to load relationships
-    await session.refresh(block)
+    # Re-query with joinedload to eagerly load relationship (lazy="raise" on model)
+    result = await session.execute(
+        select(SignalChainBlock)
+        .where(SignalChainBlock.id == block.id)
+        .options(joinedload(SignalChainBlock.block_type))
+    )
+    block = result.unique().scalar_one()
 
     # Assert - Check relationship exists
     assert hasattr(block, "block_type")

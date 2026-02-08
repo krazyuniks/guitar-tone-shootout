@@ -10,7 +10,8 @@ from httpx import ASGITransport, AsyncClient
 from core.domain.entities.shootout import Shootout
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.user import User
-from webapp.api.pages import router, set_session_override, set_user_override
+from webapp.api.pages import router
+from webapp.auth.dependencies import set_session_override, set_user_override
 from webapp.services.shootout_service import ShootoutService
 
 if TYPE_CHECKING:

@@ -508,8 +508,9 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
         "3. Run tests to verify they compile and FAIL (not error)",
         "4. Do NOT create any implementation files",
         "5. Do NOT update any .tasks/ state files",
-        "6. Do NOT modify any existing test files — only create new ones",
-        "7. Check if a test file exists before writing. If it does, use a different filename",
+        "6. You MAY modify existing test files when the task spec explicitly requires it",
+        "7. When modifying, ADD new test functions — do not alter existing tests",
+        "8. Prefer creating new files unless the task spec names a specific file to modify",
     ])
 
     if retry_context:
@@ -576,9 +577,13 @@ def build_implementer_prompt(
         "1. Read the task spec and test files to understand expected behaviour",
         "2. Implement code to make all tests pass",
         "3. Run tests iteratively: just tdd <test_path>",
-        "4. You CANNOT modify any files in tests/",
-        "5. Do NOT update any .tasks/ state files",
-        "6. All commands run in Docker (use just commands)",
+        "4. You MAY modify existing test files to fix breakage from your changes",
+        "5. You MUST NOT modify the task's own test files (the spec from test-author)",
+        "6. You MUST NOT create new test files",
+        "7. Use Grep to find ALL affected patterns before making changes",
+        "8. Fix existing tests FIRST, then fix code, then verify with full suite",
+        "9. Do NOT update any .tasks/ state files",
+        "10. All commands run in Docker (use just commands)",
     ]
 
     if retry_context:
@@ -676,6 +681,33 @@ def find_failing_test_files(green_output: str) -> list[str]:
     for match in re.finditer(r"FAILED (tests/\S+\.py)::", green_output):
         files.add(match.group(1))
     return sorted(files)
+
+
+def find_erroring_test_files(green_output: str) -> list[str]:
+    """Extract erroring test file paths from pytest output."""
+    files: set[str] = set()
+    for match in re.finditer(r"ERROR (tests/\S+\.py)::", green_output):
+        files.add(match.group(1))
+    for match in re.finditer(r"(tests/\S+\.py):\d+: (?:NameError|ImportError)", green_output):
+        files.add(match.group(1))
+    return sorted(files)
+
+
+def get_scope_test_files(task: Task) -> list[str]:
+    """Extract test file paths from task scope (Create + Modify sections)."""
+    scope_files = preflight_scope_check(task)
+    return sorted(f for f, _ in scope_files if f.startswith("tests/"))
+
+
+def is_test_only_task(task: Task) -> bool:
+    """Check if all scope files are in tests/ (no implementation code to write).
+
+    Returns True when the task only modifies/creates test files.
+    """
+    scope_files = preflight_scope_check(task)
+    if not scope_files:
+        return False
+    return all(filepath.startswith("tests/") for filepath, _ in scope_files)
 
 
 def build_test_fix_prompt(
@@ -965,8 +997,30 @@ def run_tdd_lock(task_id: str) -> tuple[bool, str]:
     return run_just_command("tdd-lock", task_id)
 
 
-def run_tdd_green(task_id: str) -> tuple[bool, str]:
-    """Verify tests pass (green phase). Returns (passed, output)."""
+def run_tdd_green(task_id: str, task: Task | None = None) -> tuple[bool, str]:
+    """Verify tests pass (green phase). Returns (passed, output).
+
+    When a Task is provided, runs pytest directly on scope-derived test files
+    (fast feedback during retries). When task is None, runs the full suite
+    via `just tdd-green`.
+    """
+    if task is not None:
+        test_files = get_scope_test_files(task)
+        if test_files:
+            files_display = " ".join(test_files)
+            log(f"    Running scope-derived green: pytest {files_display} -v")
+            result = subprocess.run(
+                ["docker", "compose", "exec", "-T", "webapp", "pytest", *test_files, "-v"],
+                capture_output=True, text=True, cwd=PROJECT_ROOT,
+            )
+            output = result.stdout + result.stderr
+            ok = result.returncode == 0
+            log(f"    scope-derived green -> {'OK' if ok else f'FAILED (exit {result.returncode})'}", "debug")
+            if output.strip():
+                log(f"    Output:\n{output[-3000:]}", "debug")
+            return ok, output
+        else:
+            log("    No test files in task scope, falling back to just tdd-green")
     return run_just_command("tdd-green", task_id)
 
 
@@ -1156,24 +1210,100 @@ def run_state_machine(
                 log(f"  [dry-run] Would run: tdd-red {task_id_str}")
                 log(f"  [dry-run] Would run: tdd-lock {task_id_str}")
                 log(f"  [dry-run] Would update state: pending → locked")
+                update_task_state(epic_dir, task.task_id, "locked")
 
         elif task.state == "locked":
-            # --- IMPLEMENTATION PHASE ---
-            log(f"\n  Phase: IMPL (implementing T{task.task_id})")
-            log_structured("phase_start", task_id=task.task_id, phase="impl")
+            # --- CHECK: is this a test-only task? ---
+            test_only = is_test_only_task(task)
 
-            prompt = build_implementer_prompt(task)
-            dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
+            if test_only:
+                # Test-only tasks: verify task's own tests pass first
+                log(f"\n  Phase: TEST-FIX (test-only task T{task.task_id})")
+                log_structured("phase_start", task_id=task.task_id, phase="test_fix")
 
+                if not dry_run:
+                    ok, output = run_tdd_green(task_id_str, task)  # scope-derived
+                else:
+                    log(f"  [dry-run] Would run scope-derived green for test-only task")
+                    ok, output = True, ""
+
+                if not dry_run and not ok:
+                    failing_files = find_failing_test_files(output)
+                    error_files = find_erroring_test_files(output)
+                    all_problem_files = sorted(set(failing_files) | set(error_files))
+
+                    if all_problem_files:
+                        log(f"  Test-only task has {len(all_problem_files)} problem file(s), dispatching test-author FIX...")
+                        fix_prompt = build_test_fix_prompt(task, output, all_problem_files)
+                        dispatch_agent("test-author", fix_prompt, project=task.project)
+
+                        log(f"\n  Re-locking tests after fix...")
+                        lock_ok, lock_output = re_lock_after_bounce(task_id_str)
+                        if not lock_ok:
+                            stop_epic(epic_dir, task.task_id, "test_fix_lock_failed", lock_output)
+
+                        ok, output = run_tdd_green(task_id_str, task)
+                        if not ok:
+                            stop_epic(epic_dir, task.task_id, "test_fix_green_failed", output)
+                    else:
+                        stop_epic(epic_dir, task.task_id, "green_failed", output)
+            else:
+                # --- IMPLEMENTATION PHASE (normal) ---
+                log(f"\n  Phase: IMPL (implementing T{task.task_id})")
+                log_structured("phase_start", task_id=task.task_id, phase="impl")
+
+                prompt = build_implementer_prompt(task)
+                dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
+
+                if not dry_run:
+                    # Verify task's own tests pass (scope-derived, fast feedback)
+                    log(f"\n  Phase: GREEN (verifying task tests pass)")
+                    ok, output = run_tdd_green(task_id_str, task)
+
+                    if not ok:
+                        # Retry up to MAX_IMPLEMENTER_RETRIES times with scope-derived
+                        for attempt in range(MAX_IMPLEMENTER_RETRIES):
+                            log(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
+                            retry_prompt = build_implementer_prompt(task, retry_context=output)
+                            dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
+
+                            ok, output = run_tdd_green(task_id_str, task)
+                            if ok:
+                                break
+
+                        if not ok:
+                            # --- BOUNCE-BACK: try fixing tests if likely test bug ---
+                            bounced = bounce_backs.get(task.task_id, 0)
+                            if bounced == 0 and is_likely_test_bug(task, output):
+                                bounce_backs[task.task_id] = 1
+                                failing_files = find_failing_test_files(output)
+                                log(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
+                                log(f"  Dispatching test-author in FIX mode...")
+
+                                fix_prompt = build_test_fix_prompt(task, output, failing_files)
+                                dispatch_agent("test-author", fix_prompt, project=task.project)
+
+                                log(f"\n  Re-locking tests after bounce-back...")
+                                lock_ok, lock_output = re_lock_after_bounce(task_id_str)
+                                if not lock_ok:
+                                    stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
+
+                                log(f"\n  Re-running GREEN after bounce-back...")
+                                ok, output = run_tdd_green(task_id_str, task)
+                                if not ok:
+                                    stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
+                            else:
+                                stop_epic(epic_dir, task.task_id, "green_failed", output)
+
+            # --- FULL SUITE GREEN (both paths must pass the full suite) ---
             if not dry_run:
-                # Verify tests pass (green phase)
-                log(f"\n  Phase: GREEN (verifying tests pass)")
-                ok, output = run_tdd_green(task_id_str)
+                log(f"\n  Phase: FULL-SUITE GREEN (verifying ALL tests pass)")
+                ok, output = run_tdd_green(task_id_str)  # no task = just tdd-green = full suite
 
                 if not ok:
-                    # Retry up to MAX_IMPLEMENTER_RETRIES times
+                    # Dispatch implementer to fix broken existing tests
                     for attempt in range(MAX_IMPLEMENTER_RETRIES):
-                        log(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
+                        log(f"  Full suite failed. Dispatching implementer (attempt {attempt + 1}/{MAX_IMPLEMENTER_RETRIES})...")
                         retry_prompt = build_implementer_prompt(task, retry_context=output)
                         dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
 
@@ -1182,39 +1312,17 @@ def run_state_machine(
                             break
 
                     if not ok:
-                        # --- BOUNCE-BACK: try fixing tests if likely test bug ---
-                        bounced = bounce_backs.get(task.task_id, 0)
-                        if bounced == 0 and is_likely_test_bug(task, output):
-                            bounce_backs[task.task_id] = 1
-                            failing_files = find_failing_test_files(output)
-                            log(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
-                            log(f"  Dispatching test-author in FIX mode...")
+                        stop_epic(epic_dir, task.task_id, "full_suite_green_failed", output)
 
-                            fix_prompt = build_test_fix_prompt(task, output, failing_files)
-                            dispatch_agent("test-author", fix_prompt, project=task.project)
-
-                            # Re-lock tests and re-verify green
-                            log(f"\n  Re-locking tests after bounce-back...")
-                            lock_ok, lock_output = re_lock_after_bounce(task_id_str)
-                            if not lock_ok:
-                                stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
-
-                            log(f"\n  Re-running GREEN after bounce-back...")
-                            ok, output = run_tdd_green(task_id_str)
-                            if not ok:
-                                stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
-                        else:
-                            stop_epic(epic_dir, task.task_id, "green_failed", output)
-
-                # Auto-commit implementation files + task state
-                log(f"\n  Committing implementation...")
-                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", ".tasks/"]
+                # Auto-commit implementation + test fixes + task state
+                log(f"\n  Committing changes...")
+                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", "tests/", ".tasks/"]
                 subprocess.run(
                     ["git", "add", *impl_paths],
                     cwd=PROJECT_ROOT, capture_output=True, text=True,
                 )
                 subprocess.run(
-                    ["git", "commit", "-m", f"feat({task.project or 'impl'}): Implement {task_id_str} — {task.title}"],
+                    ["git", "commit", "-m", f"impl: {task_id_str} — {task.title}"],
                     cwd=PROJECT_ROOT, capture_output=True, text=True,
                 )
                 git_sync()
@@ -1222,9 +1330,10 @@ def run_state_machine(
                 update_task_state(epic_dir, task.task_id, "validating")
                 log_structured("phase_end", task_id=task.task_id, phase="impl", result="validating")
             else:
-                log(f"  [dry-run] Would run: tdd-green {task_id_str}")
+                log(f"  [dry-run] Would run: tdd-green {task_id_str} (full suite)")
                 log(f"  [dry-run] Would commit implementation files")
                 log(f"  [dry-run] Would update state: locked → validating")
+                update_task_state(epic_dir, task.task_id, "validating")
 
         elif task.state == "validating":
             # --- VALIDATION PHASE ---
@@ -1253,6 +1362,7 @@ def run_state_machine(
             else:
                 log(f"  [dry-run] Would run: tdd-complete {task_id_str}")
                 log(f"  [dry-run] Would update state: validating → complete")
+                update_task_state(epic_dir, task.task_id, "complete")
 
         else:
             die(f"Unexpected task state: {task.state} for T{task.task_id}")

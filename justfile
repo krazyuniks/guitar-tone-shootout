@@ -477,19 +477,19 @@ tdd-red task:
     echo ""
     echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
 
-# Lock tests (snapshot before implementation)
+# Lock tests (commit first, then snapshot the lock commit's test files)
 tdd-lock task:
     #!/usr/bin/env bash
     set -e
-    python scripts/snapshot_tests.py save {{task}}
     git add .tasks/ tests/
     git commit -m "test-lock: {{task}} tests ready for implementation"
+    python scripts/snapshot_tests.py save {{task}}
     echo "Tests locked at $(git rev-parse --short HEAD)"
 
 # Implementation phase hint
 tdd-impl-phase task:
     @echo "Implementation phase for {{task}}"
-    @echo "Make tests pass. DO NOT modify test files."
+    @echo "Make ALL tests pass. You may fix existing tests broken by your changes."
     @echo ""
     @echo "Run tests in watch mode:"
     @echo "  docker compose exec webapp pytest tests/ -v --tb=short -x"
@@ -497,11 +497,11 @@ tdd-impl-phase task:
     @echo "Or use TDD helper:"
     @echo "  just tdd tests/unit/path/to/test.py"
 
-# Verify tests pass (green phase) - runs in Docker
+# Verify tests pass (green phase) - runs full test suite in Docker
 tdd-green task:
     #!/usr/bin/env bash
     set -e
-    echo "Verifying tests pass..."
+    echo "Verifying ALL tests pass for {{task}}..."
     docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
     echo "Tests passing"
 

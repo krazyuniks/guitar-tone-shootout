@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -51,7 +51,7 @@ class Job(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "jobs"
 
     # User relationship
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -64,7 +64,7 @@ class Job(UUIDMixin, TimestampMixin, Base):
     )
 
     # Parent/child relationship for job hierarchies
-    parent_job_id: Mapped[uuid.UUID | None] = mapped_column(
+    parent_job_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid,
         ForeignKey("jobs.id", ondelete="CASCADE"),
         nullable=True,
@@ -113,7 +113,7 @@ class Job(UUIDMixin, TimestampMixin, Base):
     task_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Entity reference (what this job is processing)
-    entity_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    entity_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
 
     # Relationships
     user: Mapped[User | None] = relationship(

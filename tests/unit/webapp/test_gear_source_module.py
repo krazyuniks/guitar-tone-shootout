@@ -126,6 +126,8 @@ class TestGearSourceModule:
 
     async def test_gear_source_with_gear_relationship(self, session: AsyncSession) -> None:
         """Test GearSource relationship with Gear."""
+        from sqlalchemy.orm import joinedload
+
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_source import GearSource
 
@@ -147,11 +149,13 @@ class TestGearSourceModule:
         session.add(gear)
         await session.commit()
 
-        # Verify relationship
+        # Verify relationship (use joinedload to eagerly load the gear)
         result = await session.execute(
-            select(GearSource).where(GearSource.id == source.id)
+            select(GearSource)
+            .where(GearSource.id == source.id)
+            .options(joinedload(GearSource.gear))
         )
-        saved_source = result.scalar_one()
+        saved_source = result.unique().scalar_one()
 
         # Should have gear relationship
         assert hasattr(saved_source, "gear")

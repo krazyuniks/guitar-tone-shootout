@@ -201,6 +201,9 @@ class TestPresetModelLocation:
 
     async def test_preset_has_relationship_to_signal_chain_block(self, session: AsyncSession) -> None:
         """Preset should have relationship to SignalChainBlock."""
+        from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
+
         from core.domain.value_objects.block_category import BlockCategory
         from core.domain.value_objects.signal_chain_enums import Platform
         from webapp.adapters.persistence.models.block_type import BlockType
@@ -246,13 +249,18 @@ class TestPresetModelLocation:
         session.add(preset)
         await session.commit()
 
-        # Refresh to load relationship
-        await session.refresh(preset)
+        # Query with joinedload to eagerly load the relationship
+        result = await session.execute(
+            select(Preset)
+            .where(Preset.id == preset.id)
+            .options(joinedload(Preset.signal_chain_block))
+        )
+        loaded_preset = result.unique().scalar_one()
 
         # Verify relationship
-        assert hasattr(preset, "signal_chain_block")
-        assert preset.signal_chain_block is not None
-        assert preset.signal_chain_block.id == block.id
+        assert hasattr(loaded_preset, "signal_chain_block")
+        assert loaded_preset.signal_chain_block is not None
+        assert loaded_preset.signal_chain_block.id == block.id
 
     async def test_preset_cascades_on_block_delete(self, session: AsyncSession) -> None:
         """Preset should be deleted when its SignalChainBlock is deleted."""

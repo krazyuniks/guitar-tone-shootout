@@ -123,8 +123,9 @@ Is it a browser-based test?
 
 ### Phase 4: Implementation
 - **Agent:** `implementer` (tools: Read, Write, Edit, Bash, Glob, Grep)
-- **Path:** `libs/`, `apps/`, `sources/` only
-- Tests are immutable. CANNOT modify test files.
+- **Path:** `libs/`, `apps/`, `sources/`, `tests/` (existing tests only)
+- Task's own test files (from lock commit) are immutable — the spec
+- Existing tests may be modified to fix breakage from the change
 
 ### Phase 5: Green Verification
 - **Command:** `just tdd-green T43`
@@ -243,7 +244,7 @@ Tests that create `FastAPI()` inline need `set_session_override()` from conftest
 
 **5. Testing backward-compat import removal — BANNED**
 
-Creates unsolvable contradictions. Existing code depends on current import paths. The implementer cannot modify existing test files, so breaking existing imports is a deadlock.
+Creates unsolvable contradictions if test-author writes tests that assert old imports are removed. The implementer can fix existing tests, but the task's own test files are immutable.
 
 ```python
 # BANNED — creates unsolvable contradiction

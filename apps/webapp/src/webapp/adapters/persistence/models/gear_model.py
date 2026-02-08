@@ -1,6 +1,9 @@
 """GearModel ORM model for persistence layer."""
 
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,6 +12,9 @@ from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
 
 from .base import Base, EnumByValue, UUIDMixin
+
+if TYPE_CHECKING:
+    from .gear import Gear
 
 
 class GearModel(UUIDMixin, Base):

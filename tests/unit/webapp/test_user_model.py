@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
@@ -92,8 +93,14 @@ async def test_user_identity_links_to_user(db_session: AsyncSession) -> None:
     new_session = async_session()
 
     # Query back and verify relationships
-    result = await new_session.execute(select(User).where(User.id == user_id))
-    loaded_user = result.scalar_one()
+    result = await new_session.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(
+            joinedload(User.identities).joinedload(UserIdentity.provider)
+        )
+    )
+    loaded_user = result.unique().scalar_one()
 
     assert len(loaded_user.identities) == 1
     assert loaded_user.identities[0].external_id == "12345"
@@ -145,8 +152,14 @@ async def test_user_has_many_identities(db_session: AsyncSession) -> None:
     new_session = async_session()
 
     # Query and verify
-    result = await new_session.execute(select(User).where(User.id == user_id))
-    loaded_user = result.scalar_one()
+    result = await new_session.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(
+            joinedload(User.identities).joinedload(UserIdentity.provider)
+        )
+    )
+    loaded_user = result.unique().scalar_one()
 
     assert len(loaded_user.identities) == 2
     provider_names = {identity.provider.name for identity in loaded_user.identities}

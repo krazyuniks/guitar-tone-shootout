@@ -8,7 +8,9 @@ import pytest
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.shootout import (
@@ -225,8 +227,17 @@ async def test_shootout_relationships(session: AsyncSession) -> None:
     session.add_all([shootout_chain1, shootout_chain2])
     await session.commit()
 
-    # Refresh shootout in a new session to test eager loading
-    await session.refresh(shootout)
+    # Re-query with joinedload to eagerly load relationships (lazy="raise" on model)
+    result = await session.execute(
+        select(Shootout)
+        .where(Shootout.id == shootout.id)
+        .options(
+            joinedload(Shootout.user),
+            joinedload(Shootout.di_track),
+            joinedload(Shootout.chains),
+        )
+    )
+    shootout = result.unique().scalar_one()
 
     assert shootout.user.username == "testuser"
     assert shootout.di_track.name == "Test DI Track"
