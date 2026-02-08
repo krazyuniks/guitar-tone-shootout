@@ -683,6 +683,12 @@ def build_implementer_prompt(
     return "\n".join(lines)
 
 
+def get_scope_test_files(task: Task) -> list[str]:
+    """Extract test file paths from task scope (Create + Modify sections)."""
+    scope_files = preflight_scope_check(task)
+    return sorted(f for f, _ in scope_files if f.startswith("tests/"))
+
+
 def is_test_only_task(task: Task) -> bool:
     """Check if all scope files are in tests/ (no implementation needed).
 
@@ -822,9 +828,14 @@ def build_test_fix_prompt(
 def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
     """Re-snapshot and commit fixed tests after bounce-back.
 
+    Stages test fixes but does NOT commit separately — tdd-lock creates a
+    single commit containing both the test fixes and the snapshot. This avoids
+    the two-commit problem where the snapshot-only commit has no test files in
+    its diff, causing git-based scope discovery to fail.
+
     Returns (success, output).
     """
-    # Stage and commit test fixes
+    # Stage test fixes (NOT committed — tdd-lock will commit everything)
     result = subprocess.run(
         ["git", "add", "tests/"],
         cwd=PROJECT_ROOT, capture_output=True, text=True,
@@ -832,16 +843,9 @@ def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
     if result.returncode != 0:
         return False, result.stderr
 
-    result = subprocess.run(
-        ["git", "commit", "-m", f"fix(tests): Fix test bugs for {task_id_str} (bounce-back)"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
-    )
-    # commit may fail if nothing changed — that's OK
-    commit_output = result.stdout + result.stderr
-
-    # Re-snapshot
+    # Re-snapshot — tdd-lock stages .tasks/ + tests/ and creates one commit
     ok, snapshot_output = run_just_command("tdd-lock", task_id_str)
-    return ok, commit_output + "\n" + snapshot_output
+    return ok, snapshot_output
 
 
 # ---------------------------------------------------------------------------
@@ -1052,8 +1056,30 @@ def run_tdd_lock(task_id: str) -> tuple[bool, str]:
     return run_just_command("tdd-lock", task_id)
 
 
-def run_tdd_green(task_id: str) -> tuple[bool, str]:
-    """Verify tests pass (green phase). Returns (passed, output)."""
+def run_tdd_green(task_id: str, task: Task | None = None) -> tuple[bool, str]:
+    """Verify tests pass (green phase). Returns (passed, output).
+
+    When a Task is provided, runs pytest directly with scope-derived test files
+    instead of `just tdd-green` (which discovers files from git history and can
+    fail when re-lock commits don't contain test file changes).
+    """
+    if task is not None:
+        test_files = get_scope_test_files(task)
+        if test_files:
+            files_display = " ".join(test_files)
+            log(f"    Running scope-derived green: pytest {files_display} -v")
+            result = subprocess.run(
+                ["docker", "compose", "exec", "-T", "webapp", "pytest", *test_files, "-v"],
+                capture_output=True, text=True, cwd=PROJECT_ROOT,
+            )
+            output = result.stdout + result.stderr
+            ok = result.returncode == 0
+            log(f"    scope-derived green -> {'OK' if ok else f'FAILED (exit {result.returncode})'}", "debug")
+            if output.strip():
+                log(f"    Output:\n{output[-3000:]}", "debug")
+            return ok, output
+        else:
+            log("    No test files in task scope, falling back to just tdd-green")
     return run_just_command("tdd-green", task_id)
 
 
@@ -1277,7 +1303,7 @@ def run_state_machine(
                 log_structured("phase_start", task_id=task.task_id, phase="test_fix")
 
                 # First check if tests already pass
-                ok, output = run_tdd_green(task_id_str)
+                ok, output = run_tdd_green(task_id_str, task)
 
                 if not ok:
                     failing_files = find_failing_test_files(output)
@@ -1297,7 +1323,7 @@ def run_state_machine(
                             if not lock_ok:
                                 stop_epic(epic_dir, task.task_id, "test_fix_lock_failed", lock_output)
 
-                            ok, output = run_tdd_green(task_id_str)
+                            ok, output = run_tdd_green(task_id_str, task)
                             if not ok:
                                 stop_epic(epic_dir, task.task_id, "test_fix_green_failed", output)
                     else:
@@ -1334,7 +1360,7 @@ def run_state_machine(
                 if not dry_run:
                     # Verify tests pass (green phase)
                     log(f"\n  Phase: GREEN (verifying tests pass)")
-                    ok, output = run_tdd_green(task_id_str)
+                    ok, output = run_tdd_green(task_id_str, task)
 
                     if not ok:
                         # Retry up to MAX_IMPLEMENTER_RETRIES times
@@ -1343,7 +1369,7 @@ def run_state_machine(
                             retry_prompt = build_implementer_prompt(task, retry_context=output)
                             dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
 
-                            ok, output = run_tdd_green(task_id_str)
+                            ok, output = run_tdd_green(task_id_str, task)
                             if ok:
                                 break
 
@@ -1366,7 +1392,7 @@ def run_state_machine(
                                     stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
 
                                 log(f"\n  Re-running GREEN after bounce-back...")
-                                ok, output = run_tdd_green(task_id_str)
+                                ok, output = run_tdd_green(task_id_str, task)
                                 if not ok:
                                     stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
                             else:
