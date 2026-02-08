@@ -263,3 +263,85 @@ async def test_gear_get_by_slug_uses_unique(
     # Verify collections properly loaded
     assert len(result.models) == 2
     assert len(result.tags) == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_gear_search_single_query_with_pagination(
+    gear_repository: SQLAlchemyGearRepository,
+    db_session: AsyncSession,
+    db_engine: AsyncEngine,
+) -> None:
+    """Verify search() uses ID-subquery pattern for pagination.
+
+    Citation: .claude/rules/query-patterns.md:73-98
+    Acceptance Criteria: T36 - query count = 2, correct entity count
+
+    Tests that search() uses two-step ID-subquery pattern:
+    1. ID query: SELECT Gear.id ... LIMIT X OFFSET Y (pagination on IDs)
+    2. Hydration query: SELECT Gear.* ... WHERE Gear.id IN (...) with joinedload
+
+    Expected: 2 SQL queries total (ID subquery + hydration query).
+    This avoids pagination issues where LIMIT/OFFSET on joined rows
+    limits rows instead of entities.
+    """
+    # Create multiple gear items with relationships to test pagination
+    from datetime import UTC, datetime
+
+    for i in range(10):
+        gear = GearEntity(
+            id=uuid4(),
+            name=f"Test Gear {i:02d}",
+            gear_type=GearType.AMP,
+            description=f"Test gear {i}",
+            manufacturer="Test Mfg",
+            tags=[f"tag-{i}", "common-tag"],
+            source=GearSourceVO(
+                source_name="t3k",
+                source_record_id=f"test-{i}",
+                source_updated_at=datetime.now(UTC),
+            ),
+            is_public=True,
+        )
+        # Add 2 models to each gear (creates 1:N relationship for joins)
+        for j in range(2):
+            model = GearModelVO(
+                id=uuid4(),
+                platform=Platform.NAM,
+                size=ModelSize.STANDARD if j == 0 else ModelSize.LITE,
+                download_url=f"https://example.com/model-{i}-{j}.nam",
+                download_status=DownloadStatus.COMPLETED if j == 0 else DownloadStatus.PENDING,
+                file_path=f"/models/model-{i}-{j}.nam" if j == 0 else None,
+                file_hash=f"hash-{i}-{j}" if j == 0 else None,
+            )
+            gear.models.append(model)
+
+        await gear_repository.save(gear)
+
+    await db_session.commit()
+
+    # Expire all objects to force fresh queries
+    db_session.expire_all()
+
+    # Count queries during search with pagination
+    with QueryCounter(db_engine) as counter:
+        results = await gear_repository.search(
+            limit=5,
+            offset=0,
+        )
+
+    # Acceptance Criteria: correct entity count (not row count)
+    assert len(results) == 5, f"Expected 5 entities, got {len(results)}"
+
+    # Verify all 4 relationships loaded (make, source, models, tags)
+    for gear in results:
+        assert gear.source is not None, "source relationship not loaded"
+        assert len(gear.models) == 2, f"Expected 2 models, got {len(gear.models)}"
+        assert len(gear.tags) == 2, f"Expected 2 tags, got {len(gear.tags)}"
+        # make is optional (None in this test data)
+
+    # Acceptance Criteria: query count = 2 (ID subquery + hydration)
+    assert counter.count == 2, (
+        f"Expected 2 queries (ID subquery + hydration), got {counter.count}. "
+        "Must use pattern from .claude/rules/query-patterns.md:73-98"
+    )
