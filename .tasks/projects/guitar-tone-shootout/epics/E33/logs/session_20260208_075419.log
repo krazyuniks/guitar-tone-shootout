@@ -28,3 +28,4 @@ tests/integration/webapp/repositories/test_user_repository.py .......    [100%]
 
 2026-02-08 08:54:23,004 [INFO] 
   Committing test fixes...
+2026-02-08 08:54:25,289 [INFO]   Git sync: pull --rebase --autostash origin main
