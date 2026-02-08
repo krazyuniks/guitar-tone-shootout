@@ -1,0 +1,25 @@
+{
+  "task_id": "T72",
+  "created": "2026-02-08T23:43:21.093882+00:00",
+  "commit": "d38f5fd45eab",
+  "files": [
+    {
+      "path": "tests/unit/audio/test_audio_cleanup.py",
+      "sha256": "77548a1140bf51fd9ece9b1327445cafac77eb99e7e0ee88ba8ea32d1c458ea8",
+      "size": 1333,
+      "modified": "2026-02-08T23:42:32.596697+00:00"
+    },
+    {
+      "path": "tests/unit/test_root_workspace_config.py",
+      "sha256": "a3cb67a0da5833ee1aedf3bef1567de2bf022efeef029dc5cd57d05f3a3dc553",
+      "size": 4519,
+      "modified": "2026-02-08T23:42:51.040694+00:00"
+    },
+    {
+      "path": "tests/unit/video/test_video_package_structure.py",
+      "sha256": "6948dafb3c2a51cfa1d6c1de52b45db0d9746b5cc77c67635c0fb362ed87f074",
+      "size": 5128,
+      "modified": "2026-02-08T23:42:25.152699+00:00"
+    }
+  ]
+}
