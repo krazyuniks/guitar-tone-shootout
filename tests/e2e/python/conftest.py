@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 import pytest
 from playwright.async_api import async_playwright
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,16 +17,16 @@ from sqlalchemy.ext.asyncio import (
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from playwright.async_api import Browser, Page
+    from playwright.async_api import Browser, BrowserContext, Page
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def frontend_url() -> str:
-    """Base URL for the frontend."""
-    return os.getenv("BASE_URL", os.getenv("FRONTEND_URL", "http://localhost:9000"))
+    """Base URL for the frontend (public-facing URL)."""
+    return os.getenv("PUBLIC_URL", "https://localhost:9000")
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a database engine for E2E test verification."""
     database_url = os.getenv(
@@ -47,7 +46,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         yield session
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def browser() -> AsyncGenerator[Browser, None]:
     """Create a Playwright browser instance."""
     async with async_playwright() as p:
