@@ -24,6 +24,7 @@ from ..config import get_worktree_root, settings
 from ..docker import (
     DockerError,
     build_images,
+    cleanup_containers,
     collect_container_logs,
     export_database,
     format_failure_report,
@@ -31,7 +32,6 @@ from ..docker import (
     get_main_worktree_path,
     get_orphan_ports_in_use,
     get_service_status,
-    remove_volumes,
     run_compose,
     start_services,
     wait_for_services_ready,
@@ -44,9 +44,7 @@ from ..git_ops import (
     is_hook_installed,
     is_main_behind_remote,
     parse_issue_input,
-    prune_worktrees,
     rebase_on_main,
-    remove_worktree,
 )
 from ..health import check_worktree_health
 from ..issue_ops import get_issue_by_number
@@ -509,6 +507,12 @@ def _start_and_configure_services(
         except Exception as e:
             print_warning(f"Image build failed: {e}")
 
+    # Step 6.5: Clean up any leftover containers from previous failed attempts
+    # This MUST happen BEFORE starting db, not after (start_services used to
+    # do cleanup after db was already running and imported, tearing it down)
+    status.update("[bold green]Cleaning up old containers...")
+    cleanup_containers(worktree_path)
+
     # Step 7: Start database services first
     # Main worktree needs redis for jobs profile; feature worktrees don't
     status.update("[bold green]Starting database services...")
@@ -562,34 +566,36 @@ def _start_and_configure_services(
         console.print("[dim]Use --skip-db-import to start with empty database[/dim]")
         raise typer.Exit(1)
 
-    # Step 9: Start remaining services
+    # Step 9: Start remaining services (db is already running — skip cleanup)
+    # Don't fail hard here — docker compose up -d returns non-zero when a
+    # dependency health check fails (e.g. webapp crash prevents nginx start).
+    # Let Step 10 health check provide proper diagnosis with log collection.
     status.update("[bold green]Starting application services...")
     try:
-        start_services(worktree_path)
-    except Exception as e:
-        print_error(f"Failed to start services: {e}")
-        raise typer.Exit(1) from None
+        start_services(worktree_path, cleanup=False)
+    except DockerError:
+        pass  # Diagnosed in Step 10
 
     # Step 10: Wait for services to be ready
     status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
     ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
 
     if not ready:
-        if force:
-            print_warning("Services not fully ready (continuing with --force):")
-            for issue in issues:
-                console.print(f"  [yellow]• {issue}[/yellow]")
-            console.print("  [dim]Check logs: docker compose logs[/dim]")
-        else:
-            _handle_service_failure(
-                status=status,
-                worktree=worktree,
-                worktree_path=worktree_path,
-                worktree_name=worktree_name,
-                is_main=is_main,
-                resuming=resuming,
-                issues=issues,
-            )
+        # Report but DON'T roll back — the worktree is intact (db imported,
+        # configs written). Rolling back destroys work and breaks idempotency.
+        # The user can fix the code and restart, or re-run setup (resume path).
+        status.update("[bold red]Services unhealthy — collecting logs...")
+        container_logs = collect_container_logs(worktree_path)
+        service_status = get_service_status(worktree_path)
+        status.stop()
+
+        console.print()
+        report = format_failure_report(issues, container_logs, service_status)
+        console.print(report)
+        console.print()
+        console.print("[bold red]Some services did not become healthy.[/bold red]")
+        console.print("[dim]The worktree is intact. Fix the issue and re-run setup.[/dim]")
+        if not force:
             raise typer.Exit(1)
 
     # Step 11: Auto-restore auth if available
@@ -632,47 +638,6 @@ def _import_database(status, worktree_path: Path, backup_file: Path, is_main: bo
         print_error(f"Database import failed: {e}")
         raise typer.Exit(1) from None
 
-
-def _handle_service_failure(
-    status,
-    worktree,
-    worktree_path: Path,
-    worktree_name: str,
-    is_main: bool,
-    resuming: bool,
-    issues: list[str],
-) -> None:
-    """Handle service startup failure with rollback."""
-    status.update("[bold red]Services unhealthy - collecting logs...")
-
-    container_logs = collect_container_logs(worktree_path)
-    service_status = get_service_status(worktree_path)
-
-    console.print()
-    console.print("[bold red]SETUP FAILED: Services did not become healthy[/bold red]")
-    console.print()
-    report = format_failure_report(issues, container_logs, service_status)
-    console.print(report)
-    console.print()
-
-    # Teardown (rollback)
-    status.update("[bold red]Rolling back - tearing down worktree...")
-    console.print("[yellow]Rolling back: tearing down failed worktree...[/yellow]")
-    try:
-        remove_volumes(worktree, worktree_path)
-        if not resuming and not is_main:
-            try:
-                remove_worktree(worktree_path, force=True)
-                prune_worktrees()
-            except GitError:
-                pass
-        if not resuming:
-            delete_worktree(worktree_name)
-    except Exception as rollback_error:
-        print_warning(f"Rollback incomplete: {rollback_error}")
-
-    console.print()
-    console.print("[bold red]Setup failed. Use --force to override health check.[/bold red]")
 
 
 def _restore_auth(status, worktree, worktree_path: Path) -> None:
@@ -722,6 +687,10 @@ def _handle_resume_path(
         backup_file = _get_or_create_backup(status, is_main=False)
         if backup_file is None:
             raise typer.Exit(1)
+
+    # Step 1.5: Clean up any leftover containers before starting fresh
+    status.update("[bold green]Cleaning up old containers...")
+    cleanup_containers(worktree_path)
 
     # Step 2: Start database services
     # Main worktree needs redis for jobs profile; feature worktrees don't
@@ -776,27 +745,28 @@ def _handle_resume_path(
         if backup_file:
             _import_database(status, worktree_path, backup_file, is_main=True)
 
-    # Step 5: Start remaining services
+    # Step 5: Start remaining services (db is already running — skip cleanup)
+    # Don't fail hard — let Step 6 health check diagnose partial failures.
     status.update("[bold green]Starting application services...")
     try:
-        start_services(worktree_path)
-    except Exception as e:
-        print_error(f"Failed to start services: {e}")
-        raise typer.Exit(1) from None
+        start_services(worktree_path, cleanup=False)
+    except DockerError:
+        pass  # Diagnosed in Step 6
 
     # Step 6: Wait for services to be ready
     status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
     ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
     if not ready:
-        if force:
-            print_warning("Services not fully ready (continuing with --force):")
-            for issue in issues:
-                console.print(f"  [yellow]• {issue}[/yellow]")
-        else:
-            print_error("Services did not become healthy")
-            for issue in issues:
-                console.print(f"  [red]• {issue}[/red]")
-            console.print("  [dim]Check logs: docker compose logs[/dim]")
+        container_logs = collect_container_logs(worktree_path)
+        service_status = get_service_status(worktree_path)
+
+        console.print()
+        report = format_failure_report(issues, container_logs, service_status)
+        console.print(report)
+        console.print()
+        console.print("[bold red]Some services did not become healthy.[/bold red]")
+        console.print("[dim]The worktree is intact. Fix the issue and re-run setup.[/dim]")
+        if not force:
             raise typer.Exit(1)
 
     # Step 7: Restore auth
