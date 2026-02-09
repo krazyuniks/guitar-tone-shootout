@@ -27,7 +27,7 @@ T76 → T84
 | T73 | Phase 3: Docker Integration — Video | complete | - | T72 |
 | T74 | Phase 4: Video BC — Python Implemen | complete | - | T73 |
 | T75 | Phase 5: Video BC — Remotion Compon | complete | - | T74 |
-| T76 | Phase 6b: Worker Integration — Vide | pending | worker | T75, T83 |
+| T76 | Phase 6b: Worker Integration — Vide | locked | worker | T75, T83 |
 | T77 | Phase 7: Frontend — Remotion Player | complete | - | T72 |
 | T78 | Phase 8: Tooling & Just Commands | complete | - | T72 |
 | T80 | Phase 9: worktree.py — Video Servic | complete | - | T73 |
