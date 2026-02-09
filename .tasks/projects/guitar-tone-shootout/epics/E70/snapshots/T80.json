@@ -17,7 +17,7 @@
     },
     {
       "path": "tests/unit/worktree/test_video_service_integration_t80.py",
-      "sha256": "51d14817aaafc059c60ed52d4a378a8b6bfc117a464a17f1eb952f7d84085c21",
+      "sha256": "058c3c51148152738affe225ce227f27984aa5c76e5e6a227ead4f8f4a1a59cb",
       "size": 12576,
       "modified": "2026-02-09T03:01:41.944112+00:00"
     },
