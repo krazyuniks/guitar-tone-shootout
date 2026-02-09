@@ -5,6 +5,9 @@ description = "GTS Video Rendering - Remotion-based video composition"
 requires-python = ">=3.14"
 dependencies = [
     "gts-core",
+    "fastapi>=0.115.0",
+    "pillow>=11.0.0",
+    "pydantic>=2.10.0",
 ]
 
 [tool.uv.sources]

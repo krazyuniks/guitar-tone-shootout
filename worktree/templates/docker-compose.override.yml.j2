@@ -59,6 +59,15 @@ services:
       - ./libs:/app/libs:ro
       - ./apps/scheduler:/app/apps/scheduler
 
+  video:
+    container_name: {{ worktree.compose_project }}-video
+    ports:
+      - "127.0.0.1:{{ worktree.ports.video }}:8002"
+    volumes:
+      - ./libs/core:/app/libs/core:ro
+      - ./libs/video:/app/libs/video
+      - {{ worktree.volumes.uploads }}:/app/uploads
+
   db:
     container_name: {{ worktree.compose_project }}-db
     ports:

@@ -80,8 +80,13 @@ services:
       - ./src:/app/src:ro
       - ./sources:/app/sources:ro
       - ./tests:/app/tests:ro
-      # Infrastructure (migrations)
+      # Infrastructure (migrations, docker configs)
       - ./infrastructure/migrations:/app/infrastructure/migrations:ro
+      - ./infrastructure/docker:/app/infrastructure/docker:ro
+      # Worktree templates for integration tests
+      - ./worktree:/app/worktree:ro
+      # Docker compose files for integration tests
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
     depends_on:
       db:
         condition: service_healthy
@@ -192,6 +197,37 @@ services:
       - ./frontend/astro:/app
       - /app/node_modules
     working_dir: /app
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Video - Remotion video rendering service (Node.js + Chromium + Python)
+  # ==========================================================================
+  video:
+    profiles:
+      - jobs
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.video
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    environment:
+      ENV: ${ENV:-development}
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
+    volumes:
+      - ./libs/core:/app/libs/core:ro
+      - ./libs/video:/app/libs/video
+      - upload_data:/app/uploads
+      - processed_data:/app/processed
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   # ==========================================================================

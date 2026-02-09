@@ -31,7 +31,7 @@ members = ["libs/*", "sources/*", "apps/*"]
 # =============================================================================
 
 [tool.importlinter]
-root_packages = ["core", "audio", "source_t3k", "webapp", "worker", "scheduler"]
+root_packages = ["core", "audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
 include_external_packages = true
 
 # Core has zero dependencies on other packages
@@ -39,7 +39,7 @@ include_external_packages = true
 name = "core-isolation"
 type = "forbidden"
 source_modules = ["core"]
-forbidden_modules = ["audio", "source_t3k", "webapp", "worker", "scheduler"]
+forbidden_modules = ["audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
 
 # Core must not import any framework libraries
 [[tool.importlinter.contracts]]
@@ -63,7 +63,14 @@ forbidden_modules = [
 name = "audio-dependencies"
 type = "forbidden"
 source_modules = ["audio"]
-forbidden_modules = ["source_t3k", "webapp", "worker", "scheduler"]
+forbidden_modules = ["video", "source_t3k", "webapp", "worker", "scheduler"]
+
+# Video can only depend on core
+[[tool.importlinter.contracts]]
+name = "video-dependencies"
+type = "forbidden"
+source_modules = ["video"]
+forbidden_modules = ["audio", "source_t3k", "webapp", "worker", "scheduler"]
 
 # Source adapters can only depend on core
 [[tool.importlinter.contracts]]
@@ -124,7 +131,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "audio", "source_t3k", "webapp", "worker", "scheduler"]
+known-first-party = ["core", "audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG001", "ARG002"]

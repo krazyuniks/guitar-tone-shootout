@@ -25,7 +25,7 @@ T76 → T84
 | T71 | Phase 1: Core Domain — Generic Comp | complete | core | - |
 | T72 | Phase 2: libs/video/ Scaffold + Aud | complete | audio | T71 |
 | T73 | Phase 3: Docker Integration — Video | complete | - | T72 |
-| T74 | Phase 4: Video BC — Python Implemen | pending | - | T73 |
+| T74 | Phase 4: Video BC — Python Implemen | locked | - | T73 |
 | T75 | Phase 5: Video BC — Remotion Compon | pending | - | T74 |
 | T76 | Phase 6b: Worker Integration — Vide | pending | worker | T75, T83 |
 | T77 | Phase 7: Frontend — Remotion Player | pending | - | T72 |
