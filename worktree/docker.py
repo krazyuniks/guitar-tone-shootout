@@ -287,10 +287,10 @@ def is_healthy(worktree_path: Path) -> bool:
     # Core runtime services for feature worktrees (no Redis - it's in jobs profile)
     expected_services = {"nginx", "webapp", "db"}
 
-    # Worker, scheduler, and Redis only run on main worktree (via --profile jobs)
+    # Worker, scheduler, Redis, and video only run on main worktree (via --profile jobs)
     main_path = get_main_worktree_path()
     if worktree_path.resolve() == main_path.resolve():
-        expected_services.update({"worker", "scheduler", "redis"})
+        expected_services.update({"worker", "scheduler", "redis", "video"})
 
     for service in expected_services:
         if service not in status:
@@ -379,6 +379,25 @@ def check_webapp_health(worktree: Worktree) -> bool:
         RemoteDisconnected,
         OSError,
     ):
+        return False
+
+
+def check_video_health(worktree: Worktree) -> bool:
+    """Check if video service health endpoint responds.
+
+    Args:
+        worktree: Worktree configuration
+
+    Returns:
+        True if video service is healthy
+    """
+    try:
+        import httpx
+
+        url = f"http://localhost:{worktree.ports.video}/health"
+        response = httpx.get(url, timeout=5)
+        return response.status_code == 200
+    except Exception:
         return False
 
 
@@ -592,10 +611,10 @@ def collect_container_logs(
         # Core services for feature worktrees
         services = ["nginx", "webapp", "db"]
 
-        # Main worktree includes jobs profile services (redis, worker, scheduler)
+        # Main worktree includes jobs profile services (redis, worker, scheduler, video)
         main_path = get_main_worktree_path()
         if worktree_path.resolve() == main_path.resolve():
-            services.extend(["redis", "worker", "scheduler"])
+            services.extend(["redis", "worker", "scheduler", "video"])
 
     logs = {}
     for service in services:
@@ -963,7 +982,8 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
             "webapp",
             "nginx",
             "worker",
-            "scheduler",  # Runtime services
+            "scheduler",
+            "video",  # Runtime services
             "astro",
             "cloudbeaver",  # Build-only and tool services
         }

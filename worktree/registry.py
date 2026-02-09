@@ -38,6 +38,43 @@ class Worktree:
     ports: PortConfig
     volumes: VolumeConfig
 
+    # Alias for compatibility with tests
+    @property
+    def path(self) -> str:
+        """Alias for worktree_path."""
+        return self.worktree_path
+
+    def __init__(
+        self,
+        id: int,
+        branch: str,
+        worktree_name: str,
+        compose_project: str,
+        offset: int,
+        created_at: str,
+        ports: PortConfig,
+        volumes: VolumeConfig,
+        worktree_path: str | None = None,
+        path: str | None = None,
+        status: str = "active",
+    ):
+        """Initialize Worktree, accepting either worktree_path or path."""
+        if worktree_path is None and path is None:
+            raise ValueError("Either worktree_path or path must be provided")
+        if worktree_path is None:
+            worktree_path = path
+
+        self.id = id
+        self.branch = branch
+        self.worktree_name = worktree_name
+        self.worktree_path = worktree_path  # type: ignore
+        self.compose_project = compose_project
+        self.status = status
+        self.offset = offset
+        self.created_at = created_at
+        self.ports = ports
+        self.volumes = volumes
+
     @property
     def is_active(self) -> bool:
         return self.status == "active"
@@ -672,6 +709,8 @@ def _row_to_worktree(row: sqlite3.Row) -> Worktree:
             otlp_grpc=settings.base_port_otlp_grpc + http_offset,
             otlp_http=settings.base_port_otlp_http + http_offset,
             alloy=settings.base_port_alloy + http_offset,
+            # Jobs profile ports are calculated from offset (not stored in DB)
+            video=settings.base_port_video + http_offset,
         ),
         volumes=VolumeConfig(
             postgres=row["volume_postgres"],

@@ -85,10 +85,15 @@ services:
       # Infrastructure (migrations, docker configs)
       - ./infrastructure/migrations:/app/infrastructure/migrations:ro
       - ./infrastructure/docker:/app/infrastructure/docker:ro
+      # Claude skills (for documentation tests)
+      - ./.claude:/app/.claude:ro
       # Worktree templates for integration tests
       - ./worktree:/app/worktree:ro
       # Docker compose files for integration tests
       - ./docker-compose.yml:/app/docker-compose.yml:ro
+      # Tooling files for integration tests
+      - ./justfile:/app/justfile:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
     depends_on:
       db:
         condition: service_healthy

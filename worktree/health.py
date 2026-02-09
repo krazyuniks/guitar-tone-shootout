@@ -15,7 +15,7 @@ from .registry import get_worktree_by_path
 def _get_expected_services(worktree_path: Path) -> set[str]:
     """Get expected services based on worktree type.
 
-    Main worktree runs jobs profile (redis, worker, scheduler).
+    Main worktree runs jobs profile (redis, worker, scheduler, video).
     Feature worktrees only run core services (nginx, webapp, db).
     """
     # Core services for all worktrees
@@ -24,7 +24,7 @@ def _get_expected_services(worktree_path: Path) -> set[str]:
     # Main worktree includes jobs profile services
     main_path = get_main_worktree_path()
     if worktree_path.resolve() == main_path.resolve():
-        expected.update({"redis", "worker", "scheduler"})
+        expected.update({"redis", "worker", "scheduler", "video"})
 
     return expected
 

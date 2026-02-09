@@ -64,9 +64,10 @@ rebuild *ARGS:
 # Run all quality checks
 check: lint check-types check-tests check-imports
 
-# Run type checking (strict on core)
+# Run type checking (strict on core, TypeScript on video)
 check-types:
     docker compose exec -T webapp mypy libs/core/ --strict
+    @cd libs/video && npx tsc --noEmit
 
 # Run unit tests
 check-tests:
@@ -89,9 +90,13 @@ lint:
 # Testing
 # =============================================================================
 
-# Run unit tests (in Docker)
+# Run unit tests (in Docker, excludes host_only tests like documentation tests)
 test-unit:
-    docker compose exec -T webapp pytest tests/unit/ -v
+    docker compose exec -T webapp pytest tests/unit/ -v -m "not host_only"
+
+# Run documentation tests (on host - requires AGENTS.md/DEVELOPMENT.md)
+test-docs:
+    uv run pytest tests/unit/backend/documentation/ -v
 
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)
@@ -138,7 +143,7 @@ test-integration:
 
 # Run all tests except E2E (in Docker)
 test:
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
 
 # Run E2E golden path tests (on host, hits Docker containers)
 test-golden-path:
@@ -243,6 +248,28 @@ verify-astro-sync:
         exit 1; \
     fi
     @echo "Astro dist is in sync."
+
+# =============================================================================
+# Video Development (libs/video - Remotion)
+# =============================================================================
+
+# Open Remotion Studio for video composition development
+video-studio:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd libs/video
+    npx remotion studio src/video/remotion/index.ts
+
+# Run video tests (Python + TypeScript)
+video-test:
+    docker compose exec -T webapp pytest tests/unit/video/ tests/integration/video/ -v
+
+# Check video types (TypeScript)
+video-types:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd libs/video
+    npx tsc --noEmit
 
 # =============================================================================
 # Development Utilities
@@ -508,7 +535,7 @@ tdd-green task:
     #!/usr/bin/env bash
     set -e
     echo "Verifying ALL tests pass for {{task}}..."
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
     echo "Tests passing"
 
 # Full TDD validation
