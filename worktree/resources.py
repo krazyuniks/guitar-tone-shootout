@@ -33,6 +33,7 @@ COMPOSE_PROJECT_NAME={worktree.compose_project}
 WEBAPP_PORT={worktree.ports.webapp}
 DB_PORT={worktree.ports.db}
 REDIS_PORT={worktree.ports.redis}
+VIDEO_PORT={worktree.ports.video}
 
 # API URL for frontend (must use external webapp port)
 PUBLIC_URL=http://localhost:{worktree.ports.webapp}
@@ -100,6 +101,10 @@ def generate_compose_override(worktree: Worktree, output_path: Path) -> None:
                 "ports": [f"127.0.0.1:{ports.redis}:6379"],
                 "volumes": [f"{volumes.redis}:/data"],
             },
+            "video": {
+                "container_name": f"{worktree.compose_project}-video",
+                "ports": [f"127.0.0.1:{ports.video}:8002"],
+            },
         },
         "volumes": {
             volumes.postgres: None,
@@ -142,6 +147,7 @@ def check_ports_available(ports: PortConfig) -> dict[str, bool]:
         ("db", ports.db),
         ("redis", ports.redis),
         ("cloudbeaver", ports.cloudbeaver),
+        ("video", ports.video),
     ]
 
     # Observability services (optional, profile-based)
@@ -173,11 +179,11 @@ def format_ports_display(ports: PortConfig) -> str:
         ports: PortConfig to format
 
     Returns:
-        Formatted string like "nginx:9000/be:8000/db:5432/redis:6379/cb:8978"
+        Formatted string like "nginx:9000/be:8000/db:5432/redis:6379/cb:8978/vid:8002"
     """
     return (
         f"nginx:{ports.nginx}/wa:{ports.webapp}/"
-        f"db:{ports.db}/redis:{ports.redis}/cb:{ports.cloudbeaver}"
+        f"db:{ports.db}/redis:{ports.redis}/cb:{ports.cloudbeaver}/vid:{ports.video}"
     )
 
 

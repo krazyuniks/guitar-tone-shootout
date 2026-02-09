@@ -1,0 +1,31 @@
+{
+  "task_id": "T71",
+  "created": "2026-02-08T23:31:16.528190+00:00",
+  "commit": "f97d5092c2a8",
+  "files": [
+    {
+      "path": "tests/unit/backend/core/ports/test_video_composer_deprecation.py",
+      "sha256": "a8ffbd8d8daffa26b52e895c038070953316964b723237c90f417511d7f35a63",
+      "size": 2062,
+      "modified": "2026-02-08T23:30:49.872831+00:00"
+    },
+    {
+      "path": "tests/unit/backend/core/ports/test_video_renderer.py",
+      "sha256": "e5bb2d198cc85cf2a705d7923a729833d5d757c948df136673283981c245c0e5",
+      "size": 4124,
+      "modified": "2026-02-08T23:29:42.456844+00:00"
+    },
+    {
+      "path": "tests/unit/backend/core/value_objects/test_composition_spec.py",
+      "sha256": "d330c400625cd74ad0e88879539377bf7e5fdefac563f035f3e5f8b58b593355",
+      "size": 4974,
+      "modified": "2026-02-08T23:29:59.248841+00:00"
+    },
+    {
+      "path": "tests/unit/backend/core/value_objects/test_render_status.py",
+      "sha256": "0547981db5d5e2dea263f91fe7e1e6b40d94bd6da645dea786a1acbb41fd08fd",
+      "size": 8481,
+      "modified": "2026-02-08T23:30:23.304836+00:00"
+    }
+  ]
+}

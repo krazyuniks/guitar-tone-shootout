@@ -24,6 +24,8 @@ class PortConfig(NamedTuple):
     otlp_grpc: int
     otlp_http: int
     alloy: int
+    # Jobs profile services
+    video: int  # Video service (--profile jobs)
 
 
 class VolumeConfig(NamedTuple):
@@ -61,6 +63,9 @@ class Settings(BaseSettings):
     base_port_otlp_grpc: int = Field(default=4317, description="Base OTLP gRPC port")
     base_port_otlp_http: int = Field(default=4318, description="Base OTLP HTTP port")
     base_port_alloy: int = Field(default=12345, description="Base Alloy UI port")
+
+    # Jobs profile base ports
+    base_port_video: int = Field(default=8002, description="Base video service port")
 
     # Port offset multipliers
     offset_multiplier_http: int = Field(
@@ -189,6 +194,8 @@ def calculate_ports(offset: int) -> PortConfig:
         otlp_grpc=settings.base_port_otlp_grpc + http_offset,
         otlp_http=settings.base_port_otlp_http + http_offset,
         alloy=settings.base_port_alloy + http_offset,
+        # Jobs profile ports (use http offset for video service)
+        video=settings.base_port_video + http_offset,
     )
 
 

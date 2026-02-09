@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.domain.value_objects.job_status import JobStatus, JobType
 
-from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+from .base import Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
     from .user import User
@@ -51,8 +51,8 @@ class Job(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "jobs"
 
     # User relationship
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        Uuid,
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UuidType(),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -64,8 +64,8 @@ class Job(UUIDMixin, TimestampMixin, Base):
     )
 
     # Parent/child relationship for job hierarchies
-    parent_job_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        Uuid,
+    parent_job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UuidType(),
         ForeignKey("jobs.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -113,7 +113,7 @@ class Job(UUIDMixin, TimestampMixin, Base):
     task_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     # Entity reference (what this job is processing)
-    entity_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
+    entity_id: Mapped[uuid.UUID | None] = mapped_column(UuidType(), nullable=True)
 
     # Relationships
     user: Mapped[User | None] = relationship(
@@ -162,19 +162,19 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, primary_key=True, default=uuid.uuid4, nullable=False
+        UuidType(), primary_key=True, default=uuid.uuid4, nullable=False
     )
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         nullable=False,
     )
-    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UuidType(), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    resource_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(UuidType(), nullable=True)
 
     # JSONB columns - see model docstring for justification
     changes: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

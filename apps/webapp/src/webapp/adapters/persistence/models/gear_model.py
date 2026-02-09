@@ -5,13 +5,13 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, String, Uuid
+from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
 
-from .base import Base, EnumByValue, UUIDMixin
+from .base import Base, EnumByValue, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
     from .gear import Gear
@@ -41,7 +41,7 @@ class GearModel(UUIDMixin, Base):
     id: Mapped[uuid.UUID]
 
     gear_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("gear.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -63,7 +63,7 @@ class GearModel(UUIDMixin, Base):
     file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Relationship to gear
-    gear: Mapped["Gear"] = relationship("Gear", back_populates="models", lazy="raise")  # type: ignore
+    gear: Mapped[Gear] = relationship("Gear", back_populates="models", lazy="raise")  # type: ignore
 
     # Indexes for common query patterns
     __table_args__ = (

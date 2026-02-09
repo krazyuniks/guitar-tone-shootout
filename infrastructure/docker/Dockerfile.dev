@@ -14,7 +14,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     ffmpeg \
     git \
+    # Chrome dependencies for Remotion headless rendering
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js (for video integration tests with Remotion/TypeScript)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm install -g npm@latest
 
 # Create non-root user with host UID/GID
 RUN groupadd -g $GID appgroup || true \
@@ -29,6 +49,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY libs/core/pyproject.toml libs/core/README.md libs/core/
 COPY libs/audio/pyproject.toml libs/audio/README.md libs/audio/
+COPY libs/video/pyproject.toml libs/video/README.md libs/video/
 COPY sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
 COPY apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
 COPY apps/worker/pyproject.toml apps/worker/README.md apps/worker/
@@ -36,12 +57,13 @@ COPY apps/scheduler/pyproject.toml apps/scheduler/README.md apps/scheduler/
 
 # Create src directory structure for workspace resolution
 # Each package needs an __init__.py for hatchling to recognize it
-RUN mkdir -p libs/core/src/core libs/audio/src/audio \
+RUN mkdir -p libs/core/src/core libs/audio/src/audio libs/video/src/video \
     sources/t3k/src/source_t3k \
     apps/webapp/src/webapp apps/worker/src/worker apps/scheduler/src/scheduler \
     src/gts \
     && touch libs/core/src/core/__init__.py \
     && touch libs/audio/src/audio/__init__.py \
+    && touch libs/video/src/video/__init__.py \
     && touch sources/t3k/src/source_t3k/__init__.py \
     && touch apps/webapp/src/webapp/__init__.py \
     && touch apps/worker/src/worker/__init__.py \

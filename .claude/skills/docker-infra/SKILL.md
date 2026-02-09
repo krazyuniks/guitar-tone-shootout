@@ -24,6 +24,7 @@ description: Docker and Docker Compose configuration and troubleshooting. Use fo
 | backend | 8000 | python:3.12-slim | FastAPI with uvicorn --reload |
 | astro | - | node:24-alpine | Persistent service (chokidar auto-rebuild) |
 | worker | - | python:3.12-slim | TaskIQ workers |
+| video | 3001 | node:24-alpine | Video rendering service (Remotion) |
 | db | 5432 | postgres:18-alpine | PostgreSQL database |
 | redis | 6379 | redis:8.4.0-alpine | Job queue + cache |
 
@@ -118,6 +119,41 @@ CMD ["pnpm", "watch"]
 ```
 
 **Note:** Frontend builds to `astro/dist/` which is committed to git and bind-mounted into nginx.
+
+### Video Service (Node.js) - Remotion Renderer
+
+The video service runs Remotion for video composition and rendering.
+
+```dockerfile
+# infrastructure/docker/Dockerfile.video
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Install Remotion dependencies
+RUN apk add --no-cache \
+    python3 py3-pip \
+    ffmpeg chromium
+
+# Install Node packages
+COPY libs/video/package.json libs/video/package-lock.json ./
+RUN npm install
+
+# Copy source
+COPY libs/core /app/libs/core
+COPY libs/video /app/libs/video
+
+# Remotion render command
+CMD ["node", "remotion-wrapper.js", "render"]
+```
+
+**Key dependencies:**
+- Node.js 24 (Remotion runtime)
+- FFmpeg (video encoding)
+- Chromium (headless rendering)
+- Python 3 (for API server)
+
+**Port:** 3001 (video service API)
 
 ### Production (Multi-stage)
 

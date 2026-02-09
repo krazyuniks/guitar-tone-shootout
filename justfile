@@ -64,9 +64,10 @@ rebuild *ARGS:
 # Run all quality checks
 check: lint check-types check-tests check-imports
 
-# Run type checking (strict on core)
+# Run type checking (strict on core, TypeScript on video)
 check-types:
     docker compose exec -T webapp mypy libs/core/ --strict
+    @cd libs/video && npx tsc --noEmit
 
 # Run unit tests
 check-tests:
@@ -89,9 +90,13 @@ lint:
 # Testing
 # =============================================================================
 
-# Run unit tests (in Docker)
+# Run unit tests (in Docker, excludes host_only tests like documentation tests)
 test-unit:
-    docker compose exec -T webapp pytest tests/unit/ -v
+    docker compose exec -T webapp pytest tests/unit/ -v -m "not host_only"
+
+# Run documentation tests (on host - requires AGENTS.md/DEVELOPMENT.md)
+test-docs:
+    uv run pytest tests/unit/backend/documentation/ -v
 
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)
@@ -138,7 +143,7 @@ test-integration:
 
 # Run all tests except E2E (in Docker)
 test:
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
 
 # Run E2E golden path tests (on host, hits Docker containers)
 test-golden-path:
@@ -243,6 +248,28 @@ verify-astro-sync:
         exit 1; \
     fi
     @echo "Astro dist is in sync."
+
+# =============================================================================
+# Video Development (libs/video - Remotion)
+# =============================================================================
+
+# Open Remotion Studio for video composition development
+video-studio:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd libs/video
+    npx remotion studio src/video/remotion/index.ts
+
+# Run video tests (Python + TypeScript)
+video-test:
+    docker compose exec -T webapp pytest tests/unit/video/ tests/integration/video/ -v
+
+# Check video types (TypeScript)
+video-types:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd libs/video
+    npx tsc --noEmit
 
 # =============================================================================
 # Development Utilities
@@ -362,15 +389,35 @@ uninstall-hooks:
 
 # --- Epic Management ---
 
-# Sync epic from GitHub to .tasks/
-epic-sync epic:
-    python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}}
+# Unified epic command — routes to appropriate tool
+# Usage: just epic validate 70, just epic status 70, just epic start 70
+epic subcmd epic_num:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{subcmd}}" in
+        plan)
+            echo "Use '/epic plan {{epic_num}}' in Claude Code (interactive)"
+            ;;
+        validate)
+            python scripts/validate_tasks.py {{epic_num}}
+            ;;
+        fix)
+            echo "Use '/epic fix {{epic_num}}' in Claude Code (interactive)"
+            ;;
+        start)
+            python scripts/run_epic.py run {{epic_num}}
+            ;;
+        status)
+            python scripts/run_epic.py status {{epic_num}}
+            ;;
+        *)
+            echo "Unknown subcommand: {{subcmd}}"
+            echo "Usage: just epic {plan|validate|fix|start|status} {epic_number}"
+            exit 1
+            ;;
+    esac
 
-# Sync with validation (warns on sparse issues)
-epic-sync-validate epic:
-    python scripts/gh_tasks_sync.py krazyuniks/guitar-tone-shootout {{epic}} --validate
-
-# Run TDD state machine for epic
+# Run TDD state machine for epic (backward compat alias)
 epic-start epic:
     python scripts/run_epic.py run {{epic}}
 
@@ -382,31 +429,17 @@ epic-dry-run epic:
 dispatch agent +prompt:
     python scripts/run_epic.py dispatch {{agent}} {{prompt}}
 
-# Show epic status
+# Show epic status (backward compat alias)
 epic-status epic:
-    @echo "=== Epic E{{epic}} Status ==="
-    @cat .tasks/projects/guitar-tone-shootout/epics/E{{epic}}/index.md 2>/dev/null || echo "Epic not found. Run: just epic-sync {{epic}}"
+    python scripts/run_epic.py status {{epic}}
 
-# Plan an epic - full agent pipeline
-plan epic *FLAGS:
-    python scripts/plan_epic.py {{epic}} {{FLAGS}}
+# Validate epic tasks (pre-flight)
+epic-validate epic:
+    python scripts/validate_tasks.py {{epic}}
 
-# Plan with dry run (show prompts only)
-plan-dry epic *FLAGS:
-    python scripts/plan_epic.py {{epic}} --dry-run {{FLAGS}}
-
-# Full workflow: plan -> sync -> start
-epic-full epic:
-    #!/usr/bin/env bash
-    set -e
-    echo "=== Planning Epic #{{epic}} ==="
-    just plan {{epic}}
-    echo ""
-    echo "=== Syncing to .tasks/ ==="
-    just epic-sync {{epic}}
-    echo ""
-    echo "=== Starting Orchestration ==="
-    just epic-start {{epic}}
+# Materialise TASKS.md into .tasks/ files
+epic-materialise epic *FLAGS:
+    python scripts/tasks_from_plan.py {{epic}} {{FLAGS}}
 
 # --- TDD Phases (Docker-first) ---
 
@@ -502,7 +535,7 @@ tdd-green task:
     #!/usr/bin/env bash
     set -e
     echo "Verifying ALL tests pass for {{task}}..."
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
     echo "Tests passing"
 
 # Full TDD validation

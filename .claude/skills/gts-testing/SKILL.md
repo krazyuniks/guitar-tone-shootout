@@ -83,8 +83,12 @@ tests/
 │   ├── database.py          # DB session with transaction rollback
 │   ├── auth.py              # JWT tokens, auth headers
 │   └── factories.py         # Test data factories
-├── unit/backend/            # Pure logic, no external deps
-├── integration/backend/     # Real DB/Redis tests
+├── unit/
+│   ├── backend/             # Pure logic, no external deps
+│   └── video/               # Video composition tests (props, schemas, image prep)
+├── integration/
+│   ├── backend/             # Real DB/Redis tests
+│   └── video/               # Video API tests (FastAPI endpoints, Remotion)
 ├── regression/              # Stack connectivity (SQLite, <1s)
 └── e2e/
     └── python/              # E2E tests (pytest + Playwright)
@@ -98,8 +102,40 @@ tests/
 Is it a browser-based test?
 ├── YES → tests/e2e/python/tests/  (runs on HOST)
 └── NO → Does it need real DB/Redis?
-    ├── YES → tests/integration/backend/  (runs in DOCKER)
-    └── NO → tests/unit/backend/  (runs in DOCKER)
+    ├── YES → tests/integration/backend/ or integration/video/  (runs in DOCKER)
+    └── NO → tests/unit/backend/ or unit/video/  (runs in DOCKER)
+```
+
+### Video Test Patterns
+
+Video composition tests follow the same placement rules as backend tests:
+
+| Test Type | Location | What to Test |
+|-----------|----------|--------------|
+| **Unit** | `tests/unit/video/` (also `tests/unit/backend/video/`) | Props serialisation, schemas, image prep (Pillow) |
+| **Integration** | `tests/integration/video/` (also `tests/integration/backend/video/`) | FastAPI endpoints, Remotion TypeScript compilation |
+
+**Fixtures for video tests:**
+- Use `TestClient` from `fastapi.testclient` for API tests
+- Mock external Remotion render calls (test composition structure, not actual rendering)
+- Use real image files from `tests/data/` for image prep tests
+
+**Example: Props serialisation test**
+```python
+# tests/unit/video/test_props.py
+from video.props import serialize_composition_props
+from core.domain.value_objects.composition_spec import CompositionSpec
+
+def test_serialize_composition_props():
+    spec = CompositionSpec(
+        composition_type="ShootoutVideo",
+        data={"segments": [...]},
+    )
+
+    props = serialize_composition_props(spec)
+
+    assert props["compositionType"] == "ShootoutVideo"
+    assert "segments" in props["data"]
 ```
 
 ---

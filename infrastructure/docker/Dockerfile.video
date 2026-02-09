@@ -1,0 +1,81 @@
+# syntax=docker/dockerfile:1
+# GTS Video BC - Node.js 20 + Chromium + Python/uv for Remotion rendering
+#
+# This is a Bounded Context (BC) service that provides video rendering via Remotion.
+# It runs independently from the worker, exposing an HTTP API for render requests.
+# Worker calls this service via HTTP - no shared database or direct dependencies.
+
+FROM node:20-slim
+
+# Build args for user mapping (avoids root-owned files on bind mounts)
+ARG UID=1000
+ARG GID=1000
+
+# Install system dependencies: Chromium for Remotion, Python 3.14, and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Chromium and dependencies for headless rendering
+    chromium \
+    chromium-sandbox \
+    # Fonts for text rendering
+    fonts-liberation \
+    fonts-noto-color-emoji \
+    # Python 3.14 for hybrid Python/Node.js environment
+    python3.14 \
+    python3.14-dev \
+    python3-pip \
+    # Build tools for native dependencies
+    build-essential \
+    curl \
+    git \
+    # Audio processing libraries (ffmpeg, libsndfile)
+    ffmpeg \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user with host UID/GID
+RUN groupadd -g $GID appgroup || true \
+    && useradd -u $UID -g $GID -m -s /bin/bash appuser || true
+
+# Install uv (latest for development)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+# Copy workspace configuration for libs/video package
+COPY pyproject.toml uv.lock README.md ./
+COPY libs/core/pyproject.toml libs/core/README.md libs/core/
+COPY libs/video/pyproject.toml libs/video/README.md libs/video/
+
+# Create src directory structure for workspace resolution
+RUN mkdir -p libs/core/src/core libs/video/src/video \
+    && touch libs/core/src/core/__init__.py \
+    && touch libs/video/src/video/__init__.py
+
+# Install Python dependencies via uv (gts-video workspace member)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --package gts-video
+
+# Source code will be volume mounted at runtime for hot reload
+# Copy placeholder __init__.py files for initial resolution
+COPY libs/video/src/video libs/video/src/video/
+
+# Set ownership of app directory to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/app/.venv/bin:$PATH" \
+    # Chromium configuration for Remotion
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Switch to non-root user
+USER appuser
+
+# Expose internal port for HTTP API
+EXPOSE 8002
+
+# Default command: run video render service
+# This will be overridden by docker-compose.yml to specify the actual service entrypoint
+CMD ["python", "-m", "video.remotion.server"]

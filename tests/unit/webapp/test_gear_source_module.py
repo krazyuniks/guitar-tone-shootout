@@ -260,6 +260,7 @@ class TestGearSourceModule:
     async def test_gear_has_foreign_key_to_source(self, session: AsyncSession) -> None:
         """Test that Gear has foreign key to GearSource."""
         from webapp.adapters.persistence.models.gear import Gear
+        from webapp.adapters.persistence.models.base import UuidType
 
         # Check that Gear has source_id field
         assert "source_id" in Gear.__annotations__
@@ -272,8 +273,8 @@ class TestGearSourceModule:
         gear_table = Gear.__table__  # type: ignore[attr-defined]
         source_id_column = gear_table.c.source_id
 
-        # Should be UUID type
-        assert isinstance(source_id_column.type, (Uuid, type(uuid.UUID)))
+        # Should be UUID type (UuidType is a custom type that wraps UUID)
+        assert isinstance(source_id_column.type, (Uuid, UuidType, type(uuid.UUID)))
 
         # Should be nullable (gear can exist without source)
         assert source_id_column.nullable is True

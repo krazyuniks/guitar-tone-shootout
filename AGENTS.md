@@ -39,6 +39,8 @@ just build-astro      # Build Astro frontend
 | **Package Management** | uv workspaces (monorepo) |
 | **Backend** | FastAPI, SQLAlchemy 2.0, PostgreSQL (dual DB), Redis, TaskIQ, pgmq |
 | **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
+| **Audio Processing** | NAM, IR convolution, pedalboard |
+| **Video Processing** | Remotion (React-based video composition) |
 | **Testing** | pytest, Playwright |
 | **Quality** | ruff, mypy, import-linter |
 | **Infrastructure** | Docker (db, redis, webapp, nginx, worker, scheduler) |
@@ -59,11 +61,15 @@ gts/
 │   │       ├── ports/          # Repository protocols, processor protocols
 │   │       ├── records/        # Sync record schemas (GearSyncRecord)
 │   │       └── services/       # Domain services (validation, calculation)
-│   └── audio/                  # Audio processing
-│       └── src/audio/
-│           ├── processing/     # NAM, IR, pedalboard processing
-│           ├── video/          # Video composition
-│           └── analysis/       # Audio analysis (loudness, waveform)
+│   ├── audio/                  # Audio processing
+│   │   └── src/audio/
+│   │       ├── processing/     # NAM, IR, pedalboard processing
+│   │       └── analysis/       # Audio analysis (loudness, waveform)
+│   └── video/                  # Video composition
+│       └── src/video/
+│           ├── composition/    # Remotion components
+│           ├── rendering/      # Video rendering pipeline
+│           └── effects/        # Video effects and transitions
 ├── sources/
 │   └── t3k/                    # T3K source adapter
 │       └── src/source_t3k/
@@ -124,12 +130,13 @@ gts/
 
 | Module | Can depend on | Cannot depend on |
 |--------|---------------|------------------|
-| `core` | (none) | audio, sources, apps |
-| `audio` | core | sources, apps |
-| `source_*` | core | audio, other sources, apps |
-| `webapp` | core, audio | sources |
-| `worker` | core, audio | sources |
-| `scheduler` | core | audio, sources |
+| `core` | (none) | audio, video, sources, apps |
+| `audio` | core | video, sources, apps |
+| `video` | core, audio | sources, apps |
+| `source_*` | core | audio, video, other sources, apps |
+| `webapp` | core, audio, video | sources |
+| `worker` | core, audio, video | sources |
+| `scheduler` | core | audio, video, sources |
 
 **Critical**: Webapp has NO dependency on sources. Worker is the bridge between gts_core and gts_t3k_source databases.
 

@@ -6,10 +6,10 @@ import uuid
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
-from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin
+from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
 
@@ -55,7 +55,7 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "di_tracks"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -100,6 +100,8 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         description: Optional description
         status: Processing status (pending, processing, completed, failed)
         video_path: Path to output video (after processing)
+        video_status: Video rendering status (nullable)
+        video_job_id: Job ID for video rendering (nullable)
         created_at: When created
         updated_at: When last updated
         user: Reference to the User
@@ -110,12 +112,12 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "shootouts"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     di_track_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("di_tracks.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -128,6 +130,8 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         default=ShootoutStatus.PENDING,
     )
     video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    video_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    video_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Relationships
     user: Mapped[User] = relationship(
@@ -175,12 +179,12 @@ class ShootoutChain(UUIDMixin, Base):
     __tablename__ = "shootout_chains"
 
     shootout_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("shootouts.id", ondelete="CASCADE"),
         nullable=False,
     )
     signal_chain_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("signal_chains.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -230,7 +234,7 @@ class AudioSegment(UUIDMixin, Base):
     __tablename__ = "audio_segments"
 
     shootout_chain_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("shootout_chains.id", ondelete="CASCADE"),
         nullable=False,
     )

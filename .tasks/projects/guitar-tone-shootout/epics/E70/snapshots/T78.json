@@ -1,0 +1,31 @@
+{
+  "task_id": "T78",
+  "created": "2026-02-09T02:54:46.815409+00:00",
+  "commit": "f62007580626",
+  "files": [
+    {
+      "path": "tests/integration/backend/tooling/test_just_video_commands.py",
+      "sha256": "63513158cedb9f4943d0c8db878b960382c193c966ed7ddaae773867ec5de5ce",
+      "size": 2602,
+      "modified": "2026-02-09T02:53:14.152129+00:00"
+    },
+    {
+      "path": "tests/integration/backend/tooling/test_no_regressions.py",
+      "sha256": "76388d3fec47759852f0457b4281442dc3093b97cf4564ef49d4dfcfdbee3517",
+      "size": 3870,
+      "modified": "2026-02-09T02:54:28.024127+00:00"
+    },
+    {
+      "path": "tests/integration/backend/tooling/test_quality_gates_video.py",
+      "sha256": "238b8ff0074fc883c12a20ac7c95e6f796983b7a807fcce1ff3b72c378dbef63",
+      "size": 3721,
+      "modified": "2026-02-09T02:53:42.872128+00:00"
+    },
+    {
+      "path": "tests/integration/backend/tooling/test_remotion_studio.py",
+      "sha256": "471494d9772eb3f1def9da7075ac5f7c4e786757789f46c68dc4937e14876445",
+      "size": 2625,
+      "modified": "2026-02-09T02:54:02.116127+00:00"
+    }
+  ]
+}

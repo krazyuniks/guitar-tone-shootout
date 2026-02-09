@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "gts-core",
     "gts-audio",
+    "gts-video",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "sqlalchemy[asyncio]>=2.0.36",
@@ -26,6 +27,7 @@ dependencies = [
 [tool.uv.sources]
 gts-core = { workspace = true }
 gts-audio = { workspace = true }
+gts-video = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

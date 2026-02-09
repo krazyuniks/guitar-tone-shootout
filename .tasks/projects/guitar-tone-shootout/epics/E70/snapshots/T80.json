@@ -1,0 +1,31 @@
+{
+  "task_id": "T80",
+  "created": "2026-02-09T03:03:18.179837+00:00",
+  "commit": "efce2714442a",
+  "files": [
+    {
+      "path": "tests/unit/worktree/test_video_docker_checks_t80.py",
+      "sha256": "2c4a5f22d8e72563f509499b8f6ce38be3d26671ce942d8e3a0f9e37b4c48826",
+      "size": 10628,
+      "modified": "2026-02-09T03:03:04.608105+00:00"
+    },
+    {
+      "path": "tests/unit/worktree/test_video_health_checks_t80.py",
+      "sha256": "b418708b7705566a81c6cbae03bf4b863e0d316ea8c6b00c8af3a74f47719105",
+      "size": 12424,
+      "modified": "2026-02-09T03:02:19.240110+00:00"
+    },
+    {
+      "path": "tests/unit/worktree/test_video_service_integration_t80.py",
+      "sha256": "058c3c51148152738affe225ce227f27984aa5c76e5e6a227ead4f8f4a1a59cb",
+      "size": 12576,
+      "modified": "2026-02-09T03:01:41.944112+00:00"
+    },
+    {
+      "path": "tests/unit/worktree/test_video_settings_t80.py",
+      "sha256": "8b2d31c24508b757dfa9d17009424dbb55ca5a341be59b3e08f08e3825ac1e7e",
+      "size": 1503,
+      "modified": "2026-02-09T03:03:15.648104+00:00"
+    }
+  ]
+}

@@ -12,6 +12,13 @@ Usage:
     python scripts/run_epic.py run 42 --dry-run
     python scripts/run_epic.py run 42 --max-iterations 10
 
+    # Validate epic tasks (pre-flight check)
+    python scripts/run_epic.py validate 42
+    python scripts/run_epic.py validate 42 --strict
+
+    # Show epic status
+    python scripts/run_epic.py status 42
+
     # Dispatch a single agent (manual use, replaces claude-agent.sh)
     python scripts/run_epic.py dispatch test-author "Write tests for T43"
     python scripts/run_epic.py dispatch implementer --project webapp --max-turns 30 "Implement T44"
@@ -1382,14 +1389,15 @@ def run_state_machine(
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Run the TDD state machine."""
-    # Sync epic first (idempotent)
-    print(f"Syncing epic #{args.epic}...")
+    # Pre-flight validation (fail-fast if tasks are invalid)
+    print(f"Validating epic #{args.epic}...")
+    validate_script = PROJECT_ROOT / "scripts" / "validate_tasks.py"
     result = subprocess.run(
-        ["just", "epic-sync", str(args.epic)],
+        [sys.executable, str(validate_script), str(args.epic)],
         cwd=PROJECT_ROOT,
     )
     if result.returncode != 0:
-        die(f"Failed to sync epic #{args.epic}")
+        die(f"Pre-flight validation failed for epic #{args.epic}. Fix with: /epic fix {args.epic}")
     print()
 
     run_state_machine(
@@ -1397,6 +1405,60 @@ def cmd_run(args: argparse.Namespace) -> None:
         dry_run=args.dry_run,
         max_iterations=args.max_iterations,
     )
+
+
+def cmd_validate(args: argparse.Namespace) -> None:
+    """Run pre-flight validation on epic tasks."""
+    validate_script = PROJECT_ROOT / "scripts" / "validate_tasks.py"
+    cmd = [sys.executable, str(validate_script), str(args.epic)]
+    if args.strict:
+        cmd.append("--strict")
+    result = subprocess.run(cmd, cwd=PROJECT_ROOT)
+    sys.exit(result.returncode)
+
+
+def cmd_status(args: argparse.Namespace) -> None:
+    """Show epic status from .tasks/ files."""
+    epic_dir = TASKS_BASE / f"E{args.epic}"
+
+    if not epic_dir.exists():
+        die(f"Epic directory not found: {epic_dir}")
+
+    tasks = parse_all_tasks(epic_dir, args.epic)
+    if not tasks:
+        die("No tasks found in epic directory")
+
+    # Rebuild index to ensure it's current
+    rebuild_index(epic_dir, args.epic)
+
+    # Print status
+    complete = [t for t in tasks if t.state == "complete"]
+    blocked = [t for t in tasks if t.state != "complete" and t.blocked_by_incomplete]
+    actionable = [t for t in tasks if t.state != "complete" and not t.blocked_by_incomplete]
+
+    print(f"=== Epic E{args.epic} Status ===")
+    print(f"  Total: {len(tasks)} | Complete: {len(complete)} | Actionable: {len(actionable)} | Blocked: {len(blocked)}")
+    print()
+
+    if actionable:
+        print("Actionable:")
+        for t in sorted(actionable, key=lambda x: x.task_id):
+            print(f"  T{t.task_id} [{t.state}] {t.title}")
+
+    if blocked:
+        print()
+        print("Blocked:")
+        for t in sorted(blocked, key=lambda x: x.task_id):
+            blockers = ", ".join(f"T{b}" for b in t.blocked_by_incomplete)
+            print(f"  T{t.task_id} [{t.state}] {t.title} (by: {blockers})")
+
+    if complete:
+        print()
+        print(f"Complete: {', '.join(f'T{t.task_id}' for t in sorted(complete, key=lambda x: x.task_id))}")
+
+    # Print index.md path
+    print()
+    print(f"Index: {(epic_dir / 'index.md').relative_to(PROJECT_ROOT)}")
 
 
 def cmd_dispatch(args: argparse.Namespace) -> None:
@@ -1423,6 +1485,8 @@ def main() -> None:
             Examples:
               python scripts/run_epic.py run 42
               python scripts/run_epic.py run 42 --dry-run
+              python scripts/run_epic.py validate 42
+              python scripts/run_epic.py status 42
               python scripts/run_epic.py dispatch test-author "Write tests for T43"
               python scripts/run_epic.py dispatch implementer --project webapp "Implement T44"
         """),
@@ -1435,6 +1499,17 @@ def main() -> None:
     run_parser.add_argument("--dry-run", action="store_true", help="Show what would happen without dispatching agents")
     run_parser.add_argument("--max-iterations", type=int, default=50, help="Max state machine iterations (default: 50)")
     run_parser.set_defaults(func=cmd_run)
+
+    # --- validate ---
+    validate_parser = subparsers.add_parser("validate", help="Pre-flight validation of epic tasks")
+    validate_parser.add_argument("epic", type=int, help="Epic issue number")
+    validate_parser.add_argument("--strict", action="store_true", help="Treat warnings as errors")
+    validate_parser.set_defaults(func=cmd_validate)
+
+    # --- status ---
+    status_parser = subparsers.add_parser("status", help="Show epic task status")
+    status_parser.add_argument("epic", type=int, help="Epic issue number")
+    status_parser.set_defaults(func=cmd_status)
 
     # --- dispatch ---
     dispatch_parser = subparsers.add_parser("dispatch", help="Dispatch a single agent")
