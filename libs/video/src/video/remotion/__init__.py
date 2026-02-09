@@ -1,0 +1,1 @@
+"""Remotion video composition scaffold."""
