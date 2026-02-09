@@ -1,0 +1,13 @@
+{
+  "task_id": "T83",
+  "created": "2026-02-09T04:15:32.961158+00:00",
+  "commit": "41da569559d7",
+  "files": [
+    {
+      "path": "tests/unit/backend/migrations/test_add_shootout_video_fields.py",
+      "sha256": "e3d4f2af25b3a03776dd4098fbe30e97be7be5236c9161495982d4c32f4033b0",
+      "size": 9698,
+      "modified": "2026-02-09T04:15:05.831746+00:00"
+    }
+  ]
+}
