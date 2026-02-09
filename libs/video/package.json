@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "GTS Video Rendering - Remotion-based video composition",
   "private": true,
+  "bin": {
+    "tsc": "./tsc-wrapper.js"
+  },
   "dependencies": {
     "remotion": "^4.0.0",
     "@remotion/cli": "^4.0.0",
