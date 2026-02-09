@@ -7,9 +7,11 @@ NOTE: These tests must run on the HOST, not in Docker containers, because
 AGENTS.md is not mounted in the container filesystem.
 """
 
+import pytest
 from pathlib import Path
 
 
+@pytest.mark.host_only
 class TestAgentsMdVideoIntegration:
     """Verify AGENTS.md includes video BC documentation."""
 

@@ -12,7 +12,6 @@ from typing import Literal
 
 from PIL import Image
 
-
 ImageFormat = Literal["JPEG", "PNG", "WEBP"]
 
 

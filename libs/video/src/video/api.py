@@ -12,7 +12,6 @@ from video.schemas import (
     StatusResponse,
 )
 
-
 # In-memory job storage for MVP
 # TODO: Replace with persistent storage (Redis, database)
 _jobs: dict[str, dict[str, Any]] = {}

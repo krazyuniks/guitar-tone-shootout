@@ -7,9 +7,11 @@ NOTE: These tests must run on the HOST, not in Docker containers, because
 DEVELOPMENT.md is not mounted in the container filesystem.
 """
 
+import pytest
 from pathlib import Path
 
 
+@pytest.mark.host_only
 class TestDevelopmentMdVideoIntegration:
     """Verify DEVELOPMENT.md includes video BC documentation."""
 
