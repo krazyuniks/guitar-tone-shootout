@@ -29,3 +29,16 @@ Red phase verified: 20 failing + 0 erroring tests found.
 2026-02-09 04:56:51,529 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-09 04:56:51,529 [INFO]     Running: just tdd-lock T82
+2026-02-09 04:56:53,786 [DEBUG]     just tdd-lock T82 -> OK
+2026-02-09 04:56:53,786 [DEBUG]     Output:
+[70/epic-video-bc-integration-remotion-power 33e840d7] test-lock: T82 tests ready for implementation
+ 5 files changed, 288 insertions(+), 1 deletion(-)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E70/logs/errors/T81_validation_failed_20260209_034144.md
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E70/logs/session_20260209_035454.log
+ create mode 100644 tests/unit/backend/docs/test_gts_video_skill.py
+ create mode 100644 tests/unit/backend/docs/test_skill_video_updates.py
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E70/snapshots/T82.json
+  2 test files captured at commit 33e840d74c1a
+Tests locked at 33e840d7
+
+2026-02-09 04:56:53,812 [DEBUG] STRUCTURED: {"event": "phase_end", "timestamp": "2026-02-09T03:56:53.812786+00:00", "task_id": 82, "phase": "test", "result": "locked"}
