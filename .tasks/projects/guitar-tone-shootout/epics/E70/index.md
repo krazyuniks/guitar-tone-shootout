@@ -23,7 +23,7 @@ T76 → T84
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
 | T71 | Phase 1: Core Domain — Generic Comp | complete | core | - |
-| T72 | Phase 2: libs/video/ Scaffold + Aud | locked | audio | T71 |
+| T72 | Phase 2: libs/video/ Scaffold + Aud | validating | audio | T71 |
 | T73 | Phase 3: Docker Integration — Video | pending | - | T72 |
 | T74 | Phase 4: Video BC — Python Implemen | pending | - | T73 |
 | T75 | Phase 5: Video BC — Remotion Compon | pending | - | T74 |
