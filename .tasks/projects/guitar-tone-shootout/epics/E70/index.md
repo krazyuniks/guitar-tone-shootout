@@ -31,7 +31,7 @@ T76 → T84
 | T77 | Phase 7: Frontend — Remotion Player | complete | - | T72 |
 | T78 | Phase 8: Tooling & Just Commands | complete | - | T72 |
 | T80 | Phase 9: worktree.py — Video Servic | complete | - | T73 |
-| T81 | Phase 10: Documentation — Update DE | validating | - | T74 |
+| T81 | Phase 10: Documentation — Update DE | complete | - | T74 |
 | T82 | Phase 11: .claude Skills/Agents — V | pending | - | T74 |
 | T83 | Phase 6a: Alembic Migration — Shoot | pending | webapp | T71 |
 | T84 | Phase 12: Integration Test — End-to | pending | - | T76 |
