@@ -41,7 +41,9 @@ Hexagonal architecture with domain at centre. Dependencies point inward -- adapt
 
 | Concern | Technology | Rationale |
 |---------|------------|-----------|
-| Video composition | FFmpeg | Concatenation, waveform overlays, title cards |
+| Video composition | Remotion | React-based programmatic video composition, TypeScript integration |
+| Video encoding | FFmpeg | Video encoding, format conversion (used by Remotion) |
+| Image preparation | Pillow | Image resizing, normalisation for video frames |
 
 ### Infrastructure
 
@@ -169,14 +171,17 @@ members = [
 
 | Module | Can depend on | Cannot depend on |
 |--------|---------------|------------------|
-| `core` | (none) | audio, sources, apps |
-| `audio` | core | sources, apps |
-| `source_*` | core | audio, other sources, apps |
-| `webapp` | core, audio | sources |
-| `worker` | core, audio | sources |
-| `scheduler` | core | audio, sources |
+| `core` | (none) | audio, video, sources, apps |
+| `audio` | core | video, sources, apps |
+| `video` | core, audio | sources, apps |
+| `source_*` | core | audio, video, other sources, apps |
+| `webapp` | core, audio, video | sources |
+| `worker` | core, audio, video | sources |
+| `scheduler` | core | audio, video, sources |
 
 Enforced via import-linter in CI.
+
+**Video layer:** `libs/video/` sits above core and audio. It composes domain models and audio segments into videos using Remotion (React-based video framework). Must NOT depend on application-specific concerns (webapp, worker) or data sources (T3K).
 
 ### Directory Purposes
 
