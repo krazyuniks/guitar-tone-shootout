@@ -7,6 +7,7 @@ with isolated Docker environments.
 import contextlib
 import shutil
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import typer
@@ -62,6 +63,33 @@ from ..resources import check_ports_available, format_ports_display
 from ..templates import write_worktree_configs
 
 
+# Step timing for setup profiling
+_step_timings: list[tuple[str, float]] = []
+
+
+@contextmanager
+def _timed_step(name: str):
+    """Record wall-clock time for a setup step."""
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        _step_timings.append((name, time.monotonic() - start))
+
+
+def _print_timing_summary() -> None:
+    """Print a summary of step timings."""
+    if not _step_timings:
+        return
+    total = sum(t for _, t in _step_timings)
+    console.print("\n[bold cyan]Setup timing:[/bold cyan]")
+    for name, elapsed in _step_timings:
+        bar = "█" * max(1, int(elapsed / total * 30))
+        console.print(f"  {elapsed:5.1f}s {bar} {name}")
+    console.print(f"  [bold]{total:5.1f}s total[/bold]")
+    _step_timings.clear()
+
+
 def register_setup_commands(app: typer.Typer) -> None:
     """Register setup commands with the Typer app."""
 
@@ -93,9 +121,9 @@ def register_setup_commands(app: typer.Typer) -> None:
             help="Skip blocking health check (expert override - use with caution)",
         ),
         health_timeout: int = typer.Option(
-            60,
+            30,
             "--health-timeout",
-            help="Seconds to wait for services to become healthy (default: 60)",
+            help="Seconds to wait for services to become healthy (default: 30)",
         ),
     ) -> None:
         """Create a new git worktree with isolated Docker environment.
@@ -186,17 +214,18 @@ def _run_setup(
 
             # Rebase on main to get latest updates (skip for main itself)
             if not is_main:
-                console.print("  Rebasing on origin/main...")
-                if rebase_on_main(worktree_path):
-                    print_success("Rebased on latest main")
-                else:
-                    print_error(
-                        "Rebase failed (conflicts?). Resolve manually:\n"
-                        f"  cd {worktree_path}\n"
-                        "  git fetch origin && git rebase origin/main\n"
-                        "Then run setup again."
-                    )
-                    raise typer.Exit(1)
+                with _timed_step("rebase"):
+                    console.print("  Rebasing on origin/main...")
+                    if rebase_on_main(worktree_path):
+                        print_success("Rebased on latest main")
+                    else:
+                        print_error(
+                            "Rebase failed (conflicts?). Resolve manually:\n"
+                            f"  cd {worktree_path}\n"
+                            "  git fetch origin && git rebase origin/main\n"
+                            "Then run setup again."
+                        )
+                        raise typer.Exit(1)
         else:
             # Registry entry exists but directory is gone - clean up and re-create
             print_warning(
@@ -320,8 +349,9 @@ def _run_setup(
                 raise typer.Exit(1) from None
 
         # Step 4: Generate configuration files
-        status.update("[bold green]Generating configuration files...")
-        write_worktree_configs(worktree, worktree_path)
+        with _timed_step("config"):
+            status.update("[bold green]Generating configuration files...")
+            write_worktree_configs(worktree, worktree_path)
 
         # Step 4.5: Install git hooks (for main worktree setup)
         if is_main and not is_hook_installed("post-commit"):
@@ -348,10 +378,12 @@ def _run_setup(
             console.print("  [yellow]![/yellow] prek not found (run 'just infra' to install)")
 
         # Step 4.8: Start Traefik (server deployments only - guards itself)
-        _setup_traefik(worktree_path, status)
+        with _timed_step("traefik"):
+            _setup_traefik(worktree_path, status)
 
         # Step 4.9: Check development requirements (Playwright + MCP)
-        _check_development_requirements(worktree_path, status)
+        with _timed_step("requirements"):
+            _check_development_requirements(worktree_path, status)
 
         if not no_start and not resuming:
             _start_and_configure_services(
@@ -382,7 +414,8 @@ def _run_setup(
 
         # === VALIDATION: Run regression tests ===
         if not no_start:
-            tests_passed = _run_regression_tests(worktree_path, worktree, status)
+            with _timed_step("regression-tests"):
+                tests_passed = _run_regression_tests(worktree_path, worktree, status)
             if not tests_passed and not force:
                 status.stop()
                 print_error(
@@ -405,6 +438,7 @@ def _run_setup(
         resuming=resuming,
         no_start=no_start,
     )
+    _print_timing_summary()
 
 
 def _get_or_create_backup(status, is_main: bool) -> Path | None:
@@ -571,14 +605,19 @@ def _start_and_configure_services(
     # dependency health check fails (e.g. webapp crash prevents nginx start).
     # Let Step 10 health check provide proper diagnosis with log collection.
     status.update("[bold green]Starting application services...")
+    startup_error: str | None = None
     try:
         start_services(worktree_path, cleanup=False)
-    except DockerError:
-        pass  # Diagnosed in Step 10
+    except DockerError as e:
+        startup_error = str(e)  # Capture for failure report
 
     # Step 10: Wait for services to be ready
-    status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
-    ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
+    # Skip the slow health poll if startup already failed (build error etc.)
+    if startup_error:
+        ready, issues = False, [f"Docker startup/build failed:\n{startup_error}"]
+    else:
+        status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
+        ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
 
     if not ready:
         # Report but DON'T roll back — the worktree is intact (db imported,
@@ -684,93 +723,106 @@ def _handle_resume_path(
     # Step 1: Get database backup from main (unless skipped or main worktree)
     backup_file: Path | None = None
     if not skip_db_import and not is_main:
-        backup_file = _get_or_create_backup(status, is_main=False)
-        if backup_file is None:
-            raise typer.Exit(1)
+        with _timed_step("db-export"):
+            backup_file = _get_or_create_backup(status, is_main=False)
+            if backup_file is None:
+                raise typer.Exit(1)
 
     # Step 1.5: Clean up any leftover containers before starting fresh
-    status.update("[bold green]Cleaning up old containers...")
-    cleanup_containers(worktree_path)
+    with _timed_step("cleanup"):
+        status.update("[bold green]Cleaning up old containers...")
+        cleanup_containers(worktree_path)
 
     # Step 2: Start database services
     # Main worktree needs redis for jobs profile; feature worktrees don't
-    status.update("[bold green]Starting database services...")
-    try:
-        db_services = ["db"]
-        if is_main:
-            db_services.append("redis")
-        run_compose(["up", "-d", *db_services], cwd=worktree_path)
-    except Exception as e:
-        print_error(f"Failed to start database services: {e}")
-        raise typer.Exit(1) from None
+    with _timed_step("db-start"):
+        status.update("[bold green]Starting database services...")
+        try:
+            db_services = ["db"]
+            if is_main:
+                db_services.append("redis")
+            run_compose(["up", "-d", *db_services], cwd=worktree_path)
+        except Exception as e:
+            print_error(f"Failed to start database services: {e}")
+            raise typer.Exit(1) from None
 
     # Step 3: Wait for database to be ready
-    status.update("[bold green]Waiting for database to be ready...")
-    db_ready = False
-    for _ in range(30):
-        db_status = get_service_status(worktree_path)
-        if db_status.get("db") == "running":
-            check_result = subprocess.run(
-                [
-                    "docker",
-                    "compose",
-                    "exec",
-                    "-T",
-                    "db",
-                    "pg_isready",
-                    "-U",
-                    "gts",
-                    "-d",
-                    "gts_core",
-                ],
-                cwd=worktree_path,
-                capture_output=True,
-                timeout=5,
-            )
-            if check_result.returncode == 0:
-                db_ready = True
-                break
-        time.sleep(1)
+    with _timed_step("db-ready"):
+        status.update("[bold green]Waiting for database to be ready...")
+        db_ready = False
+        for _ in range(30):
+            db_status = get_service_status(worktree_path)
+            if db_status.get("db") == "running":
+                check_result = subprocess.run(
+                    [
+                        "docker",
+                        "compose",
+                        "exec",
+                        "-T",
+                        "db",
+                        "pg_isready",
+                        "-U",
+                        "gts",
+                        "-d",
+                        "gts_core",
+                    ],
+                    cwd=worktree_path,
+                    capture_output=True,
+                    timeout=5,
+                )
+                if check_result.returncode == 0:
+                    db_ready = True
+                    break
+            time.sleep(1)
 
-    if not db_ready:
-        print_error("Database did not become ready in time")
-        raise typer.Exit(1)
+        if not db_ready:
+            print_error("Database did not become ready in time")
+            raise typer.Exit(1)
 
     # Step 4: Import database (always, unless skipped)
-    if not skip_db_import and backup_file and backup_file.exists():
-        _import_database(status, worktree_path, backup_file, is_main=is_main)
-    elif is_main and not skip_db_import:
-        # For main, try to find an existing backup
-        backup_file = _get_latest_backup()
-        if backup_file:
-            _import_database(status, worktree_path, backup_file, is_main=True)
+    with _timed_step("db-import"):
+        if not skip_db_import and backup_file and backup_file.exists():
+            _import_database(status, worktree_path, backup_file, is_main=is_main)
+        elif is_main and not skip_db_import:
+            # For main, try to find an existing backup
+            backup_file = _get_latest_backup()
+            if backup_file:
+                _import_database(status, worktree_path, backup_file, is_main=True)
 
     # Step 5: Start remaining services (db is already running — skip cleanup)
     # Don't fail hard — let Step 6 health check diagnose partial failures.
-    status.update("[bold green]Starting application services...")
-    try:
-        start_services(worktree_path, cleanup=False)
-    except DockerError:
-        pass  # Diagnosed in Step 6
+    startup_error: str | None = None
+    with _timed_step("services-start"):
+        status.update("[bold green]Starting application services...")
+        try:
+            start_services(worktree_path, cleanup=False)
+        except DockerError as e:
+            startup_error = str(e)  # Capture for failure report
 
     # Step 6: Wait for services to be ready
-    status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
-    ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
-    if not ready:
-        container_logs = collect_container_logs(worktree_path)
-        service_status = get_service_status(worktree_path)
+    # Skip the slow health poll if startup already failed (build error etc.)
+    with _timed_step("health-check"):
+        if startup_error:
+            ready, issues = False, [f"Docker startup/build failed:\n{startup_error}"]
+        else:
+            status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
+            ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
+        if not ready:
+            container_logs = collect_container_logs(worktree_path)
+            service_status = get_service_status(worktree_path)
 
-        console.print()
-        report = format_failure_report(issues, container_logs, service_status)
-        console.print(report)
-        console.print()
-        console.print("[bold red]Some services did not become healthy.[/bold red]")
-        console.print("[dim]The worktree is intact. Fix the issue and re-run setup.[/dim]")
-        if not force:
-            raise typer.Exit(1)
+            console.print()
+            report = format_failure_report(issues, container_logs, service_status)
+            console.print(report)
+            console.print()
+            console.print("[bold red]Some services did not become healthy.[/bold red]")
+            console.print("[dim]The worktree is intact. Fix the issue and re-run setup.[/dim]")
+            if not force:
+                raise typer.Exit(1)
 
     # Step 7: Restore auth
-    _restore_auth(status, worktree, worktree_path)
+    with _timed_step("auth"):
+        _restore_auth(status, worktree, worktree_path)
 
 
 def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:

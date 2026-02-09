@@ -87,8 +87,8 @@ class Settings(BaseSettings):
     )
 
     # Timeouts
-    docker_timeout: int = Field(default=120, description="Docker operation timeout (s)")
-    health_timeout: int = Field(default=60, description="Health check timeout (s)")
+    docker_timeout: int = Field(default=60, description="Docker operation timeout (s)")
+    health_timeout: int = Field(default=30, description="Health check timeout (s)")
 
     class Config:
         env_prefix = "GTS_WORKTREE_"

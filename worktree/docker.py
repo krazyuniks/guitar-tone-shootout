@@ -285,7 +285,8 @@ def is_healthy(worktree_path: Path) -> bool:
     status = get_service_status(worktree_path)
 
     # Core runtime services for feature worktrees (no Redis - it's in jobs profile)
-    expected_services = {"nginx", "webapp", "db"}
+    # Astro runs as a chokidar file watcher (auto-rebuilds on source changes)
+    expected_services = {"nginx", "webapp", "db", "astro"}
 
     # Worker, scheduler, Redis, and video only run on main worktree (via --profile jobs)
     main_path = get_main_worktree_path()
@@ -304,7 +305,7 @@ def is_healthy(worktree_path: Path) -> bool:
 def wait_for_healthy(
     worktree_path: Path,
     timeout: int | None = None,
-    poll_interval: int = 2,
+    poll_interval: float = 0.5,
 ) -> bool:
     """Wait for services to become healthy.
 
@@ -463,15 +464,13 @@ def wait_for_frontend(
 def wait_for_services_ready(
     worktree: Worktree,
     worktree_path: Path,
-    timeout: int = 120,
+    timeout: int = 60,
 ) -> tuple[bool, list[str]]:
     """Wait for all runtime services (Docker + HTTP endpoints) to be ready.
 
     This is a comprehensive health check that:
     1. Waits for Docker containers to be running
     2. Waits for webapp HTTP endpoint to respond
-
-    Note: Frontend is build-only (--profile build), not part of runtime stack.
 
     Args:
         worktree: Worktree configuration
@@ -485,8 +484,8 @@ def wait_for_services_ready(
     start = time.time()
     remaining: float = timeout
 
-    # Phase 1: Wait for Docker containers
-    if not wait_for_healthy(worktree_path, timeout=int(min(remaining, 60))):
+    # Phase 1: Wait for Docker containers (should be fast — they just started)
+    if not wait_for_healthy(worktree_path, timeout=int(min(remaining, 30))):
         issues.append("Docker containers not healthy")
         return False, issues
 
@@ -496,7 +495,7 @@ def wait_for_services_ready(
         return False, issues
 
     # Phase 2: Wait for webapp HTTP
-    if not wait_for_webapp(worktree, timeout=min(int(remaining), 30)):
+    if not wait_for_webapp(worktree, timeout=min(int(remaining), 20)):
         issues.append(f"Backend not responding at {worktree.webapp_url}/health")
         return False, issues
 
@@ -608,8 +607,8 @@ def collect_container_logs(
         Dict mapping service name to log content
     """
     if services is None:
-        # Core services for feature worktrees
-        services = ["nginx", "webapp", "db"]
+        # Core services for feature worktrees (astro is the chokidar file watcher)
+        services = ["nginx", "webapp", "db", "astro"]
 
         # Main worktree includes jobs profile services (redis, worker, scheduler, video)
         main_path = get_main_worktree_path()
