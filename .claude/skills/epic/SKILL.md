@@ -62,9 +62,18 @@ Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the
 
 ## `/epic plan {n}` — Planning Workflow
 
+### CRITICAL: Always Plan Fresh
+
+**Planning always starts from scratch.** The pipeline derives its own task breakdown from the epic body and codebase analysis.
+
+- **Ignore existing GitHub issues** referenced in the epic body. They are irrelevant to planning.
+- **Delete stale planning state** (`.planning/epics/{slug}/`) before starting.
+- **Never ask** whether to reuse, reopen, or materialise from existing issues.
+- If the epic body references closed child issues, **treat them as historical context only** — do not interact with them.
+
 ### Phase Flow
 
-1. **Setup** — Fetch epic from GitHub, derive slug, create planning dir
+1. **Setup** — Fetch epic from GitHub, derive slug, clean planning dir, start fresh
 2. **Context Loading** — Dispatch `epic-context-loader` subagent
 3. **Core Understanding** — Interactive: user provides vision and boundaries
 4. **Gray Areas** — Dispatch `epic-gray-area-analyst` + interactive Q&A
