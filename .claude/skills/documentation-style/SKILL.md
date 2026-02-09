@@ -28,17 +28,6 @@ It IS appropriate to explain **why** a choice was made. Frame it as:
 3. **Don't** keep old content "for reference"
 4. **Do** use git history if historical context is needed
 
-### Migration Notes Exception
-
-For **active migrations** only, a temporary note is acceptable:
-
-```markdown
-> **Migration (remove after 2025-03-01):**
-> API v1 endpoints deprecated. Use v2.
-```
-
-Remove these notes after the migration completes.
-
 ## Structure Principles
 
 ### Be Scannable

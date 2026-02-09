@@ -9,8 +9,6 @@ context: fork
 
 Generate a comprehensive review of a completed epic with metrics, learnings, and recommendations.
 
-Supersedes `/epic-report` (which only produced a GitHub status table).
-
 ## Usage
 
 ```

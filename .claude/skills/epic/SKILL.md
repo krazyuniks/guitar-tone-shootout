@@ -1,6 +1,6 @@
 ---
 name: epic
-description: Unified epic lifecycle — plan, validate, fix, start, status. Replaces epic-builder.
+description: Unified epic lifecycle — plan, validate, fix, start, status.
 context: fork
 ---
 
@@ -200,6 +200,35 @@ Each task must have:
 - [ ] Breaking changes split into companion tasks
 
 **Test:** Could a different Claude instance execute this task without asking clarifying questions?
+
+### Sizing
+
+- Completable in 1-2 work sessions (~15-60 minutes)
+- No more than ~200-400 lines of changes
+- Max 3 implementation files, max 15 tests
+- If scope lists >3 Create files OR >5 total files, split the task
+
+### Split Patterns
+
+| Pattern | When |
+|---------|------|
+| **Vertical slice** | Full feature for narrow scope |
+| **Layer slice** | Repository, then service, then API |
+| **Phase slice** | Schema/migration, then implementation, then tests |
+
+### Split Triggers
+
+- Task touches multiple components (backend + frontend + API)
+- Task has multiple distinct acceptance criteria groups
+- Task title contains "and"
+- Any model-level breaking change requires a companion consumer-fix task
+
+### Dependency Checklist
+
+- [ ] No circular dependencies
+- [ ] Foundation tasks (schema, models) come first
+- [ ] Independent tasks identified for parallel execution waves
+- [ ] Dependencies use explicit task references (Blocked by: T{n})
 
 ---
 
