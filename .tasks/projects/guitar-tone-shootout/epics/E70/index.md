@@ -29,7 +29,7 @@ T76 → T84
 | T75 | Phase 5: Video BC — Remotion Compon | complete | - | T74 |
 | T76 | Phase 6b: Worker Integration — Vide | pending | worker | T75, T83 |
 | T77 | Phase 7: Frontend — Remotion Player | complete | - | T72 |
-| T78 | Phase 8: Tooling & Just Commands | locked | - | T72 |
+| T78 | Phase 8: Tooling & Just Commands | validating | - | T72 |
 | T80 | Phase 9: worktree.py — Video Servic | pending | - | T73 |
 | T81 | Phase 10: Documentation — Update DE | pending | - | T74 |
 | T82 | Phase 11: .claude Skills/Agents — V | pending | - | T74 |
