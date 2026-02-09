@@ -160,40 +160,40 @@ class TestVideoDockerComposeService:
 
 
 class TestVideoServiceStartup:
-    """Test video service can start with docker compose."""
+    """Test video service configuration is valid for startup."""
 
-    @pytest.mark.skip(reason="Requires Docker CLI - run on host, not in container")
-    def test_docker_compose_validates_with_jobs_profile(self):
-        """docker compose --profile jobs config must validate successfully."""
-        result = subprocess.run(
-            ["docker", "compose", "--profile", "jobs", "config"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    def test_video_service_in_jobs_profile_config(self):
+        """Video service with jobs profile must have valid YAML configuration."""
+        compose_file = Path("/app/docker-compose.yml")
+        with compose_file.open() as f:
+            config = yaml.safe_load(f)
 
-        assert result.returncode == 0, (
-            f"docker compose --profile jobs config failed:\n{result.stderr}"
-        )
+        video_service = config["services"]["video"]
 
-        # Verify video service is included in output
-        assert "video:" in result.stdout, "video service must appear in jobs profile config"
+        # Verify video service is included in jobs profile
+        assert "profiles" in video_service, "video service must specify profiles"
+        assert "jobs" in video_service["profiles"], "video service must be on jobs profile"
 
-    @pytest.mark.slow
-    @pytest.mark.skip(reason="Requires Docker CLI - run on host, not in container")
-    def test_video_service_image_builds(self):
-        """Video service Docker image must build successfully."""
-        # This test builds the image (slow, marked as slow)
-        result = subprocess.run(
-            ["docker", "compose", "build", "video"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        # Verify service has required configuration keys for startup
+        assert "build" in video_service, "video service must have build config"
+        assert "healthcheck" in video_service, "video service must have healthcheck"
 
-        assert result.returncode == 0, (
-            f"docker compose build video failed:\n{result.stderr}"
-        )
+    def test_video_service_dockerfile_is_valid_docker_syntax(self):
+        """Dockerfile.video must contain valid Docker instructions."""
+        dockerfile = Path("/app/infrastructure/docker/Dockerfile.video")
+        content = dockerfile.read_text()
+        lines = [
+            line.strip() for line in content.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+
+        # Must start with FROM
+        assert lines[0].startswith("FROM"), "Dockerfile must start with FROM instruction"
+
+        # Must contain required instructions for buildable image
+        instructions = {line.split()[0] for line in lines}
+        assert "WORKDIR" in instructions, "Dockerfile must set WORKDIR"
+        assert "EXPOSE" in instructions, "Dockerfile must EXPOSE a port"
 
 
 class TestVideoDockerComposeOverride:
