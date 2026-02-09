@@ -6,6 +6,6 @@
 |-------|--------|---------|
 | lint | ❌ | Lint errors |
 | typecheck | ✅ | Types OK |
-| tests | ❌ | Tests failed |
+| tests | ✅ | Tests passed |
 | regression | ✅ | Regression passed |
-| e2e | ✅ | E2E passed |
+| e2e | ❌ | E2E failed |
