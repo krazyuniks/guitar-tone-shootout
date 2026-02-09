@@ -33,7 +33,7 @@ T76 → T84
 | T80 | Phase 9: worktree.py — Video Servic | complete | - | T73 |
 | T81 | Phase 10: Documentation — Update DE | complete | - | T74 |
 | T82 | Phase 11: .claude Skills/Agents — V | complete | - | T74 |
-| T83 | Phase 6a: Alembic Migration — Shoot | pending | webapp | T71 |
+| T83 | Phase 6a: Alembic Migration — Shoot | locked | webapp | T71 |
 | T84 | Phase 12: Integration Test — End-to | pending | - | T76 |
 
 ## Commands

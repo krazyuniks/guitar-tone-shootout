@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .signal_chain import SignalChainBlock
 
-from sqlalchemy import JSON, ForeignKey, Index, String, Uuid
+from sqlalchemy import JSON, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base, UUIDMixin
+from .base import Base, UUIDMixin, UuidType
 
 
 class Preset(UUIDMixin, Base):
@@ -30,7 +30,7 @@ class Preset(UUIDMixin, Base):
     __tablename__ = "presets"
 
     signal_chain_block_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("signal_chain_blocks.id", ondelete="CASCADE"),
         nullable=False,
     )

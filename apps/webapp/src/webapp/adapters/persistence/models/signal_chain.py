@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text, Uuid
+from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.domain.value_objects.signal_chain_enums import (
@@ -13,7 +13,7 @@ from core.domain.value_objects.signal_chain_enums import (
     Platform,
 )
 
-from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+from .base import Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
 from .block_type import BlockType
 from .preset import Preset
 
@@ -42,7 +42,7 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "signal_chains"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -99,13 +99,13 @@ class SignalChainBlock(UUIDMixin, Base):
     __tablename__ = "signal_chain_blocks"
 
     signal_chain_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("signal_chains.id", ondelete="CASCADE"),
         nullable=False,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     user_gear_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+        UuidType(),
         nullable=True,
     )
     gear_type: Mapped[GearType | None] = mapped_column(
@@ -113,7 +113,7 @@ class SignalChainBlock(UUIDMixin, Base):
         nullable=True,
     )
     block_type_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("block_types.id", ondelete="CASCADE"),
         nullable=True,
     )
@@ -169,14 +169,14 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "signal_chain_groups"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     base_chain_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("signal_chains.id", ondelete="CASCADE"),
         nullable=True,
     )

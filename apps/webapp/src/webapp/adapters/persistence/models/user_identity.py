@@ -5,10 +5,10 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, String, Uuid
+from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base, TimestampMixin, UUIDMixin
+from .base import Base, TimestampMixin, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
     from .user import OAuthProvider, User
@@ -36,12 +36,12 @@ class UserIdentity(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "user_identities"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     provider_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("oauth_providers.id", ondelete="CASCADE"),
         nullable=False,
     )

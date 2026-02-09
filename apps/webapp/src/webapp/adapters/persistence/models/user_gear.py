@@ -8,10 +8,10 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base, TimestampMixin, UUIDMixin
+from .base import Base, TimestampMixin, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
     from .gear import Gear
@@ -41,12 +41,12 @@ class UserGear(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "user_gear"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     gear_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("gear.id", ondelete="CASCADE"),
         nullable=False,
     )

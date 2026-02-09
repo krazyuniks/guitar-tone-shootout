@@ -19,14 +19,13 @@ from sqlalchemy import (
     String,
     Table,
     Text,
-    Uuid,
     event,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.domain.value_objects.signal_chain_enums import GearType
 
-from .base import Base, EnumByValue, TimestampMixin, UUIDMixin
+from .base import Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
 
 
 def _slugify(text: str, manufacturer: str | None = None) -> str:
@@ -67,8 +66,8 @@ def _slugify(text: str, manufacturer: str | None = None) -> str:
 gear_tags_table = Table(
     "gear_tags",
     Base.metadata,
-    Column("gear_id", Uuid, ForeignKey("gear.id", ondelete="CASCADE"), primary_key=True),
-    Column("tag_id", Uuid, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column("gear_id", UuidType(), ForeignKey("gear.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", UuidType(), ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
@@ -157,14 +156,14 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
     make_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("gear_makes.id", ondelete="SET NULL"),
         nullable=True,
     )
     thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     source_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid,
+        UuidType(),
         ForeignKey("gear_sources.id", ondelete="SET NULL"),
         nullable=True,
     )

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, TypeVar
 
-from sqlalchemy import DateTime, MetaData, String, TypeDecorator, Uuid, event
+from sqlalchemy import DateTime, MetaData, String, TypeDecorator, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 from sqlalchemy.pool import Pool
@@ -75,7 +75,7 @@ class UUIDMixin:
     def id(cls) -> Mapped[uuid.UUID]:
         """Primary key as UUIDv7."""
         return mapped_column(
-            Uuid,
+            UuidType(),
             primary_key=True,
             insert_default=_UUIDv7Generator(),
             nullable=False,
@@ -206,6 +206,45 @@ class EnumByValue(TypeDecorator[E]):
         if value is None:
             return None
         return self.enum_type(value)
+
+
+class UuidType(TypeDecorator[uuid.UUID]):
+    """SQLAlchemy UUID type that stores UUIDs with hyphens in SQLite.
+
+    SQLAlchemy's default Uuid type stores UUIDs without hyphens in SQLite (CHAR(32)),
+    which breaks raw text() queries that use str(uuid) for parameter binding.
+    This custom type ensures UUIDs are stored with hyphens (CHAR(36)) in SQLite
+    while using native UUID type for PostgreSQL.
+    """
+
+    impl = String(36)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Any) -> Any:
+        """Choose storage type based on database dialect."""
+        if dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import UUID
+            return dialect.type_descriptor(UUID())
+        else:
+            # SQLite and others: use string with hyphens
+            return dialect.type_descriptor(String(36))
+
+    def process_bind_param(self, value: uuid.UUID | str | None, dialect: Any) -> str | None:
+        """Convert UUID to string with hyphens for database storage."""
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        return str(value)
+
+    def process_result_value(self, value: str | None, dialect: Any) -> uuid.UUID | None:
+        """Convert string from database to UUID object."""
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return value
+        # Handle both formats: with and without hyphens
+        return uuid.UUID(value)
 
 
 class AudioChecksumType(TypeDecorator[Any]):
