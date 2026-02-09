@@ -335,7 +335,7 @@ class TestPortAvailabilityChecks:
 
         # Mock video port as in use
         def mock_bind(*args):
-            if args[1][1] == 8002:  # video port
+            if args[0][1] == 8002:  # video port
                 raise OSError("Port already in use")
 
         mock_socket = MagicMock()
