@@ -154,6 +154,21 @@ If a story's acceptance criteria would produce >15 tests:
 
 Tasks that are too large cause the implementer agent to exhaust its 30-turn budget.
 
+### Sizing Examples (from E70 post-mortem)
+
+**OVERSIZED — T74 (88min, 4 impl files):**
+- API endpoint + image processing + props serialisation + Pydantic schemas
+- Should have been 2 tasks: (1) schemas + props, (2) API + image prep
+
+**OVERSIZED — T75 (51min, 7 files, 31 tests at red):**
+- 5 Remotion compositions + Root + index in one task
+- Should have been 2 tasks: (1) presentational components, (2) animated + Root
+
+**RIGHT-SIZED — T76 (6min, 3 files):**
+- Protocol + HTTP client + client schemas — single layer, single concern
+
+**Heuristic:** If scope lists >3 Create files OR >5 total files (Create + Modify), split the task.
+
 ## Breaking Change Rule (MANDATORY)
 
 **Any task that changes model-level attributes, removes/renames public APIs, or alters relationship loading MUST be split into two hard-dependent tasks:**

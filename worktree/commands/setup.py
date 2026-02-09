@@ -5,6 +5,7 @@ with isolated Docker environments.
 """
 
 import contextlib
+import shutil
 import time
 from pathlib import Path
 
@@ -330,10 +331,28 @@ def _run_setup(
             if install_hook("post-commit"):
                 console.print("  [green]✓[/green] Auto-sync hook installed")
 
-        # Step 4.6: Start Traefik (server deployments only - guards itself)
+        # Step 4.6: Install pre-commit hooks (prek)
+        if shutil.which("prek"):
+            import subprocess
+
+            status.update("[bold green]Installing pre-commit hooks...")
+            result = subprocess.run(
+                ["prek", "install"],
+                cwd=worktree_path,
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                console.print("  [green]✓[/green] Pre-commit hooks installed (prek)")
+            else:
+                console.print("  [yellow]![/yellow] prek install failed (lint checks may not run on commit)")
+        else:
+            console.print("  [yellow]![/yellow] prek not found (run 'just infra' to install)")
+
+        # Step 4.8: Start Traefik (server deployments only - guards itself)
         _setup_traefik(worktree_path, status)
 
-        # Step 4.7: Check development requirements (Playwright + MCP)
+        # Step 4.9: Check development requirements (Playwright + MCP)
         _check_development_requirements(worktree_path, status)
 
         if not no_start and not resuming:

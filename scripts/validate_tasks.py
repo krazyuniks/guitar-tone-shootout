@@ -42,6 +42,8 @@ class TaskInfo:
     ac_count: int
     has_real_scope: bool  # not just "TODO"
     scope_count: int
+    scope_create_count: int
+    scope_modify_count: int
     file_path: Path
 
 
@@ -114,6 +116,8 @@ def parse_task_for_validation(path: Path) -> TaskInfo:
     )
     scope_files: list[str] = []
     has_real_scope = False
+    scope_create_count = 0
+    scope_modify_count = 0
     if scope_section:
         scope_text = scope_section.group(1)
         scope_files = re.findall(r"`([^`]+)`", scope_text)
@@ -123,6 +127,16 @@ def parse_task_for_validation(path: Path) -> TaskInfo:
             if not f.startswith("**") and not f.endswith("*")
         ]
         has_real_scope = bool(scope_files) and "TODO" not in scope_text.split("**Forbidden")[0]
+
+        # Count Create vs Modify files (before Forbidden section)
+        allowed_scope = scope_text.split("**Forbidden")[0]
+        # Match lines like "- Create: `path`" or "- **Create:** `path`"
+        scope_create_count = len(re.findall(
+            r"[-*]\s*\**Create\**:?\s*`[^`]+`", allowed_scope, re.IGNORECASE,
+        ))
+        scope_modify_count = len(re.findall(
+            r"[-*]\s*\**Modify\**:?\s*`[^`]+`", allowed_scope, re.IGNORECASE,
+        ))
 
     return TaskInfo(
         task_id=task_id,
@@ -134,6 +148,8 @@ def parse_task_for_validation(path: Path) -> TaskInfo:
         ac_count=len(ac_items),
         has_real_scope=has_real_scope,
         scope_count=len(scope_files),
+        scope_create_count=scope_create_count,
+        scope_modify_count=scope_modify_count,
         file_path=path,
     )
 
@@ -153,6 +169,17 @@ def validate_task(task: TaskInfo, all_task_ids: set[int]) -> ValidationResult:
         result.warnings.append(f"Only {task.ac_count} acceptance criterion (recommend 3+)")
     elif task.ac_count > 15:
         result.warnings.append(f"{task.ac_count} acceptance criteria (consider splitting task)")
+
+    # Scope file count check (oversized task detection)
+    scope_file_count = task.scope_create_count + task.scope_modify_count
+    if scope_file_count > 5:
+        result.warnings.append(
+            f"{scope_file_count} scope files (recommend splitting: max 3 create + 2 modify)"
+        )
+    elif task.scope_create_count > 3:
+        result.warnings.append(
+            f"{task.scope_create_count} files to create (recommend max 3)"
+        )
 
     # Scope check
     if not task.has_real_scope:
