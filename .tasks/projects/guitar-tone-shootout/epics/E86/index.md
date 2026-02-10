@@ -35,7 +35,7 @@ T90 → T99
 | T95 | Signal Chain Group Management UI | complete | - | T93, T94 |
 | T96 | Model-Level Gear Library Management | complete | webapp | T88 |
 | T97 | Gear Detail Page with Model Listing | complete | - | T96 |
-| T98 | Wizard Chain Selection from Groups | pending | webapp | T94 |
+| T98 | Wizard Chain Selection from Groups | locked | webapp | T94 |
 | T99 | Shootout Detail Page Pre-Processing | pending | - | T90 |
 
 ## Commands
