@@ -36,7 +36,7 @@ T90 → T99
 | T96 | Model-Level Gear Library Management | complete | webapp | T88 |
 | T97 | Gear Detail Page with Model Listing | complete | - | T96 |
 | T98 | Wizard Chain Selection from Groups | complete | webapp | T94 |
-| T99 | Shootout Detail Page Pre-Processing | locked | - | T90 |
+| T99 | Shootout Detail Page Pre-Processing | validating | - | T90 |
 
 ## Commands
 
