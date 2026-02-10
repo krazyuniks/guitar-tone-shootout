@@ -9,6 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from core.domain.entities.signal_chain_group import SignalChainGroup
+from core.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.signal_chain_groups import (
@@ -60,6 +61,7 @@ async def base_chain(db_session: AsyncSession, test_user: User) -> SignalChain:
         id=uuid4(),
         user_id=test_user.id,
         name="Test Chain",
+        platform=Platform.NAM,
         blocks=[],
     )
     db_session.add(chain)
