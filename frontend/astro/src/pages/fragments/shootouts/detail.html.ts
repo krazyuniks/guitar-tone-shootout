@@ -98,6 +98,37 @@ export const GET: APIRoute = () => {
     </div>
   </div>
 
+  {# DI Track Section #}
+  {% if di_track and di_track.id %}
+    <div class="mb-8" data-testid="di-track-section">
+      <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
+          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+        </svg>
+        DI Track
+      </h2>
+      <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-medium text-[var(--color-text-primary)]" data-testid="di-track-name">
+            {{ di_track.name }}
+          </span>
+          <span class="text-xs text-[var(--color-text-muted)]" data-testid="di-track-duration">
+            {{ di_track.duration or '' }}
+          </span>
+        </div>
+        <audio
+          controls
+          preload="metadata"
+          class="w-full"
+          src="/api/v1/di-tracks/{{ di_track.id }}/stream"
+          data-testid="di-track-player"
+        >
+          Your browser does not support the audio element.
+        </audio>
+      </div>
+    </div>
+  {% endif %}
+
   {# Description #}
   {% if shootout.description %}
     <div class="mb-8" data-testid="description-section">

@@ -45,6 +45,19 @@ export const GET: APIRoute = () => {
         </svg>
       </button>
 
+      <!-- Audio Player -->
+      <div class="flex-1 min-w-0 max-w-md">
+        <audio
+          data-testid="track-audio-player"
+          controls
+          class="w-full h-8"
+          preload="metadata"
+          src="/api/v1/di-tracks/{{ track.id }}/stream"
+        >
+          Your browser does not support the audio element.
+        </audio>
+      </div>
+
       <!-- Content -->
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">

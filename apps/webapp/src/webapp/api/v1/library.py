@@ -9,10 +9,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.api.v1.schemas.library import (
     AddGearToLibraryRequest,
+    ToggleGearResponse,
     UserGearResponse,
 )
 from webapp.auth.dependencies import (
@@ -23,30 +25,6 @@ from webapp.auth.dependencies import (
 )
 
 router = APIRouter(prefix="/api/v1/library", tags=["library"])
-
-# Session and user overrides for testing
-_session_override: AsyncSession | None = None
-_user_override: User | None = None
-
-
-def set_session_override(session: AsyncSession | None) -> None:
-    """Override the database session for testing.
-
-    Args:
-        session: Test database session or None to clear
-    """
-    global _session_override
-    _session_override = session
-
-
-def set_user_override(user: User | None) -> None:
-    """Override the current user for testing.
-
-    Args:
-        user: Test user to use as CurrentUser or None to clear
-    """
-    global _user_override
-    _user_override = user
 
 
 @router.get("/gear", response_model=list[UserGearResponse])
@@ -66,23 +44,26 @@ async def list_user_gear(
     Returns:
         List of user's gear library items
     """
-    # Query user's gear with joined gear details
+    # Query user's gear with joined gear model and gear details
     result = await db.execute(
-        select(UserGear, Gear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        select(UserGear, GearModel, Gear)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
     rows = result.all()
 
     # Build response models
     gear_items = []
-    for user_gear, gear in rows:
+    for user_gear, gear_model, gear in rows:
         gear_items.append(
             UserGearResponse(
                 user_gear_id=user_gear.id,
-                gear_id=gear.id,
+                gear_model_id=gear_model.id,
                 gear_name=gear.name,
                 gear_type=gear.gear_type,
+                platform=gear_model.platform.value,
+                size=gear_model.size.value,
                 nickname=user_gear.nickname,
                 is_favourite=user_gear.is_favourite,
             )
@@ -114,23 +95,27 @@ async def add_gear_to_library(
         HTTPException: 404 if gear not found
         HTTPException: 409 if gear already in library
     """
-    # Verify gear exists
+    # Verify gear model exists and get its parent gear
     result = await db.execute(
-        select(Gear).where(Gear.id == request_data.gear_id)
+        select(GearModel, Gear)
+        .join(Gear, GearModel.gear_id == Gear.id)
+        .where(GearModel.id == request_data.gear_model_id)
     )
-    gear = result.scalar_one_or_none()
+    row = result.first()
 
-    if not gear:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gear not found",
+            detail="Gear model not found",
         )
+
+    gear_model, gear = row
 
     # Create user gear entry
     user_gear = UserGear(
         id=uuid4(),
         user_id=current_user.id,
-        gear_id=request_data.gear_id,
+        gear_model_id=request_data.gear_model_id,
         nickname=request_data.nickname,
         is_favourite=request_data.is_favourite,
     )
@@ -141,19 +126,19 @@ async def add_gear_to_library(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # Unique constraint violation - gear already in library
+        # Unique constraint violation - gear model already in library
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Gear is already in library",
         )
 
-    await db.refresh(gear)
-
     return UserGearResponse(
         user_gear_id=user_gear.id,
-        gear_id=gear.id,
+        gear_model_id=gear_model.id,
         gear_name=gear.name,
         gear_type=gear.gear_type,
+        platform=gear_model.platform.value,
+        size=gear_model.size.value,
         nickname=user_gear.nickname,
         is_favourite=user_gear.is_favourite,
     )
@@ -199,3 +184,72 @@ async def remove_gear_from_library(
 
     await db.delete(user_gear)
     await db.commit()
+
+
+@router.post("/gear/{gear_model_id}/toggle", response_model=ToggleGearResponse)
+async def toggle_gear_in_library(
+    gear_model_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> ToggleGearResponse:
+    """Toggle gear model in/out of current user's library.
+
+    If the gear model is not in the user's library, add it.
+    If it is already in the library, remove it.
+
+    Args:
+        gear_model_id: ID of gear model to toggle
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Toggle result with action taken (added/removed)
+
+    Raises:
+        HTTPException: 404 if gear model not found
+    """
+    # Verify gear model exists
+    result = await db.execute(
+        select(GearModel).where(GearModel.id == gear_model_id)
+    )
+    gear_model = result.scalar_one_or_none()
+
+    if not gear_model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gear model not found",
+        )
+
+    # Check if already in library
+    result = await db.execute(
+        select(UserGear).where(
+            UserGear.user_id == current_user.id,
+            UserGear.gear_model_id == gear_model_id,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        # Remove from library
+        user_gear_id = existing.id
+        await db.delete(existing)
+        await db.commit()
+        return ToggleGearResponse(
+            action="removed",
+            gear_model_id=gear_model_id,
+            user_gear_id=user_gear_id,
+        )
+    else:
+        # Add to library
+        user_gear = UserGear(
+            id=uuid4(),
+            user_id=current_user.id,
+            gear_model_id=gear_model_id,
+        )
+        db.add(user_gear)
+        await db.commit()
+        return ToggleGearResponse(
+            action="added",
+            gear_model_id=gear_model_id,
+            user_gear_id=user_gear.id,
+        )

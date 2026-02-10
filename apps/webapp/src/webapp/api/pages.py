@@ -12,9 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
@@ -22,7 +24,7 @@ from webapp.adapters.persistence.repositories.signal_chain_repository import (
 )
 from webapp.auth.dependencies import (
     get_current_user_optional,
-    get_current_user_required,
+    get_current_user_page,
     get_db_session,
 )
 from webapp.services.gear_service import GearService
@@ -70,12 +72,15 @@ def _gear_to_pack(gear) -> dict:
         "id": str(gear.id),
         "slug": gear.slug,
         "title": gear.name,
-        "gear_type": (gear.gear_type.value if hasattr(gear.gear_type, "value") else str(gear.gear_type)).replace("_", "-"),
+        "gear_type": (
+            gear.gear_type.value if hasattr(gear.gear_type, "value") else str(gear.gear_type)
+        ).replace("_", "-"),
         "platform": platform,
         "image_url": gear.thumbnail_url,
         "downloads_count": 0,
         "favorites_count": 0,
         "models_count": len(gear.models),
+        "saved_count": 0,
         "creator_username": gear.manufacturer,
         "creator_avatar": None,
         "relative_time": _relative_time(gear.created_at),
@@ -97,20 +102,14 @@ def _gear_to_detail_pack(gear) -> dict:
                 if gear.source
                 else "#"
             ),
-            "created_at": (
-                gear.created_at.strftime("%B %d, %Y") if gear.created_at else None
-            ),
+            "created_at": (gear.created_at.strftime("%B %d, %Y") if gear.created_at else None),
             "models": [
                 {
                     "id": str(m.id),
                     "name": (
-                        f"{gear.name} ({m.size.value})"
-                        if hasattr(m.size, "value")
-                        else gear.name
+                        f"{gear.name} ({m.size.value})" if hasattr(m.size, "value") else gear.name
                     ),
-                    "model_size": (
-                        m.size.value if hasattr(m.size, "value") else str(m.size)
-                    ),
+                    "model_size": (m.size.value if hasattr(m.size, "value") else str(m.size)),
                     "is_saved": False,
                 }
                 for m in gear.models
@@ -212,6 +211,7 @@ async def gear_detail_page(
     """Render gear detail page with full SSR.
 
     All data rendered server-side — pack dict includes models, tags, creator info.
+    For authenticated users, marks which models are in their library.
     """
     service = GearService(db)
     gear = await service.get_by_slug(slug)
@@ -223,6 +223,24 @@ async def gear_detail_page(
         )
 
     pack = _gear_to_detail_pack(gear)
+
+    # For authenticated users, check which models are in their library
+    if current_user:
+        # Get all model IDs for this gear
+        model_ids = [m.id for m in gear.models]
+
+        # Query UserGear to find which models the user has saved
+        result = await db.execute(
+            select(UserGear.gear_model_id)
+            .where(UserGear.user_id == current_user.id)
+            .where(UserGear.gear_model_id.in_(model_ids))
+        )
+        saved_model_ids = {row[0] for row in result.all()}
+
+        # Mark saved models in pack
+        for model_dict in pack["models"]:
+            model_dict["is_saved"] = UUID(model_dict["id"]) in saved_model_ids
+
     description = gear.description or f"{gear.name} - guitar tone capture"
     public_url = os.getenv("PUBLIC_URL", str(request.base_url).rstrip("/"))
     canonical = f"{public_url}/gear/{slug}"
@@ -308,7 +326,7 @@ async def di_tracks_browse_page(
     """
     return templates.TemplateResponse(
         request,
-        "pages/di-tracks.html",
+        "di-tracks/index.html",
         {"user": current_user},
     )
 
@@ -320,30 +338,33 @@ async def di_tracks_browse_page(
 async def library_my_gear_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's gear library page.
 
     Protected page showing user's personal gear collection.
     """
     result = await db.execute(
-        select(UserGear, Gear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        select(UserGear, GearModel, Gear)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
     rows = result.all()
 
     gear_items = []
-    for user_gear, gear in rows:
-        gear_items.append({
-            "user_gear_id": str(user_gear.id),
-            "gear_id": str(gear.id),
-            "nickname": user_gear.nickname,
-            "is_favourite": user_gear.is_favourite,
-            "gear_name": gear.name,
-            "gear_type": gear.gear_type.value,
-            "manufacturer": gear.manufacturer,
-        })
+    for user_gear, gear_model, gear in rows:
+        gear_items.append(
+            {
+                "user_gear_id": str(user_gear.id),
+                "gear_model_id": str(gear_model.id),
+                "nickname": user_gear.nickname,
+                "is_favourite": user_gear.is_favourite,
+                "gear_name": gear.name,
+                "gear_type": gear.gear_type.value,
+                "manufacturer": gear.manufacturer,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -359,7 +380,7 @@ async def library_my_gear_page(
 async def library_chains_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's signal chain library page.
 
@@ -370,13 +391,15 @@ async def library_chains_page(
 
     chain_items = []
     for chain in chains:
-        chain_items.append({
-            "id": str(chain.id),
-            "name": chain.name,
-            "description": chain.description,
-            "platform": chain.platform.value,
-            "created_at": chain.created_at,
-        })
+        chain_items.append(
+            {
+                "id": str(chain.id),
+                "name": chain.name,
+                "description": chain.description,
+                "platform": chain.platform.value,
+                "created_at": chain.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -392,7 +415,7 @@ async def library_chains_page(
 async def chain_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render chain list fragment for HTMX updates."""
     repo = SQLAlchemySignalChainRepository(db)
@@ -400,13 +423,15 @@ async def chain_list_fragment(
 
     chain_items = []
     for chain in chains:
-        chain_items.append({
-            "id": str(chain.id),
-            "name": chain.name,
-            "description": chain.description,
-            "platform": chain.platform.value,
-            "created_at": chain.created_at,
-        })
+        chain_items.append(
+            {
+                "id": str(chain.id),
+                "name": chain.name,
+                "description": chain.description,
+                "platform": chain.platform.value,
+                "created_at": chain.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -422,7 +447,7 @@ async def chain_delete_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Delete a signal chain via HTMX."""
     repo = SQLAlchemySignalChainRepository(db)
@@ -445,7 +470,7 @@ async def chain_duplicate_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Duplicate a signal chain via HTMX."""
     from datetime import datetime
@@ -482,13 +507,15 @@ async def chain_duplicate_fragment(
     chains = await repo.get_by_user_id(current_user.id)
     chain_items = []
     for c in chains:
-        chain_items.append({
-            "id": str(c.id),
-            "name": c.name,
-            "description": c.description,
-            "platform": c.platform.value,
-            "created_at": c.created_at,
-        })
+        chain_items.append(
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "description": c.description,
+                "platform": c.platform.value,
+                "created_at": c.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -503,7 +530,7 @@ async def chain_duplicate_fragment(
 async def chain_builder_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
     chain_id: str | None = Query(None, description="Chain ID for editing"),
 ) -> HTMLResponse:
     """Render chain builder page.
@@ -524,7 +551,7 @@ async def chain_builder_page(
 async def library_shootouts_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's shootout library page.
 
@@ -535,14 +562,16 @@ async def library_shootouts_page(
 
     shootout_items = []
     for shootout in shootouts:
-        shootout_items.append({
-            "id": str(shootout.id),
-            "name": shootout.name,
-            "description": shootout.description,
-            "chain_count": shootout.chain_count,
-            "is_processed": shootout.is_processed,
-            "created_at": shootout.created_at,
-        })
+        shootout_items.append(
+            {
+                "id": str(shootout.id),
+                "name": shootout.name,
+                "description": shootout.description,
+                "chain_count": shootout.chain_count,
+                "is_processed": shootout.is_processed,
+                "created_at": shootout.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -559,7 +588,7 @@ async def shootout_detail_page(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render shootout detail page.
 
@@ -579,26 +608,24 @@ async def shootout_detail_page(
             detail="Shootout not found",
         )
 
-    di_track_result = await db.execute(
-        select(DITrack).where(DITrack.id == shootout.di_track_id)
-    )
+    di_track_result = await db.execute(select(DITrack).where(DITrack.id == shootout.di_track_id))
     di_track = di_track_result.scalar_one_or_none()
 
     chain_items = []
     for shootout_chain in shootout.chains:
         chain_result = await db.execute(
-            select(SignalChainModel).where(
-                SignalChainModel.id == shootout_chain.signal_chain_id
-            )
+            select(SignalChainModel).where(SignalChainModel.id == shootout_chain.signal_chain_id)
         )
         chain = chain_result.scalar_one_or_none()
         if chain:
-            chain_items.append({
-                "signal_chain_id": str(shootout_chain.signal_chain_id),
-                "position": shootout_chain.position,
-                "label": shootout_chain.label,
-                "chain_name": chain.name,
-            })
+            chain_items.append(
+                {
+                    "signal_chain_id": str(shootout_chain.signal_chain_id),
+                    "position": shootout_chain.position,
+                    "label": shootout_chain.label,
+                    "chain_name": chain.name,
+                }
+            )
 
     chain_items.sort(key=lambda x: x["position"])
 
@@ -628,7 +655,7 @@ async def shootout_detail_page(
 async def shootout_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render shootout list fragment for HTMX updates."""
     service = ShootoutService(db)
@@ -636,14 +663,16 @@ async def shootout_list_fragment(
 
     shootout_items = []
     for shootout in shootouts:
-        shootout_items.append({
-            "id": str(shootout.id),
-            "name": shootout.name,
-            "description": shootout.description,
-            "chain_count": shootout.chain_count,
-            "is_processed": shootout.is_processed,
-            "created_at": shootout.created_at,
-        })
+        shootout_items.append(
+            {
+                "id": str(shootout.id),
+                "name": shootout.name,
+                "description": shootout.description,
+                "chain_count": shootout.chain_count,
+                "is_processed": shootout.is_processed,
+                "created_at": shootout.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -659,7 +688,7 @@ async def shootout_delete_fragment(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Delete a shootout via HTMX."""
     service = ShootoutService(db)
@@ -682,7 +711,7 @@ async def chain_detail_page(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render signal chain detail page.
 
@@ -705,20 +734,23 @@ async def chain_detail_page(
         gear_name = block.gear_type.value.replace("_", " ").title()
         if block.user_gear_id:
             ug_result = await db.execute(
-                select(UserGear, Gear)
-                .join(Gear, UserGear.gear_id == Gear.id)
+                select(UserGear, GearModel, Gear)
+                .join(GearModel, UserGear.gear_model_id == GearModel.id)
+                .join(Gear, GearModel.gear_id == Gear.id)
                 .where(UserGear.id == block.user_gear_id)
             )
             row = ug_result.first()
             if row:
-                _, gear = row
+                _, _, gear = row
                 gear_name = gear.name
 
-        block_items.append({
-            "gear_type": block.gear_type.value.replace("_", "-"),
-            "gear_name": gear_name,
-            "position": block.position,
-        })
+        block_items.append(
+            {
+                "gear_type": block.gear_type.value.replace("_", "-"),
+                "gear_name": gear_name,
+                "position": block.position,
+            }
+        )
 
     block_items.sort(key=lambda x: x["position"])
 
@@ -745,7 +777,7 @@ async def chain_detail_page(
 @router.get("/shootout/create", response_class=HTMLResponse)
 async def shootout_create_page(
     request: Request,
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render shootout creation wizard page.
 
@@ -764,7 +796,7 @@ async def shootout_create_page(
 @router.get("/library/di-tracks", response_class=HTMLResponse)
 async def library_di_tracks_page(
     request: Request,
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's DI tracks library page.
 
@@ -781,16 +813,23 @@ async def library_di_tracks_page(
 async def settings_account_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render account settings page with linked provider status."""
+    from webapp.adapters.persistence.models.user_identity import UserIdentity
+
+    # Re-query user with identities eagerly loaded (auth dep doesn't load them)
+    result = await db.execute(
+        select(User)
+        .where(User.id == current_user.id)
+        .options(joinedload(User.identities).joinedload(UserIdentity.provider))
+    )
+    user_with_identities = result.unique().scalar_one_or_none()
 
     # Build provider status list
-    identities = current_user.identities if current_user.identities else []
+    identities = user_with_identities.identities if user_with_identities else []
     linked_providers = {
-        identity.provider.name: identity
-        for identity in identities
-        if identity.provider
+        identity.provider.name: identity for identity in identities if identity.provider
     }
 
     provider_defs = [
@@ -803,14 +842,16 @@ async def settings_account_page(
     providers = []
     for name, display_name, available in provider_defs:
         identity = linked_providers.get(name)
-        providers.append({
-            "name": name,
-            "display_name": display_name,
-            "available": available,
-            "linked": identity is not None,
-            "username": identity.username if identity else None,
-            "is_last_provider": len(linked_providers) <= 1 and identity is not None,
-        })
+        providers.append(
+            {
+                "name": name,
+                "display_name": display_name,
+                "available": available,
+                "linked": identity is not None,
+                "username": identity.username if identity else None,
+                "is_last_provider": len(linked_providers) <= 1 and identity is not None,
+            }
+        )
 
     return templates.TemplateResponse(
         request,

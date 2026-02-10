@@ -21,6 +21,7 @@ from sqlalchemy import select
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 
@@ -95,6 +96,36 @@ async def second_gear(db_session: AsyncSession) -> Gear:
 
 
 @pytest.fixture
+async def test_gear_model(db_session: AsyncSession, test_gear: Gear) -> GearModel:
+    """Create a gear model for test_gear."""
+    gear_model = GearModel(
+        id=uuid4(),
+        gear_id=test_gear.id,
+        platform="nam",
+        size="standard",
+    )
+    db_session.add(gear_model)
+    await db_session.commit()
+    await db_session.refresh(gear_model)
+    return gear_model
+
+
+@pytest.fixture
+async def second_gear_model(db_session: AsyncSession, second_gear: Gear) -> GearModel:
+    """Create a gear model for second_gear."""
+    gear_model = GearModel(
+        id=uuid4(),
+        gear_id=second_gear.id,
+        platform="nam",
+        size="standard",
+    )
+    db_session.add(gear_model)
+    await db_session.commit()
+    await db_session.refresh(gear_model)
+    return gear_model
+
+
+@pytest.fixture
 def app() -> FastAPI:
     """Create a FastAPI app with the library router.
 
@@ -136,14 +167,14 @@ class TestLibraryGearGetEndpoint:
         app: FastAPI,
         db_session: AsyncSession,
         test_user: User,
-        test_gear: Gear,
+        test_gear_model: GearModel,
     ) -> None:
         """Test GET /api/v1/library/gear returns user's gear library."""
-        # Add gear to user's library
+        # Add gear model to user's library
         user_gear = UserGear(
             id=uuid4(),
             user_id=test_user.id,
-            gear_id=test_gear.id,
+            gear_model_id=test_gear_model.id,
             nickname="My Amp",
             is_favourite=True,
         )
@@ -165,7 +196,7 @@ class TestLibraryGearGetEndpoint:
             # Verify gear details
             gear_item = data[0]
             assert gear_item["user_gear_id"] == str(user_gear.id)
-            assert gear_item["gear_id"] == str(test_gear.id)
+            assert gear_item["gear_model_id"] == str(test_gear_model.id)
             assert gear_item["nickname"] == "My Amp"
             assert gear_item["is_favourite"] is True
             assert gear_item["gear_name"] == "Test Amp"
@@ -177,15 +208,15 @@ class TestLibraryGearGetEndpoint:
         db_session: AsyncSession,
         test_user: User,
         other_user: User,
-        test_gear: Gear,
-        second_gear: Gear,
+        test_gear_model: GearModel,
+        second_gear_model: GearModel,
     ) -> None:
         """Test GET /api/v1/library/gear only returns current user's gear."""
         # Add gear to test_user's library
         user_gear1 = UserGear(
             id=uuid4(),
             user_id=test_user.id,
-            gear_id=test_gear.id,
+            gear_model_id=test_gear_model.id,
             nickname="Test User Gear",
         )
         db_session.add(user_gear1)
@@ -194,7 +225,7 @@ class TestLibraryGearGetEndpoint:
         user_gear2 = UserGear(
             id=uuid4(),
             user_id=other_user.id,
-            gear_id=second_gear.id,
+            gear_model_id=second_gear_model.id,
             nickname="Other User Gear",
         )
         db_session.add(user_gear2)
@@ -228,9 +259,9 @@ class TestLibraryGearPostEndpoint:
         app: FastAPI,
         db_session: AsyncSession,
         test_user: User,
-        test_gear: Gear,
+        test_gear_model: GearModel,
     ) -> None:
-        """Test POST /api/v1/library/gear adds gear to user's library."""
+        """Test POST /api/v1/library/gear adds gear model to user's library."""
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
@@ -238,7 +269,7 @@ class TestLibraryGearPostEndpoint:
             response = await client.post(
                 "/api/v1/library/gear",
                 json={
-                    "gear_id": str(test_gear.id),
+                    "gear_model_id": str(test_gear_model.id),
                     "nickname": "My Test Amp",
                     "is_favourite": False,
                 },
@@ -248,7 +279,7 @@ class TestLibraryGearPostEndpoint:
             assert response.status_code == 201
             data = response.json()
             assert "user_gear_id" in data
-            assert data["gear_id"] == str(test_gear.id)
+            assert data["gear_model_id"] == str(test_gear_model.id)
             assert data["nickname"] == "My Test Amp"
             assert data["is_favourite"] is False
 
@@ -257,7 +288,7 @@ class TestLibraryGearPostEndpoint:
                 select(UserGear).where(UserGear.user_id == test_user.id)
             )
             saved_gear = result.scalar_one()
-            assert saved_gear.gear_id == test_gear.id
+            assert saved_gear.gear_model_id == test_gear_model.id
             assert saved_gear.nickname == "My Test Amp"
 
     async def test_post_library_gear_prevents_duplicate(
@@ -265,14 +296,14 @@ class TestLibraryGearPostEndpoint:
         app: FastAPI,
         db_session: AsyncSession,
         test_user: User,
-        test_gear: Gear,
+        test_gear_model: GearModel,
     ) -> None:
-        """Test POST /api/v1/library/gear prevents adding same gear twice."""
-        # Add gear to library first time
+        """Test POST /api/v1/library/gear prevents adding same gear model twice."""
+        # Add gear model to library first time
         user_gear = UserGear(
             id=uuid4(),
             user_id=test_user.id,
-            gear_id=test_gear.id,
+            gear_model_id=test_gear_model.id,
         )
         db_session.add(user_gear)
         await db_session.commit()
@@ -281,10 +312,10 @@ class TestLibraryGearPostEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            # Try to add the same gear again
+            # Try to add the same gear model again
             response = await client.post(
                 "/api/v1/library/gear",
-                json={"gear_id": str(test_gear.id)},
+                json={"gear_model_id": str(test_gear_model.id)},
             )
 
             # Must return 409 Conflict
@@ -299,8 +330,8 @@ class TestLibraryGearPostEndpoint:
         db_session: AsyncSession,
         test_user: User,
     ) -> None:
-        """Test POST /api/v1/library/gear validates gear exists."""
-        fake_gear_id = uuid4()
+        """Test POST /api/v1/library/gear validates gear model exists."""
+        fake_gear_model_id = uuid4()
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -308,7 +339,7 @@ class TestLibraryGearPostEndpoint:
         ) as client:
             response = await client.post(
                 "/api/v1/library/gear",
-                json={"gear_id": str(fake_gear_id)},
+                json={"gear_model_id": str(fake_gear_model_id)},
             )
 
             # Must return 404 Not Found
@@ -327,14 +358,14 @@ class TestLibraryGearDeleteEndpoint:
         app: FastAPI,
         db_session: AsyncSession,
         test_user: User,
-        test_gear: Gear,
+        test_gear_model: GearModel,
     ) -> None:
         """Test DELETE /api/v1/library/gear/{id} removes gear from library."""
         # Add gear to library
         user_gear = UserGear(
             id=uuid4(),
             user_id=test_user.id,
-            gear_id=test_gear.id,
+            gear_model_id=test_gear_model.id,
         )
         db_session.add(user_gear)
         await db_session.commit()
@@ -361,14 +392,14 @@ class TestLibraryGearDeleteEndpoint:
         db_session: AsyncSession,
         test_user: User,
         other_user: User,
-        test_gear: Gear,
+        test_gear_model: GearModel,
     ) -> None:
         """Test DELETE /api/v1/library/gear/{id} only allows owner to delete."""
         # Add gear to other_user's library
         user_gear = UserGear(
             id=uuid4(),
             user_id=other_user.id,
-            gear_id=test_gear.id,
+            gear_model_id=test_gear_model.id,
         )
         db_session.add(user_gear)
         await db_session.commit()

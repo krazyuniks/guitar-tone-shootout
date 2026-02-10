@@ -209,6 +209,16 @@ Before deriving ANY artifact (model, repository, service, API):
 3. Cite the exact file and line where the entity/field is defined
 4. If you cannot cite a source, **STOP and ASK**
 
+### CRITICAL: No Deprecated Artifacts — Single Pathway Only
+
+**Never keep deprecated files, commands, agents, or skills.** Delete them immediately.
+
+- **One path per workflow.** If a new command replaces an old one, delete the old one entirely.
+- **No "kept for reference" files.** Dead code paths get invoked by accident. Reference belongs in git history.
+- **No migration notes in files.** If something changed, the file reflects only the current state.
+- **Declarative, not historical.** Files describe what IS, never what WAS.
+- **No deprecation markers.** `[DEPRECATED]`, `# DEPRECATED`, `superseded by` — if you're writing these words, you should be deleting the file instead.
+
 ### Other Rules
 
 1. **Run in containers** — not on host (except E2E, worktree.py, git/gh)

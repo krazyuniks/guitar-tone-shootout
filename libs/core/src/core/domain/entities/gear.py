@@ -164,14 +164,14 @@ class Gear(Entity):
 class UserGear(Entity):
     """Entity representing gear in a user's library.
 
-    Links a user to gear they've added to their collection.
-    This allows users to have their own copy of public gear
+    Links a user to a specific gear model they've added to their collection.
+    This allows users to have their own copy of public gear models
     with personalised settings.
 
     Attributes:
         id: Unique identifier for this user-gear link
         user_id: Owner's user ID
-        gear_id: Reference to the Gear entity
+        gear_model_id: Reference to the GearModel
         nickname: User's custom name for this gear
         notes: User's notes about this gear
         is_favourite: Whether marked as favourite
@@ -180,7 +180,7 @@ class UserGear(Entity):
     """
 
     user_id: UUID = field(default_factory=new_id)
-    gear_id: UUID = field(default_factory=new_id)
+    gear_model_id: UUID = field(default_factory=new_id)
     nickname: str | None = None
     notes: str | None = None
     is_favourite: bool = False

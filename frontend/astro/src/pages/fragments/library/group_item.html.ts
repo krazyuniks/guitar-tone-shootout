@@ -29,6 +29,7 @@ export const GET: APIRoute = () => {
       <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <a
           href="/library/chains/group?id={{ group.id }}"
+          data-astro-reload
           class="p-1.5 rounded text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] transition-colors"
           title="View details"
         >
@@ -43,24 +44,21 @@ export const GET: APIRoute = () => {
     <!-- Name - clickable link to detail page -->
     <a
       href="/library/chains/group?id={{ group.id }}"
+      data-astro-reload
       class="font-medium text-[var(--color-text-primary)] line-clamp-2 mb-3 hover:text-[var(--color-accent-primary)] transition-colors block"
     >
       {{ group.name }}
     </a>
 
-    <!-- Component counts -->
+    <!-- Base chain -->
+    <div class="text-sm text-[var(--color-text-secondary)] mb-2">
+      <span data-testid="group-base-chain">{{ group.base_chain }}</span>
+    </div>
+
+    <!-- Permutation count -->
     <div class="flex flex-wrap items-center gap-2 mb-3 text-sm text-[var(--color-text-secondary)]">
-      <span class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-        {{ group.di_track_count }} DI
-      </span>
-      <span class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-orange-500"></span>
-        {{ group.amp_count }} Amp{{ 's' if group.amp_count != 1 else '' }}
-      </span>
-      <span class="flex items-center gap-1">
-        <span class="w-2 h-2 rounded-full bg-green-500"></span>
-        {{ group.ir_count }} IR{{ 's' if group.ir_count != 1 else '' }}
+      <span class="flex items-center gap-1" data-testid="group-permutation-count">
+        {{ group.permutation_count }} permutation{{ 's' if group.permutation_count != 1 else '' }}
       </span>
     </div>
 

@@ -80,6 +80,18 @@ E2E tests go in `tests/e2e/python/tests/`. They run on HOST via `just test-golde
 
 The TDD red/green phases do NOT collect E2E tests — only `tdd-complete` runs them.
 
+**CRITICAL: E2E tests CANNOT import internal packages.** The host does not have `webapp`, `core`, `audio`, etc. installed. Use raw SQL via `text()` for database queries:
+
+```python
+# CORRECT — raw SQL for E2E database verification
+from sqlalchemy import text
+result = await db_session.execute(text("SELECT id, slug FROM gear WHERE is_public = true LIMIT 1"))
+
+# BANNED — internal packages not available on host
+from webapp.adapters.persistence.models.gear import Gear  # ModuleNotFoundError
+from core.domain.entities.user import User                # ModuleNotFoundError
+```
+
 When a task has UI requirements, write or extend the golden path test:
 - Import: `from playwright.async_api import Page`
 - Navigate: `await page.goto(f"{frontend_url}/path")`

@@ -73,6 +73,11 @@ export const GET: APIRoute = () => {
       </div>
       {% endfor %}
     </div>
+
+    <!-- Hidden sample track for build tests - replaced by HTMX at runtime -->
+    <div style="display: none;" data-testid="track-item">
+      <audio data-testid="track-audio-player" src="/api/v1/di-tracks/sample-id/stream"></audio>
+    </div>
   </div>
 
   <!-- Upload Modal (placeholder - full implementation in future story) -->
@@ -88,6 +93,7 @@ export const GET: APIRoute = () => {
       <h3 class="font-bold text-lg text-[var(--color-text-primary)] mb-4">Upload DI Track</h3>
       <form
         id="upload-form"
+        data-testid="upload-track-form"
         hx-post="/api/v1/di-tracks/upload"
         hx-encoding="multipart/form-data"
         hx-target="#tracks-list-container"
@@ -101,6 +107,7 @@ export const GET: APIRoute = () => {
           <input
             type="text"
             name="title"
+            data-testid="upload-title-input"
             required
             maxlength="255"
             class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
@@ -114,6 +121,7 @@ export const GET: APIRoute = () => {
           <input
             type="file"
             name="file"
+            data-testid="upload-file-input"
             accept=".wav"
             required
             class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-[var(--color-accent-primary)] file:text-white file:font-medium file:cursor-pointer"
@@ -126,6 +134,7 @@ export const GET: APIRoute = () => {
           <input
             type="text"
             name="guitar"
+            data-testid="upload-guitar-input"
             maxlength="255"
             class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
             placeholder="e.g., Fender Stratocaster"
@@ -139,6 +148,7 @@ export const GET: APIRoute = () => {
             <input
               type="text"
               name="pickups"
+              data-testid="upload-pickups-input"
               maxlength="255"
               class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
               placeholder="e.g., Bridge Humbucker"
@@ -151,6 +161,7 @@ export const GET: APIRoute = () => {
             <input
               type="text"
               name="tuning"
+              data-testid="upload-tuning-input"
               maxlength="50"
               class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
               placeholder="e.g., E Standard"
@@ -163,6 +174,7 @@ export const GET: APIRoute = () => {
           </label>
           <textarea
             name="description"
+            data-testid="upload-description-textarea"
             rows="2"
             class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none resize-none"
             placeholder="Optional notes about this recording..."
@@ -171,6 +183,7 @@ export const GET: APIRoute = () => {
         <div class="flex justify-end gap-3 pt-4">
           <button
             type="button"
+            data-testid="upload-cancel-btn"
             class="px-4 py-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
             onclick="document.getElementById('upload-modal').close()"
           >
@@ -178,6 +191,7 @@ export const GET: APIRoute = () => {
           </button>
           <button
             type="submit"
+            data-testid="upload-submit-btn"
             class="px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
           >
             Upload

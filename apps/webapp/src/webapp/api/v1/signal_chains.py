@@ -16,61 +16,18 @@ from webapp.api.v1.schemas.signal_chain import (
     SignalChainResponse,
     SignalChainUpdateRequest,
 )
+from webapp.auth.dependencies import (
+    get_current_user_required as get_current_user,
+)
+from webapp.auth.dependencies import (
+    get_db_session,
+)
 from webapp.services.signal_chain_service import (
     SignalChainService,
     ValidationException,
 )
 
 router = APIRouter(prefix="/api/v1/signal-chains", tags=["signal-chains"])
-
-# Session and user overrides for testing
-_session_override: AsyncSession | None = None
-_user_override: User | None = None
-
-
-def set_session_override(session: AsyncSession | None) -> None:
-    """Override the database session for testing.
-
-    Args:
-        session: Test database session or None to clear
-    """
-    global _session_override
-    _session_override = session
-
-
-def set_user_override(user: User | None) -> None:
-    """Override the current user for testing.
-
-    Args:
-        user: Test user to use as CurrentUser or None to clear
-    """
-    global _user_override
-    _user_override = user
-
-
-async def get_db_session() -> AsyncSession:
-    """Get database session dependency.
-
-    Checks for test session override first, then falls back to the
-    global database session factory.
-    """
-    if _session_override:
-        return _session_override
-    raise NotImplementedError("Database session dependency not configured")
-
-
-async def get_current_user() -> User:
-    """Get current authenticated user dependency.
-
-    In production this would validate session/token.
-    For testing, uses override if set.
-    """
-    if _user_override:
-        return _user_override
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
-    )
 
 
 @router.get("/", response_model=list[SignalChainResponse])

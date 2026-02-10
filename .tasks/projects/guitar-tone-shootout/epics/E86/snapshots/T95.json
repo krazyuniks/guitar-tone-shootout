@@ -1,0 +1,19 @@
+{
+  "task_id": "T95",
+  "created": "2026-02-10T17:06:03.018175+00:00",
+  "commit": "79eb58dccca9",
+  "files": [
+    {
+      "path": "tests/e2e/python/tests/test_signal_chain_groups.py",
+      "sha256": "78b315a57147d3cbc9f51bf618835b2079eb8d9354be18a0175711a08c384e7b",
+      "size": 9796,
+      "modified": "2026-02-10T17:02:22.438319+00:00"
+    },
+    {
+      "path": "tests/integration/webapp/test_signal_chain_groups_html_fragments.py",
+      "sha256": "4ff694816a2846ab0e6aa6b43c0057ac6c8cc4c0b507d2e2a721ae813556f850",
+      "size": 9633,
+      "modified": "2026-02-10T17:05:30.322297+00:00"
+    }
+  ]
+}

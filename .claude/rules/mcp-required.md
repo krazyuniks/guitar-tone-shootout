@@ -1,36 +1,50 @@
 # MCP Tools Required for UI Work
 
-## When MCP Is Required
+## Hard Constraints
 
-MCP tools are required **only for UI/browser interaction:**
-- Debugging UI issues (click doesn't work, page blank)
-- Verifying visual changes
-- Inspecting console/network errors
+- **Implementer (webapp project) REQUIRES Chrome DevTools MCP.** Without it, the agent cannot verify UI changes.
+- **Test-author (webapp project) REQUIRES Playwright MCP.** Without it, the agent cannot write or run E2E tests.
+- **If MCP is unavailable, STOP and FAIL.** Do not proceed with curl/grep workarounds.
 
-## Critical Rule
+## Pre-Flight Gate
 
-**If UI verification is needed and MCP is unavailable, STOP.**
+Any entry point that dispatches agents for frontend/webapp work MUST verify MCP availability:
 
-Do not proceed with curl/grep workarounds. They cannot see:
-- JavaScript console errors
-- Network request failures
-- DOM state
+1. **State machine (`run_epic.py`):** `build_mcp_config()` must provide Chrome DevTools for implementer, Playwright for test-author
+2. **Skills:** Any skill that involves UI work must check for MCP tools in the conversation
+3. **Manual dispatch:** User must invoke with MCP enabled (e.g., `opus cp`, `sonnet c`)
+
+## MCP Server Configuration
+
+MCP servers are enabled via the `cld` wrapper and `--strict-mcp-config --mcp-config` flags:
+
+| Agent | Required MCP | User CLI |
+|-------|-------------|----------|
+| implementer (webapp) | Chrome DevTools + Playwright | `opus cp` |
+| test-author (webapp) | Playwright | `opus p` |
+| implementer (other) | None | `opus` |
+| test-author (other) | None | `opus` |
 
 ## What To Do If MCP Missing
 
-1. **STOP** that line of investigation
-2. **Tell the user:** "I need Chrome DevTools MCP to verify this UI behaviour"
-3. **Wait** — user must enable MCP or provide the info
-4. **Do NOT guess** — guessing wastes hours
+1. **STOP** immediately — do not attempt any workaround
+2. **Report:** "MCP server required but not available"
+3. **Wait** — user must restart with MCP enabled
+4. **Do NOT guess** — guessing wastes hours and produces untested code
+
+## Anti-Patterns (NEVER DO THIS)
+
+```bash
+# BANNED — curl is not testing
+curl -s http://localhost:9010/ | grep error
+curl -s http://localhost:9010/gear | head
+curl http://localhost:9010/api/v1/health
+
+# BANNED — cannot verify UI without browser
+echo "Page loads correctly" # How do you know?
+```
 
 ## Required MCP Tools
 
-- `chrome-devtools` MCP — Console, network, DOM inspection
-- `playwright` MCP — Automated testing, screenshots
-
-## Anti-Pattern (NEVER DO THIS)
-
-```bash
-curl -s http://localhost:9020/ | grep error  # Can't see JS errors
-curl -s http://localhost:9020/gear | head    # Can't see why click fails
-```
+- `chrome-devtools` MCP — Console, network, DOM inspection, headless Chromium
+- `playwright` MCP — Automated browser testing, screenshots, E2E test execution

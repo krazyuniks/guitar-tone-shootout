@@ -1,0 +1,31 @@
+{
+  "task_id": "T97",
+  "created": "2026-02-10T17:34:52.589882+00:00",
+  "commit": "16980d627ff4",
+  "files": [
+    {
+      "path": "tests/e2e/python/tests/test_gear_detail_library_integration.py",
+      "sha256": "9e5ba175fc42a4e8334355d0c4ec9e65a4a0396e64819a08f196543751e73fda",
+      "size": 18951,
+      "modified": "2026-02-10T17:32:43.849982+00:00"
+    },
+    {
+      "path": "tests/e2e/python/tests/test_gear_detail_with_library.py",
+      "sha256": "5d935cc73798be4d46db70f45faa3ec78aabb42a149cd6cc7ccf43723f5045fb",
+      "size": 11687,
+      "modified": "2026-02-10T17:31:13.865996+00:00"
+    },
+    {
+      "path": "tests/integration/webapp/test_gear_detail_page_t97.py",
+      "sha256": "1931e4afbe1bd243da3031abd1183fcfbf547c399d18f06715efc289088b9fa6",
+      "size": 12476,
+      "modified": "2026-02-10T17:34:04.789969+00:00"
+    },
+    {
+      "path": "tests/integration/webapp/test_gear_library_toggle_t97.py",
+      "sha256": "0bda7497e44b6d6c7a570158702c1df44a2df86dc719e54f8092494f4686c48b",
+      "size": 7057,
+      "modified": "2026-02-10T17:33:27.533975+00:00"
+    }
+  ]
+}

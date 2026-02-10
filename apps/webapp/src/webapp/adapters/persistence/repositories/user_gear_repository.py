@@ -41,7 +41,7 @@ class SQLAlchemyUserGearRepository:
         if existing:
             # Update existing
             existing.user_id = user_gear.user_id
-            existing.gear_id = user_gear.gear_id
+            existing.gear_model_id = user_gear.gear_model_id
             existing.nickname = user_gear.nickname
             existing.notes = user_gear.notes
             existing.is_favourite = user_gear.is_favourite
@@ -51,7 +51,7 @@ class SQLAlchemyUserGearRepository:
             new_user_gear = UserGear(
                 id=user_gear.id,
                 user_id=user_gear.user_id,
-                gear_id=user_gear.gear_id,
+                gear_model_id=user_gear.gear_model_id,
                 nickname=user_gear.nickname,
                 notes=user_gear.notes,
                 is_favourite=user_gear.is_favourite,
@@ -60,36 +60,36 @@ class SQLAlchemyUserGearRepository:
             )
             self.session.add(new_user_gear)
 
-    async def remove(self, user_id: UUID, gear_id: UUID) -> None:
+    async def remove(self, user_id: UUID, gear_model_id: UUID) -> None:
         """Remove gear from user's library.
 
         Args:
             user_id: The user's ID
-            gear_id: The gear's ID
+            gear_model_id: The gear model's ID
         """
         stmt = delete(UserGear).where(
             UserGear.user_id == user_id,
-            UserGear.gear_id == gear_id,
+            UserGear.gear_model_id == gear_model_id,
         )
         await self.session.execute(stmt)
 
     async def get_by_user_and_gear(
         self,
         user_id: UUID,
-        gear_id: UUID,
+        gear_model_id: UUID,
     ) -> UserGearEntity | None:
-        """Get user_gear entry by user and gear ID.
+        """Get user_gear entry by user and gear model ID.
 
         Args:
             user_id: The user's ID
-            gear_id: The gear's ID
+            gear_model_id: The gear model's ID
 
         Returns:
             The UserGear entity if found, None otherwise
         """
         stmt = select(UserGear).where(
             UserGear.user_id == user_id,
-            UserGear.gear_id == gear_id,
+            UserGear.gear_model_id == gear_model_id,
         )
         result = await self.session.execute(stmt)
         user_gear = result.scalar_one_or_none()
@@ -134,7 +134,7 @@ class SQLAlchemyUserGearRepository:
         return UserGearEntity(
             id=user_gear.id,
             user_id=user_gear.user_id,
-            gear_id=user_gear.gear_id,
+            gear_model_id=user_gear.gear_model_id,
             nickname=user_gear.nickname,
             notes=user_gear.notes,
             is_favourite=user_gear.is_favourite,

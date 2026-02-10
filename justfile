@@ -557,7 +557,7 @@ tdd-complete task:
     just test-regression
 
     echo "5. Running golden path tests..."
-    just test-golden-path || echo "Golden path tests skipped or failed"
+    just test-golden-path
 
     echo ""
     echo "Task {{task}} validation complete"

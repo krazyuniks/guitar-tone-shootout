@@ -134,6 +134,8 @@ If the task involves `.html.ts` files in `frontend/astro/src/`:
 
 - Modifying any `test_*.py` or `*_test.py` file
 - Creating new test files (that's the test author's job)
+- Using `curl`, `wget`, or any HTTP client as validation — use `just tdd` or Chrome DevTools MCP
+- Claiming UI work is "done" without browser verification via MCP
 
 ## Completion
 

@@ -72,6 +72,7 @@ export const GET: APIRoute = () => {
     {% if not search %}
       <a
         href="/library/chains/build"
+        data-astro-reload
         class="inline-flex items-center px-4 py-2 mt-4 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors"
       >
         Create Signal Chain

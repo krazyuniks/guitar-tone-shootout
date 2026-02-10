@@ -2,8 +2,9 @@
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from webapp.api import pages
 from webapp.api.v1 import (
@@ -17,6 +18,7 @@ from webapp.api.v1 import (
     shootouts,
     signal_chains,
 )
+from webapp.auth.dependencies import RedirectToLogin
 from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
@@ -71,9 +73,18 @@ def create_app() -> FastAPI:
     # Modules like pages and html already fall back to get_db internally,
     # and overriding them would break test session injection via _session_override.
     if database_url:
-        for module in [health, gear, shootouts, jobs, di_tracks]:
+        # Override only modules with their OWN local get_db_session.
+        # Modules using webapp.auth.dependencies.get_db_session (library,
+        # signal_chains, di_tracks) must NOT be overridden — the centralised
+        # function already falls back to get_db and supports test overrides.
+        for module in [health, gear, shootouts, jobs]:
             if hasattr(module, "get_db_session"):
                 app.dependency_overrides[module.get_db_session] = get_db
+
+    @app.exception_handler(RedirectToLogin)
+    async def redirect_to_login(_request: Request, _exc: RedirectToLogin) -> RedirectResponse:
+        """Redirect unauthenticated page requests to /login."""
+        return RedirectResponse(url="/login", status_code=302)
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:

@@ -51,6 +51,13 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
     platform: Mapped[Platform] = mapped_column(
         EnumByValue(Platform),
         nullable=False,
+        default=Platform.NAM,
+        server_default="nam",
+    )
+    group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UuidType(),
+        ForeignKey("signal_chain_groups.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
     # Relationships
@@ -66,10 +73,16 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
         order_by="SignalChainBlock.position",
         lazy="raise",
     )
+    group: Mapped[SignalChainGroup | None] = relationship(
+        "SignalChainGroup",
+        foreign_keys=[group_id],
+        lazy="raise",
+    )
 
     # Indexes
     __table_args__ = (
         Index("ix_signal_chains_user_id", "user_id"),
+        Index("ix_signal_chains_group_id", "group_id"),
     )
 
 
