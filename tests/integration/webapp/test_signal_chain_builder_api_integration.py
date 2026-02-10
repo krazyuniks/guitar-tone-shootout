@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
 from webapp.adapters.persistence.models.signal_chain_block import SignalChainBlock as SignalChainBlockModel
 from webapp.adapters.persistence.models.user import User
@@ -95,13 +96,29 @@ async def test_gear(db_session: AsyncSession) -> list[Gear]:
 
 @pytest.fixture
 async def user_gear(db_session: AsyncSession, test_user: User, test_gear: list[Gear]) -> list[UserGear]:
-    """Create user's gear library."""
-    user_gear_items = []
+    """Create user's gear library via gear models."""
+    # Create a gear model for each gear item
+    gear_models = []
     for gear in test_gear:
+        gear_model = GearModel(
+            id=uuid4(),
+            gear_id=gear.id,
+            platform="nam" if gear.gear_type != "ir" else "ir",
+            size="standard",
+        )
+        db_session.add(gear_model)
+        gear_models.append(gear_model)
+    await db_session.commit()
+    for gm in gear_models:
+        await db_session.refresh(gm)
+
+    # Create user gear entries linked to gear models
+    user_gear_items = []
+    for gear_model in gear_models:
         user_gear_item = UserGear(
             id=uuid4(),
             user_id=test_user.id,
-            gear_id=gear.id,
+            gear_model_id=gear_model.id,
         )
         db_session.add(user_gear_item)
         user_gear_items.append(user_gear_item)
@@ -151,7 +168,7 @@ class TestLibraryAPIForBuilder:
         data = response.json()
         assert len(data) == len(test_gear)
         assert all("id" in item for item in data)
-        assert all("gear_id" in item for item in data)
+        assert all("gear_model_id" in item for item in data)
         assert all("name" in item for item in data)
         assert all("gear_type" in item for item in data)
 

@@ -15,6 +15,7 @@ from .base import Base, EnumByValue, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
     from .gear import Gear
+    from .user_gear import UserGear
 
 
 class GearModel(UUIDMixin, Base):
@@ -64,6 +65,14 @@ class GearModel(UUIDMixin, Base):
 
     # Relationship to gear
     gear: Mapped[Gear] = relationship("Gear", back_populates="models", lazy="raise")  # type: ignore
+
+    # Relationship to user_gear (users who have this model in their library)
+    user_gear: Mapped[list[UserGear]] = relationship(
+        "UserGear",
+        back_populates="gear_model",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
 
     # Indexes for common query patterns
     __table_args__ = (

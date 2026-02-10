@@ -16,8 +16,11 @@ from core.domain.entities.base import new_id
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import UserGear as UserGearEntity
 from core.domain.entities.user import User as UserEntity
-from core.domain.value_objects.signal_chain_enums import GearType
+from core.domain.value_objects.download_status import DownloadStatus
+from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.base import Base
+from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
 )
@@ -112,17 +115,35 @@ async def test_gear(
     return gear
 
 
+@pytest.fixture
+async def test_gear_model(
+    test_gear: GearEntity,
+    db_session: AsyncSession,
+) -> GearModel:
+    """Create a test gear model linked to test_gear."""
+    gear_model = GearModel(
+        id=new_id(),
+        gear_id=test_gear.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model)
+    await db_session.commit()
+    await db_session.refresh(gear_model)
+    return gear_model
+
+
 async def test_add_gear_to_library(
     user_gear_repository: SQLAlchemyUserGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test adding gear to user's library."""
     user_gear = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
 
     await user_gear_repository.add(user_gear)
@@ -130,18 +151,18 @@ async def test_add_gear_to_library(
 
     # Verify it was added
     retrieved = await user_gear_repository.get_by_user_and_gear(
-        test_user.id, test_gear.id
+        test_user.id, test_gear_model.id
     )
 
     assert retrieved is not None
     assert retrieved.user_id == test_user.id
-    assert retrieved.gear_id == test_gear.id
+    assert retrieved.gear_model_id == test_gear_model.id
 
 
 async def test_remove_gear_from_library(
     user_gear_repository: SQLAlchemyUserGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test removing gear from user's library."""
@@ -149,18 +170,18 @@ async def test_remove_gear_from_library(
     user_gear = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
     await user_gear_repository.add(user_gear)
     await db_session.commit()
 
     # Remove gear
-    await user_gear_repository.remove(test_user.id, test_gear.id)
+    await user_gear_repository.remove(test_user.id, test_gear_model.id)
     await db_session.commit()
 
     # Verify it was removed
     retrieved = await user_gear_repository.get_by_user_and_gear(
-        test_user.id, test_gear.id
+        test_user.id, test_gear_model.id
     )
     assert retrieved is None
 
@@ -169,11 +190,11 @@ async def test_list_user_gear(
     user_gear_repository: SQLAlchemyUserGearRepository,
     gear_repository: SQLAlchemyGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test listing all gear in user's library."""
-    # Create additional gear
+    # Create additional gear and gear model
     gear2 = GearEntity(
         id=new_id(),
         name="Test Pedal",
@@ -182,16 +203,25 @@ async def test_list_user_gear(
     await gear_repository.save(gear2)
     await db_session.commit()
 
+    gear_model2 = GearModel(
+        id=new_id(),
+        gear_id=gear2.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model2)
+    await db_session.commit()
+
     # Add both to user's library
     user_gear1 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
     user_gear2 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=gear2.id,
+        gear_model_id=gear_model2.id,
     )
 
     await user_gear_repository.add(user_gear1)
@@ -202,8 +232,8 @@ async def test_list_user_gear(
     user_gear_list = await user_gear_repository.list_by_user(test_user.id)
 
     assert len(user_gear_list) == 2
-    gear_ids = {ug.gear_id for ug in user_gear_list}
-    assert gear_ids == {test_gear.id, gear2.id}
+    gear_model_ids = {ug.gear_model_id for ug in user_gear_list}
+    assert gear_model_ids == {test_gear_model.id, gear_model2.id}
 
 
 async def test_list_user_gear_empty(
@@ -220,9 +250,9 @@ async def test_get_by_user_and_gear_not_found(
     test_user: UserEntity,
 ) -> None:
     """Test getting user_gear that doesn't exist."""
-    fake_gear_id = uuid4()
+    fake_gear_model_id = uuid4()
     retrieved = await user_gear_repository.get_by_user_and_gear(
-        test_user.id, fake_gear_id
+        test_user.id, fake_gear_model_id
     )
     assert retrieved is None
 
@@ -230,24 +260,24 @@ async def test_get_by_user_and_gear_not_found(
 async def test_add_duplicate_gear_fails(
     user_gear_repository: SQLAlchemyUserGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
-    """Test that adding the same gear twice raises an error."""
+    """Test that adding the same gear model twice raises an error."""
     # Add gear first time
     user_gear1 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
     await user_gear_repository.add(user_gear1)
     await db_session.commit()
 
-    # Try to add same gear again
+    # Try to add same gear model again
     user_gear2 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
     await user_gear_repository.add(user_gear2)
 
@@ -261,14 +291,14 @@ async def test_add_duplicate_gear_fails(
 async def test_list_user_gear_with_nickname(
     user_gear_repository: SQLAlchemyUserGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test that nickname is preserved when listing user gear."""
     user_gear = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
         nickname="My Favourite Amp",
     )
 
@@ -285,14 +315,14 @@ async def test_list_user_gear_with_nickname(
 async def test_list_user_gear_with_notes_and_favourite(
     user_gear_repository: SQLAlchemyUserGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test that notes and is_favourite are preserved."""
     user_gear = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
         notes="Great for metal",
         is_favourite=True,
     )
@@ -312,7 +342,7 @@ async def test_list_user_gear_isolated_between_users(
     user_gear_repository: SQLAlchemyUserGearRepository,
     user_repository: SQLAlchemyUserRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test that each user's library is isolated."""
@@ -329,7 +359,7 @@ async def test_list_user_gear_isolated_between_users(
     user_gear1 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
     await user_gear_repository.add(user_gear1)
     await db_session.commit()
@@ -347,7 +377,7 @@ async def test_count_user_gear(
     user_gear_repository: SQLAlchemyUserGearRepository,
     gear_repository: SQLAlchemyGearRepository,
     test_user: UserEntity,
-    test_gear: GearEntity,
+    test_gear_model: GearModel,
     db_session: AsyncSession,
 ) -> None:
     """Test counting items in user's library."""
@@ -359,7 +389,7 @@ async def test_count_user_gear(
     user_gear1 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=test_gear.id,
+        gear_model_id=test_gear_model.id,
     )
     await user_gear_repository.add(user_gear1)
     await db_session.commit()
@@ -376,10 +406,19 @@ async def test_count_user_gear(
     await gear_repository.save(gear2)
     await db_session.commit()
 
+    gear_model2 = GearModel(
+        id=new_id(),
+        gear_id=gear2.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model2)
+    await db_session.commit()
+
     user_gear2 = UserGearEntity(
         id=new_id(),
         user_id=test_user.id,
-        gear_id=gear2.id,
+        gear_model_id=gear_model2.id,
     )
     await user_gear_repository.add(user_gear2)
     await db_session.commit()

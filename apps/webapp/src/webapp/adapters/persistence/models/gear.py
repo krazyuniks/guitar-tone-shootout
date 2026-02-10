@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .gear_model import GearModel
     from .gear_source import GearSource
-    from .user_gear import UserGear
 
 from sqlalchemy import (
     Boolean,
@@ -189,12 +188,6 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         "GearTag",
         secondary=gear_tags_table,
         back_populates="gear_items",
-        lazy="raise",
-    )
-    user_gear: Mapped[list[UserGear]] = relationship(
-        "UserGear",
-        back_populates="gear",
-        cascade="all, delete-orphan",
         lazy="raise",
     )
 

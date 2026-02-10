@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.shootout import DITrack, Shootout
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
@@ -160,7 +161,8 @@ async def library_my_gear_list_fragment(
     # Build query for user's gear with filters
     query = (
         select(UserGear, Gear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
 
@@ -322,7 +324,8 @@ async def my_gear_results_fragment(
     """Render user's saved gear with filters and pagination."""
     query = (
         select(UserGear, Gear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
 
@@ -340,7 +343,8 @@ async def my_gear_results_fragment(
     count_q = (
         select(func.count())
         .select_from(UserGear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
     if gear_type:

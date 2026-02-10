@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.api.v1.schemas.library import (
@@ -66,21 +67,22 @@ async def list_user_gear(
     Returns:
         List of user's gear library items
     """
-    # Query user's gear with joined gear details
+    # Query user's gear with joined gear model and gear details
     result = await db.execute(
-        select(UserGear, Gear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        select(UserGear, GearModel, Gear)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
     rows = result.all()
 
     # Build response models
     gear_items = []
-    for user_gear, gear in rows:
+    for user_gear, gear_model, gear in rows:
         gear_items.append(
             UserGearResponse(
                 user_gear_id=user_gear.id,
-                gear_id=gear.id,
+                gear_model_id=gear_model.id,
                 gear_name=gear.name,
                 gear_type=gear.gear_type,
                 nickname=user_gear.nickname,
@@ -114,23 +116,27 @@ async def add_gear_to_library(
         HTTPException: 404 if gear not found
         HTTPException: 409 if gear already in library
     """
-    # Verify gear exists
+    # Verify gear model exists and get its parent gear
     result = await db.execute(
-        select(Gear).where(Gear.id == request_data.gear_id)
+        select(GearModel, Gear)
+        .join(Gear, GearModel.gear_id == Gear.id)
+        .where(GearModel.id == request_data.gear_model_id)
     )
-    gear = result.scalar_one_or_none()
+    row = result.first()
 
-    if not gear:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gear not found",
+            detail="Gear model not found",
         )
+
+    gear_model, gear = row
 
     # Create user gear entry
     user_gear = UserGear(
         id=uuid4(),
         user_id=current_user.id,
-        gear_id=request_data.gear_id,
+        gear_model_id=request_data.gear_model_id,
         nickname=request_data.nickname,
         is_favourite=request_data.is_favourite,
     )
@@ -141,17 +147,15 @@ async def add_gear_to_library(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # Unique constraint violation - gear already in library
+        # Unique constraint violation - gear model already in library
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Gear is already in library",
         )
 
-    await db.refresh(gear)
-
     return UserGearResponse(
         user_gear_id=user_gear.id,
-        gear_id=gear.id,
+        gear_model_id=gear_model.id,
         gear_name=gear.name,
         gear_type=gear.gear_type,
         nickname=user_gear.nickname,

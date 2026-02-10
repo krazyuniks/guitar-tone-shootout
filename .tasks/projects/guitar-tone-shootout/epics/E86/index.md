@@ -24,8 +24,8 @@ T90 → T99
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
 | T100 | Regression Test Updates for All New | pending | - | T91, T92, T95, T97, T98, T99 |
-| T87 | UserGear FK Migration — Domain + OR | pending | webapp | - |
-| T88 | Fix UserGear FK Downstream Consumer | pending | webapp | T87 |
+| T87 | UserGear FK Migration — Domain + OR | complete | webapp | - |
+| T88 | Fix UserGear FK Downstream Consumer | complete | webapp | T87 |
 | T89 | DI Track Upload Endpoint | pending | webapp | - |
 | T90 | DI Track Stream Endpoint | pending | webapp | T89 |
 | T91 | DI Track Audio Player UI | pending | - | T90 |

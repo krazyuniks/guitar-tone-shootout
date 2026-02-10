@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
@@ -327,17 +328,18 @@ async def library_my_gear_page(
     Protected page showing user's personal gear collection.
     """
     result = await db.execute(
-        select(UserGear, Gear)
-        .join(Gear, UserGear.gear_id == Gear.id)
+        select(UserGear, GearModel, Gear)
+        .join(GearModel, UserGear.gear_model_id == GearModel.id)
+        .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
     )
     rows = result.all()
 
     gear_items = []
-    for user_gear, gear in rows:
+    for user_gear, gear_model, gear in rows:
         gear_items.append({
             "user_gear_id": str(user_gear.id),
-            "gear_id": str(gear.id),
+            "gear_model_id": str(gear_model.id),
             "nickname": user_gear.nickname,
             "is_favourite": user_gear.is_favourite,
             "gear_name": gear.name,
@@ -705,13 +707,14 @@ async def chain_detail_page(
         gear_name = block.gear_type.value.replace("_", " ").title()
         if block.user_gear_id:
             ug_result = await db.execute(
-                select(UserGear, Gear)
-                .join(Gear, UserGear.gear_id == Gear.id)
+                select(UserGear, GearModel, Gear)
+                .join(GearModel, UserGear.gear_model_id == GearModel.id)
+                .join(Gear, GearModel.gear_id == Gear.id)
                 .where(UserGear.id == block.user_gear_id)
             )
             row = ug_result.first()
             if row:
-                _, gear = row
+                _, _, gear = row
                 gear_name = gear.name
 
         block_items.append({

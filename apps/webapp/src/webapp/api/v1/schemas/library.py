@@ -10,9 +10,9 @@ from core.domain.value_objects.signal_chain_enums import GearType
 
 
 class AddGearToLibraryRequest(BaseModel):
-    """Request schema for adding gear to user library."""
+    """Request schema for adding gear model to user library."""
 
-    gear_id: UUID
+    gear_model_id: UUID
     nickname: str | None = None
     is_favourite: bool = False
 
@@ -30,9 +30,9 @@ class UserGearResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     # Both simple and explicit field names via computed_field
-    user_gear_id: UUID  # UserGear.id
-    gear_id: UUID      # Gear.id
-    gear_name: str     # Gear.name
+    user_gear_id: UUID       # UserGear.id
+    gear_model_id: UUID      # GearModel.id
+    gear_name: str           # Gear.name
     gear_type: GearType
     nickname: str | None = None
     is_favourite: bool = False
