@@ -51,7 +51,7 @@ VALID_PROJECTS = {"core", "audio", "t3k", "webapp", "worker", "scheduler"}
 # Task states in order of progression
 STATE_ORDER = ["pending", "locked", "validating", "complete"]
 
-MAX_TEST_AUTHOR_RETRIES = 1  # retry once after initial failure
+MAX_TEST_AUTHOR_RETRIES = 2  # retry twice after initial failure (36% first-attempt failure rate in E86)
 MAX_IMPLEMENTER_RETRIES = 2  # retry twice after initial failure
 
 
@@ -142,7 +142,7 @@ def git_sync() -> None:
     """Rebase on origin/main and push after commits."""
     # Stage any unstaged changes (epic-sync updates .tasks/ timestamps)
     subprocess.run(
-        ["git", "add", ".tasks/", "tests/"],
+        ["git", "add", ".tasks/", "tests/", "frontend/"],
         cwd=PROJECT_ROOT, capture_output=True, text=True,
     )
     # Commit if there are staged changes (no-op if clean)
@@ -600,7 +600,7 @@ def build_implementer_prompt(
         error_types: list[str] = []
         if "ImportError" in retry_context or "ModuleNotFoundError" in retry_context:
             error_types.append("ImportError (missing module or wrong import path)")
-        if "AssertionError" in retry_context or "AssertionError" in retry_context:
+        if "AssertionError" in retry_context:
             error_types.append("AssertionError (logic/value mismatch)")
         if "RuntimeError" in retry_context or "TypeError" in retry_context:
             error_types.append("RuntimeError/TypeError (code structure issue)")
@@ -769,6 +769,66 @@ def build_test_fix_prompt(
         lines.extend(["", "---", "", "## GTS Testing Reference", "", skill_content])
 
     return "\n".join(lines)
+
+
+def restore_locked_test_files(task_id_str: str) -> tuple[bool, str]:
+    """Restore test files modified by implementer to their locked versions.
+
+    Uses snapshot_tests.py to detect violations, then git-restores
+    modified files from the lock commit. Returns (success, output).
+    """
+    # Run snapshot verification to get violations
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / "scripts" / "snapshot_tests.py"), "verify", task_id_str],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+
+    if result.returncode == 0:
+        return True, "No violations found"
+
+    # Parse modified file paths from output: "  MODIFIED: tests/path/to/file.py"
+    modified_files = []
+    for line in result.stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("MODIFIED:") or stripped.startswith("DELETED:"):
+            filepath = stripped.split(":", 1)[1].strip()
+            modified_files.append(filepath)
+
+    if not modified_files:
+        return False, f"Validation failed but couldn't parse violations:\n{result.stdout}"
+
+    # Find the lock commit
+    lock_result = subprocess.run(
+        ["git", "log", f"--grep=test-lock: {task_id_str}", "-1", "--format=%H"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    lock_commit = lock_result.stdout.strip()
+    if not lock_commit:
+        return False, f"Could not find lock commit for {task_id_str}"
+
+    # Restore each modified file from the lock commit
+    restored = []
+    for filepath in modified_files:
+        restore = subprocess.run(
+            ["git", "checkout", lock_commit, "--", filepath],
+            cwd=PROJECT_ROOT, capture_output=True, text=True,
+        )
+        if restore.returncode == 0:
+            restored.append(filepath)
+        else:
+            return False, f"Failed to restore {filepath}: {restore.stderr}"
+
+    # Stage and commit the restoration
+    subprocess.run(
+        ["git", "add", *restored],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-m", f"fix(tests): restore locked test files for {task_id_str}"],
+        cwd=PROJECT_ROOT, capture_output=True, text=True,
+    )
+
+    return True, f"Restored {len(restored)} file(s): {', '.join(restored)}"
 
 
 def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
@@ -1195,12 +1255,16 @@ def run_state_machine(
                 ok, output = run_tdd_red(task_id_str)
 
                 if not ok:
-                    # Retry once
-                    log(f"  Red phase failed. Retrying test-author...")
-                    retry_prompt = build_test_author_prompt(task, retry_context=output)
-                    dispatch_agent("test-author", retry_prompt, project=task.project)
+                    # Retry up to MAX_TEST_AUTHOR_RETRIES times
+                    for attempt in range(MAX_TEST_AUTHOR_RETRIES):
+                        log(f"  Red phase failed. Retry {attempt + 1}/{MAX_TEST_AUTHOR_RETRIES}...")
+                        retry_prompt = build_test_author_prompt(task, retry_context=output)
+                        dispatch_agent("test-author", retry_prompt, project=task.project)
 
-                    ok, output = run_tdd_red(task_id_str)
+                        ok, output = run_tdd_red(task_id_str)
+                        if ok:
+                            break
+
                     if not ok:
                         stop_epic(epic_dir, task.task_id, "red_failed", output)
 
@@ -1323,7 +1387,7 @@ def run_state_machine(
 
                 # Auto-commit implementation + test fixes + task state
                 log(f"\n  Committing changes...")
-                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", "tests/", ".tasks/"]
+                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", "frontend/", "tests/", ".tasks/"]
                 subprocess.run(
                     ["git", "add", *impl_paths],
                     cwd=PROJECT_ROOT, capture_output=True, text=True,
@@ -1350,7 +1414,22 @@ def run_state_machine(
             if not dry_run:
                 ok, output = run_tdd_complete(task_id_str)
                 if not ok:
-                    stop_epic(epic_dir, task.task_id, "validation_failed", output)
+                    # Check if failure is due to test file modifications
+                    if "MODIFIED:" in output or "DELETED:" in output:
+                        log(f"  Validation failed: test files modified by implementer. Auto-restoring...")
+                        restore_ok, restore_output = restore_locked_test_files(task_id_str)
+                        if restore_ok:
+                            log(f"  {restore_output}")
+                            log(f"  Re-running validation after restore...")
+                            ok, output = run_tdd_complete(task_id_str)
+                            if not ok:
+                                write_error_report(epic_dir, task.task_id, "validation_failed_after_restore", output)
+                                stop_epic(epic_dir, task.task_id, "validation_failed", output)
+                        else:
+                            log(f"  Auto-restore failed: {restore_output}", "error")
+                            stop_epic(epic_dir, task.task_id, "validation_failed", output)
+                    else:
+                        stop_epic(epic_dir, task.task_id, "validation_failed", output)
 
                 update_task_state(epic_dir, task.task_id, "complete")
                 log(f"  T{task.task_id} COMPLETE")
