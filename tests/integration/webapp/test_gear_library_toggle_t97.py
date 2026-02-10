@@ -37,13 +37,6 @@ class TestGearLibraryToggleEndpoint:
         assert gear_model is not None, "No gear models found"
 
         # Ensure model is NOT in user's library
-        await db_session.execute(
-            select(UserGear).where(
-                UserGear.user_id == test_user.id,
-                UserGear.gear_model_id == gear_model.id,
-            )
-        ).scalar_one_or_none()
-
         existing_user_gear = await db_session.execute(
             select(UserGear).where(
                 UserGear.user_id == test_user.id,
@@ -116,11 +109,14 @@ class TestGearLibraryToggleEndpoint:
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
         # Verify model is removed from library
-        await db_session.expire_all()
+        # Capture IDs before expire_all to avoid lazy loading issues
+        user_id = test_user.id
+        model_id = gear_model.id
+        db_session.expire_all()
         result = await db_session.execute(
             select(UserGear).where(
-                UserGear.user_id == test_user.id,
-                UserGear.gear_model_id == gear_model.id,
+                UserGear.user_id == user_id,
+                UserGear.gear_model_id == model_id,
             )
         )
         user_gear = result.scalar_one_or_none()

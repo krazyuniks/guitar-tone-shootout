@@ -58,3 +58,4 @@ Red phase verified: 6 failing + 8 erroring tests found.
 Tests locked at 16980d62
 
 2026-02-10 18:34:54,837 [DEBUG] STRUCTURED: {"event": "phase_end", "timestamp": "2026-02-10T17:34:54.837349+00:00", "task_id": 97, "phase": "test", "result": "locked"}
+2026-02-10 18:34:57,184 [INFO]   Git sync: pull --rebase --autostash origin main

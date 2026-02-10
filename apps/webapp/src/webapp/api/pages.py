@@ -213,6 +213,7 @@ async def gear_detail_page(
     """Render gear detail page with full SSR.
 
     All data rendered server-side — pack dict includes models, tags, creator info.
+    For authenticated users, marks which models are in their library.
     """
     service = GearService(db)
     gear = await service.get_by_slug(slug)
@@ -224,6 +225,24 @@ async def gear_detail_page(
         )
 
     pack = _gear_to_detail_pack(gear)
+
+    # For authenticated users, check which models are in their library
+    if current_user:
+        # Get all model IDs for this gear
+        model_ids = [m.id for m in gear.models]
+
+        # Query UserGear to find which models the user has saved
+        result = await db.execute(
+            select(UserGear.gear_model_id)
+            .where(UserGear.user_id == current_user.id)
+            .where(UserGear.gear_model_id.in_(model_ids))
+        )
+        saved_model_ids = {row[0] for row in result.all()}
+
+        # Mark saved models in pack
+        for model_dict in pack["models"]:
+            model_dict["is_saved"] = UUID(model_dict["id"]) in saved_model_ids
+
     description = gear.description or f"{gear.name} - guitar tone capture"
     public_url = os.getenv("PUBLIC_URL", str(request.base_url).rstrip("/"))
     canonical = f"{public_url}/gear/{slug}"
