@@ -20,7 +20,7 @@ export const GET: APIRoute = () => {
 >
   <div class="flex items-start gap-4">
     <!-- Status Icon -->
-    <a href="/chain/{{ chain.id }}" class="flex-shrink-0 w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors">
+    <a href="/chain/{{ chain.id }}" data-astro-reload class="flex-shrink-0 w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors">
       {% if chain.is_complete %}
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
@@ -33,7 +33,7 @@ export const GET: APIRoute = () => {
     </a>
 
     <!-- Content -->
-    <a href="/chain/{{ chain.id }}" class="flex-1 min-w-0">
+    <a href="/chain/{{ chain.id }}" data-astro-reload class="flex-1 min-w-0">
       <h3 class="text-white font-medium truncate">{{ chain.name }}</h3>
       {% if chain.description %}
         <p class="text-gray-400 text-sm truncate mt-1">{{ chain.description }}</p>
@@ -49,6 +49,7 @@ export const GET: APIRoute = () => {
     {% if chain.is_used_in_shootout %}
       <a
         href="/shootout/{{ chain.shootouts[0].id }}"
+        data-astro-reload
         data-testid="chain-item-shootout-link"
         class="flex-shrink-0 px-3 py-2 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors whitespace-nowrap"
         title="Used in {{ chain.shootouts | length }} shootout(s)"

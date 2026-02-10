@@ -95,6 +95,7 @@ export const GET: APIRoute = () => {
       <p class="text-[var(--color-text-secondary)] mt-4 mb-4">No DI tracks uploaded yet</p>
       <a
         href="/library/di-tracks"
+        data-astro-reload
         class="inline-flex items-center px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors"
       >
         Upload DI Track

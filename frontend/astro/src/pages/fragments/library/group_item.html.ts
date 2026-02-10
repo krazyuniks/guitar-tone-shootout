@@ -29,6 +29,7 @@ export const GET: APIRoute = () => {
       <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <a
           href="/library/chains/group?id={{ group.id }}"
+          data-astro-reload
           class="p-1.5 rounded text-[var(--color-text-muted)] hover:text-[var(--color-accent-primary)] transition-colors"
           title="View details"
         >
@@ -43,6 +44,7 @@ export const GET: APIRoute = () => {
     <!-- Name - clickable link to detail page -->
     <a
       href="/library/chains/group?id={{ group.id }}"
+      data-astro-reload
       class="font-medium text-[var(--color-text-primary)] line-clamp-2 mb-3 hover:text-[var(--color-accent-primary)] transition-colors block"
     >
       {{ group.name }}
