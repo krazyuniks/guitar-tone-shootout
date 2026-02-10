@@ -34,6 +34,8 @@ class UserGearResponse(BaseModel):
     gear_model_id: UUID      # GearModel.id
     gear_name: str           # Gear.name
     gear_type: GearType
+    platform: str            # GearModel.platform
+    size: str                # GearModel.size
     nickname: str | None = None
     is_favourite: bool = False
 
@@ -49,3 +51,11 @@ class UserGearResponse(BaseModel):
     def name(self) -> str:
         """Alias for gear_name for builder compatibility."""
         return self.gear_name
+
+
+class ToggleGearResponse(BaseModel):
+    """Response schema for toggle gear in library."""
+
+    action: str  # "added" or "removed"
+    gear_model_id: UUID
+    user_gear_id: UUID | None = None

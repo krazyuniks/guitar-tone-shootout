@@ -14,6 +14,7 @@ from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.api.v1.schemas.library import (
     AddGearToLibraryRequest,
+    ToggleGearResponse,
     UserGearResponse,
 )
 from webapp.auth.dependencies import (
@@ -61,6 +62,8 @@ async def list_user_gear(
                 gear_model_id=gear_model.id,
                 gear_name=gear.name,
                 gear_type=gear.gear_type,
+                platform=gear_model.platform.value,
+                size=gear_model.size.value,
                 nickname=user_gear.nickname,
                 is_favourite=user_gear.is_favourite,
             )
@@ -134,6 +137,8 @@ async def add_gear_to_library(
         gear_model_id=gear_model.id,
         gear_name=gear.name,
         gear_type=gear.gear_type,
+        platform=gear_model.platform.value,
+        size=gear_model.size.value,
         nickname=user_gear.nickname,
         is_favourite=user_gear.is_favourite,
     )
@@ -179,3 +184,72 @@ async def remove_gear_from_library(
 
     await db.delete(user_gear)
     await db.commit()
+
+
+@router.post("/gear/{gear_model_id}/toggle", response_model=ToggleGearResponse)
+async def toggle_gear_in_library(
+    gear_model_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> ToggleGearResponse:
+    """Toggle gear model in/out of current user's library.
+
+    If the gear model is not in the user's library, add it.
+    If it is already in the library, remove it.
+
+    Args:
+        gear_model_id: ID of gear model to toggle
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Toggle result with action taken (added/removed)
+
+    Raises:
+        HTTPException: 404 if gear model not found
+    """
+    # Verify gear model exists
+    result = await db.execute(
+        select(GearModel).where(GearModel.id == gear_model_id)
+    )
+    gear_model = result.scalar_one_or_none()
+
+    if not gear_model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gear model not found",
+        )
+
+    # Check if already in library
+    result = await db.execute(
+        select(UserGear).where(
+            UserGear.user_id == current_user.id,
+            UserGear.gear_model_id == gear_model_id,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        # Remove from library
+        user_gear_id = existing.id
+        await db.delete(existing)
+        await db.commit()
+        return ToggleGearResponse(
+            action="removed",
+            gear_model_id=gear_model_id,
+            user_gear_id=user_gear_id,
+        )
+    else:
+        # Add to library
+        user_gear = UserGear(
+            id=uuid4(),
+            user_id=current_user.id,
+            gear_model_id=gear_model_id,
+        )
+        db.add(user_gear)
+        await db.commit()
+        return ToggleGearResponse(
+            action="added",
+            gear_model_id=gear_model_id,
+            user_gear_id=user_gear.id,
+        )
