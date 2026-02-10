@@ -161,7 +161,7 @@ class TestLazyRaiseEnforcement:
         """Verify SignalChain model relationships (task acceptance criterion)."""
         relationships = get_relationship_properties(SignalChain)
 
-        expected_relationships = {"user", "blocks"}
+        expected_relationships = {"user", "blocks", "group"}
         actual_relationships = set(relationships.keys())
 
         # Verify we found all expected relationships
