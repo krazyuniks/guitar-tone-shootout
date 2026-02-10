@@ -41,10 +41,6 @@ Templates for creating epic and task issues compatible with tasks_from_plan.py.
 - {Feature 1}
 - {Feature 2}
 
-**Out of scope:**
-- {Excluded feature 1}
-- {Excluded feature 2}
-
 ## Tasks
 
 - [ ] #{task_number} {task_title}
@@ -123,10 +119,10 @@ Blocked by: #{issue_number}, #{issue_number}
 - `project:scheduler` - apps/scheduler (cron)
 - `project:t3k` - sources/t3k (T3K integration)
 
-### Priority Labels (optional)
-- `priority:high`
-- `priority:medium`
-- `priority:low`
+### Execution Order Labels (optional)
+- `wave:1` - Foundation tasks (no dependencies)
+- `wave:2` - Depends on wave 1
+- `wave:3` - Depends on wave 1-2
 
 ---
 

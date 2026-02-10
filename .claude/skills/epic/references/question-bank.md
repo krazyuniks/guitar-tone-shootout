@@ -13,14 +13,10 @@ GTS-specific questions for structured epic planning.
 - What can they do that they couldn't before?
 - Are there secondary users or personas?
 
-### Core Priority
-- What's the ONE thing that must work?
-- If you could only ship one capability, what would it be?
-
-### Boundaries
-- What's explicitly out of scope?
-- What might people assume is included but isn't?
-- Are there future enhancements to defer?
+### Completeness
+- What does DONE look like? List every capability.
+- What are ALL the things that must work?
+- Are there any assumptions about what's included that need confirming?
 
 ### Constraints
 - Any technical constraints? (existing systems, performance)

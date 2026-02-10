@@ -71,11 +71,21 @@ Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the
 - **Never ask** whether to reuse, reopen, or materialise from existing issues.
 - If the epic body references closed child issues, **treat them as historical context only** — do not interact with them.
 
+### CRITICAL: Everything Ships — No Deferral
+
+**Every capability in the epic gets built. 100%. No tech debt. Nothing deferred.**
+
+- **Never ask** "what's the ONE thing that must work" or "what's the core priority"
+- **Never ask** what's "out of scope" or what to "defer to future phases"
+- **Never suggest** reducing scope, cutting features, or building an MVP subset
+- The epic defines the work. ALL of it gets planned. ALL of it gets built.
+- During Core Understanding, ask what DONE looks like — enumerate every capability
+
 ### Phase Flow
 
 1. **Setup** — Fetch epic from GitHub, derive slug, clean planning dir, start fresh
 2. **Context Loading** — Dispatch `epic-context-loader` subagent
-3. **Core Understanding** — Interactive: user provides vision and boundaries
+3. **Core Understanding** — Interactive: user provides full vision and completeness criteria
 4. **Gray Areas** — Dispatch `epic-gray-area-analyst` + interactive Q&A
 5. **Testing Strategy** — Interactive: confirm test patterns (REQUIRED)
 6. **Goal-Backward** — Dispatch `epic-goal-backward` subagent
@@ -144,7 +154,7 @@ Interactive workflow for fixing sparse or incomplete task files:
 - Keep task IDs unchanged (never renumber)
 - Source AC from: GH issue body, epic body phases, wiki IMPLEMENTATION.md
 - Source scope from: existing codebase structure, architectural patterns
-- Mark deferred tasks with clear notes (e.g., "Phase 5A required")
+- Every task must be complete — no deferral, no tech debt
 
 ---
 
