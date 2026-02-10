@@ -4,7 +4,9 @@ Provides JWT cookie-based authentication via FastAPI Depends().
 All route modules import from here instead of duplicating auth logic.
 """
 
-from typing import Annotated
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 import jwt
@@ -14,6 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.user import User
 from webapp.auth.token import JWT_COOKIE_NAME, decode_access_token
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 # Module-level overrides for testing
 _session_override: AsyncSession | None = None
@@ -32,18 +37,19 @@ def set_user_override(user: User | None) -> None:
     _user_override = user
 
 
-async def get_db_session() -> AsyncSession:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Get database session dependency.
 
+    Async generator so FastAPI properly closes the session after each request.
     Checks for test override first, then falls back to global factory.
     """
     if _session_override is not None:
-        return _session_override
+        yield _session_override
+        return
     from webapp.dependencies import get_db
 
     async for session in get_db():
-        return session
-    raise RuntimeError("Failed to obtain database session")
+        yield session
 
 
 async def _get_user_from_cookie(
