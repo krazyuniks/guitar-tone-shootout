@@ -51,6 +51,8 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
     platform: Mapped[Platform] = mapped_column(
         EnumByValue(Platform),
         nullable=False,
+        default=Platform.NAM,
+        server_default="nam",
     )
 
     # Relationships
