@@ -615,6 +615,70 @@ async def library_shootouts_fragment(
     )
 
 
+# Library Groups
+
+
+@router.get("/library/groups", response_class=HTMLResponse)
+async def library_groups_fragment(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render user's signal chain groups list for library page.
+
+    Returns HTML fragment with group list showing name, base chain,
+    and estimated permutation count for each group.
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML fragment
+    """
+    from webapp.adapters.persistence.repositories.signal_chain_group_repository import (
+        SQLAlchemySignalChainGroupRepository,
+    )
+
+    repo = SQLAlchemySignalChainGroupRepository(db)
+    groups = await repo.get_by_user_id(current_user.id)
+
+    # Convert to dicts for template
+    group_items = []
+    for group in groups:
+        # Calculate estimated permutation count
+        permutation_count = 1
+        for gear_list in group.gear_options.values():
+            count = len(gear_list)
+            if group.include_null:
+                count += 1
+            permutation_count *= count
+
+        # Get base chain name if exists
+        base_chain_name = None
+        if group.base_chain_id:
+            chain_repo = SQLAlchemySignalChainRepository(db)
+            base_chain = await chain_repo.get_by_id(group.base_chain_id)
+            if base_chain:
+                base_chain_name = base_chain.name
+
+        group_items.append({
+            "id": str(group.id),
+            "name": group.name,
+            "description": group.description,
+            "base_chain": base_chain_name or str(group.base_chain_id) if group.base_chain_id else "No base chain",
+            "permutation_count": permutation_count,
+            "relative_time": _relative_time(group.created_at),
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/library/groups.html",
+        {"groups": group_items},
+    )
+
+
 # Shootout Create Wizard - Step 1: Chain List
 
 
