@@ -80,6 +80,7 @@ def _gear_to_pack(gear) -> dict:
         "downloads_count": 0,
         "favorites_count": 0,
         "models_count": len(gear.models),
+        "saved_count": 0,
         "creator_username": gear.manufacturer,
         "creator_avatar": None,
         "relative_time": _relative_time(gear.created_at),

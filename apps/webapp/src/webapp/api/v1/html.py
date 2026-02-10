@@ -165,6 +165,7 @@ async def library_my_gear_list_fragment(
         .join(GearModel, UserGear.gear_model_id == GearModel.id)
         .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
+        .options(joinedload(Gear.models))
     )
 
     # Apply gear type filter if provided
@@ -175,7 +176,7 @@ async def library_my_gear_list_fragment(
     query = query.limit(limit).offset(offset)
 
     result = await db.execute(query)
-    rows = result.all()
+    rows = result.unique().all()
 
     # Build gear items list
     gear_items = []
@@ -332,6 +333,7 @@ async def my_gear_results_fragment(
         .join(GearModel, UserGear.gear_model_id == GearModel.id)
         .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
+        .options(joinedload(Gear.models))
     )
 
     if gear_type:
@@ -367,9 +369,21 @@ async def my_gear_results_fragment(
     offset = (page - 1) * page_size
     query = query.limit(page_size).offset(offset)
     result = await db.execute(query)
-    rows = result.all()
+    rows = result.unique().all()
 
-    packs = [_gear_to_pack(gear) for _ug, gear in rows]
+    # Group by gear and count saved models per gear
+    gear_saved_counts: dict[str, int] = {}
+    gear_map: dict[str, object] = {}
+    for _ug, gear in rows:
+        gid = str(gear.id)
+        gear_saved_counts[gid] = gear_saved_counts.get(gid, 0) + 1
+        gear_map[gid] = gear
+
+    packs = []
+    for gid, gear in gear_map.items():
+        pack = _gear_to_pack(gear)
+        pack["saved_count"] = gear_saved_counts[gid]
+        packs.append(pack)
     total_models = sum(p["models_count"] for p in packs)
     total_pages = max(1, ceil(total_count / page_size))
 
