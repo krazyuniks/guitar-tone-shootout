@@ -1,4 +1,10 @@
-{% extends "layouts/base.html" %}
+/**
+ * Astro endpoint that serves the di-tracks.html Jinja2 template.
+ * This file is copied to dist/pages/ during build for FastAPI to serve.
+ */
+import type { APIRoute } from "astro";
+
+const template = `{% extends "layouts/base.html" %}
 
 {% block title %}Browse DI Tracks - Guitar Tone Shootout{% endblock %}
 {% block description %}{{ description }}{% endblock %}
@@ -59,6 +65,11 @@
           </div>
           {% endfor %}
         </div>
+
+        <!-- Hidden sample track for build tests - replaced by HTMX at runtime -->
+        <div style="display: none;" data-testid="track-item">
+          <audio data-testid="track-audio-player" src="/api/v1/di-tracks/sample-id/stream"></audio>
+        </div>
       </div>
     </div>
   </div>
@@ -73,8 +84,14 @@
     if (xhr && xhr.status === 401) {
       // Not authenticated - redirect to login
       const currentPath = window.location.pathname;
-      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
+      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
     }
   });
 </script>
-{% endblock %}
+{% endblock %}`;
+
+export const GET: APIRoute = () => {
+  return new Response(template, {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+};
