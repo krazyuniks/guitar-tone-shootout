@@ -1,0 +1,56 @@
+/**
+ * fragments/shootouts/create/group-chains.html.ts - Outputs dist/fragments/shootouts/create/group-chains.html
+ *
+ * Group chains partial for shootout create wizard.
+ * Displays chains generated from a signal chain group with checkboxes.
+ * This is a Jinja2 fragment template.
+ */
+
+import type { APIRoute } from 'astro';
+
+// Import CSS so Tailwind scans this file's classes
+import '../../../../styles/global.css';
+
+export const GET: APIRoute = () => {
+  const template = `<!-- Group Chains Partial for Shootout Create Wizard -->
+{% if chains %}
+  <div class="space-y-2 max-h-[400px] overflow-y-auto pr-2" data-testid="group-chains-list">
+    <h3 class="text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+      {{ group_name }} — {{ chains | length }} chain{{ 's' if chains | length != 1 else '' }}
+    </h3>
+    {% for chain in chains %}
+      <label
+        class="w-full p-3 rounded-lg border border-border hover:border-[var(--color-accent-primary)]/50 text-left transition-all flex items-center gap-3 cursor-pointer"
+        data-testid="group-chain-option"
+        data-chain-id="{{ chain.id }}"
+      >
+        <input
+          type="checkbox"
+          name="chain_ids[]"
+          value="{{ chain.id }}"
+          class="rounded border-border text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)]"
+        />
+        <div>
+          <div class="font-medium text-sm">{{ chain.name }}</div>
+          <div class="text-xs text-[var(--color-text-secondary)]">
+            {% if chain.platform == 'nam' %}NAM{% elif chain.platform == 'aida_x' %}AIDA-X{% else %}{{ chain.platform }}{% endif %}
+          </div>
+        </div>
+      </label>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="text-center py-6" data-testid="group-chains-empty">
+    <p class="text-[var(--color-text-secondary)] text-sm">
+      No chains generated yet. Generate chains from the group page first.
+    </p>
+  </div>
+{% endif %}
+`;
+
+  return new Response(template, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+    },
+  });
+};

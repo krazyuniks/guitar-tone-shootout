@@ -679,6 +679,76 @@ async def library_groups_fragment(
     )
 
 
+# Shootout Create Wizard - Group Chains
+
+
+@router.get("/shootout-create/group-chains/{group_id}", response_class=HTMLResponse)
+async def shootout_create_group_chains_fragment(
+    request: Request,
+    group_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render chains generated from a signal chain group for shootout creation.
+
+    Returns HTML fragment listing all chains that belong to the specified group.
+    Only accessible by the group owner.
+
+    Args:
+        request: FastAPI request object
+        group_id: UUID of the signal chain group
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Rendered HTML fragment with chain checkboxes
+
+    Raises:
+        HTTPException: 404 if group not found or not owned by user
+    """
+    from webapp.adapters.persistence.models.signal_chain import (
+        SignalChain as SignalChainModel,
+        SignalChainGroup as SignalChainGroupModel,
+    )
+
+    # Verify group exists and belongs to current user
+    result = await db.execute(
+        select(SignalChainGroupModel).where(SignalChainGroupModel.id == group_id)
+    )
+    group = result.scalar_one_or_none()
+
+    if not group or group.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found",
+        )
+
+    # Get chains belonging to this group
+    result = await db.execute(
+        select(SignalChainModel)
+        .where(SignalChainModel.group_id == group_id)
+        .order_by(SignalChainModel.name)
+    )
+    chains = result.scalars().all()
+
+    chain_items = []
+    for chain in chains:
+        chain_items.append({
+            "id": str(chain.id),
+            "name": chain.name,
+            "platform": chain.platform.value if hasattr(chain.platform, "value") else str(chain.platform),
+        })
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/create/group-chains.html",
+        {
+            "group_name": group.name,
+            "chains": chain_items,
+        },
+    )
+
+
 # Shootout Create Wizard - Step 1: Chain List
 
 
@@ -762,6 +832,13 @@ async def shootout_create_submit(
     name = form.get("name", "Untitled Shootout")
     di_track_id = form.get("di_track_id")
     chain_ids = form.getlist("chain_ids[]") or form.getlist("chain_ids")
+
+    # Validate minimum 2 chains required
+    if len(chain_ids) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="At least 2 chains are required to create a shootout",
+        )
 
     chains = []
     for i, chain_id in enumerate(chain_ids):

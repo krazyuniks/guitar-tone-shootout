@@ -178,6 +178,7 @@ class SignalChainGroupService:
                 user_id=group.user_id,
                 name=chain_name,
                 platform=platform_value,
+                group_id=group.id,
                 blocks=[],
             )
             self.session.add(chain)
