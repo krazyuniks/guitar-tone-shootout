@@ -11,7 +11,9 @@ from sqlalchemy import select
 
 from core.domain.entities.signal_chain import SignalChain as SignalChainEntity
 from core.domain.entities.signal_chain_group import SignalChainGroup
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
@@ -66,49 +68,109 @@ async def base_chain(db_session: AsyncSession, test_user: User) -> SignalChain:
 @pytest.fixture
 async def amp_gear_1(db_session: AsyncSession, test_user: User) -> UserGear:
     """Create first amp gear option."""
-    gear = UserGear(
+    # Create Gear
+    gear = Gear(
         id=uuid4(),
-        user_id=test_user.id,
         name="Marshall JCM800",
-        gear_type=GearType.AMP.value,
-        platform=Platform.NAM.value,
+        slug="marshall-jcm800",
+        gear_type=GearType.AMP,
+        is_public=True,
     )
     db_session.add(gear)
     await db_session.flush()
-    await db_session.refresh(gear)
-    return gear
+
+    # Create GearModel
+    gear_model = GearModel(
+        id=uuid4(),
+        gear_id=gear.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model)
+    await db_session.flush()
+
+    # Create UserGear (user's copy)
+    user_gear = UserGear(
+        id=uuid4(),
+        user_id=test_user.id,
+        gear_model_id=gear_model.id,
+    )
+    db_session.add(user_gear)
+    await db_session.flush()
+    await db_session.refresh(user_gear)
+    return user_gear
 
 
 @pytest.fixture
 async def amp_gear_2(db_session: AsyncSession, test_user: User) -> UserGear:
     """Create second amp gear option."""
-    gear = UserGear(
+    # Create Gear
+    gear = Gear(
         id=uuid4(),
-        user_id=test_user.id,
         name="Fender Twin",
-        gear_type=GearType.AMP.value,
-        platform=Platform.NAM.value,
+        slug="fender-twin",
+        gear_type=GearType.AMP,
+        is_public=True,
     )
     db_session.add(gear)
     await db_session.flush()
-    await db_session.refresh(gear)
-    return gear
+
+    # Create GearModel
+    gear_model = GearModel(
+        id=uuid4(),
+        gear_id=gear.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model)
+    await db_session.flush()
+
+    # Create UserGear (user's copy)
+    user_gear = UserGear(
+        id=uuid4(),
+        user_id=test_user.id,
+        gear_model_id=gear_model.id,
+    )
+    db_session.add(user_gear)
+    await db_session.flush()
+    await db_session.refresh(user_gear)
+    return user_gear
 
 
 @pytest.fixture
 async def ir_gear_1(db_session: AsyncSession, test_user: User) -> UserGear:
     """Create first IR gear option."""
-    gear = UserGear(
+    # Create Gear
+    gear = Gear(
         id=uuid4(),
-        user_id=test_user.id,
         name="Greenback 25",
-        gear_type=GearType.IR.value,
-        platform=Platform.NAM.value,
+        slug="greenback-25",
+        gear_type=GearType.IR,
+        is_public=True,
     )
     db_session.add(gear)
     await db_session.flush()
-    await db_session.refresh(gear)
-    return gear
+
+    # Create GearModel
+    gear_model = GearModel(
+        id=uuid4(),
+        gear_id=gear.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model)
+    await db_session.flush()
+
+    # Create UserGear (user's copy)
+    user_gear = UserGear(
+        id=uuid4(),
+        user_id=test_user.id,
+        gear_model_id=gear_model.id,
+    )
+    db_session.add(user_gear)
+    await db_session.flush()
+    await db_session.refresh(user_gear)
+    return user_gear
 
 
 @pytest.fixture
@@ -151,11 +213,27 @@ async def group_with_2x2(
         include_null=False,
     )
 
-    from webapp.adapters.persistence.models.signal_chain_group import (
+    from webapp.adapters.persistence.models.signal_chain import (
         SignalChainGroup as SignalChainGroupModel,
     )
 
-    model = SignalChainGroupModel.from_entity(group)
+    # Convert gear_options dict[int, list[UUID]] to dict[int, list[str]] for ORM
+    gear_options_str: dict[int, list[str]] = {}
+    for pos, gear_ids in group.gear_options.items():
+        gear_options_str[pos] = [str(gear_id) for gear_id in gear_ids]
+
+    model = SignalChainGroupModel(
+        id=group.id,
+        user_id=group.user_id,
+        name=group.name,
+        description=group.description,
+        base_chain_id=group.base_chain_id,
+        slot_positions=group.slot_positions,
+        gear_options=gear_options_str,
+        include_null=group.include_null,
+        created_at=group.created_at,
+        updated_at=group.updated_at,
+    )
     db_session.add(model)
     await db_session.flush()
     return group
@@ -270,11 +348,27 @@ class TestSignalChainGroupPermutations:
             max_permutations=27,
         )
 
-        from webapp.adapters.persistence.models.signal_chain_group import (
+        from webapp.adapters.persistence.models.signal_chain import (
             SignalChainGroup as SignalChainGroupModel,
         )
 
-        model = SignalChainGroupModel.from_entity(group)
+        # Convert gear_options dict[int, list[UUID]] to dict[int, list[str]] for ORM
+        gear_options_str: dict[int, list[str]] = {}
+        for pos, gear_ids in group.gear_options.items():
+            gear_options_str[pos] = [str(gear_id) for gear_id in gear_ids]
+
+        model = SignalChainGroupModel(
+            id=group.id,
+            user_id=group.user_id,
+            name=group.name,
+            description=group.description,
+            base_chain_id=group.base_chain_id,
+            slot_positions=group.slot_positions,
+            gear_options=gear_options_str,
+            include_null=group.include_null,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+        )
         db_session.add(model)
         await db_session.flush()
 
@@ -314,11 +408,27 @@ class TestSignalChainGroupPermutations:
             include_null=True,  # Allows null as option
         )
 
-        from webapp.adapters.persistence.models.signal_chain_group import (
+        from webapp.adapters.persistence.models.signal_chain import (
             SignalChainGroup as SignalChainGroupModel,
         )
 
-        model = SignalChainGroupModel.from_entity(group)
+        # Convert gear_options dict[int, list[UUID]] to dict[int, list[str]] for ORM
+        gear_options_str: dict[int, list[str]] = {}
+        for pos, gear_ids in group.gear_options.items():
+            gear_options_str[pos] = [str(gear_id) for gear_id in gear_ids]
+
+        model = SignalChainGroupModel(
+            id=group.id,
+            user_id=group.user_id,
+            name=group.name,
+            description=group.description,
+            base_chain_id=group.base_chain_id,
+            slot_positions=group.slot_positions,
+            gear_options=gear_options_str,
+            include_null=group.include_null,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+        )
         db_session.add(model)
         await db_session.flush()
 
@@ -465,11 +575,27 @@ class TestGeneratePermutationsAPI:
             max_permutations=27,
         )
 
-        from webapp.adapters.persistence.models.signal_chain_group import (
+        from webapp.adapters.persistence.models.signal_chain import (
             SignalChainGroup as SignalChainGroupModel,
         )
 
-        model = SignalChainGroupModel.from_entity(group)
+        # Convert gear_options dict[int, list[UUID]] to dict[int, list[str]] for ORM
+        gear_options_str: dict[int, list[str]] = {}
+        for pos, gear_ids in group.gear_options.items():
+            gear_options_str[pos] = [str(gear_id) for gear_id in gear_ids]
+
+        model = SignalChainGroupModel(
+            id=group.id,
+            user_id=group.user_id,
+            name=group.name,
+            description=group.description,
+            base_chain_id=group.base_chain_id,
+            slot_positions=group.slot_positions,
+            gear_options=gear_options_str,
+            include_null=group.include_null,
+            created_at=group.created_at,
+            updated_at=group.updated_at,
+        )
         db_session.add(model)
         await db_session.flush()
 
