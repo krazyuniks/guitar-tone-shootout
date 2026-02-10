@@ -240,23 +240,50 @@ def parse_agent_definition(name: str) -> AgentDef:
     return AgentDef(name=name, tools=tools, model=model, prompt_body=body)
 
 
+def detect_chrome_executable() -> str | None:
+    """Find Chrome/Chromium executable on the system."""
+    for candidate in ["google-chrome", "chromium", "chromium-browser"]:
+        result = subprocess.run(
+            ["which", candidate], capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    return None
+
+
 def build_mcp_config(agent_name: str, project: str | None) -> dict:
-    """Build MCP server config. Only webapp gets Playwright."""
-    if project == "webapp":
-        return {
-            "mcpServers": {
-                "playwright": {
-                    "command": "npx",
-                    "args": [
-                        "-y",
-                        "@playwright/mcp@latest",
-                        "--headless",
-                        "--executable-path",
-                        "/usr/bin/chromium",
-                    ],
-                }
-            }
+    """Build MCP server config based on agent and project.
+
+    - implementer with webapp project: Chrome DevTools (for UI verification)
+    - test-author with webapp project: Playwright (for E2E test writing)
+    - All other combinations: no MCP (saves context)
+    """
+    chrome_exe = detect_chrome_executable()
+
+    chrome_args = ["-y", "chrome-devtools-mcp@latest"]
+    if chrome_exe:
+        chrome_args.extend(["--executablePath", chrome_exe])
+    chrome_args.append("--headless")
+
+    chrome_config = {
+        "chrome-devtools": {
+            "command": "npx",
+            "args": chrome_args,
         }
+    }
+    playwright_config = {
+        "playwright": {
+            "command": "npx",
+            "args": ["-y", "@playwright/mcp@latest"],
+        }
+    }
+
+    if project == "webapp":
+        if agent_name == "implementer":
+            return {"mcpServers": {**chrome_config, **playwright_config}}
+        if agent_name == "test-author":
+            return {"mcpServers": {**playwright_config}}
+
     return {"mcpServers": {}}
 
 
