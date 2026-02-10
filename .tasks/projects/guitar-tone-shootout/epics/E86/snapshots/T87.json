@@ -1,0 +1,25 @@
+{
+  "task_id": "T87",
+  "created": "2026-02-10T14:50:33.492309+00:00",
+  "commit": "c22d1da89e36",
+  "files": [
+    {
+      "path": "tests/integration/backend/migrations/test_user_gear_fk_migration.py",
+      "sha256": "4c5b21c5726c9c3f2638a3a38a6c1bd31f78a6d4424df4864a4f81da3ebbd320",
+      "size": 7067,
+      "modified": "2026-02-10T14:49:54.979545+00:00"
+    },
+    {
+      "path": "tests/integration/backend/models/test_user_gear_orm_model_fk.py",
+      "sha256": "851683342ce45f7d7bd371c04294ff0bfb34b11d8bab98191036625795a42e8d",
+      "size": 6212,
+      "modified": "2026-02-10T14:49:31.391552+00:00"
+    },
+    {
+      "path": "tests/unit/backend/domain/test_user_gear_model_fk.py",
+      "sha256": "5408ec9a4ef677e8748875eee94a90fcea78638845e5c34cf0baa95221fad26b",
+      "size": 1385,
+      "modified": "2026-02-10T14:49:09.251558+00:00"
+    }
+  ]
+}
