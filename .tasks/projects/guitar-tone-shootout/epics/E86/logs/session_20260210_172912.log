@@ -44,3 +44,17 @@ Red phase verified: 6 failing + 8 erroring tests found.
 2026-02-10 18:34:52,514 [INFO] 
   Phase: LOCK (snapshotting tests)
 2026-02-10 18:34:52,514 [INFO]     Running: just tdd-lock T97
+2026-02-10 18:34:54,825 [DEBUG]     just tdd-lock T97 -> OK
+2026-02-10 18:34:54,825 [DEBUG]     Output:
+[86/epic-phase-4-remainder-di-tracks-chain-g 16980d62] test-lock: T97 tests ready for implementation
+ 5 files changed, 1420 insertions(+)
+ create mode 100644 .tasks/projects/guitar-tone-shootout/epics/E86/logs/session_20260210_172912.log
+ create mode 100644 tests/e2e/python/tests/test_gear_detail_library_integration.py
+ create mode 100644 tests/e2e/python/tests/test_gear_detail_with_library.py
+ create mode 100644 tests/integration/webapp/test_gear_detail_page_t97.py
+ create mode 100644 tests/integration/webapp/test_gear_library_toggle_t97.py
+✓ Snapshot saved: .tasks/projects/guitar-tone-shootout/epics/E86/snapshots/T97.json
+  4 test files captured at commit 16980d627ff4
+Tests locked at 16980d62
+
+2026-02-10 18:34:54,837 [DEBUG] STRUCTURED: {"event": "phase_end", "timestamp": "2026-02-10T17:34:54.837349+00:00", "task_id": 97, "phase": "test", "result": "locked"}
