@@ -131,20 +131,16 @@ class TestGearPages:
         self, guest_page: Page, frontend_url: str
     ) -> None:
         """Gear detail page returns 200 with model listing."""
-        # Use the public gear API to find a gear slug
         api_response = await guest_page.request.get(
             f"{frontend_url}/api/v1/gear/?limit=1"
         )
+        assert api_response.ok, "Gear API must return 200"
+        data = await api_response.json()
+        assert data.get("items"), "Database must contain gear data"
 
-        if api_response.ok:
-            data = await api_response.json()
-            if data.get("items"):
-                slug = data["items"][0]["slug"]
-                await guest_page.goto(f"{frontend_url}/gear/{slug}")
-                await expect(guest_page.locator("body")).to_be_visible()
-                return
-
-        pytest.skip("No gear with slug in database to test")
+        slug = data["items"][0]["slug"]
+        await guest_page.goto(f"{frontend_url}/gear/{slug}")
+        await expect(guest_page.locator("body")).to_be_visible()
 
     async def test_gear_browse_page_returns_200(
         self, guest_page: Page, frontend_url: str

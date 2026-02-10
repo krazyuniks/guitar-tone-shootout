@@ -131,6 +131,26 @@ class TestNotFound:
         assert response is not None and response.status == 404
 
 
+# --- Data integrity ---
+
+# Gear data is synced from T3K and only grows. These are hard minimums.
+MIN_GEAR_COUNT = 6213
+
+
+@pytest.mark.asyncio
+@pytest.mark.regression
+class TestGearDataPresent:
+    """Verify gear data exists — database must not be empty."""
+
+    async def test_gear_api_returns_minimum_count(self, guest_page: Page, frontend_url: str) -> None:
+        """Gear API reports at least MIN_GEAR_COUNT items."""
+        response = await guest_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
+        assert response.ok
+        data = await response.json()
+        total = data["total"]
+        assert total >= MIN_GEAR_COUNT, f"Expected >= {MIN_GEAR_COUNT} gear, got {total}"
+
+
 # --- SSR content assertions ---
 
 
@@ -140,19 +160,16 @@ class TestGearSSRContent:
     async def test_gear_browse_has_pack_cards(self, guest_page: Page, frontend_url: str) -> None:
         await guest_page.goto(f"{frontend_url}/gear")
         pack_cards = guest_page.locator('[data-testid="gear-pack-card"]')
-        empty_state = guest_page.locator('[data-testid="empty-state"]')
-        # Either pack cards or empty state should be visible
         count = await pack_cards.count()
-        empty_count = await empty_state.count()
-        assert count > 0 or empty_count > 0
+        assert count > 0, "Gear browse page must show pack cards — database has data"
 
-    async def test_gear_browse_has_pagination_or_empty(self, guest_page: Page, frontend_url: str) -> None:
+    async def test_gear_browse_has_pagination(self, guest_page: Page, frontend_url: str) -> None:
         await guest_page.goto(f"{frontend_url}/gear")
         pagination = guest_page.locator('[data-testid="pagination"]')
         results_count = guest_page.locator('[data-testid="results-count"]')
         pagination_count = await pagination.count()
         results_count_count = await results_count.count()
-        assert pagination_count > 0 or results_count_count > 0
+        assert pagination_count > 0 or results_count_count > 0, "Expected pagination or results count"
 
     async def test_gear_browse_no_htmx_loading(self, guest_page: Page, frontend_url: str) -> None:
         """Verify no HTMX loading skeleton — content is SSR."""
@@ -169,8 +186,7 @@ class TestGearSSRContent:
         await guest_page.goto(f"{frontend_url}/gear")
         pack_cards = guest_page.locator('[data-testid="gear-pack-card"]')
         pack_count = await pack_cards.count()
-        if pack_count == 0:
-            pytest.skip("No gear packs in database — data-dependent test")
+        assert pack_count > 0, "Gear browse must show pack cards — database has data"
         models_counts = guest_page.locator('[data-testid="pack-models-count"]')
         count = await models_counts.count()
         assert count > 0, "Expected at least one pack-models-count element"
