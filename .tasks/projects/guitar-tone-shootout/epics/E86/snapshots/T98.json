@@ -1,0 +1,13 @@
+{
+  "task_id": "T98",
+  "created": "2026-02-10T17:53:34.746115+00:00",
+  "commit": "e70f5ff424f0",
+  "files": [
+    {
+      "path": "tests/integration/webapp/test_shootout_wizard_groups.py",
+      "sha256": "0a61fadff29f3c50301d745573a49e45d13dfbba74c4a288d8303f9e9b290b34",
+      "size": 12186,
+      "modified": "2026-02-10T17:53:09.089835+00:00"
+    }
+  ]
+}
