@@ -1,0 +1,13 @@
+{
+  "task_id": "T94",
+  "created": "2026-02-10T16:50:35.210459+00:00",
+  "commit": "16f12470f99a",
+  "files": [
+    {
+      "path": "tests/integration/webapp/test_signal_chain_group_permutations.py",
+      "sha256": "a13e1014d7f5ddc96c7d208d11881b5113a6cec23747cbe1641211a1901d88f7",
+      "size": 15193,
+      "modified": "2026-02-10T16:49:48.730402+00:00"
+    }
+  ]
+}
