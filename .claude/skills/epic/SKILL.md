@@ -16,7 +16,7 @@ context: fork
 
 | Command | Purpose |
 |---------|---------|
-| `/epic plan {n}` | Plan: context -> gray areas -> goals -> tasks -> materialise |
+| `/epic plan {n}` | Plan: context -> gray areas -> goals -> tasks -> materialise -> commit+push |
 | `/epic validate {n}` | Pre-flight: check all tasks have AC, deps are valid |
 | `/epic fix {n}` | Enrich sparse tasks (add AC, scope, fix deps) |
 | `/epic start {n}` | Run TDD state machine (delegates to run_epic.py) |
@@ -35,6 +35,7 @@ context: fork
 | Goals | `epic-goal-backward` | sonnet | Derive truths, write GOALS.md |
 | Tasks | `epic-task-breakdown` | sonnet | Break down, write TASKS.md |
 | Materialise | `tasks_from_plan.py` | (deterministic) | Parse TASKS.md, write .tasks/ + created.json |
+| Commit+Push | (orchestrator) | - | Commit all planning + task files, push to remote |
 
 Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the orchestrator.
 
@@ -92,6 +93,7 @@ Interactive phases (Core Understanding, Gray Area Q&A, Decision Gate) run in the
 7. **Task Breakdown** — Dispatch `epic-task-breakdown` subagent
 8. **Decision Gate** — Interactive: user approves or revises
 9. **Materialise** — Run `tasks_from_plan.py` to write .tasks/ files
+10. **Commit+Push** — Commit `.planning/` + `.tasks/` + any dirty files, push to remote
 
 ### Phase Prerequisites (MANDATORY)
 
@@ -118,6 +120,20 @@ Before deriving ANY artifact (model, repository, service, API):
 2. Confirm test commands (ONLY `just` commands allowed)
 3. **NEVER** use raw `docker compose exec`, `pytest`, or `python` for running tests
 4. **NEVER** generate curl-based acceptance tests — use pytest patterns only
+
+### Commit+Push Phase (MANDATORY — final step of `/epic plan`)
+
+After materialisation, **always** commit and push to ensure a clean working tree before execution:
+
+1. `git add .planning/epics/{slug}/ .tasks/projects/guitar-tone-shootout/epics/E{n}/`
+2. Also stage any other dirty files in the working tree (e.g. pnpm-lock, .gitignore changes)
+3. Commit: `feat(epic-{n}): plan and materialise {epic title} tasks`
+4. `git pull --rebase && git push`
+5. Verify: `git status` shows clean working tree
+
+**Why:** Execution sessions start fresh. Planning artifacts must be on remote for continuity, backup, and audit trail. Task commits should not be mixed with planning commits.
+
+**Audit trail:** GitHub epic → `.planning/` (reasoning) → `.tasks/` (execution) — all tracked in git.
 
 ---
 
@@ -257,9 +273,17 @@ Each task must have:
 
 ---
 
-## State Persistence
+## State Persistence & Audit Trail
 
-Planning state persists in `.planning/epics/{slug}/`:
+Both `.planning/` and `.tasks/` are tracked in git, forming a complete audit trail:
+
+```
+GitHub Issue (epic)
+  → .planning/epics/{slug}/    (reasoning — why)
+  → .tasks/.../epics/E{n}/     (execution — what)
+```
+
+### Planning state (`.planning/epics/{slug}/`)
 
 | File | Purpose |
 |------|---------|
@@ -268,4 +292,11 @@ Planning state persists in `.planning/epics/{slug}/`:
 | `TASKS.md` | Task breakdown before materialisation |
 | `created.json` | Task ID mapping after materialisation |
 
-Task execution state persists in `.tasks/projects/guitar-tone-shootout/epics/E{n}/`.
+### Execution state (`.tasks/projects/guitar-tone-shootout/epics/E{n}/`)
+
+| File | Purpose |
+|------|---------|
+| `index.md` | Dependency graph and task status table |
+| `tasks/T{id}.md` | Individual task files (AC, scope, state) |
+| `snapshots/` | Test snapshots per task |
+| `logs/` | Execution session logs |
