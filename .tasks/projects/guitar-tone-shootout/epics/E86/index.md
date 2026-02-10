@@ -28,7 +28,7 @@ T90 → T99
 | T88 | Fix UserGear FK Downstream Consumer | complete | webapp | T87 |
 | T89 | DI Track Upload Endpoint | complete | webapp | - |
 | T90 | DI Track Stream Endpoint | complete | webapp | T89 |
-| T91 | DI Track Audio Player UI | locked | - | T90 |
+| T91 | DI Track Audio Player UI | validating | - | T90 |
 | T92 | DI Track Seed Import Command | pending | - | - |
 | T93 | SignalChainGroupService + CRUD API | pending | webapp | - |
 | T94 | Permutation Batch Generation | pending | webapp | T93 |
