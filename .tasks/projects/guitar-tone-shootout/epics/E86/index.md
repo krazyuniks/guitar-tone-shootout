@@ -23,7 +23,7 @@ T90 → T99
 
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
-| T100 | Regression Test Updates for All New | pending | - | T91, T92, T95, T97, T98, T99 |
+| T100 | Regression Test Updates for All New | complete | - | T91, T92, T95, T97, T98, T99 |
 | T87 | UserGear FK Migration — Domain + OR | complete | webapp | - |
 | T88 | Fix UserGear FK Downstream Consumer | complete | webapp | T87 |
 | T89 | DI Track Upload Endpoint | complete | webapp | - |
