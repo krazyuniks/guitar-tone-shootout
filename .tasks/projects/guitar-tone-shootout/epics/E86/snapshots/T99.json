@@ -1,0 +1,19 @@
+{
+  "task_id": "T99",
+  "created": "2026-02-10T18:07:10.257205+00:00",
+  "commit": "baff704ae031",
+  "files": [
+    {
+      "path": "tests/e2e/python/tests/test_shootout_detail_preprocessing.py",
+      "sha256": "697437a919f4122efa7293faac64d76c2d4933a8f8c16d45d522c4f1591b2e71",
+      "size": 15203,
+      "modified": "2026-02-10T18:02:59.685766+00:00"
+    },
+    {
+      "path": "tests/integration/backend/frontend/test_shootout_detail_preprocessing_build.py",
+      "sha256": "20e520aab9b2bb394fb7c99586ade3d88970d06026bc41f9f44d18975d991c7b",
+      "size": 7370,
+      "modified": "2026-02-10T18:06:55.013737+00:00"
+    }
+  ]
+}
