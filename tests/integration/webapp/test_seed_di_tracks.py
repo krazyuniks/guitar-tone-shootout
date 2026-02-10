@@ -72,24 +72,7 @@ def temp_audio_dir(tmp_path: Path) -> Path:
     # Create nested directory
     nested = audio_dir / "subdir"
     nested.mkdir()
-    # Use different content for track5 to avoid unintentional duplicate checksum
-    wav_header_track5 = (
-        b"RIFF"
-        + (36 + 44100 * 2).to_bytes(4, "little")
-        + b"WAVE"
-        + b"fmt "
-        + (16).to_bytes(4, "little")
-        + (1).to_bytes(2, "little")
-        + (1).to_bytes(2, "little")
-        + (44100).to_bytes(4, "little")
-        + (44100 * 2).to_bytes(4, "little")
-        + (2).to_bytes(2, "little")
-        + (16).to_bytes(2, "little")
-        + b"data"
-        + (44100 * 2).to_bytes(4, "little")
-        + b"\x01" * (44100 * 2)  # Different silence pattern
-    )
-    (nested / "track5.wav").write_bytes(wav_header_track5)
+    (nested / "track5.wav").write_bytes(wav_header)
 
     # Create non-audio files (should be ignored)
     (audio_dir / "readme.txt").write_text("Not an audio file")
