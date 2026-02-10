@@ -137,9 +137,7 @@ async def callback(
     6. Redirect to ?next= URL or /library/my-gear
     """
     if not api_key:
-        return RedirectResponse(
-            url="/login?error=missing_api_key", status_code=302
-        )
+        return RedirectResponse(url="/login?error=missing_api_key", status_code=302)
 
     provider = T3KProvider()
 
@@ -149,9 +147,7 @@ async def callback(
         access_token = token_data.get("access_token") or token_data.get("token")
         if not access_token:
             logger.error("T3K token exchange returned no access_token")
-            return RedirectResponse(
-                url="/login?error=token_exchange_failed", status_code=302
-            )
+            return RedirectResponse(url="/login?error=token_exchange_failed", status_code=302)
 
         # Fetch user profile
         user_info = await provider.get_user_info(access_token)
@@ -201,9 +197,7 @@ async def callback(
 
     except Exception:
         logger.exception("T3K callback failed")
-        return RedirectResponse(
-            url="/login?error=callback_failed", status_code=302
-        )
+        return RedirectResponse(url="/login?error=callback_failed", status_code=302)
 
 
 # --- User info ---
@@ -290,9 +284,11 @@ async def auth_status() -> dict:
         except (ValueError, TypeError):
             pass
 
+    # No expiration set — treat as valid if user_id present
+    has_user = bool(data.get("user_id"))
     return {
-        "status": "unknown",
-        "valid": False,
+        "status": "valid" if has_user else "unknown",
+        "valid": has_user,
         "username": data.get("username"),
         "provider": data.get("provider"),
     }
@@ -378,10 +374,12 @@ async def _restore_session(
         next_url = _get_next_url(request) or "/library/my-gear"
         response = RedirectResponse(url=next_url, status_code=302)
     else:
-        response = JSONResponse(content={
-            "status": "restored",
-            "username": user.username,
-        })
+        response = JSONResponse(
+            content={
+                "status": "restored",
+                "username": user.username,
+            }
+        )
 
     _set_jwt_cookie(response, jwt_token)
     return response

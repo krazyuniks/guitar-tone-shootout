@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
@@ -71,7 +72,9 @@ def _gear_to_pack(gear) -> dict:
         "id": str(gear.id),
         "slug": gear.slug,
         "title": gear.name,
-        "gear_type": (gear.gear_type.value if hasattr(gear.gear_type, "value") else str(gear.gear_type)).replace("_", "-"),
+        "gear_type": (
+            gear.gear_type.value if hasattr(gear.gear_type, "value") else str(gear.gear_type)
+        ).replace("_", "-"),
         "platform": platform,
         "image_url": gear.thumbnail_url,
         "downloads_count": 0,
@@ -98,20 +101,14 @@ def _gear_to_detail_pack(gear) -> dict:
                 if gear.source
                 else "#"
             ),
-            "created_at": (
-                gear.created_at.strftime("%B %d, %Y") if gear.created_at else None
-            ),
+            "created_at": (gear.created_at.strftime("%B %d, %Y") if gear.created_at else None),
             "models": [
                 {
                     "id": str(m.id),
                     "name": (
-                        f"{gear.name} ({m.size.value})"
-                        if hasattr(m.size, "value")
-                        else gear.name
+                        f"{gear.name} ({m.size.value})" if hasattr(m.size, "value") else gear.name
                     ),
-                    "model_size": (
-                        m.size.value if hasattr(m.size, "value") else str(m.size)
-                    ),
+                    "model_size": (m.size.value if hasattr(m.size, "value") else str(m.size)),
                     "is_saved": False,
                 }
                 for m in gear.models
@@ -356,15 +353,17 @@ async def library_my_gear_page(
 
     gear_items = []
     for user_gear, gear_model, gear in rows:
-        gear_items.append({
-            "user_gear_id": str(user_gear.id),
-            "gear_model_id": str(gear_model.id),
-            "nickname": user_gear.nickname,
-            "is_favourite": user_gear.is_favourite,
-            "gear_name": gear.name,
-            "gear_type": gear.gear_type.value,
-            "manufacturer": gear.manufacturer,
-        })
+        gear_items.append(
+            {
+                "user_gear_id": str(user_gear.id),
+                "gear_model_id": str(gear_model.id),
+                "nickname": user_gear.nickname,
+                "is_favourite": user_gear.is_favourite,
+                "gear_name": gear.name,
+                "gear_type": gear.gear_type.value,
+                "manufacturer": gear.manufacturer,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -391,13 +390,15 @@ async def library_chains_page(
 
     chain_items = []
     for chain in chains:
-        chain_items.append({
-            "id": str(chain.id),
-            "name": chain.name,
-            "description": chain.description,
-            "platform": chain.platform.value,
-            "created_at": chain.created_at,
-        })
+        chain_items.append(
+            {
+                "id": str(chain.id),
+                "name": chain.name,
+                "description": chain.description,
+                "platform": chain.platform.value,
+                "created_at": chain.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -421,13 +422,15 @@ async def chain_list_fragment(
 
     chain_items = []
     for chain in chains:
-        chain_items.append({
-            "id": str(chain.id),
-            "name": chain.name,
-            "description": chain.description,
-            "platform": chain.platform.value,
-            "created_at": chain.created_at,
-        })
+        chain_items.append(
+            {
+                "id": str(chain.id),
+                "name": chain.name,
+                "description": chain.description,
+                "platform": chain.platform.value,
+                "created_at": chain.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -503,13 +506,15 @@ async def chain_duplicate_fragment(
     chains = await repo.get_by_user_id(current_user.id)
     chain_items = []
     for c in chains:
-        chain_items.append({
-            "id": str(c.id),
-            "name": c.name,
-            "description": c.description,
-            "platform": c.platform.value,
-            "created_at": c.created_at,
-        })
+        chain_items.append(
+            {
+                "id": str(c.id),
+                "name": c.name,
+                "description": c.description,
+                "platform": c.platform.value,
+                "created_at": c.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -556,14 +561,16 @@ async def library_shootouts_page(
 
     shootout_items = []
     for shootout in shootouts:
-        shootout_items.append({
-            "id": str(shootout.id),
-            "name": shootout.name,
-            "description": shootout.description,
-            "chain_count": shootout.chain_count,
-            "is_processed": shootout.is_processed,
-            "created_at": shootout.created_at,
-        })
+        shootout_items.append(
+            {
+                "id": str(shootout.id),
+                "name": shootout.name,
+                "description": shootout.description,
+                "chain_count": shootout.chain_count,
+                "is_processed": shootout.is_processed,
+                "created_at": shootout.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -600,26 +607,24 @@ async def shootout_detail_page(
             detail="Shootout not found",
         )
 
-    di_track_result = await db.execute(
-        select(DITrack).where(DITrack.id == shootout.di_track_id)
-    )
+    di_track_result = await db.execute(select(DITrack).where(DITrack.id == shootout.di_track_id))
     di_track = di_track_result.scalar_one_or_none()
 
     chain_items = []
     for shootout_chain in shootout.chains:
         chain_result = await db.execute(
-            select(SignalChainModel).where(
-                SignalChainModel.id == shootout_chain.signal_chain_id
-            )
+            select(SignalChainModel).where(SignalChainModel.id == shootout_chain.signal_chain_id)
         )
         chain = chain_result.scalar_one_or_none()
         if chain:
-            chain_items.append({
-                "signal_chain_id": str(shootout_chain.signal_chain_id),
-                "position": shootout_chain.position,
-                "label": shootout_chain.label,
-                "chain_name": chain.name,
-            })
+            chain_items.append(
+                {
+                    "signal_chain_id": str(shootout_chain.signal_chain_id),
+                    "position": shootout_chain.position,
+                    "label": shootout_chain.label,
+                    "chain_name": chain.name,
+                }
+            )
 
     chain_items.sort(key=lambda x: x["position"])
 
@@ -657,14 +662,16 @@ async def shootout_list_fragment(
 
     shootout_items = []
     for shootout in shootouts:
-        shootout_items.append({
-            "id": str(shootout.id),
-            "name": shootout.name,
-            "description": shootout.description,
-            "chain_count": shootout.chain_count,
-            "is_processed": shootout.is_processed,
-            "created_at": shootout.created_at,
-        })
+        shootout_items.append(
+            {
+                "id": str(shootout.id),
+                "name": shootout.name,
+                "description": shootout.description,
+                "chain_count": shootout.chain_count,
+                "is_processed": shootout.is_processed,
+                "created_at": shootout.created_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
@@ -736,11 +743,13 @@ async def chain_detail_page(
                 _, _, gear = row
                 gear_name = gear.name
 
-        block_items.append({
-            "gear_type": block.gear_type.value.replace("_", "-"),
-            "gear_name": gear_name,
-            "position": block.position,
-        })
+        block_items.append(
+            {
+                "gear_type": block.gear_type.value.replace("_", "-"),
+                "gear_name": gear_name,
+                "position": block.position,
+            }
+        )
 
     block_items.sort(key=lambda x: x["position"])
 
@@ -806,13 +815,20 @@ async def settings_account_page(
     current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render account settings page with linked provider status."""
+    from webapp.adapters.persistence.models.user_identity import UserIdentity
+
+    # Re-query user with identities eagerly loaded (auth dep doesn't load them)
+    result = await db.execute(
+        select(User)
+        .where(User.id == current_user.id)
+        .options(joinedload(User.identities).joinedload(UserIdentity.provider))
+    )
+    user_with_identities = result.unique().scalar_one_or_none()
 
     # Build provider status list
-    identities = current_user.identities if current_user.identities else []
+    identities = user_with_identities.identities if user_with_identities else []
     linked_providers = {
-        identity.provider.name: identity
-        for identity in identities
-        if identity.provider
+        identity.provider.name: identity for identity in identities if identity.provider
     }
 
     provider_defs = [
@@ -825,14 +841,16 @@ async def settings_account_page(
     providers = []
     for name, display_name, available in provider_defs:
         identity = linked_providers.get(name)
-        providers.append({
-            "name": name,
-            "display_name": display_name,
-            "available": available,
-            "linked": identity is not None,
-            "username": identity.username if identity else None,
-            "is_last_provider": len(linked_providers) <= 1 and identity is not None,
-        })
+        providers.append(
+            {
+                "name": name,
+                "display_name": display_name,
+                "available": available,
+                "linked": identity is not None,
+                "username": identity.username if identity else None,
+                "is_last_provider": len(linked_providers) <= 1 and identity is not None,
+            }
+        )
 
     return templates.TemplateResponse(
         request,

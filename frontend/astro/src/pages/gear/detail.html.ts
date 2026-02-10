@@ -346,7 +346,9 @@ export const GET: APIRoute = () => {
                   data-testid="model-save-checkbox"
                   data-model-id="{{ model.id }}"
                   {{ 'checked' if model.is_saved else '' }}
-                  disabled
+                  hx-post="/api/v1/html/gear/model/{{ model.id }}/toggle"
+                  hx-swap="outerHTML"
+                  hx-target="closest [data-testid='model-row']"
                   class="w-5 h-5 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
                 />
                 <span class="text-sm text-[var(--color-text-muted)]">Save</span>
