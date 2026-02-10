@@ -35,6 +35,9 @@ importers:
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.13)(react@19.2.4)
+      '@remotion/player':
+        specifier: ^4.0.0
+        version: 4.0.420(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@tailwindcss/vite':
         specifier: ^4.1.0
         version: 4.1.18(vite@7.3.1(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.8.2))
@@ -65,6 +68,9 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.2.4(react@19.2.4)
+      remotion:
+        specifier: ^4.0.0
+        version: 4.0.420(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -990,6 +996,12 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  '@remotion/player@4.0.420':
+    resolution: {integrity: sha512-Nx5sIvb7K4SWGlbzVFv9qC9vKdTgIhttA84SoBFuWSdLT27jT4ap16Kj9snrEDHtPgZ0YH0w8fetd5cSmo/3yw==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -2379,6 +2391,12 @@ packages:
   remark-stringify@11.0.0:
     resolution: {integrity: sha512-1OSmLd3awB/t8qdoEOMazZkNsfVTeY4fTsgzcQFdXNq8ToTN4ZGwrMnlda4K6smTFKD+GRV6O48i6Z4iKgPPpw==}
 
+  remotion@4.0.420:
+    resolution: {integrity: sha512-PmFYbYWCVmi8qaDphpeYPU7/SDADjTPtieEvW5VQEQ6SQP3Ntw37Dvr/Y0pm4gOU32Iw7WwT9x96UjCxdZ3d5Q==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
   request-light@0.5.8:
     resolution: {integrity: sha512-3Zjgh+8b5fhRJBQZoy+zbVKpAQGLyka0MPgW3zruTF4dFFJ8Fqcfu9YsAvi/rvdcaTeWG3MkbZv4WKxAn/84Lg==}
 
@@ -3699,6 +3717,12 @@ snapshots:
       react: 19.2.4
     optionalDependencies:
       '@types/react': 19.2.13
+
+  '@remotion/player@4.0.420(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      remotion: 4.0.420(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
@@ -5329,6 +5353,11 @@ snapshots:
       '@types/mdast': 4.0.4
       mdast-util-to-markdown: 2.1.2
       unified: 11.0.5
+
+  remotion@4.0.420(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
 
   request-light@0.5.8: {}
 
