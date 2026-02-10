@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.shootout import DITrack
@@ -172,3 +173,54 @@ async def delete_di_track(
 
     async with db.begin():
         await repo.delete(track_id)
+
+
+# Content-type mapping for audio formats
+_AUDIO_CONTENT_TYPES: dict[str, str] = {
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".mp3": "audio/mpeg",
+}
+
+
+@router.get("/{track_id}/stream")
+async def stream_di_track(
+    track_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> FileResponse:
+    """Stream a DI track audio file.
+
+    Returns the audio file with correct Content-Type headers for playback.
+    Only the track owner can stream their tracks.
+    Returns 404 for non-existent tracks or tracks not owned by user.
+    """
+    from sqlalchemy import select
+
+    stmt = select(DITrack).where(DITrack.id == track_id)
+    result = await db.execute(stmt)
+    track = result.scalar_one_or_none()
+
+    if not track or track.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Track not found",
+        )
+
+    file_path = Path(track.file_path)
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Track file not found",
+        )
+
+    # Determine content type from file extension
+    ext = file_path.suffix.lower()
+    media_type = _AUDIO_CONTENT_TYPES.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=media_type,
+        filename=track.original_filename,
+    )
