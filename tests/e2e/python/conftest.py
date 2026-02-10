@@ -1,49 +1,41 @@
-"""Shared pytest fixtures for E2E tests."""
+"""Shared pytest fixtures for E2E tests.
+
+E2E tests are PURE browser tests — no database access allowed.
+Database packages (sqlalchemy, asyncpg, psycopg) are not installed.
+"""
 
 from __future__ import annotations
 
-import os
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
 from playwright.async_api import async_playwright
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 if TYPE_CHECKING:
+    import os
     from collections.abc import AsyncGenerator
 
-    from playwright.async_api import Browser, BrowserContext, Page
+    from playwright.async_api import Browser, Page
+
+FORBIDDEN_MODULES = {"sqlalchemy", "asyncpg", "psycopg", "databases"}
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Block E2E tests from importing database packages."""
+    for mod_name in list(sys.modules):
+        if any(mod_name == f or mod_name.startswith(f"{f}.") for f in FORBIDDEN_MODULES):
+            pytest.fail(
+                f"E2E tests must not import database packages. Found: {mod_name}"
+            )
 
 
 @pytest.fixture
 def frontend_url() -> str:
     """Base URL for the frontend (public-facing URL)."""
+    import os
+
     return os.getenv("PUBLIC_URL", "https://localhost:9000")
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a database engine for E2E test verification."""
-    database_url = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://gts:gts@localhost:5455/gts_core",
-    )
-    engine = create_async_engine(database_url, echo=False)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session for E2E test verification."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
 
 
 @pytest.fixture

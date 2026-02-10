@@ -8,9 +8,6 @@ dependencies = [
     "pytest-asyncio>=0.24.0",
     "pytest-playwright>=0.6.2",
     "playwright>=1.49.0",
-    "httpx>=0.28.0",
-    "sqlalchemy[asyncio]>=2.0.0",
-    "asyncpg>=0.30.0",
 ]
 
 [tool.pytest.ini_options]

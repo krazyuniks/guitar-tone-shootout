@@ -328,7 +328,7 @@ async def di_tracks_browse_page(
     """
     return templates.TemplateResponse(
         request,
-        "pages/di-tracks.html",
+        "di-tracks/index.html",
         {"user": current_user},
     )
 

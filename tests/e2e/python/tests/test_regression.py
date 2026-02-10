@@ -91,28 +91,24 @@ class TestShootoutPages:
         assert page.url.endswith("/shootout/create")
 
     async def test_shootout_detail_page_with_valid_id(
-        self, guest_page: Page, frontend_url: str, db_session
+        self, guest_page: Page, frontend_url: str
     ) -> None:
         """Shootout detail page returns 200 with chain listing."""
-        # This test requires a shootout to exist in the database
-        # For now, we'll test that the route handler exists
-        # The actual test with real data will be added when we have test fixtures
+        # Navigate to shootouts browse page and find a link to a shootout
+        await guest_page.goto(f"{frontend_url}/shootouts")
+        await expect(guest_page.locator("body")).to_be_visible()
 
-        # Try to access a shootout detail page - this will 404 if no shootout exists
-        # but it proves the route is registered
-        from sqlalchemy import text
+        # Look for any shootout link on the page
+        shootout_links = guest_page.locator('a[href*="/shootout/"]')
+        count = await shootout_links.count()
 
-        result = await db_session.execute(
-            text("SELECT id FROM shootouts LIMIT 1")
-        )
-        row = result.fetchone()
-
-        if row:
-            shootout_id = row[0]
-            await guest_page.goto(f"{frontend_url}/shootout/{shootout_id}")
+        if count > 0:
+            # Click the first shootout link
+            href = await shootout_links.first.get_attribute("href")
+            assert href is not None
+            await guest_page.goto(f"{frontend_url}{href}" if href.startswith("/") else href)
             await expect(guest_page.locator("body")).to_be_visible()
         else:
-            # No shootouts in DB - skip this test
             pytest.skip("No shootouts in database to test")
 
     async def test_shootouts_browse_page_returns_200(
@@ -132,24 +128,23 @@ class TestGearPages:
     """Verify gear pages return 200 and render correctly."""
 
     async def test_gear_detail_page_with_valid_slug(
-        self, guest_page: Page, frontend_url: str, db_session
+        self, guest_page: Page, frontend_url: str
     ) -> None:
         """Gear detail page returns 200 with model listing."""
-        # This test requires gear to exist in the database
-        from sqlalchemy import text
-
-        result = await db_session.execute(
-            text("SELECT slug FROM gear WHERE slug IS NOT NULL LIMIT 1")
+        # Use the public gear API to find a gear slug
+        api_response = await guest_page.request.get(
+            f"{frontend_url}/api/v1/gear/?limit=1"
         )
-        row = result.fetchone()
 
-        if row:
-            slug = row[0]
-            await guest_page.goto(f"{frontend_url}/gear/{slug}")
-            await expect(guest_page.locator("body")).to_be_visible()
-        else:
-            # No gear in DB - skip this test
-            pytest.skip("No gear with slug in database to test")
+        if api_response.ok:
+            data = await api_response.json()
+            if data.get("items"):
+                slug = data["items"][0]["slug"]
+                await guest_page.goto(f"{frontend_url}/gear/{slug}")
+                await expect(guest_page.locator("body")).to_be_visible()
+                return
+
+        pytest.skip("No gear with slug in database to test")
 
     async def test_gear_browse_page_returns_200(
         self, guest_page: Page, frontend_url: str
