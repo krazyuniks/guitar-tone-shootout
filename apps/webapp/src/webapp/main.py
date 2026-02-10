@@ -71,7 +71,11 @@ def create_app() -> FastAPI:
     # Modules like pages and html already fall back to get_db internally,
     # and overriding them would break test session injection via _session_override.
     if database_url:
-        for module in [health, gear, shootouts, jobs, di_tracks]:
+        # Override only modules with their OWN local get_db_session.
+        # Modules using webapp.auth.dependencies.get_db_session (library,
+        # signal_chains, di_tracks) must NOT be overridden — the centralised
+        # function already falls back to get_db and supports test overrides.
+        for module in [health, gear, shootouts, jobs]:
             if hasattr(module, "get_db_session"):
                 app.dependency_overrides[module.get_db_session] = get_db
 

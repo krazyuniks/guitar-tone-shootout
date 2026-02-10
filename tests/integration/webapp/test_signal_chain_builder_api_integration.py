@@ -23,8 +23,7 @@ from webapp.adapters.persistence.models.signal_chain import SignalChain as Signa
 from webapp.adapters.persistence.models.signal_chain_block import SignalChainBlock as SignalChainBlockModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
-from webapp.api.v1.library import set_session_override as set_library_session, set_user_override as set_library_user
-from webapp.api.v1.signal_chains import set_session_override as set_chain_session, set_user_override as set_chain_user
+from webapp.auth.dependencies import set_session_override, set_user_override
 from webapp.main import app
 
 
@@ -131,11 +130,9 @@ async def user_gear(db_session: AsyncSession, test_user: User, test_gear: list[G
 @pytest.fixture
 async def client(db_session: AsyncSession, test_user: User) -> AsyncGenerator[AsyncClient, None]:
     """Create authenticated HTTP client."""
-    # Set overrides for both routers
-    set_library_session(db_session)
-    set_library_user(test_user)
-    set_chain_session(db_session)
-    set_chain_user(test_user)
+    # Set overrides for centralized auth dependencies
+    set_session_override(db_session)
+    set_user_override(test_user)
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -144,10 +141,8 @@ async def client(db_session: AsyncSession, test_user: User) -> AsyncGenerator[As
         yield client
 
     # Clear overrides
-    set_library_session(None)
-    set_library_user(None)
-    set_chain_session(None)
-    set_chain_user(None)
+    set_session_override(None)
+    set_user_override(None)
 
 
 @pytest.mark.asyncio

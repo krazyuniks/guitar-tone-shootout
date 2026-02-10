@@ -25,10 +25,10 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Rename gear_id to gear_model_id and update FK to point to gear_models."""
-    # Drop old constraints and indexes
-    op.drop_constraint("uq_user_gear_user_gear", "user_gear", type_="unique")
+    # Drop old constraints and indexes (if they exist)
+    # Note: uq_user_gear_user_gear doesn't exist in baseline schema
     op.drop_index("ix_user_gear_gear_id", table_name="user_gear")
-    op.drop_constraint("user_gear_gear_id_fkey", "user_gear", type_="foreignkey")
+    op.drop_constraint("fk_user_gear_gear_id_gear", "user_gear", type_="foreignkey")
 
     # Rename column
     op.alter_column("user_gear", "gear_id", new_column_name="gear_model_id")
@@ -66,19 +66,12 @@ def downgrade() -> None:
 
     # Create old FK constraint pointing to gear
     op.create_foreign_key(
-        "user_gear_gear_id_fkey",
+        "fk_user_gear_gear_id_gear",
         "user_gear",
         "gear",
         ["gear_id"],
         ["id"],
         ondelete="CASCADE",
-    )
-
-    # Create old unique constraint
-    op.create_unique_constraint(
-        "uq_user_gear_user_gear",
-        "user_gear",
-        ["user_id", "gear_id"],
     )
 
     # Create old index

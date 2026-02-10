@@ -26,7 +26,7 @@ T90 → T99
 | T100 | Regression Test Updates for All New | pending | - | T91, T92, T95, T97, T98, T99 |
 | T87 | UserGear FK Migration — Domain + OR | complete | webapp | - |
 | T88 | Fix UserGear FK Downstream Consumer | complete | webapp | T87 |
-| T89 | DI Track Upload Endpoint | pending | webapp | - |
+| T89 | DI Track Upload Endpoint | locked | webapp | - |
 | T90 | DI Track Stream Endpoint | pending | webapp | T89 |
 | T91 | DI Track Audio Player UI | pending | - | T90 |
 | T92 | DI Track Seed Import Command | pending | - | - |
