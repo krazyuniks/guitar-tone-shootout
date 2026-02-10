@@ -1,0 +1,194 @@
+<!-- Signal Chain Group Detail Fragment -->
+<div
+  data-testid="group-detail-page"
+  class="space-y-6"
+  x-data="{
+    showDeleteConfirmation: false,
+    deleting: false,
+    generating: false,
+    openDeleteModal() {
+      this.showDeleteConfirmation = true;
+    },
+    closeDeleteModal() {
+      this.showDeleteConfirmation = false;
+    },
+    performDelete() {
+      this.deleting = true;
+      fetch('/api/v1/signal-chain-groups/{{ group.id }}', { method: 'DELETE' })
+        .then(response => {
+          if (response.ok) {
+            window.location.href = '/library/groups';
+          } else {
+            alert('Failed to delete group');
+            this.deleting = false;
+            this.showDeleteConfirmation = false;
+          }
+        })
+        .catch(() => {
+          alert('Failed to delete group');
+          this.deleting = false;
+          this.showDeleteConfirmation = false;
+        });
+    },
+    generateChains() {
+      this.generating = true;
+      fetch('/api/v1/signal-chain-groups/{{ group.id }}/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+        .then(response => {
+          if (response.ok) {
+            window.location.href = '/library/chains';
+          } else {
+            alert('Failed to generate chains');
+            this.generating = false;
+          }
+        })
+        .catch(() => {
+          alert('Failed to generate chains');
+          this.generating = false;
+        });
+    }
+  }"
+>
+  <!-- Group Info -->
+  <div class="bg-card border border-border rounded-lg p-6">
+    <h2 class="text-xl font-bold text-[var(--color-text-primary)] mb-2">
+      {{ group.name }}
+    </h2>
+    {% if group.description %}
+    <p class="text-[var(--color-text-secondary)] mb-4">
+      {{ group.description }}
+    </p>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-4 text-sm">
+      <div>
+        <span class="text-[var(--color-text-muted)]">Base Chain:</span>
+        <span class="text-[var(--color-text-secondary)] ml-1 font-medium">
+          {{ group.base_chain }}
+        </span>
+      </div>
+      <div>
+        <span class="text-[var(--color-text-muted)]">Est. Permutations:</span>
+        <span class="text-[var(--color-text-secondary)] ml-1 font-medium">
+          {{ group.permutation_count }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slot Configuration -->
+  <div class="bg-card border border-border rounded-lg p-6">
+    <h3 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4">
+      Slot Configuration
+    </h3>
+
+    <div data-testid="group-slots" class="space-y-4">
+      {% if slots %}
+        {% for slot in slots %}
+        <div data-testid="slot-item" class="border border-border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span data-testid="slot-position" class="font-medium text-[var(--color-text-primary)]">
+              Position {{ slot.position }}
+            </span>
+            <span class="text-xs text-[var(--color-text-muted)]">
+              {{ slot.gear_count }} option{{ 's' if slot.gear_count != 1 else '' }}
+            </span>
+          </div>
+
+          <div data-testid="slot-gear-options" class="flex flex-wrap gap-2">
+            {% for gear in slot.gear_options %}
+            <span class="inline-flex items-center gap-1 px-3 py-1 bg-[var(--color-bg-elevated)] border border-border rounded-lg text-sm text-[var(--color-text-secondary)]">
+              {{ gear.name }}
+            </span>
+            {% endfor %}
+            {% if slot.include_null %}
+            <span class="inline-flex items-center gap-1 px-3 py-1 bg-[var(--color-bg-elevated)] border border-border rounded-lg text-sm text-[var(--color-text-muted)] italic">
+              (empty)
+            </span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-[var(--color-text-muted)] text-sm text-center py-4">
+          No slot configuration defined
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="flex items-center justify-between gap-4">
+    <button
+      type="button"
+      data-testid="generate-chains-btn"
+      @click="generateChains()"
+      :disabled="generating"
+      class="inline-flex items-center gap-2 px-6 py-3 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary)]/90 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+      </svg>
+      <span x-text="generating ? 'Generating...' : 'Generate Chains'"></span>
+    </button>
+
+    <button
+      type="button"
+      data-testid="delete-group-btn"
+      @click="openDeleteModal()"
+      :disabled="deleting"
+      class="inline-flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+        <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+      </svg>
+      Delete Group
+    </button>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div
+    x-show="showDeleteConfirmation"
+    x-cloak
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+    @click.self="closeDeleteModal()"
+  >
+    <div
+      data-testid="delete-confirmation"
+      class="bg-card border border-border rounded-lg p-6 max-w-md w-full mx-4"
+      @click.stop
+    >
+      <h3 class="text-lg font-semibold text-[var(--color-text-primary)] mb-2">
+        Delete Group?
+      </h3>
+      <p class="text-[var(--color-text-secondary)] mb-6">
+        Are you sure you want to delete "{{ group.name }}"? This action cannot be undone.
+      </p>
+
+      <div class="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          data-testid="cancel-delete-btn"
+          @click="closeDeleteModal()"
+          :disabled="deleting"
+          class="px-4 py-2 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] font-medium rounded-lg transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          data-testid="confirm-delete-btn"
+          @click="performDelete()"
+          :disabled="deleting"
+          class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+        >
+          <span x-text="deleting ? 'Deleting...' : 'Delete'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
