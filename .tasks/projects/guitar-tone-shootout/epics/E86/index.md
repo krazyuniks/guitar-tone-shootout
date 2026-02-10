@@ -29,7 +29,7 @@ T90 → T99
 | T89 | DI Track Upload Endpoint | complete | webapp | - |
 | T90 | DI Track Stream Endpoint | complete | webapp | T89 |
 | T91 | DI Track Audio Player UI | complete | - | T90 |
-| T92 | DI Track Seed Import Command | pending | - | - |
+| T92 | DI Track Seed Import Command | locked | - | - |
 | T93 | SignalChainGroupService + CRUD API | pending | webapp | - |
 | T94 | Permutation Batch Generation | pending | webapp | T93 |
 | T95 | Signal Chain Group Management UI | pending | - | T93, T94 |
