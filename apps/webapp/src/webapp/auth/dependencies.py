@@ -95,9 +95,9 @@ async def get_current_user_required(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> User:
-    """Require authenticated user — raises 401 if not authenticated.
+    """Require authenticated user — raises 401 JSON if not authenticated.
 
-    For protected pages and API endpoints.
+    For API endpoints only. Page routes should use get_current_user_page.
     """
     if _user_override is not None:
         return _user_override
@@ -110,6 +110,28 @@ async def get_current_user_required(
     return user
 
 
+class RedirectToLogin(Exception):
+    """Raised by page-level auth to trigger a redirect to /login."""
+
+
+async def get_current_user_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> User:
+    """Require authenticated user — redirects to /login if not authenticated.
+
+    For SSR page routes. Raises RedirectToLogin (handled by exception handler
+    in main.py) so the browser gets a 302 redirect instead of JSON 401.
+    """
+    if _user_override is not None:
+        return _user_override
+    user = await _get_user_from_cookie(request, db)
+    if user is None:
+        raise RedirectToLogin
+    return user
+
+
 # Type aliases for use in route signatures
 CurrentUser = Annotated[User, Depends(get_current_user_required)]
+CurrentUserPage = Annotated[User, Depends(get_current_user_page)]
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]

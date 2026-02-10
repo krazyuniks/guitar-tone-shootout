@@ -23,7 +23,7 @@ from webapp.adapters.persistence.repositories.signal_chain_repository import (
 )
 from webapp.auth.dependencies import (
     get_current_user_optional,
-    get_current_user_required,
+    get_current_user_page,
     get_db_session,
 )
 from webapp.services.gear_service import GearService
@@ -340,7 +340,7 @@ async def di_tracks_browse_page(
 async def library_my_gear_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's gear library page.
 
@@ -380,7 +380,7 @@ async def library_my_gear_page(
 async def library_chains_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's signal chain library page.
 
@@ -413,7 +413,7 @@ async def library_chains_page(
 async def chain_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render chain list fragment for HTMX updates."""
     repo = SQLAlchemySignalChainRepository(db)
@@ -443,7 +443,7 @@ async def chain_delete_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Delete a signal chain via HTMX."""
     repo = SQLAlchemySignalChainRepository(db)
@@ -466,7 +466,7 @@ async def chain_duplicate_fragment(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Duplicate a signal chain via HTMX."""
     from datetime import datetime
@@ -524,7 +524,7 @@ async def chain_duplicate_fragment(
 async def chain_builder_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
     chain_id: str | None = Query(None, description="Chain ID for editing"),
 ) -> HTMLResponse:
     """Render chain builder page.
@@ -545,7 +545,7 @@ async def chain_builder_page(
 async def library_shootouts_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's shootout library page.
 
@@ -580,7 +580,7 @@ async def shootout_detail_page(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render shootout detail page.
 
@@ -649,7 +649,7 @@ async def shootout_detail_page(
 async def shootout_list_fragment(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render shootout list fragment for HTMX updates."""
     service = ShootoutService(db)
@@ -680,7 +680,7 @@ async def shootout_delete_fragment(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Delete a shootout via HTMX."""
     service = ShootoutService(db)
@@ -703,7 +703,7 @@ async def chain_detail_page(
     request: Request,
     chain_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render signal chain detail page.
 
@@ -767,7 +767,7 @@ async def chain_detail_page(
 @router.get("/shootout/create", response_class=HTMLResponse)
 async def shootout_create_page(
     request: Request,
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render shootout creation wizard page.
 
@@ -786,7 +786,7 @@ async def shootout_create_page(
 @router.get("/library/di-tracks", response_class=HTMLResponse)
 async def library_di_tracks_page(
     request: Request,
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render user's DI tracks library page.
 
@@ -803,7 +803,7 @@ async def library_di_tracks_page(
 async def settings_account_page(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_required)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
 ) -> HTMLResponse:
     """Render account settings page with linked provider status."""
 

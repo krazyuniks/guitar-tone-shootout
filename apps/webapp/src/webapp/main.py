@@ -2,8 +2,9 @@
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from webapp.api import pages
 from webapp.api.v1 import (
@@ -17,6 +18,7 @@ from webapp.api.v1 import (
     shootouts,
     signal_chains,
 )
+from webapp.auth.dependencies import RedirectToLogin
 from webapp.dependencies import get_db, init_db
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
@@ -78,6 +80,11 @@ def create_app() -> FastAPI:
         for module in [health, gear, shootouts, jobs]:
             if hasattr(module, "get_db_session"):
                 app.dependency_overrides[module.get_db_session] = get_db
+
+    @app.exception_handler(RedirectToLogin)
+    async def redirect_to_login(_request: Request, _exc: RedirectToLogin) -> RedirectResponse:
+        """Redirect unauthenticated page requests to /login."""
+        return RedirectResponse(url="/login", status_code=302)
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:

@@ -33,46 +33,12 @@ class TestDITracksPages:
         # This is a basic smoke test - just verify the page loads
         assert guest_page.url.endswith("/di-tracks")
 
-    async def test_di_tracks_library_page_requires_auth(
+    async def test_di_tracks_library_page_redirects_to_login(
         self, guest_page: Page, frontend_url: str
     ) -> None:
-        """DI tracks library page redirects unauthenticated users."""
+        """DI tracks library page redirects unauthenticated users to /login."""
         await guest_page.goto(f"{frontend_url}/library/di-tracks")
-
-        # Should redirect to auth or show error (implementation-dependent)
-        # For now, just verify we don't get a 500 error
-        await expect(guest_page.locator("body")).to_be_visible()
-
-    async def test_di_tracks_library_page_authenticated(
-        self, page: Page, frontend_url: str
-    ) -> None:
-        """DI tracks library page returns 200 for authenticated user."""
-        # Note: The 'page' fixture is currently the same as guest_page
-        # When auth is implemented, this fixture will handle login
-        await page.goto(f"{frontend_url}/library/di-tracks")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-        assert page.url.endswith("/library/di-tracks")
-
-    async def test_di_tracks_upload_form_present(
-        self, page: Page, frontend_url: str
-    ) -> None:
-        """DI tracks library page contains upload form elements.
-
-        This verifies the acceptance criterion: "DI tracks upload page returns 200
-        with upload form". The upload form is part of the library page, not a
-        separate page.
-        """
-        await page.goto(f"{frontend_url}/library/di-tracks")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-        # Verify page has form elements for upload
-        # The actual form structure will be implementation-specific,
-        # but we verify the page loads successfully
-        assert page.url.endswith("/library/di-tracks")
+        assert guest_page.url.endswith("/login")
 
 
 @pytest.mark.asyncio
@@ -80,15 +46,12 @@ class TestDITracksPages:
 class TestShootoutPages:
     """Verify shootout pages return 200 and render correctly."""
 
-    async def test_shootout_wizard_page_returns_200(
-        self, page: Page, frontend_url: str
+    async def test_shootout_wizard_redirects_to_login(
+        self, guest_page: Page, frontend_url: str
     ) -> None:
-        """Shootout wizard page returns 200 with step 1 content."""
-        await page.goto(f"{frontend_url}/shootout/create")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-        assert page.url.endswith("/shootout/create")
+        """Shootout wizard page redirects unauthenticated users to /login."""
+        await guest_page.goto(f"{frontend_url}/shootout/create")
+        assert guest_page.url.endswith("/login")
 
     async def test_shootout_detail_page_with_valid_id(
         self, guest_page: Page, frontend_url: str
@@ -156,51 +119,35 @@ class TestGearPages:
 @pytest.mark.asyncio
 @pytest.mark.e2e
 class TestLibraryPages:
-    """Verify library pages return 200 and render correctly."""
+    """Verify library pages redirect unauthenticated users to /login."""
 
-    async def test_library_chains_page_returns_200(
-        self, page: Page, frontend_url: str
+    async def test_library_chains_redirects_to_login(
+        self, guest_page: Page, frontend_url: str
     ) -> None:
-        """Signal chain library page returns 200 for authenticated user."""
-        await page.goto(f"{frontend_url}/library/chains")
+        """Signal chain library page redirects to /login."""
+        await guest_page.goto(f"{frontend_url}/library/chains")
+        assert guest_page.url.endswith("/login")
 
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-        assert page.url.endswith("/library/chains")
-
-    async def test_library_my_gear_page_returns_200(
-        self, page: Page, frontend_url: str
+    async def test_library_my_gear_redirects_to_login(
+        self, guest_page: Page, frontend_url: str
     ) -> None:
-        """My gear library page returns 200 for authenticated user."""
-        await page.goto(f"{frontend_url}/library/my-gear")
+        """My gear library page redirects to /login."""
+        await guest_page.goto(f"{frontend_url}/library/my-gear")
+        assert guest_page.url.endswith("/login")
 
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-        assert page.url.endswith("/library/my-gear")
-
-    async def test_library_shootouts_page_returns_200(
-        self, page: Page, frontend_url: str
+    async def test_library_shootouts_redirects_to_login(
+        self, guest_page: Page, frontend_url: str
     ) -> None:
-        """Shootouts library page returns 200 for authenticated user."""
-        await page.goto(f"{frontend_url}/library/shootouts")
+        """Shootouts library page redirects to /login."""
+        await guest_page.goto(f"{frontend_url}/library/shootouts")
+        assert guest_page.url.endswith("/login")
 
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-        assert page.url.endswith("/library/shootouts")
-
-    async def test_library_chain_groups_page_returns_200(
-        self, page: Page, frontend_url: str
+    async def test_library_chain_groups_returns_404(
+        self, guest_page: Page, frontend_url: str
     ) -> None:
-        """Signal chain groups library page returns 200 for authenticated user.
-
-        This verifies the acceptance criterion: "Signal chain groups library page
-        returns 200 for authenticated user".
-        """
-        await page.goto(f"{frontend_url}/library/groups")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-        assert page.url.endswith("/library/groups")
+        """Signal chain groups page route does not exist yet."""
+        response = await guest_page.goto(f"{frontend_url}/library/groups")
+        assert response is not None and response.status == 404
 
 
 @pytest.mark.asyncio

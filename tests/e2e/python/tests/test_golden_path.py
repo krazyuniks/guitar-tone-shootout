@@ -87,33 +87,33 @@ class TestPublicFragments:
         assert response is not None and response.status == 200
 
 
-# --- Protected pages (401 without auth) ---
+# --- Protected pages (redirect to /login without auth) ---
 
 
 @pytest.mark.asyncio
 @pytest.mark.regression
 class TestProtectedPages:
-    """Protected pages return 401 for unauthenticated requests."""
+    """Protected pages redirect unauthenticated users to /login."""
 
     async def test_library_my_gear(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/library/my-gear")
-        assert response is not None and response.status == 401
+        await guest_page.goto(f"{frontend_url}/library/my-gear")
+        assert guest_page.url.endswith("/login")
 
     async def test_library_chains(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/library/chains")
-        assert response is not None and response.status == 401
+        await guest_page.goto(f"{frontend_url}/library/chains")
+        assert guest_page.url.endswith("/login")
 
     async def test_library_shootouts(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/library/shootouts")
-        assert response is not None and response.status == 401
+        await guest_page.goto(f"{frontend_url}/library/shootouts")
+        assert guest_page.url.endswith("/login")
 
     async def test_library_di_tracks(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/library/di-tracks")
-        assert response is not None and response.status == 401
+        await guest_page.goto(f"{frontend_url}/library/di-tracks")
+        assert guest_page.url.endswith("/login")
 
     async def test_shootout_create(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/shootout/create")
-        assert response is not None and response.status == 401
+        await guest_page.goto(f"{frontend_url}/shootout/create")
+        assert guest_page.url.endswith("/login")
 
 
 # --- 404 responses ---
