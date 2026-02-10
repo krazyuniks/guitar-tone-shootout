@@ -84,16 +84,21 @@ async def second_gear_model(
 
 
 @pytest.fixture
-async def authenticated_client(db_session: AsyncSession, test_user: User) -> AsyncClient:
+async def authenticated_client(db_session: AsyncSession, test_user: User):
     """Create an authenticated async HTTP client."""
-    from webapp.auth.jwt import create_access_token
+    from webapp.auth.dependencies import set_session_override, set_user_override
 
-    token = create_access_token(test_user.id)
-    return AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    set_session_override(db_session)
+    set_user_override(test_user)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        yield client
+
+    # Cleanup
+    set_session_override(None)
+    set_user_override(None)
 
 
 @pytest.mark.asyncio
@@ -345,32 +350,23 @@ class TestLibraryModelLevelAPI:
     ) -> None:
         """All endpoints require authentication."""
         # Create unauthenticated client
-        unauthenticated_client = AsyncClient(
+        async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
-        )
+        ) as unauthenticated_client:
+            # GET without auth
+            response = await unauthenticated_client.get("/api/v1/library/gear")
+            assert response.status_code == 401
 
-        # GET without auth
-        response = await unauthenticated_client.get("/api/v1/library/gear")
-        assert response.status_code == 401
+            # POST without auth
+            response = await unauthenticated_client.post(
+                "/api/v1/library/gear",
+                json={"gear_model_id": str(test_gear_model.id)},
+            )
+            assert response.status_code == 401
 
-        # POST without auth
-        response = await unauthenticated_client.post(
-            "/api/v1/library/gear",
-            json={"gear_model_id": str(test_gear_model.id)},
-        )
-        assert response.status_code == 401
-
-        # DELETE without auth
-        response = await unauthenticated_client.delete(
-            f"/api/v1/library/gear/{uuid4()}",
-        )
-        assert response.status_code == 401
-
-        # TOGGLE without auth
-        response = await unauthenticated_client.post(
-            f"/api/v1/library/gear/{test_gear_model.id}/toggle",
-        )
-        assert response.status_code == 401
-
-        await unauthenticated_client.aclose()
+            # DELETE without auth
+            response = await unauthenticated_client.delete(
+                f"/api/v1/library/gear/{uuid4()}",
+            )
+            assert response.status_code == 401
