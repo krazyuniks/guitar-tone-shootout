@@ -27,7 +27,7 @@ T90 → T99
 | T87 | UserGear FK Migration — Domain + OR | complete | webapp | - |
 | T88 | Fix UserGear FK Downstream Consumer | complete | webapp | T87 |
 | T89 | DI Track Upload Endpoint | complete | webapp | - |
-| T90 | DI Track Stream Endpoint | locked | webapp | T89 |
+| T90 | DI Track Stream Endpoint | complete | webapp | T89 |
 | T91 | DI Track Audio Player UI | pending | - | T90 |
 | T92 | DI Track Seed Import Command | pending | - | - |
 | T93 | SignalChainGroupService + CRUD API | pending | webapp | - |
