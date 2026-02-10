@@ -224,6 +224,51 @@ async def update_signal_chain_group(
     )
 
 
+@router.post("/{group_id}/generate", response_model=list[str])
+async def generate_permutations(
+    group_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user_required)],
+) -> list[str]:
+    """Generate signal chain permutations from a group.
+
+    Protected endpoint - requires authentication.
+    Returns 404 if group not found or not owned by user.
+    Returns 400 if permutations exceed the maximum limit.
+
+    Args:
+        group_id: Group ID to generate permutations for
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        List of created chain IDs
+
+    Raises:
+        HTTPException: 404 if group not found or not owned by user
+        HTTPException: 400 if too many permutations
+    """
+    service = SignalChainGroupService(db)
+    group = await service.get_by_id(group_id)
+
+    if not group or group.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Signal chain group not found",
+        )
+
+    try:
+        async with db.begin():
+            chain_ids = await service.generate_permutations(group_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+    return chain_ids
+
+
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_signal_chain_group(
     group_id: UUID,

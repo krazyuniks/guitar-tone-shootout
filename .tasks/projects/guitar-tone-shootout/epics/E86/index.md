@@ -31,7 +31,7 @@ T90 → T99
 | T91 | DI Track Audio Player UI | complete | - | T90 |
 | T92 | DI Track Seed Import Command | complete | - | - |
 | T93 | SignalChainGroupService + CRUD API | complete | webapp | - |
-| T94 | Permutation Batch Generation | locked | webapp | T93 |
+| T94 | Permutation Batch Generation | complete | webapp | T93 |
 | T95 | Signal Chain Group Management UI | pending | - | T93, T94 |
 | T96 | Model-Level Gear Library Management | pending | webapp | T88 |
 | T97 | Gear Detail Page with Model Listing | pending | - | T96 |
