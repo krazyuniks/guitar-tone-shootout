@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import (
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
-from webapp.api.pages import (
+from webapp.auth.dependencies import (
     set_session_override,
     set_user_override,
 )

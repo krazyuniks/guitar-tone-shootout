@@ -83,11 +83,28 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 
 
 def pytest_runtest_call(item: pytest.Item) -> None:
-    """Hook that runs during test execution to wire test_user as current user."""
+    """Hook that runs during test execution to wire test_user as current user.
+
+    Only wires when test_user is a DIRECT parameter of the test function,
+    or when authenticated_client is a direct parameter (which depends on
+    test_user). Tests that only use test_user as an indirect dependency
+    (e.g., via group_with_2x2) won't get auto-wired, allowing them to
+    test unauthenticated access.
+    """
+    import inspect
+
     from webapp.auth.dependencies import set_user_override
 
-    # Check if test_user fixture was used
-    if hasattr(item, "funcargs") and "test_user" in item.funcargs:
+    # Get the actual function's parameter names
+    func = item.obj if hasattr(item, "obj") else None
+    if func is None:
+        return
+    direct_params = set(inspect.signature(func).parameters.keys()) - {"self"}
+
+    # Wire test_user if: (a) test_user is a direct param, or
+    # (b) authenticated_client is a direct param (it manages auth explicitly)
+    should_wire = "test_user" in direct_params or "authenticated_client" in direct_params
+    if should_wire and hasattr(item, "funcargs") and "test_user" in item.funcargs:
         test_user = item.funcargs["test_user"]
         set_user_override(test_user)
         print(f"[HOOK] Setting current user: {test_user.username}")

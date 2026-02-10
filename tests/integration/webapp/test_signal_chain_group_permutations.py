@@ -176,17 +176,34 @@ async def ir_gear_1(db_session: AsyncSession, test_user: User) -> UserGear:
 @pytest.fixture
 async def ir_gear_2(db_session: AsyncSession, test_user: User) -> UserGear:
     """Create second IR gear option."""
-    gear = UserGear(
+    gear = Gear(
         id=uuid4(),
-        user_id=test_user.id,
         name="V30",
-        gear_type=GearType.IR.value,
-        platform=Platform.NAM.value,
+        slug="v30",
+        gear_type=GearType.IR,
+        is_public=True,
     )
     db_session.add(gear)
     await db_session.flush()
-    await db_session.refresh(gear)
-    return gear
+
+    gear_model = GearModel(
+        id=uuid4(),
+        gear_id=gear.id,
+        platform=Platform.NAM,
+        size=ModelSize.STANDARD,
+    )
+    db_session.add(gear_model)
+    await db_session.flush()
+
+    user_gear = UserGear(
+        id=uuid4(),
+        user_id=test_user.id,
+        gear_model_id=gear_model.id,
+    )
+    db_session.add(user_gear)
+    await db_session.flush()
+    await db_session.refresh(user_gear)
+    return user_gear
 
 
 @pytest.fixture
