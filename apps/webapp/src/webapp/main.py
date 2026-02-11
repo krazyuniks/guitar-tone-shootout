@@ -33,6 +33,7 @@ from webapp.exception_handlers import (
 )
 from webapp.exceptions import AppException
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
+from webapp.shutdown import ShutdownMiddleware, create_lifespan
 
 
 def create_app() -> FastAPI:
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
         title="Guitar Tone Shootout",
         description="Compare guitar tones with scientific precision",
         version="0.1.0",
+        lifespan=create_lifespan(),
     )
 
     # Initialize database (for tests, DATABASE_URL can be set externally)
@@ -48,7 +50,7 @@ def create_app() -> FastAPI:
     if database_url:
         init_db(database_url)
 
-    # Middleware order: outermost first (RequestID -> Timing -> CORS)
+    # Middleware order: outermost first (RequestID -> Timing -> Shutdown -> CORS)
     # CORS must be added last so it's innermost (FastAPI reverses order)
     cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:9000")
     cors_origins = [o.strip() for o in cors_origins_env.split(",")]
@@ -63,6 +65,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Shutdown middleware accesses shutdown_manager from request.app.state,
+    # which is set during lifespan startup. This is safe because lifespan
+    # startup runs before any requests are handled.
+    app.add_middleware(ShutdownMiddleware)
     app.add_middleware(TimingMiddleware)
     app.add_middleware(RequestIDMiddleware)
 

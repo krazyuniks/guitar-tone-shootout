@@ -46,7 +46,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T118 | UserNotification Model + Service +  | complete | webapp | - |
 | T119 | Settings/Account Page | complete | webapp | - |
 | T120 | Dynamic Sitemap.xml Endpoint | complete | webapp | - |
-| T121 | Graceful Shutdown + Signal Handlers | pending | webapp | - |
+| T121 | Graceful Shutdown + Signal Handlers | locked | webapp | - |
 | T122 | Test Error Endpoints (Dev-Mode Only | pending | webapp | T114 |
 | T123 | Mount Signal Chain Groups Router +  | pending | webapp | - |
 | T124 | Fix DI Track Frontend/API Contract  | pending | webapp | - |
