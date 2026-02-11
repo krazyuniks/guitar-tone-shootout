@@ -308,6 +308,27 @@ def check_infra_health() -> bool:
 
 def git_sync() -> None:
     """Rebase on origin/main and push after commits."""
+    # Fix log files to prevent pre-commit hook failures
+    subprocess.run(
+        [
+            "find",
+            ".tasks/",
+            "-name",
+            "*.log",
+            "-exec",
+            "sed",
+            "-i",
+            "-e",
+            r"s/[[:space:]]*$//",
+            "-e",
+            "$a\\",
+            "{}",
+            "+",
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
     # Stage any unstaged changes (epic-sync updates .tasks/ timestamps)
     subprocess.run(
         ["git", "add", ".tasks/", "tests/", "frontend/"],
