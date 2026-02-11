@@ -74,6 +74,10 @@ class DistributedLock:
         """Renew the lock TTL to 60 seconds."""
         await self.redis_client.expire(self.lock_key, 60)
 
+    async def renew(self) -> None:
+        """Renew the lock TTL to 60 seconds (public interface)."""
+        await self._renew_lock()
+
     async def start_heartbeat(self) -> None:
         """Start background heartbeat task to renew lock every 30s.
 
