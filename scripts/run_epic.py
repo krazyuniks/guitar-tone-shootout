@@ -397,7 +397,24 @@ def git_sync() -> None:
         text=True,
     )
     if result.returncode != 0:
-        log(f"  Git merge failed (non-fatal): {result.stderr.strip()}", "warning")
+        # Check for unmerged paths (conflict) — abort merge to keep tree clean
+        check_unmerged = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=U"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        if check_unmerged.stdout.strip():
+            log(f"  Git merge conflict in: {check_unmerged.stdout.strip()}", "warning")
+            subprocess.run(
+                ["git", "merge", "--abort"],
+                cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+            )
+            log("  Git merge aborted — manual resolution needed", "warning")
+        else:
+            log(f"  Git merge failed (non-fatal): {result.stderr.strip()}", "warning")
     else:
         log(f"  Merged: {result.stdout.strip()}", "debug")
 
