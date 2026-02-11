@@ -593,6 +593,7 @@ dependencies = [
     { name = "gts-core" },
     { name = "pillow" },
     { name = "pydantic" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -601,6 +602,7 @@ requires-dist = [
     { name = "gts-core", editable = "libs/core" },
     { name = "pillow", specifier = ">=11.0.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
 [[package]]

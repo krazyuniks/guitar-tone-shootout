@@ -30,11 +30,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js (for video integration tests with Remotion/TypeScript)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && npm install -g npm@latest
+# Install Node.js 20 (for video integration tests with Remotion/TypeScript)
+# Available natively in Debian 13 (trixie) repos
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with host UID/GID
 RUN groupadd -g $GID appgroup || true \
