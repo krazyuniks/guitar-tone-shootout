@@ -1,0 +1,13 @@
+{
+  "task_id": "T111",
+  "created": "2026-02-11T04:01:27.534399+00:00",
+  "commit": "3e0f4f858d36",
+  "files": [
+    {
+      "path": "tests/integration/webapp/test_processing_trigger.py",
+      "sha256": "d1cf0a5033f8dd20cfa0f0519251b247c8ab3af9997387cbb8b41a1b7faa8161",
+      "size": 15435,
+      "modified": "2026-02-11T04:01:18.827863+00:00"
+    }
+  ]
+}
