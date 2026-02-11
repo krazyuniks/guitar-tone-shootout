@@ -9,12 +9,21 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+from uuid import uuid4
+
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+
+from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from webapp.adapters.persistence.models.base import Base
+from webapp.adapters.persistence.models.gear import Gear, GearTag
+from webapp.adapters.persistence.models.gear_model import GearModel
+from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.models.user_gear import UserGear
 
 
 class _TestAsyncSession(AsyncSession):
@@ -29,16 +38,6 @@ class _TestAsyncSession(AsyncSession):
         if self.in_transaction():
             return self.begin_nested(**kw)
         return super().begin(**kw)
-
-
-from uuid import uuid4
-
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.models.gear import Gear, GearTag
-from webapp.adapters.persistence.models.gear_model import GearModel
-from webapp.adapters.persistence.models.user import User
-from webapp.adapters.persistence.models.user_gear import UserGear
 
 
 @pytest.fixture
@@ -206,7 +205,12 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 
     # Wire test_user if: (a) test_user is a direct param, or
     # (b) authenticated_client is a direct param (it manages auth explicitly)
-    should_wire = "test_user" in direct_params or "authenticated_client" in direct_params
+    # BUT never wire if unauthenticated_client is also a direct param —
+    # the test explicitly wants unauthenticated access even when test_user
+    # is needed for setup (e.g., creating owned resources).
+    should_wire = (
+        "test_user" in direct_params or "authenticated_client" in direct_params
+    ) and "unauthenticated_client" not in direct_params
     if should_wire and hasattr(item, "funcargs") and "test_user" in item.funcargs:
         test_user = item.funcargs["test_user"]
         set_user_override(test_user)
