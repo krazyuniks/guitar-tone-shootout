@@ -57,6 +57,5 @@ Or see the global `/worktree` skill for detailed documentation.
 
 Once your worktree is created:
 1. `cd` into the new worktree directory
-2. Run `/plan <issue>` to brainstorm implementation details
-3. Or run `/ralph-plan` to create Ralph PRD artifacts
-4. Then `ralph run` to execute
+2. Run `/epic plan <issue>` to plan tasks
+3. Run `/epic start <issue>` to execute

@@ -7,7 +7,7 @@ Claude Code customizations for the Guitar Tone Shootout project.
 ```
 .claude/
 ├── agents/          # Specialized agent personas
-├── commands/        # Slash commands (/plan, /check, /merge, /resume)
+├── commands/        # Slash commands (/epic, /check, /merge, /resume)
 ├── hooks/           # Lifecycle hooks (sync on start)
 ├── skills/          # Domain knowledge (frontend, backend, testing, etc.)
 ├── rules/           # Codebase rules (security, container-execution)
@@ -24,7 +24,7 @@ Claude Code customizations for the Guitar Tone Shootout project.
 
 | Command | Purpose |
 |---------|---------|
-| `/plan` | Plan epics with iterative refinement |
+| `/epic` | Epic lifecycle — plan, validate, fix, start, status |
 | `/check` | Run quality gates |
 | `/merge` | Run quality gates, browser test, create PR, merge to main |
 | `/resume` | Resume from session state |
