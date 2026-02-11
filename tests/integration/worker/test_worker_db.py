@@ -149,10 +149,8 @@ class TestGetSession:
 
         # After exiting context, session should be closed
         assert session_ref is not None
-        # SQLAlchemy doesn't have a simple is_closed() — we check the state indirectly
-        # by verifying we can't execute queries
-        with pytest.raises((RuntimeError, AttributeError)):
-            await session_ref.execute(text("SELECT 1"))
+        # Verify session is no longer in an active transaction
+        assert not session_ref.in_transaction()
 
 
 @pytest.mark.asyncio
@@ -164,9 +162,7 @@ class TestDatabaseConnectivity:
         """Worker session can query the jobs table."""
         from worker.db import get_session
 
-        database_url = str(db_engine.url)
-
-        async with get_session(database_url) as session:
+        async with get_session(db_engine) as session:
             # Query jobs table (should be empty in fresh test DB)
             result = await session.execute(text("SELECT count(*) FROM jobs"))
             count = result.scalar()
@@ -177,9 +173,7 @@ class TestDatabaseConnectivity:
         from webapp.adapters.persistence.models.job import Job
         from worker.db import get_session
 
-        database_url = str(db_engine.url)
-
-        async with get_session(database_url) as session:
+        async with get_session(db_engine) as session:
             # Query jobs using ORM
             stmt = select(Job)
             result = await session.execute(stmt)
