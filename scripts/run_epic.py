@@ -111,6 +111,83 @@ def log_structured(event: str, **data: object) -> None:
 
 
 # ---------------------------------------------------------------------------
+# T3K auth pre-flight gate
+# ---------------------------------------------------------------------------
+
+
+def validate_t3k_auth(dry_run: bool = False) -> None:
+    """Validate T3K auth tokens before epic execution.
+
+    Layer 1: Check token file exists and isn't expired.
+    Layer 2: Browser verification via Playwright MCP.
+    Halts epic on failure.
+    """
+    # Layer 1: fast file check
+    sys.path.insert(0, str(PROJECT_ROOT / "worktree"))
+    from auth import check_auth_status
+
+    status = check_auth_status()
+    if not status.valid:
+        log(f"T3K auth invalid: {status.message}")
+        die("T3K auth required. Run: ./worktree.py auth-login")
+
+    log(f"T3K auth: {status.message}")
+
+    if dry_run:
+        log("  [dry-run] Would verify T3K login via Playwright MCP")
+        return
+
+    # Layer 2: browser verification
+    log("Verifying T3K login via Playwright...")
+    mcp_config = {
+        "mcpServers": {
+            "playwright": {
+                "command": "npx",
+                "args": ["-y", "@playwright/mcp@latest"],
+            }
+        }
+    }
+
+    try:
+        result = subprocess.run(
+            [
+                "claude",
+                "--max-turns",
+                "3",
+                "--dangerously-skip-permissions",
+                "--strict-mcp-config",
+                "--mcp-config",
+                json.dumps(mcp_config),
+                "-p",
+                "-",
+            ],
+            input=textwrap.dedent("""\
+                Navigate to https://tone3000.com using Playwright MCP.
+                Check if the user is logged in (look for profile/account elements,
+                username display, or authenticated navigation state).
+
+                Reply with EXACTLY one line:
+                AUTH_OK: <username> if logged in
+                AUTH_FAIL: <reason> if not logged in
+            """),
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        log("  T3K browser auth check timed out (60s) — skipping layer 2")
+        return
+
+    output = result.stdout.strip()
+    if "AUTH_OK" in output:
+        log(f"  T3K browser auth verified: {output}")
+    else:
+        log(f"  T3K browser auth FAILED: {output}")
+        die("T3K browser auth verification failed. Run: ./worktree.py auth-login")
+
+
+# ---------------------------------------------------------------------------
 # Infrastructure health check
 # ---------------------------------------------------------------------------
 
@@ -1761,6 +1838,9 @@ def cmd_run(args: argparse.Namespace) -> None:
     # Detect pre-existing test failures before starting
     if not args.dry_run:
         detect_preexisting_failures()
+
+    # T3K auth gate (hard halt if invalid)
+    validate_t3k_auth(dry_run=args.dry_run)
 
     # Approval screen
     show_approval_screen(args.epic, args.dry_run, args.max_iterations)
