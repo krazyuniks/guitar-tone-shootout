@@ -118,20 +118,25 @@ def log_structured(event: str, **data: object) -> None:
 def validate_t3k_auth(dry_run: bool = False) -> None:
     """Validate T3K auth tokens before epic execution.
 
-    Layer 1: Check token file exists and isn't expired.
+    Layer 1: Check auth file exists and has access_token.
     Layer 2: Browser verification via Playwright MCP.
     Halts epic on failure.
     """
-    # Layer 1: fast file check
-    sys.path.insert(0, str(PROJECT_ROOT / "worktree"))
-    from auth import check_auth_status
+    # Layer 1: fast file check (read JSON directly to avoid worktree deps)
+    auth_file = PROJECT_ROOT.parent / ".gts-auth.json"
+    if not auth_file.exists():
+        die(f"T3K auth file not found: {auth_file}\nRun: ./worktree.py auth-login")
 
-    status = check_auth_status()
-    if not status.valid:
-        log(f"T3K auth invalid: {status.message}")
-        die("T3K auth required. Run: ./worktree.py auth-login")
+    try:
+        auth_data = json.loads(auth_file.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        die(f"T3K auth file unreadable: {e}\nRun: ./worktree.py auth-login")
 
-    log(f"T3K auth: {status.message}")
+    if not auth_data.get("access_token"):
+        die("T3K auth file has no access_token. Run: ./worktree.py auth-login")
+
+    username = auth_data.get("username", "unknown")
+    log(f"T3K auth: valid for {username}")
 
     if dry_run:
         log("  [dry-run] Would verify T3K login via Playwright MCP")
