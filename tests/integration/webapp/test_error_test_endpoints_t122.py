@@ -19,16 +19,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def app_dev_mode() -> FastAPI:
     """Create a FastAPI app in development mode with test error router."""
-
-    def mock_getenv(key: str, default: str | None = None) -> str | None:
-        """Mock getenv that returns 'development' for ENV, real values otherwise."""
-        if key == "ENV":
-            return "development"
-        import os
-
-        return os.environ.get(key, default)
-
-    with patch("os.getenv", side_effect=mock_getenv):
+    with patch("os.getenv", return_value="development"):
         # Import after patching environment
         from webapp.main import create_app
 
@@ -39,16 +30,7 @@ def app_dev_mode() -> FastAPI:
 @pytest.fixture
 def app_prod_mode() -> FastAPI:
     """Create a FastAPI app in production mode (test router should not mount)."""
-
-    def mock_getenv(key: str, default: str | None = None) -> str | None:
-        """Mock getenv that returns 'production' for ENV, real values otherwise."""
-        if key == "ENV":
-            return "production"
-        import os
-
-        return os.environ.get(key, default)
-
-    with patch("os.getenv", side_effect=mock_getenv):
+    with patch("os.getenv", return_value="production"):
         # Import after patching environment
         from webapp.main import create_app
 
@@ -112,8 +94,7 @@ class TestErrorEndpointsDevelopmentMode:
     async def test_500_endpoint_raises_unhandled_exception(self, app_dev_mode: FastAPI) -> None:
         """Test GET /api/v1/test/error/500 raises unhandled exception."""
         async with AsyncClient(
-            transport=ASGITransport(app=app_dev_mode, raise_app_exceptions=False),
-            base_url="http://test",
+            transport=ASGITransport(app=app_dev_mode), base_url="http://test"
         ) as client:
             response = await client.get("/api/v1/test/error/500")
 
