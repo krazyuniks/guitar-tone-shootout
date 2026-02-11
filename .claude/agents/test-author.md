@@ -258,6 +258,10 @@ Create test files (GTS structure):
 - Integration: `tests/integration/{module}/test_{feature}.py`
 - E2E: `tests/e2e/python/tests/test_{feature}.py`
 
+## Lint/Format Auto-Fix
+
+Ruff lint and format are auto-fixed by the pre-commit hook on commit. Do not spend turns fixing lint issues — they will be resolved automatically when the orchestrator commits your work.
+
 ## GTS Testing Rules
 
 - Tests run in Docker: `docker compose exec -T webapp pytest tests/ -v`

@@ -203,6 +203,10 @@ If the task involves `.html.ts` files in `frontend/astro/src/`:
 3. Implement incrementally, watching tests go green
 4. When all tests pass, you're done
 
+## Lint/Format Auto-Fix
+
+Ruff lint and format are auto-fixed by the pre-commit hook on commit. Do not spend turns fixing lint issues — they will be resolved automatically when the orchestrator commits your work.
+
 ## GTS Rules
 
 - All commands run in Docker (container-first)

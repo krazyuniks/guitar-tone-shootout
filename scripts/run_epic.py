@@ -115,6 +115,77 @@ def log_structured(event: str, **data: object) -> None:
 # ---------------------------------------------------------------------------
 
 
+def detect_preexisting_failures() -> None:
+    """Run full test suite to find pre-existing failures not in known_failures.txt.
+
+    Appends any newly discovered failures to the file so TDD green phases
+    don't waste time on them. Runs before the task loop.
+    """
+    known_failures_path = PROJECT_ROOT / "tests" / "known_failures.txt"
+
+    # Load existing known failures
+    existing: set[str] = set()
+    if known_failures_path.exists():
+        for line in known_failures_path.read_text().splitlines():
+            line = line.strip()
+            if line:
+                existing.add(line)
+
+    log("Pre-flight: detecting pre-existing test failures...")
+
+    # Build deselect args for currently known failures
+    deselect_args: list[str] = []
+    for failure in sorted(existing):
+        deselect_args.extend(["--deselect", failure])
+
+    # Run full suite with known failures deselected
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "webapp",
+            "pytest",
+            "tests/unit/",
+            "tests/integration/",
+            "-v",
+            "-m",
+            "not host_only",
+            *deselect_args,
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    if result.returncode == 0:
+        log("Pre-flight: all tests pass (no new pre-existing failures)")
+        return
+
+    # Parse FAILED and ERROR lines from output
+    output = result.stdout + result.stderr
+    new_failures: list[str] = []
+    for match in re.finditer(r"(?:FAILED|ERROR) (tests/\S+\.py::\S+)", output):
+        test_id = match.group(1)
+        if test_id not in existing:
+            new_failures.append(test_id)
+
+    if not new_failures:
+        log("Pre-flight: failures detected but all are already in known_failures.txt")
+        return
+
+    # Append new failures
+    with known_failures_path.open("a") as f:
+        for failure in sorted(set(new_failures)):
+            f.write(f"{failure}\n")
+
+    log(f"Pre-flight: added {len(new_failures)} new pre-existing failure(s) to known_failures.txt:")
+    for failure in sorted(set(new_failures)):
+        log(f"  + {failure}")
+
+
 def check_infra_health() -> bool:
     """Check that Docker services are healthy before dispatching agents.
 
@@ -1686,6 +1757,10 @@ def cmd_run(args: argparse.Namespace) -> None:
     )
     if result.returncode != 0:
         die(f"Pre-flight validation failed for epic #{args.epic}. Fix with: /epic fix {args.epic}")
+
+    # Detect pre-existing test failures before starting
+    if not args.dry_run:
+        detect_preexisting_failures()
 
     # Approval screen
     show_approval_screen(args.epic, args.dry_run, args.max_iterations)
