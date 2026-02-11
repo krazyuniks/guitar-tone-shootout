@@ -78,6 +78,11 @@ def create_app() -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
+    # Register RuntimeError explicitly so it's handled by ExceptionMiddleware
+    # (which does NOT re-raise). FastAPI routes the generic Exception handler to
+    # ServerErrorMiddleware, which always re-raises after responding — this
+    # breaks ASGITransport tests and wraps in ExceptionGroup with BaseHTTPMiddleware.
+    app.add_exception_handler(RuntimeError, unhandled_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Include API routers

@@ -7,7 +7,6 @@ and are only available in development mode.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -17,25 +16,21 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def app_dev_mode() -> FastAPI:
+def app_dev_mode(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     """Create a FastAPI app in development mode with test error router."""
-    with patch("os.getenv", return_value="development"):
-        # Import after patching environment
-        from webapp.main import create_app
+    monkeypatch.setenv("ENV", "development")
+    from webapp.main import create_app
 
-        app = create_app()
-        return app
+    return create_app()
 
 
 @pytest.fixture
-def app_prod_mode() -> FastAPI:
+def app_prod_mode(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     """Create a FastAPI app in production mode (test router should not mount)."""
-    with patch("os.getenv", return_value="production"):
-        # Import after patching environment
-        from webapp.main import create_app
+    monkeypatch.setenv("ENV", "production")
+    from webapp.main import create_app
 
-        app = create_app()
-        return app
+    return create_app()
 
 
 @pytest.mark.asyncio
