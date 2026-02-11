@@ -1,0 +1,133 @@
+2026-02-11 19:37:51,220 [INFO] Session log: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111/logs/session_20260211_183751.log
+2026-02-11 19:37:51,220 [INFO] Starting TDD state machine for Epic E111
+2026-02-11 19:37:51,220 [INFO]   Tasks dir: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111
+2026-02-11 19:37:51,220 [INFO]   Max iterations: 50
+2026-02-11 19:37:51,220 [INFO]   Dry run: False
+2026-02-11 19:37:51,220 [INFO]
+2026-02-11 19:37:51,220 [INFO] === Iteration 1 ===
+2026-02-11 19:37:51,235 [INFO]   Next task: T113 — Worker container orchestration — run 3 services (state=pending)
+2026-02-11 19:37:51,416 [INFO]
+  Phase: TEST (writing tests for T113)
+2026-02-11 19:37:51,416 [DEBUG] STRUCTURED: {"event": "phase_start", "timestamp": "2026-02-11T18:37:51.416396+00:00", "task_id": 113, "phase": "test"}
+2026-02-11 19:37:51,419 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-11 19:37:51,420 [DEBUG] STRUCTURED: {"event": "agent_dispatch", "timestamp": "2026-02-11T18:37:51.420036+00:00", "agent": "test-author", "model": "sonnet", "max_turns": 20}
+2026-02-11 19:41:22,547 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-11 19:41:22,547 [INFO]
+  Phase: RED (verifying tests fail)
+2026-02-11 19:41:22,547 [INFO]     Running: just tdd-red T113
+2026-02-11 19:41:29,671 [DEBUG]     just tdd-red T113 -> OK
+2026-02-11 19:41:29,671 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/integration/worker/test_entrypoint_orchestration.py
+  tests/unit/worker/test_entrypoint.py
+
+Results: 0 failed, 0 passed, 1 errors
+NOTE: 1 tests errored (import/syntax issues).
+  Errors count as 'not passing' — acceptable in red phase.
+
+Red phase verified: 0 failing + 1 erroring tests found.
+
+2026-02-11 19:41:29,671 [INFO]
+  Phase: LOCK (snapshotting tests)
+2026-02-11 19:41:29,671 [INFO]     Running: just tdd-lock T113
+2026-02-11 19:41:29,867 [DEBUG]     just tdd-lock T113 -> FAILED (exit 1)
+2026-02-11 19:41:29,867 [DEBUG]     Output:
+Unstaged changes detected, stashing unstaged changes to `/home/ryan/.cache/prek/patches/1770835289744-1133561.patch`
+trim trailing whitespace.................................................Failed
+- hook id: trailing-whitespace
+- exit code: 1
+- files were modified by this hook
+
+  Fixing .tasks/projects/guitar-tone-shootout/epics/E111/logs/session_20260211_183751.log
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check toml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+detect private key.......................................................Passed
+ruff.....................................................................Failed
+- hook id: ruff
+- exit code: 1
+
+  tests/unit/worker/test_entrypoint.py:21:31: TC004 Move import `unittest.mock.AsyncMock` out of type-checking block. Import is used for more than type hinting.
+     |
+  20 | if TYPE_CHECKING:
+  21 |     from unittest.mock import AsyncMock, MagicMock
+     |                               ^^^^^^^^^ TC004
+  22 |
+  23 | from worker.entrypoint import (
+     |
+     = help: Move out of type-checking block
+
+  tests/unit/worker/test_entrypoint.py:21:42: TC004 Move import `unittest.mock.MagicMock` out of type-checking block. Import is used for more than type hinting.
+     |
+  20 | if TYPE_CHECKING:
+  21 |     from unittest.mock import AsyncMock, MagicMock
+     |                                          ^^^^^^^^^ TC004
+  22 |
+  23 | from worker.entrypoint import (
+     |
+     = help: Move out of type-checking block
+
+  Found 2 errors.
+  No fixes available (2 hidden fixes can be enabled with the `--unsafe-fixes` option).
+ruff-format..............................................................Failed
+- hook id: ruff-format
+- files were modified by this hook
+
+  1 file reformatted, 1 file left unchanged
+Validate dev-docs exist..................................................Passed
+Astro lint (graceful if Docker not running)..........(no files to check)Skipped
+Restored working tree changes from `/home/ryan/.cache/prek/patches/1770835289744-1133561.patch`
+error: Recipe `tdd-lock` failed with exit code 1
+
+2026-02-11 19:41:29,868 [INFO]
+2026-02-11 19:41:29,868 [INFO] ============================================================
+2026-02-11 19:41:29,868 [INFO] EPIC HALTED — T113 failed at phase: lock_failed
+2026-02-11 19:41:29,868 [INFO] ============================================================
+2026-02-11 19:41:29,868 [INFO] Error report: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111/logs/errors/T113_lock_failed_20260211_184129.md
+2026-02-11 19:41:29,868 [INFO]
+2026-02-11 19:41:29,868 [INFO] Last output:
+2026-02-11 19:41:29,868 [INFO]   check yaml...........................................(no files to check)Skipped
+2026-02-11 19:41:29,868 [INFO]   check toml...........................................(no files to check)Skipped
+2026-02-11 19:41:29,868 [INFO]   check for added large files..............................................Passed
+2026-02-11 19:41:29,868 [INFO]   check for merge conflicts................................................Passed
+2026-02-11 19:41:29,868 [INFO]   detect private key.......................................................Passed
+2026-02-11 19:41:29,868 [INFO]   ruff.....................................................................Failed
+2026-02-11 19:41:29,868 [INFO]   - hook id: ruff
+2026-02-11 19:41:29,868 [INFO]   - exit code: 1
+2026-02-11 19:41:29,868 [INFO]
+2026-02-11 19:41:29,868 [INFO]     tests/unit/worker/test_entrypoint.py:21:31: TC004 Move import `unittest.mock.AsyncMock` out of type-checking block. Import is used for more than type hinting.
+2026-02-11 19:41:29,868 [INFO]        |
+2026-02-11 19:41:29,868 [INFO]     20 | if TYPE_CHECKING:
+2026-02-11 19:41:29,868 [INFO]     21 |     from unittest.mock import AsyncMock, MagicMock
+2026-02-11 19:41:29,868 [INFO]        |                               ^^^^^^^^^ TC004
+2026-02-11 19:41:29,868 [INFO]     22 |
+2026-02-11 19:41:29,868 [INFO]     23 | from worker.entrypoint import (
+2026-02-11 19:41:29,868 [INFO]        |
+2026-02-11 19:41:29,868 [INFO]        = help: Move out of type-checking block
+2026-02-11 19:41:29,868 [INFO]
+2026-02-11 19:41:29,868 [INFO]     tests/unit/worker/test_entrypoint.py:21:42: TC004 Move import `unittest.mock.MagicMock` out of type-checking block. Import is used for more than type hinting.
+2026-02-11 19:41:29,868 [INFO]        |
+2026-02-11 19:41:29,868 [INFO]     20 | if TYPE_CHECKING:
+2026-02-11 19:41:29,868 [INFO]     21 |     from unittest.mock import AsyncMock, MagicMock
+2026-02-11 19:41:29,868 [INFO]        |                                          ^^^^^^^^^ TC004
+2026-02-11 19:41:29,868 [INFO]     22 |
+2026-02-11 19:41:29,868 [INFO]     23 | from worker.entrypoint import (
+2026-02-11 19:41:29,869 [INFO]        |
+2026-02-11 19:41:29,869 [INFO]        = help: Move out of type-checking block
+2026-02-11 19:41:29,869 [INFO]
+2026-02-11 19:41:29,869 [INFO]     Found 2 errors.
+2026-02-11 19:41:29,869 [INFO]     No fixes available (2 hidden fixes can be enabled with the `--unsafe-fixes` option).
+2026-02-11 19:41:29,869 [INFO]   ruff-format..............................................................Failed
+2026-02-11 19:41:29,869 [INFO]   - hook id: ruff-format
+2026-02-11 19:41:29,869 [INFO]   - files were modified by this hook
+2026-02-11 19:41:29,869 [INFO]
+2026-02-11 19:41:29,869 [INFO]     1 file reformatted, 1 file left unchanged
+2026-02-11 19:41:29,869 [INFO]   Validate dev-docs exist..................................................Passed
+2026-02-11 19:41:29,869 [INFO]   Astro lint (graceful if Docker not running)..........(no files to check)Skipped
+2026-02-11 19:41:29,869 [INFO]   Restored working tree changes from `/home/ryan/.cache/prek/patches/1770835289744-1133561.patch`
+2026-02-11 19:41:29,869 [INFO]   error: Recipe `tdd-lock` failed with exit code 1
+2026-02-11 19:41:29,869 [INFO]
+2026-02-11 19:41:29,869 [INFO] To retry, fix the issue and re-run: python scripts/run_epic.py run <epic>
