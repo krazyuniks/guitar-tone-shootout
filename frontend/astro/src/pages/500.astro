@@ -13,7 +13,7 @@ import Layout from '../layouts/Layout.astro';
     <div class="container mx-auto px-4 text-center">
       <!-- Error Code -->
       <div class="mb-6">
-        <span class="font-mono text-8xl font-bold text-red-500/80 md:text-9xl">500</span>
+        <span class="font-mono text-8xl font-bold text-red-500/80 md:text-9xl" data-testid="error-code-500">500</span>
       </div>
 
       <!-- Error Icon -->
@@ -36,7 +36,7 @@ import Layout from '../layouts/Layout.astro';
       </div>
 
       <!-- Error Message -->
-      <h1 class="mb-4 text-3xl font-bold tracking-tight md:text-4xl">
+      <h1 class="mb-4 text-3xl font-bold tracking-tight md:text-4xl" data-testid="error-message">
         Something Went Wrong
       </h1>
       <p class="mx-auto mb-8 max-w-md text-lg text-muted-foreground">
@@ -48,6 +48,7 @@ import Layout from '../layouts/Layout.astro';
       <div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
         <button
           onclick="window.location.reload()"
+          data-testid="error-try-again"
           class="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-amber-600 px-8 text-base font-semibold text-white shadow-lg transition-colors hover:bg-amber-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <svg

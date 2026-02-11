@@ -147,7 +147,10 @@ server {
 
     # Error pages
     error_page 404 /404.html;
-    error_page 500 502 503 504 /500.html;
+    error_page 500 /500.html;
+    error_page 502 /502.html;
+    error_page 503 /503.html;
+    error_page 504 /504.html;
 
     location = /404.html {
         root /usr/share/nginx/html/static;
@@ -156,6 +159,21 @@ server {
 
     location = /500.html {
         root /usr/share/nginx/html/static;
+        internal;
+    }
+
+    location = /502.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
+
+    location = /503.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
+
+    location = /504.html {
+        root /usr/share/nginx/html;
         internal;
     }
 
