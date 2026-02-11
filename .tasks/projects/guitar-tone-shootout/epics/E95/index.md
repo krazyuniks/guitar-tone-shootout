@@ -45,7 +45,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T117 | AuditService (Wire to Auth) | complete | webapp | - |
 | T118 | UserNotification Model + Service +  | complete | webapp | - |
 | T119 | Settings/Account Page | complete | webapp | - |
-| T120 | Dynamic Sitemap.xml Endpoint | locked | webapp | - |
+| T120 | Dynamic Sitemap.xml Endpoint | validating | webapp | - |
 | T121 | Graceful Shutdown + Signal Handlers | pending | webapp | - |
 | T122 | Test Error Endpoints (Dev-Mode Only | pending | webapp | T114 |
 | T123 | Mount Signal Chain Groups Router +  | pending | webapp | - |
