@@ -1,0 +1,83 @@
+{
+  "epic_number": 111,
+  "materialised_at": "2026-02-11T17:27:16.831540+00:00",
+  "source": "tasks_from_plan.py",
+  "tasks": [
+    {
+      "plan_id": "A1",
+      "task_number": 112,
+      "title": "Worker dual database session factory",
+      "project": "worker",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "A2",
+      "task_number": 113,
+      "title": "Worker container orchestration \u2014 run 3 services",
+      "project": "worker",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "A3",
+      "task_number": 114,
+      "title": "T3K oauth_tokens Alembic migration",
+      "project": "source-t3k",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "B1",
+      "task_number": 115,
+      "title": "Admin API \u2014 enqueue, source dashboard, dead-letter, and lock management",
+      "project": "worker",
+      "blocked_by": [
+        112,
+        113
+      ]
+    },
+    {
+      "plan_id": "C1",
+      "task_number": 116,
+      "title": "Interleaved backfill+newest sync loop",
+      "project": "source-t3k",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "C2",
+      "task_number": 117,
+      "title": "Model file download service",
+      "project": "source-t3k",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "D1",
+      "task_number": 118,
+      "title": "pgmq consumer and GearMapperService",
+      "project": "worker",
+      "blocked_by": [
+        112,
+        116,
+        117
+      ]
+    },
+    {
+      "plan_id": "E1",
+      "task_number": 119,
+      "title": "Scheduler tasks \u2014 SOURCE_SYNC handler, ensure_sync, auth refresh",
+      "project": "worker",
+      "blocked_by": [
+        114,
+        115,
+        116
+      ]
+    },
+    {
+      "plan_id": "F1",
+      "task_number": 120,
+      "title": "gts-admin CLI and just admin registration",
+      "project": "tooling",
+      "blocked_by": [
+        115
+      ]
+    }
+  ]
+}
