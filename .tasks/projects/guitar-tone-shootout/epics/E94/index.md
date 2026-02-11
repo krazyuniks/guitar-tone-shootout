@@ -28,8 +28,8 @@ T99 (unblocked)
 
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
-| T100 | T3K Staging Tables + Alembic Migrat | pending | t3k | T99 |
-| T101 | T3K API Client + Rate Limiting | pending | t3k | T99 |
+| T100 | T3K Staging Tables + Alembic Migrat | complete | t3k | T99 |
+| T101 | T3K API Client + Rate Limiting | complete | t3k | T99 |
 | T102 | T3K OAuth Token Management | pending | t3k | T100 |
 | T103 | T3K Sync Service — Backfill + Newes | pending | t3k | T100, T101, T102 |
 | T104 | GearSyncRecord pgmq Publisher | pending | t3k | T99, T100 |
@@ -43,8 +43,8 @@ T99 (unblocked)
 | T112 | WebSocket Job Progress Endpoint | pending | webapp | T97, T98 |
 | T113 | Integration Smoke Test + Quality Ga | pending | worker | T112, T111, T103, T104 |
 | T95 | Worker Redis Broker + Settings | complete | worker | - |
-| T96 | Worker Database Session Factory | pending | worker | T95 |
-| T97 | Worker Admin API Scaffold | pending | worker | T95 |
+| T96 | Worker Database Session Factory | complete | worker | T95 |
+| T97 | Worker Admin API Scaffold | complete | worker | T95 |
 | T98 | Admin API Job Management Endpoints | pending | worker | T96, T97 |
 | T99 | T3K Domain Model | complete | t3k | - |
 
