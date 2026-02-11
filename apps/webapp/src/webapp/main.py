@@ -21,6 +21,7 @@ from webapp.api.v1 import (
     notifications,
     shootouts,
     signal_chains,
+    test,
 )
 from webapp.auth.dependencies import RedirectToLogin
 from webapp.dependencies import get_db, init_db
@@ -93,6 +94,11 @@ def create_app() -> FastAPI:
 
     # Include page routers
     app.include_router(pages.router)
+
+    # Mount test/debug router only in development mode
+    env = os.getenv("ENV", "production")
+    if env == "development":
+        app.include_router(test.router, tags=["test"])
 
     # Override database dependencies with our initialized one.
     # Only override modules that raise NotImplementedError (no fallback).
