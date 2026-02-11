@@ -48,7 +48,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T120 | Dynamic Sitemap.xml Endpoint | complete | webapp | - |
 | T121 | Graceful Shutdown + Signal Handlers | complete | webapp | - |
 | T122 | Test Error Endpoints (Dev-Mode Only | complete | webapp | T114 |
-| T123 | Mount Signal Chain Groups Router +  | locked | webapp | - |
+| T123 | Mount Signal Chain Groups Router +  | validating | webapp | - |
 | T124 | Fix DI Track Frontend/API Contract  | pending | webapp | - |
 | T125 | DI Track Browse Page (Pagination, W | pending | webapp | T124 |
 | T126 | DI Track Upload UI (Drag-Drop, Prog | pending | webapp | T124 |
