@@ -53,8 +53,19 @@ def async_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]
         databases, shared cache mode is automatically enabled to allow multiple
         connections to access the same database.
     """
+    # Check if we already have an engine for this URL BEFORE transformation
+    # This is critical for tests that register engines under specific URLs
+    if database_url in _engine_cache:
+        engine = _engine_cache[database_url]
+        return async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+
     # For SQLite :memory: databases, convert to shared cache mode
     # This allows multiple engine instances to share the same in-memory database
+    original_url = database_url
     if (
         "sqlite" in database_url
         and ":memory:" in database_url
@@ -63,7 +74,7 @@ def async_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]
         # Replace :memory: with file::memory:?cache=shared&uri=true
         database_url = database_url.replace(":memory:", "file::memory:?cache=shared&uri=true")
 
-    # Check if we already have an engine for this URL
+    # Check if we already have an engine for the transformed URL
     if database_url not in _engine_cache:
         # SQLite doesn't support pool_size/max_overflow
         if "sqlite" in database_url:
@@ -81,6 +92,10 @@ def async_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]
                 max_overflow=20,
             )
         _engine_cache[database_url] = engine
+
+        # Also register under original URL if it was transformed
+        if original_url != database_url:
+            _engine_cache[original_url] = engine
     else:
         engine = _engine_cache[database_url]
 
@@ -124,3 +139,51 @@ async def get_session(database_url: str | AsyncEngine) -> AsyncGenerator[AsyncSe
             yield session
     finally:
         await session.close()
+
+
+@asynccontextmanager
+async def get_core_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session for the gts_core database.
+
+    Yields:
+        AsyncSession: Database session connected to gts_core with active transaction
+
+    Example:
+        async with get_core_session() as session:
+            result = await session.execute(select(Job))
+            jobs = result.scalars().all()
+
+    Note:
+        Uses WorkerSettings.database_url which is loaded from the DATABASE_URL
+        environment variable. In tests, this can be overridden by pre-registering
+        an engine under the desired URL using register_engine().
+    """
+    from worker.config import WorkerSettings
+
+    settings = WorkerSettings()  # type: ignore[call-arg]
+    async with get_session(settings.database_url) as session:
+        yield session
+
+
+@asynccontextmanager
+async def get_t3k_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session for the gts_t3k_source database.
+
+    Yields:
+        AsyncSession: Database session connected to gts_t3k_source with active transaction
+
+    Example:
+        async with get_t3k_session() as session:
+            result = await session.execute(select(Pack))
+            packs = result.scalars().all()
+
+    Note:
+        Uses WorkerSettings.t3k_database_url which is loaded from the T3K_DATABASE_URL
+        environment variable. In tests, this can be overridden by pre-registering
+        an engine under the desired URL using register_engine().
+    """
+    from worker.config import WorkerSettings
+
+    settings = WorkerSettings()  # type: ignore[call-arg]
+    async with get_session(settings.t3k_database_url) as session:
+        yield session

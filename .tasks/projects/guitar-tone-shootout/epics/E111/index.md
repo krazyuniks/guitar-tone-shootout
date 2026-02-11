@@ -18,7 +18,7 @@ T115 → T120
 
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
-| T112 | Worker dual database session factor | pending | worker | - |
+| T112 | Worker dual database session factor | locked | worker | - |
 | T113 | Worker container orchestration — ru | pending | worker | - |
 | T114 | T3K oauth_tokens Alembic migration | pending | - | - |
 | T115 | Admin API — enqueue, source dashboa | pending | worker | T112, T113 |

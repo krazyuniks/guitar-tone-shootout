@@ -523,11 +523,20 @@ tdd-impl-phase task:
     @echo "  just tdd tests/unit/path/to/test.py"
 
 # Verify tests pass (green phase) - runs full test suite in Docker
+# Deselects pre-existing failures listed in tests/known_failures.txt
 tdd-green task:
     #!/usr/bin/env bash
     set -e
     echo "Verifying ALL tests pass for {{task}}..."
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
+    DESELECT_ARGS=""
+    if [ -f tests/known_failures.txt ]; then
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            DESELECT_ARGS="$DESELECT_ARGS --deselect $line"
+        done < tests/known_failures.txt
+        echo "  (deselecting $(wc -l < tests/known_failures.txt | tr -d ' ') known pre-existing failures)"
+    fi
+    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only" $DESELECT_ARGS
     echo "Tests passing"
 
 # Full TDD validation

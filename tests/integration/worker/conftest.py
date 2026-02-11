@@ -43,12 +43,41 @@ async def _async_expunge_all_as_expire(self):
 AsyncSession.expire_all = _async_expunge_all_as_expire  # type: ignore[method-assign]
 
 
+@pytest.fixture(autouse=True)
+def worker_env_vars(monkeypatch):
+    """Set up worker environment variables for integration tests.
+
+    The webapp container only has DATABASE_URL set, but WorkerSettings requires
+    REDIS_URL and T3K_DATABASE_URL as well. This fixture ensures all required
+    environment variables are available for tests that instantiate WorkerSettings.
+
+    Sets URLs to match the test patterns so that engine registration works correctly.
+
+    Uses autouse=True so it applies to all tests in this directory without
+    needing explicit fixture declarations.
+    """
+    # Clear the engine cache before each test to ensure test isolation
+    from worker.db import _engine_cache
+
+    _engine_cache.clear()
+
+    # Set standard test URLs that match what tests register engines under
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@db/gts_core")
+    monkeypatch.setenv("T3K_DATABASE_URL", "postgresql+asyncpg://user:pass@db/gts_t3k_source")
+
+
 @pytest.fixture
 async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine using worker's async_session_factory.
 
     This fixture uses the worker's session factory to ensure that sessions
     created via get_session() can access the same database and tables.
+
+    Registers the engine under multiple keys to handle different URL patterns:
+    - Original :memory: format
+    - Shared cache format (what async_session_factory converts to)
+    - PostgreSQL URLs from worker_env_vars (for get_core_session/get_t3k_session)
     """
     # Use shared memory SQLite database so multiple connections can access it
     database_url = "sqlite+aiosqlite:///file::memory:?cache=shared&uri=true"
@@ -61,8 +90,16 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Register the engine so get_session() will use it
+    # Register the engine under all possible URL patterns
+    # 1. Original :memory: format
     register_engine("sqlite+aiosqlite:///:memory:", engine)
+
+    # 2. Shared cache format (what async_session_factory converts to)
+    register_engine(database_url, engine)
+
+    # 3. PostgreSQL URLs from worker_env_vars (so get_core_session/get_t3k_session work)
+    register_engine("postgresql+asyncpg://user:pass@db/gts_core", engine)
+    register_engine("postgresql+asyncpg://user:pass@db/gts_t3k_source", engine)
 
     yield engine
 

@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from core.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
-from worker.db import get_session
+from worker.db import get_core_session
 from worker.schemas import JobDetail, JobSummary
 
 # Create FastAPI app for admin endpoints
@@ -33,62 +33,16 @@ _worker_start_time = time.monotonic()
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for getting a database session.
+    """Dependency for getting a gts_core database session.
 
-    This dependency can be overridden in tests by using:
-        app.dependency_overrides[get_db_session] = test_session_factory
-
-    In tests, if WorkerSettings cannot be loaded (missing env vars),
-    falls back to using the in-memory SQLite database. The test fixtures
-    register an engine under "sqlite+aiosqlite:///:memory:", so we need
-    to check for that key and also register it under the converted key
-    to ensure async_session_factory finds it.
-
-    For tests that don't properly set up the database fixtures, we create
-    the tables automatically in the test database.
+    Uses get_core_session() which reads WorkerSettings.database_url and uses
+    the engine cache. In tests, the engine cache is pre-populated by the
+    db_engine fixture, so this dependency will use the test database.
 
     Yields:
-        AsyncSession: Database session with active transaction
+        AsyncSession: Database session connected to gts_core with active transaction
     """
-    try:
-        settings = WorkerSettings()  # type: ignore[call-arg]
-        database_url = settings.database_url
-        is_test = False
-    except Exception:
-        # In tests, the conftest registers an engine under the :memory: key,
-        # but async_session_factory converts :memory: to shared cache URL
-        # before checking the cache. So we need to copy the registration.
-        from worker.db import _engine_cache, register_engine
-
-        memory_key = "sqlite+aiosqlite:///:memory:"
-        shared_cache_key = "sqlite+aiosqlite:///file::memory:?cache=shared&uri=true"
-
-        # If engine is registered under :memory: key, also register under
-        # the shared cache key so async_session_factory can find it
-        if memory_key in _engine_cache and shared_cache_key not in _engine_cache:
-            register_engine(shared_cache_key, _engine_cache[memory_key])
-
-        database_url = "sqlite+aiosqlite:///:memory:"
-        is_test = True
-
-    async with get_session(database_url) as session:
-        # In tests, create tables if they don't exist (for tests that don't
-        # use db_engine fixture)
-        if is_test:
-            from sqlalchemy import inspect
-
-            from webapp.adapters.persistence.models.base import Base
-
-            # Check if tables exist by trying to query; if it fails, create them
-            def check_and_create_tables(sync_conn):
-                inspector = inspect(sync_conn)
-                tables = inspector.get_table_names()
-                if "jobs" not in tables:
-                    Base.metadata.create_all(sync_conn)
-
-            conn = await session.connection()
-            await conn.run_sync(check_and_create_tables)
-
+    async with get_core_session() as session:
         yield session
 
 

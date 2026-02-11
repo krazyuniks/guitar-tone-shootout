@@ -1,0 +1,19 @@
+{
+  "task_id": "T112",
+  "created": "2026-02-11T17:32:59.397724+00:00",
+  "commit": "bad800a32f72",
+  "files": [
+    {
+      "path": "tests/integration/worker/test_admin_db_dependency.py",
+      "sha256": "5b483840e3a0ae2a9eef51555a009fd9305d13e2a1f445d418c63059619861ff",
+      "size": 5377,
+      "modified": "2026-02-11T17:32:14.296519+00:00"
+    },
+    {
+      "path": "tests/integration/worker/test_dual_database_sessions.py",
+      "sha256": "1c3a95b2e04f8fc7eb9fbc2d894dc6d2b7d6a1213a2ab3442a61691443210c43",
+      "size": 8493,
+      "modified": "2026-02-11T17:32:26.868518+00:00"
+    }
+  ]
+}
