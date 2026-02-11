@@ -12,7 +12,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
 
 if TYPE_CHECKING:
-
     from .signal_chain import SignalChain
     from .user import User
 
@@ -102,6 +101,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         video_path: Path to output video (after processing)
         video_status: Video rendering status (nullable)
         video_job_id: Job ID for video rendering (nullable)
+        output_path: Path to master audio file (after processing)
         created_at: When created
         updated_at: When last updated
         user: Reference to the User
@@ -132,6 +132,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     video_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     video_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    output_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
     user: Mapped[User] = relationship(
