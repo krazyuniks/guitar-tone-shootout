@@ -37,6 +37,8 @@ IS_VITEST=false
 
 if echo "$COMMAND" | grep -qE "(^|\s)pytest(\s|$)" || echo "$COMMAND" | grep -q "pytest"; then
     IS_PYTEST=true
+elif echo "$COMMAND" | grep -qE "just\s+(tdd|test|test-unit|test-regression|test-golden-path|check)\b"; then
+    IS_PYTEST=true
 fi
 
 if echo "$COMMAND" | grep -qE "(pnpm test|vitest)"; then

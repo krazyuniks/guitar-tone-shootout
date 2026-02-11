@@ -26,7 +26,7 @@ fi
 
 # Skip if Docker is not running or backend is not up
 # Check for "Up" in status (not "running" - status shows "Up X hours (healthy)")
-if ! docker compose ps backend 2>/dev/null | grep -qE "(Up|running)"; then
+if ! docker compose ps webapp 2>/dev/null | grep -qE "(Up|running)"; then
     exit 0
 fi
 
@@ -39,7 +39,7 @@ ERROR_PATTERNS="ERROR|CRITICAL|Exception|Traceback|status_code.*[45][0-9]{2}|Int
 # Start background log monitor
 # Uses nohup to survive if parent shell exits
 nohup bash -c "
-    docker compose logs -f backend --tail=0 2>&1 | while read -r line; do
+    docker compose logs -f webapp --tail=0 2>&1 | while read -r line; do
         if echo \"\$line\" | grep -qE '$ERROR_PATTERNS'; then
             echo \"[\$(date '+%H:%M:%S')] \$line\" >> '$LOG_FILE'
         fi

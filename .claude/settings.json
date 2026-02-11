@@ -7,6 +7,12 @@
       "Bash(git log:*)",
       "Bash(git diff:*)",
       "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(GTS_ALLOW_MAIN_COMMIT=1 git commit:*)",
+      "Bash(git push)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
       "Bash(gh issue list:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr view:*)",
@@ -17,7 +23,7 @@
       "Bash(python3:*)",
       "Bash(source .venv/bin/activate)",
       "Bash(pip install:*)",
-      "Bash(bd:*)"
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   },
@@ -58,19 +64,6 @@
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/post-edit.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/ui-file-check.sh"
-          }
-        ]
-      },
       {
         "matcher": "Bash",
         "hooks": [
