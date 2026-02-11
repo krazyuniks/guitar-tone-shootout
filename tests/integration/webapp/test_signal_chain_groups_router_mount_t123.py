@@ -59,6 +59,21 @@ async def base_chain(db_session: AsyncSession, test_user: User) -> SignalChain:
 
 
 @pytest.fixture
+async def other_base_chain(db_session: AsyncSession, other_user: User) -> SignalChain:
+    """Create a test signal chain for other_user."""
+    chain = SignalChain(
+        id=uuid4(),
+        user_id=other_user.id,
+        name="Other Chain",
+        blocks=[],
+    )
+    db_session.add(chain)
+    await db_session.flush()
+    await db_session.refresh(chain)
+    return chain
+
+
+@pytest.fixture
 async def unauthenticated_client(
     db_session: AsyncSession,
 ) -> AsyncClient:
@@ -162,16 +177,16 @@ class TestSignalChainGroupsRouterMount:
         self,
         unauthenticated_client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
-        base_chain: SignalChain,
+        other_user: User,
+        other_base_chain: SignalChain,
     ) -> None:
         """Test GET /api/v1/signal-chain-groups/{id} returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
-            user_id=test_user.id,
+            user_id=other_user.id,
             name="Test Group",
-            base_chain_id=base_chain.id,
+            base_chain_id=other_base_chain.id,
             slot_positions=[0],
             gear_options={0: [uuid4()]},
         )
@@ -216,16 +231,16 @@ class TestSignalChainGroupsRouterMount:
         self,
         unauthenticated_client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
-        base_chain: SignalChain,
+        other_user: User,
+        other_base_chain: SignalChain,
     ) -> None:
         """Test PUT /api/v1/signal-chain-groups/{id} returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
-            user_id=test_user.id,
+            user_id=other_user.id,
             name="Test Group",
-            base_chain_id=base_chain.id,
+            base_chain_id=other_base_chain.id,
             slot_positions=[0],
             gear_options={0: [uuid4()]},
         )
@@ -276,16 +291,16 @@ class TestSignalChainGroupsRouterMount:
         self,
         unauthenticated_client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
-        base_chain: SignalChain,
+        other_user: User,
+        other_base_chain: SignalChain,
     ) -> None:
         """Test DELETE /api/v1/signal-chain-groups/{id} returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
-            user_id=test_user.id,
+            user_id=other_user.id,
             name="Test Group",
-            base_chain_id=base_chain.id,
+            base_chain_id=other_base_chain.id,
             slot_positions=[0],
             gear_options={0: [uuid4()]},
         )
@@ -330,16 +345,16 @@ class TestSignalChainGroupsRouterMount:
         self,
         unauthenticated_client: AsyncClient,
         db_session: AsyncSession,
-        test_user: User,
-        base_chain: SignalChain,
+        other_user: User,
+        other_base_chain: SignalChain,
     ) -> None:
         """Test POST /api/v1/signal-chain-groups/{id}/generate returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
-            user_id=test_user.id,
+            user_id=other_user.id,
             name="Test Group",
-            base_chain_id=base_chain.id,
+            base_chain_id=other_base_chain.id,
             slot_positions=[0],
             gear_options={0: [uuid4()]},
         )

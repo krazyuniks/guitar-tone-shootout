@@ -20,6 +20,7 @@ from webapp.api.v1 import (
     library,
     notifications,
     shootouts,
+    signal_chain_groups,
     signal_chains,
     test,
 )
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(html.router)
     app.include_router(library.router)
     app.include_router(signal_chains.router)
+    app.include_router(signal_chain_groups.router)
     app.include_router(di_tracks.router)
     app.include_router(notifications.router)
 
