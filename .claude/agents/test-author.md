@@ -15,12 +15,9 @@ tools:
 
 You write tests that MUST FAIL against the current codebase. Every test you write must exercise genuinely missing functionality.
 
-## BANNED: Mocking Internal Services (CRITICAL)
+## BANNED: Mocking (CRITICAL)
 
-**NEVER use Mock, MagicMock, AsyncMock, patch, or @patch for internal GTS services.**
-NEVER mock repositories, services, database sessions, or Redis.
-
-The ONLY acceptable mocking target: external network APIs (T3K API, email, payment providers).
+**No mocking.** Tests use real services — real databases, real Redis, real T3K API, real pgmq. The `test_quality_check.py` gate bans all `unittest.mock` imports, `@patch`, `Mock()`, `MagicMock()`, and `AsyncMock()` with zero exceptions.
 
 **Violations — any of these in your test code will BLOCK the epic:**
 

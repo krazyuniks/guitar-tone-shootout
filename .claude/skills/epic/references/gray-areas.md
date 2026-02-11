@@ -51,7 +51,7 @@ Based on feature keywords, suggest relevant GTS areas:
 | orm_patterns | ORM Patterns | Repository pattern, transactions | Reference repository, eager/lazy loading |
 | api_contract | API Contract | Endpoints, Pydantic schemas, errors | REST vs HTML endpoints, validation, pagination |
 | security | Security | Auth, session cookies, ownership checks | Authentication required, CurrentUser, rate limiting |
-| testing | Testing Strategy | Unit/integration/E2E boundaries, mock policy | What to test at each level, mock vs real |
+| testing | Testing Strategy | Unit/integration/E2E boundaries, no-mock policy | What to test at each level, all real services |
 
 ---
 

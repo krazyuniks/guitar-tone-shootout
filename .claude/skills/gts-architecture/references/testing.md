@@ -47,16 +47,16 @@ This pattern catches issues at any layer: frontend rendering, API communication,
 
 ## Mocking Policy
 
-**Core Principle:** Test against real services. No mocking.
+**No mocking.** Tests use real services — real databases, real Redis, real T3K API, real pgmq. The `test_quality_check.py` gate bans all `unittest.mock` imports with zero exceptions.
 
 | Category | Approach |
 |----------|----------|
 | PostgreSQL | Real database (SQLite in-memory for unit/regression, PostgreSQL for integration) |
 | Redis | Real Redis instance in Docker |
-| Internal APIs | Real services -- no mocking |
-| External APIs (T3K) | Real test endpoints; if flaky in CI, tests marked as integration |
+| T3K API | Real T3K API with auth tokens |
+| pgmq | Real pgmq extension in PostgreSQL |
 
-**Rationale:** Mocking hides integration bugs. Real services catch schema issues, connection problems, and timing bugs that mocks would hide. GTS does not use external payment or email services.
+**Rationale:** Mocking hides integration bugs. Real services catch schema mismatches, connection problems, auth failures, and timing issues that mocks would mask. All GTS services are available in the Docker test environment.
 
 ## Running Tests
 

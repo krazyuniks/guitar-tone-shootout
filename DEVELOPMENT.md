@@ -247,9 +247,8 @@ just test-golden-path # Golden path tests (host, requires running containers)
 
 ### Philosophy
 
-- Test against **real services** (PostgreSQL, Redis)
-- **No mocking** internal systems
-- Mock only **external APIs** (T3K, email)
+- Test against **real services** — no mocking
+- All services available in Docker: PostgreSQL, Redis, T3K API, pgmq
 
 ---
 

@@ -225,7 +225,7 @@ Before deriving ANY artifact (model, repository, service, API):
 2. **Review auto-fixes after commit** — pre-commit auto-fixes lint/format
 3. **Use `/merge` when done** — pre-merge checks → PR → auto-merge
 4. **Follow existing patterns** — check skills for examples
-5. **Test against real services** — no mocking internal systems
+5. **Test against real services** — no mocking
 6. **Commit working code** — don't commit if tests fail
 7. **Use provided tooling** — `just` + `worktree.py`, never ad-hoc Docker
 8. **Respect dependency rules** — webapp never imports from sources

@@ -192,7 +192,7 @@ Tasks that are too large cause the implementer agent to exhaust its 30-turn budg
 
 Every task MUST include this reminder in its description:
 
-> **Testing policy:** Tests MUST use real services (SQLite for unit, PostgreSQL for integration, Playwright for E2E). Mock ONLY external network APIs (T3K API, email, payment). Using Mock/patch/MagicMock for internal services will be caught by the automated quality gate and block the epic.
+> **Testing policy:** No mocking. Tests use real services — real databases, real Redis, real T3K API, real pgmq. The `test_quality_check.py` gate bans all `unittest.mock` imports with zero exceptions.
 
 ## Implementation Hints (MANDATORY — every task)
 

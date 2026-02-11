@@ -66,7 +66,7 @@ Evaluate TASKS.md against these criteria:
 
 #### E. GTS Pattern Compliance
 - Query patterns: joinedload, lazy="raise", .unique() for collections
-- Testing: real services, mock only external APIs
+- Testing: real services, no mocking
 - Frontend: data-testid attributes, Tailwind classes
 - Commands: just commands only, no raw Docker/pytest
 
@@ -75,9 +75,9 @@ Evaluate TASKS.md against these criteria:
 - Every test specification from GOALS.md must appear in a task's acceptance criteria
 
 #### G. Test Strategy Validity
-- No task's acceptance criteria should imply mocking internal services
+- No task's acceptance criteria should imply mocking
 - Flag criteria like "verify service was called" (spy/mock pattern) — should be "verify database row was created" (real assertion)
-- Each task must include a mock policy reminder: "Tests MUST use real services. Mock ONLY external network APIs."
+- Each task must include a mock policy reminder: "No mocking. Tests use real services."
 - Criteria should describe observable product behaviour, not function call verification
 - Bad: "SyncService.sync() is called when message arrives"
 - Good: "When sync message arrives, gear rows appear in gts_core.gear table"

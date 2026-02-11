@@ -126,6 +126,5 @@ GTS-specific questions for structured epic planning.
 - Runs on HOST via `just test-golden-path`
 
 ### Mocking
-- Mock: T3K API, email services, external APIs
-- Real: PostgreSQL, Redis (Docker containers)
-- Never mock internal services or repositories
+- No mocking — all tests use real services
+- Real: PostgreSQL, Redis, T3K API, pgmq (Docker containers)

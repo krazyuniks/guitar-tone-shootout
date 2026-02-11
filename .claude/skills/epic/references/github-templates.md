@@ -33,7 +33,7 @@ Templates for creating epic and task issues compatible with tasks_from_plan.py.
 {Auth, validation, rate limiting - if applicable}
 
 ### Testing Strategy
-{Unit/integration/E2E boundaries, mock strategy}
+{Unit/integration/E2E boundaries, no mocking}
 
 ## Scope
 

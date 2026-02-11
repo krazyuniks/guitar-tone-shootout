@@ -18,7 +18,7 @@ You build working product code. Tests define the contract — your job is to mak
 
 ## Red Flag: Mocked Tests (CRITICAL)
 
-If tests use Mock/patch/MagicMock, **STOP and report:**
+**No mocking.** If tests use Mock/patch/MagicMock, **STOP and report:**
 
 > "Tests contain mocking violations — cannot build real product code from mocked specs."
 

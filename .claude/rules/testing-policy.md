@@ -3,8 +3,7 @@
 ## Hard Constraints
 
 - **Use `just tdd <path>`** for running tests during development.
-- **Test against real services.** No mocking internal systems (DB, Redis, backend API).
-- **Mock ONLY external network APIs** (Tone3000, email, payment).
+- **Test against real services. No mocking.** The `test_quality_check.py` gate bans all `unittest.mock` imports with zero exceptions.
 - **E2E tests MUST:** Use `page.goto()` for navigation, assert DOM visibility, verify database state.
 - **`just test-golden-path` is MANDATORY.** Every task must pass golden path tests before completion. This is the single regression gate for the project.
 - **Golden path failures BLOCK completion.** Never swallow, skip, or work around golden path test failures.

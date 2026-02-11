@@ -8,7 +8,7 @@ context: fork
 
 Single reference for all testing in GTS. Covers TDD workflow, pytest patterns, fixtures, scaffolding, and mutation verification.
 
-**Philosophy:** Test real services, mock only external network APIs. See `.claude/rules/testing-policy.md`.
+**Philosophy:** Test against real services. No mocking. See `.claude/rules/testing-policy.md`.
 
 ## Quick Reference
 
@@ -216,16 +216,16 @@ def test_validate_email_rejects_invalid_format():
 
 ### Forbidden Mocking
 
+**No mocking.** The `test_quality_check.py` gate bans all `unittest.mock` imports, `@patch`, `Mock()`, `MagicMock()`, and `AsyncMock()` with zero exceptions.
+
 ```python
-# NEVER mock internal services
+# BANNED — all mocking is forbidden
 @patch('app.repositories.signal_chain_repo')  # NO
 mock_service = Mock(spec=SignalChainService)   # NO
-
-# NEVER mock API in E2E tests
-page.route('**/api/**', ...)  # NO
+page.route('**/api/**', ...)                   # NO
 ```
 
-**Mock ONLY external network APIs:** T3K API, email services, payment APIs.
+All GTS services (T3K, PostgreSQL, Redis, pgmq) are available in the Docker test environment.
 
 ---
 
