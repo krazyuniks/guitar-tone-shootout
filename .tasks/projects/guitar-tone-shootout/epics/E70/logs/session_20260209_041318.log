@@ -3,16 +3,16 @@
 2026-02-09 05:13:18,505 [INFO]   Tasks dir: /home/ryan/Work/guitar-tone-worktrees/70-epic-video-bc-integration-remotion-power/.tasks/projects/guitar-tone-shootout/epics/E70
 2026-02-09 05:13:18,505 [INFO]   Max iterations: 20
 2026-02-09 05:13:18,505 [INFO]   Dry run: False
-2026-02-09 05:13:18,505 [INFO] 
+2026-02-09 05:13:18,505 [INFO]
 2026-02-09 05:13:18,505 [INFO] === Iteration 1 ===
 2026-02-09 05:13:18,520 [INFO]   Next task: T83 — Phase 6a: Alembic Migration — Shootout Video Fields (state=pending)
-2026-02-09 05:13:18,693 [INFO] 
+2026-02-09 05:13:18,693 [INFO]
   Phase: TEST (writing tests for T83)
 2026-02-09 05:13:18,693 [DEBUG] STRUCTURED: {"event": "phase_start", "timestamp": "2026-02-09T04:13:18.693178+00:00", "task_id": 83, "phase": "test"}
 2026-02-09 05:13:18,695 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
 2026-02-09 05:13:18,695 [DEBUG] STRUCTURED: {"event": "agent_dispatch", "timestamp": "2026-02-09T04:13:18.695495+00:00", "agent": "test-author", "model": "sonnet", "max_turns": 20}
 2026-02-09 05:15:29,718 [DEBUG]   Agent 'test-author' exited with code 0
-2026-02-09 05:15:29,718 [INFO] 
+2026-02-09 05:15:29,718 [INFO]
   Phase: RED (verifying tests fail)
 2026-02-09 05:15:29,718 [INFO]     Running: just tdd-red T83
 2026-02-09 05:15:32,879 [DEBUG]     just tdd-red T83 -> OK
@@ -27,7 +27,7 @@ WARNING: 1 tests already pass (code may partially exist).
 
 Red phase verified: 8 failing + 0 erroring tests found.
 
-2026-02-09 05:15:32,879 [INFO] 
+2026-02-09 05:15:32,879 [INFO]
   Phase: LOCK (snapshotting tests)
 2026-02-09 05:15:32,879 [INFO]     Running: just tdd-lock T83
 2026-02-09 05:15:35,175 [DEBUG]     just tdd-lock T83 -> OK
