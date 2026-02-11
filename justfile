@@ -557,11 +557,31 @@ tdd-complete task:
     echo "4. Running regression tests..."
     just test-regression
 
-    echo "5. Running golden path tests..."
+    echo "5. Ensuring auth user exists in DB..."
+    just ensure-auth-user
+
+    echo "6. Running golden path tests..."
     just test-golden-path
 
     echo ""
     echo "Task {{task}} validation complete"
+
+# Ensure auth user from .gts-auth.json exists in gts_core DB
+# Integration tests can overwrite the auth file; this ensures the user matches
+ensure-auth-user:
+    #!/usr/bin/env bash
+    set -e
+    AUTH_FILE="${GTS_AUTH_FILE:-/worktrees/.gts-auth.json}"
+    USER_ID=$(docker compose exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['user_id'])" 2>/dev/null || true)
+    USERNAME=$(docker compose exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['username'])" 2>/dev/null || true)
+    if [ -n "$USER_ID" ] && [ -n "$USERNAME" ]; then
+        docker compose exec -T db psql -U gts gts_core -c \
+            "INSERT INTO users (id, username, is_active, created_at, updated_at) VALUES ('$USER_ID', '$USERNAME', true, NOW(), NOW()) ON CONFLICT (id) DO NOTHING;" \
+            > /dev/null 2>&1
+        echo "  Auth user ensured: $USERNAME ($USER_ID)"
+    else
+        echo "  WARNING: Could not read auth file, skipping user ensure"
+    fi
 
 # --- Validation ---
 
