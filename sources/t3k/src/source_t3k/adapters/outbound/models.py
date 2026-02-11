@@ -212,3 +212,19 @@ class SyncCheckpoint(Base):
     total_synced: Mapped[int] = mapped_column(Integer, nullable=False)
 
     __table_args__ = (UniqueConstraint("source_name", "entity_type", name="uq_source_entity"),)
+
+
+class OAuthToken(Base):
+    """Stores encrypted OAuth tokens for T3K API authentication.
+
+    Tokens are encrypted at rest using Fernet encryption. The encryption key
+    must be provided via the T3K_TOKEN_ENCRYPTION_KEY environment variable.
+    """
+
+    __tablename__ = "oauth_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    access_token_encrypted: Mapped[str] = mapped_column(String(1024), nullable=False)
+    refresh_token_encrypted: Mapped[str] = mapped_column(String(1024), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
