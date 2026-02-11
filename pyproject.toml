@@ -23,6 +23,17 @@ dev = [
     "aiosqlite>=0.22.1",
 ]
 
+[tool.uv]
+# CPU-only PyTorch — no GPU on this server, saves ~3GB of NVIDIA CUDA packages
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+
 [tool.uv.workspace]
 members = ["libs/*", "sources/*", "apps/*"]
 

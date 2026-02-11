@@ -42,17 +42,22 @@ RUN groupadd -g $GID appgroup || true \
 # Install uv (latest for development)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
+# Create workdir owned by appuser — no chown -R needed later
+RUN mkdir -p /app && chown appuser:appgroup /app
 WORKDIR /app
 
+# Switch to non-root user BEFORE copy/install — everything created as appuser
+USER appuser
+
 # Copy workspace configuration (including README.md for hatchling)
-COPY pyproject.toml uv.lock README.md ./
-COPY libs/core/pyproject.toml libs/core/README.md libs/core/
-COPY libs/audio/pyproject.toml libs/audio/README.md libs/audio/
-COPY libs/video/pyproject.toml libs/video/README.md libs/video/
-COPY sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
-COPY apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
-COPY apps/worker/pyproject.toml apps/worker/README.md apps/worker/
-COPY apps/scheduler/pyproject.toml apps/scheduler/README.md apps/scheduler/
+COPY --chown=appuser:appgroup pyproject.toml uv.lock README.md ./
+COPY --chown=appuser:appgroup libs/core/pyproject.toml libs/core/README.md libs/core/
+COPY --chown=appuser:appgroup libs/audio/pyproject.toml libs/audio/README.md libs/audio/
+COPY --chown=appuser:appgroup libs/video/pyproject.toml libs/video/README.md libs/video/
+COPY --chown=appuser:appgroup sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
+COPY --chown=appuser:appgroup apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
+COPY --chown=appuser:appgroup apps/worker/pyproject.toml apps/worker/README.md apps/worker/
+COPY --chown=appuser:appgroup apps/scheduler/pyproject.toml apps/scheduler/README.md apps/scheduler/
 
 # Create src directory structure for workspace resolution
 # Each package needs an __init__.py for hatchling to recognize it
@@ -70,23 +75,18 @@ RUN mkdir -p libs/core/src/core libs/audio/src/audio libs/video/src/video \
     && touch src/gts/__init__.py
 
 # Install all dependencies including dev (workspace members included)
-RUN --mount=type=cache,target=/root/.cache/uv \
+# Cache owned by appuser (uid/gid on mount) — runs as appuser, no chown needed
+RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
     uv sync --frozen --all-packages
 
 # Source code will be volume mounted at runtime
 # Copy placeholder __init__.py files for initial resolution
-COPY src/gts src/gts/
-
-# Set ownership of app directory to non-root user
-RUN chown -R appuser:appgroup /app
+COPY --chown=appuser:appgroup src/gts src/gts/
 
 # Environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
-
-# Switch to non-root user (files created on bind mounts will have host UID)
-USER appuser
 
 EXPOSE 8000
 

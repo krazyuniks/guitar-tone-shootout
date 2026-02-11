@@ -124,9 +124,7 @@ def start_services(worktree_path: Path, detach: bool = True, cleanup: bool = Tru
     if detach:
         args.append("-d")
 
-    # Use longer timeout for up -d since it may trigger image builds
-    # Docker builds can take several minutes (especially the chown step)
-    run_compose(args, cwd=worktree_path, timeout=600)
+    run_compose(args, cwd=worktree_path, timeout=120)
 
 
 def stop_services(worktree_path: Path, timeout: int = 30) -> None:
