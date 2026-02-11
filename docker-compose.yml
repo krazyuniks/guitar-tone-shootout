@@ -139,7 +139,7 @@ services:
       args:
         UID: ${UID:-1000}
         GID: ${GID:-1000}
-    command: ["taskiq", "worker", "worker.main:broker", "--workers", "1"]
+    command: ["python", "-m", "worker.entrypoint"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_t3k_source
@@ -153,6 +153,7 @@ services:
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/worker:/app/apps/worker
+      - ./apps/webapp:/app/apps/webapp:ro
       - ./sources:/app/sources:ro
       - upload_data:/app/uploads
       - processed_data:/app/processed
