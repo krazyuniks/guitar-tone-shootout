@@ -1,12 +1,11 @@
 """Shootout API endpoints."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from core.domain.entities.shootout import Shootout
@@ -16,17 +15,13 @@ from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
 )
 from webapp.adapters.persistence.models.shootout import ShootoutStatus
+from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.shootout import (
     ShootoutCreateRequest,
     ShootoutResponse,
 )
 from webapp.services.processing_service import enqueue_to_worker
 from webapp.services.shootout_service import ShootoutService
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from webapp.adapters.persistence.models.user import User
 
 router = APIRouter(prefix="/api/v1/shootouts", tags=["shootouts"])
 

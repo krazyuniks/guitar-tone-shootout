@@ -3,8 +3,11 @@
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from webapp.api import pages
 from webapp.api.v1 import (
@@ -20,6 +23,14 @@ from webapp.api.v1 import (
 )
 from webapp.auth.dependencies import RedirectToLogin
 from webapp.dependencies import get_db, init_db
+from webapp.exception_handlers import (
+    app_exception_handler,
+    http_exception_handler,
+    request_validation_error_handler,
+    sqlalchemy_error_handler,
+    unhandled_exception_handler,
+)
+from webapp.exceptions import AppException
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
 
 
@@ -53,6 +64,13 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(TimingMiddleware)
     app.add_middleware(RequestIDMiddleware)
+
+    # Mount exception handlers
+    app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+    app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Include API routers
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
