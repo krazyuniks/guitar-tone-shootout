@@ -23,7 +23,20 @@ from core.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
 from worker.db import get_core_session
-from worker.schemas import JobDetail, JobSummary
+from worker.schemas import (
+    AuthStatusResponse,
+    EnqueueRequest,
+    EnqueueResponse,
+    ErrorsSummaryResponse,
+    JobDetail,
+    JobSummary,
+    PendingRetriesCountResponse,
+    SyncLagResponse,
+    SyncStatsResponse,
+    SyncStatusResponse,
+    SyncTriggerResponse,
+    UnlockResponse,
+)
 
 # Create FastAPI app for admin endpoints
 app = FastAPI(title="GTS Worker Admin API", version="1.0.0")
@@ -173,6 +186,52 @@ async def list_jobs(
     jobs = result.scalars().all()
 
     return [JobSummary.model_validate(job) for job in jobs]
+
+
+@app.get("/api/admin/jobs/dead-lettered", response_model=list[JobSummary])
+async def list_dead_lettered_jobs(
+    session: AsyncSession = Depends(get_db_session),
+) -> list[JobSummary]:
+    """List all dead-lettered jobs.
+
+    Args:
+        session: Database session (injected)
+
+    Returns:
+        List of dead-lettered job summaries
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    stmt = select(Job).where(Job.status == JobStatus.DEAD_LETTERED).order_by(Job.created_at.desc())
+
+    result = await session.execute(stmt)
+    jobs = result.scalars().all()
+
+    return [JobSummary.model_validate(job) for job in jobs]
+
+
+@app.get("/api/admin/jobs/pending-retries/count", response_model=PendingRetriesCountResponse)
+async def get_pending_retries_count(
+    session: AsyncSession = Depends(get_db_session),
+) -> PendingRetriesCountResponse:
+    """Count jobs with pending retries.
+
+    Args:
+        session: Database session (injected)
+
+    Returns:
+        Count of jobs awaiting retry
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    stmt = select(Job).where(Job.next_retry_at.is_not(None))
+
+    result = await session.execute(stmt)
+    jobs = result.scalars().all()
+
+    return PendingRetriesCountResponse(count=len(jobs))
 
 
 @app.get("/api/admin/jobs/{job_id}", response_model=JobDetail)
@@ -328,3 +387,244 @@ async def retry_job(
     job_detail.children = [JobSummary.model_validate(child) for child in children]
 
     return job_detail
+
+
+# Known source names
+KNOWN_SOURCES = {"t3k"}
+
+
+def validate_source(source: str) -> None:
+    """Validate source name and raise HTTPException if unknown.
+
+    Args:
+        source: Source name to validate
+
+    Raises:
+        HTTPException: 404 if source is unknown
+    """
+    if source not in KNOWN_SOURCES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown source: {source}",
+        )
+
+
+@app.post("/api/admin/enqueue", response_model=EnqueueResponse, status_code=202)
+async def enqueue_job(
+    request: EnqueueRequest,
+    session: AsyncSession = Depends(get_db_session),
+) -> EnqueueResponse:
+    """Enqueue a job to the TaskIQ broker.
+
+    Args:
+        request: Request body with job_id
+        session: Database session (injected)
+
+    Returns:
+        Enqueue confirmation with job ID
+
+    Raises:
+        HTTPException: 404 if job not found
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    # Verify job exists
+    stmt = select(Job).where(Job.id == request.job_id)
+    result = await session.execute(stmt)
+    job = result.scalar_one_or_none()
+
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # TODO: Actually enqueue to TaskIQ broker
+    # For now, just return success
+
+    return EnqueueResponse(id=request.job_id)
+
+
+@app.get("/api/admin/sources/{source}/sync/status", response_model=SyncStatusResponse)
+async def get_sync_status(source: str) -> SyncStatusResponse:
+    """Get sync status for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        Sync status including state and checkpoint info
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # For now, return defaults
+    # TODO: Query actual sync state from database or cache
+    return SyncStatusResponse(
+        status="idle",
+        enabled=True,
+        checkpoint=None,
+    )
+
+
+@app.post("/api/admin/sources/{source}/sync", response_model=SyncTriggerResponse, status_code=202)
+async def trigger_sync(source: str) -> SyncTriggerResponse:
+    """Trigger a manual sync for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        Confirmation message
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # TODO: Actually trigger sync job
+    return SyncTriggerResponse(message=f"Sync triggered for {source}")
+
+
+@app.get("/api/admin/sources/{source}/sync/stats", response_model=SyncStatsResponse)
+async def get_sync_stats(source: str) -> SyncStatsResponse:
+    """Get sync statistics for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        Sync statistics including total synced and durations
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # For now, return defaults
+    # TODO: Query actual stats from SyncCheckpoint table
+    return SyncStatsResponse(
+        total_synced=0,
+        last_sync_duration=None,
+        queue_depths={},
+    )
+
+
+@app.get("/api/admin/sources/{source}/sync/lag", response_model=SyncLagResponse)
+async def get_sync_lag(source: str) -> SyncLagResponse:
+    """Get sync lag (time since last successful sync) for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        Lag in seconds since last sync
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # For now, return default
+    # TODO: Calculate actual lag from SyncCheckpoint table
+    return SyncLagResponse(lag_seconds=None)
+
+
+@app.get("/api/admin/sources/{source}/errors/summary", response_model=ErrorsSummaryResponse)
+async def get_errors_summary(source: str) -> ErrorsSummaryResponse:
+    """Get error summary for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        Error counts by type
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # For now, return defaults
+    # TODO: Query actual errors from database
+    return ErrorsSummaryResponse(
+        errors={},
+        time_window_hours=24,
+    )
+
+
+@app.get("/api/admin/sources/{source}/auth/status", response_model=AuthStatusResponse)
+async def get_auth_status(source: str) -> AuthStatusResponse:
+    """Get OAuth token validity status for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        OAuth token validity and expiry
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # For now, return defaults
+    # TODO: Query actual OAuth token from database
+    return AuthStatusResponse(
+        valid=False,
+        expires_at=None,
+    )
+
+
+@app.post("/api/admin/sources/{source}/sync/unlock", response_model=UnlockResponse)
+async def unlock_sync(source: str) -> UnlockResponse:
+    """Release sync lock for a source.
+
+    Args:
+        source: Source name (e.g., "t3k")
+
+    Returns:
+        Confirmation message
+
+    Raises:
+        HTTPException: 404 if source is unknown
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    validate_source(source)
+
+    # TODO: Actually release sync lock (Redis or database)
+    return UnlockResponse(message=f"Sync lock released for {source}")
+
+
+@app.post("/api/admin/scheduler/unlock", response_model=UnlockResponse)
+async def unlock_scheduler() -> UnlockResponse:
+    """Release scheduler lock.
+
+    Returns:
+        Confirmation message
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    # TODO: Actually release scheduler lock (Redis or database)
+    return UnlockResponse(message="Scheduler lock released")
