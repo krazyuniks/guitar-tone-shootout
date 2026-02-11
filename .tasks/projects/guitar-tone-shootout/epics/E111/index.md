@@ -22,7 +22,7 @@ T115 → T120
 | T113 | Worker container orchestration — ru | complete | worker | - |
 | T114 | T3K oauth_tokens Alembic migration | complete | source-t3k | - |
 | T115 | Admin API — enqueue, source dashboa | pending | worker | T112, T113 |
-| T116 | Interleaved backfill+newest sync lo | pending | - | - |
+| T116 | Interleaved backfill+newest sync lo | complete | source-t3k | - |
 | T117 | Model file download service | pending | - | - |
 | T118 | pgmq consumer and GearMapperService | pending | worker | T112, T116, T117 |
 | T119 | Scheduler tasks — SOURCE_SYNC handl | pending | worker | T114, T115, T116 |
