@@ -19,6 +19,7 @@ class DITrackResponse(BaseModel):
     description: str | None = None
     guitar: str | None = None
     pickup: str | None = None
+    tuning: str | None = None
     created_at: datetime
     updated_at: datetime
 

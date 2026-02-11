@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
-from uuid import UUID
 
 import soundfile as sf
 from sqlalchemy import select
@@ -13,6 +12,8 @@ from core.domain.value_objects.audio_checksum import AudioChecksum
 from webapp.adapters.persistence.models.shootout import DITrack
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -44,6 +45,7 @@ class DITrackService:
         description: str | None = None,
         guitar: str | None = None,
         pickup: str | None = None,
+        tuning: str | None = None,
     ) -> DITrack:
         """Upload and process a DI track.
 
@@ -55,6 +57,7 @@ class DITrackService:
             description: Optional description
             guitar: Guitar used for recording
             pickup: Pickup position/type
+            tuning: Tuning used for recording
 
         Returns:
             Created DITrack ORM instance
@@ -141,6 +144,7 @@ class DITrackService:
             description=description,
             guitar=guitar,
             pickup=pickup,
+            tuning=tuning,
         )
 
         self.session.add(track)

@@ -94,7 +94,7 @@ export const GET: APIRoute = () => {
       <form
         id="upload-form"
         data-testid="upload-track-form"
-        hx-post="/api/v1/di-tracks/upload"
+        hx-post="/api/v1/di-tracks"
         hx-encoding="multipart/form-data"
         hx-target="#tracks-list-container"
         hx-swap="innerHTML"
@@ -106,7 +106,7 @@ export const GET: APIRoute = () => {
           </label>
           <input
             type="text"
-            name="title"
+            name="name"
             data-testid="upload-title-input"
             required
             maxlength="255"
@@ -147,7 +147,7 @@ export const GET: APIRoute = () => {
             </label>
             <input
               type="text"
-              name="pickups"
+              name="pickup"
               data-testid="upload-pickups-input"
               maxlength="255"
               class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"

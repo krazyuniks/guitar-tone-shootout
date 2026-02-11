@@ -44,6 +44,7 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
         description: Optional description
         guitar: Guitar used for recording (optional)
         pickup: Pickup position/type (optional)
+        tuning: Tuning used for recording (optional)
         checksum: Audio file checksum for integrity (optional)
         created_at: When uploaded
         updated_at: When last updated
@@ -66,6 +67,7 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     guitar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pickup: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tuning: Mapped[str | None] = mapped_column(String(100), nullable=True)
     checksum: Mapped[Any] = mapped_column(AudioChecksumType(), nullable=True)
 
     # Relationships
