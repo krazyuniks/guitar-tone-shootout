@@ -12,6 +12,7 @@ __all__ = ["OAuthProvider", "User", "UserIdentity"]
 
 if TYPE_CHECKING:
     from .job import Job
+    from .notification import UserNotification
     from .shootout import DITrack, Shootout
     from .signal_chain import SignalChain, SignalChainGroup
     from .user_gear import UserGear
@@ -118,6 +119,14 @@ class User(UUIDMixin, TimestampMixin, Base):
     # Relationship to user gear library
     user_gear: Mapped[list[UserGear]] = relationship(
         "UserGear",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
+
+    # Relationship to notifications
+    notifications: Mapped[list[UserNotification]] = relationship(
+        "UserNotification",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="raise",

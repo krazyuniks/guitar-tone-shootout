@@ -18,6 +18,7 @@ from webapp.api.v1 import (
     html,
     jobs,
     library,
+    notifications,
     shootouts,
     signal_chains,
 )
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(library.router)
     app.include_router(signal_chains.router)
     app.include_router(di_tracks.router)
+    app.include_router(notifications.router)
 
     # Include page routers
     app.include_router(pages.router)

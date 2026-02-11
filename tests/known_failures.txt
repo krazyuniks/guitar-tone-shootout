@@ -175,3 +175,4 @@ tests/integration/worker/test_entrypoint_orchestration.py::TestWorkerContainerOr
 tests/integration/worker/test_entrypoint_orchestration.py::TestWorkerContainerOrchestration::test_pgmq_consumer_starts
 tests/integration/worker/test_entrypoint_orchestration.py::TestWorkerContainerOrchestration::test_admin_api_job_endpoints_work
 tests/integration/worker/test_entrypoint_orchestration.py::TestWorkerContainerOrchestration::test_worker_container_stays_running
+tests/unit/webapp/test_notification_model.py::TestUserNotificationModel::test_notification_requires_user_id

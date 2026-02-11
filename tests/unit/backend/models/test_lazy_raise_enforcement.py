@@ -141,6 +141,7 @@ class TestLazyRaiseEnforcement:
             "shootouts",  # reverse
             "jobs",  # reverse
             "user_gear",  # reverse
+            "notifications",  # reverse
         }
         actual_relationships = set(relationships.keys())
 

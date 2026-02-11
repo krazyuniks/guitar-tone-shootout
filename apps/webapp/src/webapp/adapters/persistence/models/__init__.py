@@ -16,6 +16,7 @@ from webapp.adapters.persistence.models.gear import (
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
 from webapp.adapters.persistence.models.job import AuditLog, Job
+from webapp.adapters.persistence.models.notification import UserNotification
 from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
@@ -59,5 +60,6 @@ __all__ = [
     "User",
     "UserGear",
     "UserIdentity",
+    "UserNotification",
     "get_async_session",
 ]
