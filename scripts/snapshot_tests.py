@@ -103,6 +103,21 @@ def collect_locked_test_files(task_id: str) -> list[Path]:
     return sorted(paths)
 
 
+def _epic_from_branch() -> int | None:
+    """Extract epic number from current git branch (e.g. '95/feature-name' → 95)."""
+    result = subprocess.run(
+        ["git", "branch", "--show-current"],
+        capture_output=True,
+        text=True,
+    )
+    branch = result.stdout.strip()
+    if "/" in branch:
+        prefix = branch.split("/")[0]
+        if prefix.isdigit():
+            return int(prefix)
+    return None
+
+
 def get_snapshot_dir(task_id: str) -> Path:
     """Find or create snapshot directory for task.
 
@@ -113,19 +128,23 @@ def get_snapshot_dir(task_id: str) -> Path:
     num = task_id.lstrip("T")
     task_filename = f"T{num}.md"
 
+    # Determine current epic from git branch name (e.g. "95/feature-name" → E95)
+    branch_epic = _epic_from_branch()
+
     # Search for the task file to find the correct epic.
-    # When multiple epics contain the same task ID, prefer the highest
-    # epic number (most recent epic).
     candidates: list[tuple[int, Path]] = []
     for task_file in Path(".tasks").rglob(task_filename):
-        # Task files live at .tasks/E{n}/tasks/T{n}.md
-        # Epic dir is the grandparent of the task file
         epic_dir = task_file.parent.parent
         if epic_dir.name.startswith("E"):
             epic_num = int(epic_dir.name[1:]) if epic_dir.name[1:].isdigit() else 0
             candidates.append((epic_num, epic_dir))
     if candidates:
-        # Pick the highest epic number
+        # If branch tells us the epic, use that
+        if branch_epic:
+            for epic_num, epic_dir in candidates:
+                if epic_num == branch_epic:
+                    return epic_dir / "snapshots"
+        # Fall back to highest epic number
         candidates.sort(key=lambda x: x[0], reverse=True)
         return candidates[0][1] / "snapshots"
 
