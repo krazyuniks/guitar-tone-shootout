@@ -4,10 +4,13 @@ This module defines scheduled tasks that run periodically to:
 - Monitor for stale (crashed) jobs via heartbeat checks
 - Process pending retries with exponential backoff
 - Update scheduler health and renew distributed lock
+- Ensure T3K source sync is running
 """
 
+import os
 from datetime import UTC, datetime, timedelta
 
+import redis.asyncio as redis
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
@@ -15,6 +18,7 @@ from core.domain.value_objects.job_status import JobStatus
 from scheduler.db import get_session
 from scheduler.lock import DistributedLock
 from webapp.adapters.persistence.models.job import Job as JobModel
+from worker.jobs.source_sync import handle_source_sync
 
 # Test hooks: allows tests to inject a database engine or session
 _test_engine: AsyncEngine | None = None
@@ -165,7 +169,30 @@ async def scheduler_heartbeat(lock: DistributedLock | None = None) -> None:
         await lock.renew()
 
 
+def get_redis_client() -> redis.Redis:
+    """Get Redis client for checking sync locks."""
+    from scheduler.config import SchedulerSettings
+
+    settings = SchedulerSettings()
+    return redis.from_url(settings.redis_url)
+
+
+async def ensure_source_sync_running() -> None:
+    """Ensure T3K source sync is running by checking Redis lock and dispatching if needed."""
+    redis_client = get_redis_client()
+    try:
+        lock_exists = await redis_client.exists("t3k:sync:lock")
+
+        if lock_exists == 0:
+            sync_enabled = os.getenv("T3K_SYNC_ENABLED", "true").lower() == "true"
+            if sync_enabled:
+                handle_source_sync.kiq()
+    finally:
+        await redis_client.aclose()
+
+
 # Attach labels to functions for TaskIQ discovery
 monitor_stale_jobs.labels = {"schedule": [_Schedule(120)]}  # type: ignore[attr-defined]
 process_pending_retries.labels = {"schedule": [_Schedule(120)]}  # type: ignore[attr-defined]
 scheduler_heartbeat.labels = {"schedule": [_Schedule(60)]}  # type: ignore[attr-defined]
+ensure_source_sync_running.labels = {"schedule": [_Schedule(300)]}  # type: ignore[attr-defined]

@@ -87,3 +87,4 @@ class JobType(str, Enum):
     NOTIFICATION = "notification"  # Send user notification
     SHOOTOUT = "shootout"  # Parent orchestrator job for shootout
     SHOOTOUT_AUDIO = "shootout_audio"  # Per-chain audio processing for shootout
+    SOURCE_SYNC = "source_sync"  # Sync catalog from T3K source
