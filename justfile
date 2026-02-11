@@ -607,6 +607,10 @@ snapshot-list:
 test-quality:
     python scripts/test_quality_check.py tests/
 
+# Check test files for mock violations (strict — errors block)
+mock-check +FILES:
+    python scripts/test_quality_check.py --strict {{FILES}}
+
 # Health check for epic
 epic-health epic:
     python scripts/health_check.py {{epic}}

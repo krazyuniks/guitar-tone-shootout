@@ -1,7 +1,7 @@
 ---
 name: plan-reviewer
 description: Review epic task breakdown for quality, feasibility, and GTS compliance
-model: sonnet
+model: opus
 tools:
   - Read
   - Grep
@@ -74,6 +74,14 @@ Evaluate TASKS.md against these criteria:
 - Every observable truth from GOALS.md must be covered by at least one task
 - Every test specification from GOALS.md must appear in a task's acceptance criteria
 
+#### G. Test Strategy Validity
+- No task's acceptance criteria should imply mocking internal services
+- Flag criteria like "verify service was called" (spy/mock pattern) — should be "verify database row was created" (real assertion)
+- Each task must include a mock policy reminder: "Tests MUST use real services. Mock ONLY external network APIs."
+- Criteria should describe observable product behaviour, not function call verification
+- Bad: "SyncService.sync() is called when message arrives"
+- Good: "When sync message arrives, gear rows appear in gts_core.gear table"
+
 ### 4. Write REVIEW.md
 
 Write to `.planning/epics/{slug}/REVIEW.md`:
@@ -100,6 +108,7 @@ Write to `.planning/epics/{slug}/REVIEW.md`:
 | Acceptance Criteria | PASS/FAIL | {brief note} |
 | GTS Compliance | PASS/FAIL | {brief note} |
 | Goal Coverage | PASS/FAIL | {brief note} |
+| Test Strategy | PASS/FAIL | {brief note} |
 
 ## Issues Found
 
@@ -136,6 +145,7 @@ Blocking issues:
 - Acceptance criteria too vague for pytest
 - Breaking change without a companion "fix downstream consumers" task (blocked by the breaking change, blocking all subsequent tasks)
 - Test task combining multiple aggregates (e.g., User + SignalChain in one task)
+- Acceptance criteria implying mock usage (e.g., "verify X was called" instead of "verify database state")
 
 Warnings (non-blocking):
 - Task could be split further

@@ -132,6 +132,63 @@ ANTIPATTERNS = [
         "warning",
         "Async sleep in test - may cause flakiness",
     ),
+    # =========================================================================
+    # Mock violations — ERRORS (block the lock)
+    # =========================================================================
+    (
+        r"from unittest\.mock import",
+        "mock_import",
+        "error",
+        "BANNED: unittest.mock import — use real services",
+    ),
+    (
+        r"from unittest import mock",
+        "mock_import",
+        "error",
+        "BANNED: unittest.mock import — use real services",
+    ),
+    (
+        r"@patch\(",
+        "mock_patch",
+        "error",
+        "BANNED: @patch decorator — use real services",
+    ),
+    (
+        r"@patch\.object\(",
+        "mock_patch",
+        "error",
+        "BANNED: @patch.object decorator — use real services",
+    ),
+    (
+        r"\bMock\(",
+        "mock_usage",
+        "error",
+        "BANNED: Mock() — use real services",
+    ),
+    (
+        r"\bMagicMock\(",
+        "mock_usage",
+        "error",
+        "BANNED: MagicMock() — use real services",
+    ),
+    (
+        r"\bAsyncMock\(",
+        "mock_usage",
+        "error",
+        "BANNED: AsyncMock() — use real services",
+    ),
+    (
+        r"\.return_value\s*=",
+        "mock_config",
+        "error",
+        "BANNED: mock .return_value — use real services",
+    ),
+    (
+        r"\.side_effect\s*=",
+        "mock_config",
+        "error",
+        "BANNED: mock .side_effect — use real services",
+    ),
 ]
 
 
@@ -196,9 +253,7 @@ def check_file(path: Path) -> list[Issue]:
             continue
 
         # Skip if it just calls another function that likely has assertions
-        if test_body.strip().startswith("await ") or test_body.strip().startswith(
-            "return "
-        ):
+        if test_body.strip().startswith("await ") or test_body.strip().startswith("return "):
             continue
 
         if not has_assertion and "pass" not in test_body:

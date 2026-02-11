@@ -460,25 +460,30 @@ def make_signal_chain(db_session: AsyncSession, test_user):
 
 ## Test Templates
 
-### Unit Test
+### Unit Test (Service with Real Repository)
 
 ```python
 # tests/unit/backend/services/test_{module}.py
 import pytest
-from app.services.{module} import {Module}Service
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from webapp.adapters.persistence.repositories.{module}_repo import {Module}Repository
+from webapp.services.{module} import {Module}Service
+
 
 class Test{Module}Service:
     @pytest.fixture
-    def service(self) -> {Module}Service:
-        return {Module}Service(repository=Mock())
+    def service(self, session: AsyncSession) -> {Module}Service:
+        repository = {Module}Repository(session=session)
+        return {Module}Service(repository=repository)
 
-    def test_validates_input(self, service):
-        result = service.validate({"name": "test"})
+    async def test_validates_input(self, service):
+        result = await service.validate({"name": "test"})
         assert result.is_valid is True
 
-    def test_rejects_empty_name(self, service):
+    async def test_rejects_empty_name(self, service):
         with pytest.raises(ValueError, match="Name cannot be empty"):
-            service.validate({"name": ""})
+            await service.validate({"name": ""})
 ```
 
 ### Integration Test

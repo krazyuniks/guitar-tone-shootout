@@ -188,15 +188,39 @@ Tasks that are too large cause the implementer agent to exhaust its 30-turn budg
 - Removing a public function → companion task: update all callers
 - Renaming a DB column → companion task: update all queries, schemas, templates
 
+## Mock Policy (MANDATORY — every task)
+
+Every task MUST include this reminder in its description:
+
+> **Testing policy:** Tests MUST use real services (SQLite for unit, PostgreSQL for integration, Playwright for E2E). Mock ONLY external network APIs (T3K API, email, payment). Using Mock/patch/MagicMock for internal services will be caught by the automated quality gate and block the epic.
+
+## Implementation Hints (MANDATORY — every task)
+
+Every task MUST include an **Implementation Hints** section with:
+- Key patterns to follow (e.g., "use joinedload for query", "register route in router")
+- Wiring instructions (e.g., "add route to `apps/webapp/src/webapp/api/router.py`")
+- Relevant existing code to reference (e.g., "follow pattern in `gear_repository.py`")
+
+## Validation Criteria (MANDATORY — every task)
+
+Acceptance criteria MUST describe observable product behaviour, not just "tests pass":
+- **Good:** "After T3K sync runs, `SELECT count(*) FROM gear` returns > 0"
+- **Good:** "GET /api/v1/gear returns 200 with at least one gear item"
+- **Good:** "Worker log shows 'Processing sync message for pack X'"
+- **Bad:** "SyncService.sync() is called" (implies mocking)
+- **Bad:** "Tests pass" (says nothing about product functionality)
+
 ## Task Quality Checklist
 
 Each task must have:
 - [ ] Clear objective (2-3 sentences)
-- [ ] Specific acceptance criteria (checkboxes)
-- [ ] Exact GTS file paths in scope
+- [ ] Specific acceptance criteria with observable product behaviour
+- [ ] Exact GTS file paths in scope (Create and Modify sections)
+- [ ] Implementation hints with key patterns and wiring instructions
 - [ ] Dependencies noted (`Blocked by: #n`)
 - [ ] `project:{workspace}` label
 - [ ] Test command using `just` (not raw pytest)
+- [ ] Mock policy reminder
 
 **Test:** Could a different Claude instance execute this task without asking clarifying questions?
 

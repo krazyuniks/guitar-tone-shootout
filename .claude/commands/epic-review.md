@@ -45,6 +45,16 @@ Write the review to:
 - `.tasks/projects/guitar-tone-shootout/epics/E{n}/REVIEW.md` — human-readable review
 - `.tasks/projects/guitar-tone-shootout/epics/E{n}/review-data.json` — machine-readable metrics
 
+## Automated Data Collection
+
+Run the epic reviewer script first to generate metrics:
+
+```bash
+python scripts/epic_reviewer.py {n}
+```
+
+This produces `REVIEW.md` and `review-data.json` with mock density analysis. Use these as input for the human-readable review sections below.
+
 ## REVIEW.md Structure
 
 ```markdown
@@ -62,12 +72,12 @@ Link each artifact to its source.
 | Duration | - | Xh Ym |
 
 ## 3. Per-Task Metrics
-| Task | Tests | State | Attempts | Bounces | Duration | Notes |
-|------|-------|-------|----------|---------|----------|-------|
-| T1 | 5 | complete | 1 | 0 | 5m | Clean |
-| T26 | 42 | complete | 3 | 1 | 45m | Oversized |
+| Task | Tests | State | Attempts | Bounces | Duration | Mock Density | Notes |
+|------|-------|-------|----------|---------|----------|-------------|-------|
+| T1 | 5 | complete | 1 | 0 | 5m | 0% | Clean |
+| T26 | 42 | complete | 3 | 1 | 45m | 35% | Mocked |
 
-Flag tasks with >15 tests or >3 retries. Suggest how to split.
+Flag tasks with >15 tests, >3 retries, or >0% mock density. Suggest how to split/fix.
 
 ## 4. Agent Effectiveness
 - Test-author success rate (red gate pass on first try)
@@ -75,24 +85,60 @@ Flag tasks with >15 tests or >3 retries. Suggest how to split.
 - Bounce-back rate (test bugs caught post-impl)
 - Average retries per task
 
-## 5. Task Complexity Analysis
+## 5. Mock Analysis (NEW)
+Pull from `review-data.json` metrics:
+- **Mock density**: % of test lines that are mock-related
+- **Real assertion ratio**: % of assertions against real objects vs mock assertions
+- **Files with mocks**: Count of test files containing mock violations
+- **Violation list**: Per-file, per-line mock usage
+
+| File | Line | Pattern | Severity |
+|------|------|---------|----------|
+| tests/unit/worker/test_sync.py | 12 | @patch(...) | error |
+
+For each task with mock density > 0%, assess:
+- Was the mock used for an external API (acceptable) or internal service (violation)?
+- Could the test be rewritten with real fixtures?
+- Did the mocking lead to a no-op implementation?
+
+## 6. Product Functionality Assessment (NEW)
+For each task, verify the implementation actually works beyond just passing tests:
+- Are routes registered in the application router?
+- Are services wired into dependency injection?
+- Are consumers/handlers registered with their message queues?
+- Do database queries actually execute against real schemas?
+- Are background jobs scheduled in the scheduler?
+
+Score each task: FUNCTIONAL / PARTIAL / NO-OP
+
+| Task | Implementation | Wired In? | Score |
+|------|---------------|-----------|-------|
+| T112 | pgmq consumer | Not registered | NO-OP |
+| T115 | scheduler task | Not in schedules | NO-OP |
+
+## 7. Test Quality Score (NEW)
+- **Mock-free test percentage**: X/Y files (Z%)
+- **Real assertion ratio**: X%
+- **Mock density**: X%
+- **Quality grade**: A (>90% real) / B (70-90%) / C (50-70%) / F (<50%)
+
+## 8. Task Complexity Analysis
 Flag oversized tasks and suggest splits based on:
 - Test count (>15 is oversized)
 - File count (>3 impl files is oversized)
 - Layer crossing (repository + service + API in one task)
 
-## 6. Infrastructure Issues
+## 9. Infrastructure Issues
 CSS hash staleness, Docker problems, Playwright availability, etc.
 Parse from error logs and session logs.
 
-## 7. Learnings
+## 10. Learnings
 What should be promoted to:
-- SKILL.md (testing patterns)
 - Agent instructions (implementer.md, test-author.md)
 - MEMORY.md (project-specific knowledge)
 - Rules (.claude/rules/)
 
-## 8. Recommendations (ranked by impact)
+## 11. Recommendations (ranked by impact)
 | Priority | Recommendation | Effort | Impact |
 |----------|---------------|--------|--------|
 | 1 | ... | Low/Med/High | High |
@@ -112,7 +158,10 @@ What should be promoted to:
       "attempts": 1,
       "bounces": 0,
       "files_created": ["libs/core/..."],
-      "errors": []
+      "errors": [],
+      "mock_density": 0.0,
+      "real_assertion_ratio": 1.0,
+      "violation_count": 0
     }
   ],
   "metrics": {
@@ -120,7 +169,15 @@ What should be promoted to:
     "implementer_first_pass_rate": 0.75,
     "bounce_back_rate": 0.10,
     "avg_retries": 1.2,
-    "oversized_tasks": ["T26"]
+    "oversized_tasks": ["T26"],
+    "mock_density": 0.45,
+    "real_assertion_ratio": 0.30,
+    "total_violations": 8,
+    "files_with_mocks": 8,
+    "files_without_mocks": 2,
+    "mock_violations": [
+      {"file": "tests/unit/worker/test_source_sync.py", "line": 12, "pattern": "@patch(...)", "description": "..."}
+    ]
   }
 }
 ```

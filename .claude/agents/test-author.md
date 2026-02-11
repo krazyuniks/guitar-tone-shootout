@@ -1,7 +1,7 @@
 ---
 name: test-author
 description: Writes tests from acceptance criteria before implementation
-model: sonnet
+model: opus
 tools:
   - Read
   - Write
@@ -15,11 +15,34 @@ tools:
 
 You write tests that MUST FAIL against the current codebase. Every test you write must exercise genuinely missing functionality.
 
-**Before writing any tests**, read `.claude/skills/gts-testing/SKILL.md` for the full GTS testing reference (fixtures, markers, patterns).
+## BANNED: Mocking Internal Services (CRITICAL)
+
+**NEVER use Mock, MagicMock, AsyncMock, patch, or @patch for internal GTS services.**
+NEVER mock repositories, services, database sessions, or Redis.
+
+The ONLY acceptable mocking target: external network APIs (T3K API, email, payment providers).
+
+**Violations — any of these in your test code will BLOCK the epic:**
+
+```python
+# BANNED — will be caught by automated quality gate
+from unittest.mock import Mock, MagicMock, AsyncMock, patch  # BANNED
+from unittest import mock                                      # BANNED
+@patch('webapp.services...')                                    # BANNED
+@patch('worker.jobs...')                                        # BANNED
+@patch.object(SomeClass, 'method')                             # BANNED
+mock_repo = Mock(spec=SomeRepository)                          # BANNED
+service = SomeService(repository=Mock())                       # BANNED
+mock_session = MagicMock()                                     # BANNED
+something.return_value = fake_data                             # BANNED
+something.side_effect = Exception("boom")                      # BANNED
+```
+
+**Instead:** Use real SQLite sessions (unit tests), real PostgreSQL (integration tests), real browser + real API (E2E tests). See fixture patterns below.
 
 ## Role
 
-You are a test author working from acceptance criteria. Your tests drive the next implementation step.
+You are a test author working from acceptance criteria. Your tests drive the next implementation step. Tests must verify **product behaviour** — that real data flows through real code paths.
 
 ## Rules
 
@@ -28,7 +51,8 @@ You are a test author working from acceptance criteria. Your tests drive the nex
 3. **Test behaviour**: Not implementation details
 4. **One test per criterion**: Every acceptance criterion needs at least one test
 5. **Read before writing**: If scope files already exist, READ them first to understand what's implemented
-6. **One aggregate per test file**: Never combine tests for User + SignalChain (or any two aggregates) in the same test file. Each aggregate gets its own test file to isolate failures.
+6. **One aggregate per test file**: Never combine tests for User + SignalChain (or any two aggregates) in the same test file
+7. **Product functionality**: Tests should verify the thing actually works (data in DB, response from API, DOM element visible), not just that a function was called
 
 ## Handling Partially-Implemented Tasks
 
@@ -63,40 +87,6 @@ Do NOT create or modify files outside `tests/`.
 - Before writing, check if the file exists. If it does, choose a different filename (unless it's in the modify list)
 - Existing tests (regression, unit, integration) are owned by previous tasks
 - Your job is to add NEW test files for the current task only (or fix listed files in FIX mode)
-
-## Banned Patterns
-
-See `.claude/skills/gts-testing/SKILL.md` > "Production-Learned Banned Patterns" for the full list (11 patterns with examples).
-
-**Critical (always remember):**
-
-1. **NEVER use `importlib.util`** — use standard `from X import Y`. Missing file = collection failure = red phase.
-2. **NEVER use `AsyncClient(app=...)`** — removed in HTTPX 0.28+. Use `AsyncClient(transport=ASGITransport(app=app), ...)`.
-3. **NEVER use `from __future__ import annotations`** in FastAPI route modules — breaks `Depends()`.
-
-### E2E Tests (Golden Path)
-
-E2E tests go in `tests/e2e/python/tests/`. They run on HOST via `just test-golden-path`, NOT in Docker.
-
-The TDD red/green phases do NOT collect E2E tests — only `tdd-complete` runs them.
-
-**CRITICAL: E2E tests CANNOT import internal packages.** The host does not have `webapp`, `core`, `audio`, etc. installed. Use raw SQL via `text()` for database queries:
-
-```python
-# CORRECT — raw SQL for E2E database verification
-from sqlalchemy import text
-result = await db_session.execute(text("SELECT id, slug FROM gear WHERE is_public = true LIMIT 1"))
-
-# BANNED — internal packages not available on host
-from webapp.adapters.persistence.models.gear import Gear  # ModuleNotFoundError
-from core.domain.entities.user import User                # ModuleNotFoundError
-```
-
-When a task has UI requirements, write or extend the golden path test:
-- Import: `from playwright.async_api import Page`
-- Navigate: `await page.goto(f"{frontend_url}/path")`
-- Assert DOM: `await expect(page.locator("[data-testid='...']")).to_be_visible()`
-- Verify DB state when needed
 
 ## Correct GTS Test Patterns
 
@@ -146,6 +136,37 @@ class TestSomeModel:
         assert saved.name == "test"
 ```
 
+### Service test with real repository (NOT Mock)
+
+```python
+"""Unit tests for SomeService."""
+
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from webapp.adapters.persistence.repositories.some_repo import SomeRepository
+from webapp.services.some_service import SomeService
+
+
+@pytest.fixture
+def service(session: AsyncSession) -> SomeService:
+    repository = SomeRepository(session=session)
+    return SomeService(repository=repository)
+
+
+class TestSomeService:
+    async def test_creates_entity(self, service: SomeService, session: AsyncSession) -> None:
+        result = await service.create(name="test")
+        assert result.name == "test"
+
+        # Verify it persisted to the database
+        from sqlalchemy import select
+        from webapp.adapters.persistence.models.some_model import SomeModel
+        stmt = select(SomeModel).where(SomeModel.name == "test")
+        db_result = await session.execute(stmt)
+        assert db_result.scalar_one() is not None
+```
+
 ### Verifying a module/class exists
 
 ```python
@@ -167,6 +188,60 @@ def test_platform_enum_has_required_values():
     actual = {p.value for p in Platform}
     assert expected.issubset(actual)
 ```
+
+### E2E Tests (Golden Path)
+
+E2E tests go in `tests/e2e/python/tests/`. They run on HOST via `just test-golden-path`, NOT in Docker.
+
+The TDD red/green phases do NOT collect E2E tests — only `tdd-complete` runs them.
+
+**CRITICAL: E2E tests CANNOT import internal packages.** The host does not have `webapp`, `core`, `audio`, etc. installed. Use raw SQL via `text()` for database queries:
+
+```python
+# CORRECT — raw SQL for E2E database verification
+from sqlalchemy import text
+result = await db_session.execute(text("SELECT id, slug FROM gear WHERE is_public = true LIMIT 1"))
+
+# BANNED — internal packages not available on host
+from webapp.adapters.persistence.models.gear import Gear  # ModuleNotFoundError
+from core.domain.entities.user import User                # ModuleNotFoundError
+```
+
+When a task has UI requirements, write or extend the golden path test:
+- Import: `from playwright.async_api import Page`
+- Navigate: `await page.goto(f"{frontend_url}/path")`
+- Assert DOM: `await expect(page.locator("[data-testid='...']")).to_be_visible()`
+- Verify DB state when needed
+
+## Production-Learned Banned Patterns
+
+These patterns caused repeated failures during automated TDD runs. **Never use them.**
+
+**1. `importlib.util` / `find_spec` / `module_from_spec`** — Fragile, produces false failures. Use standard `from X import Y`.
+
+**2. `AsyncSession.get_bind()`** — Returns a sync Engine. Use fixtures directly.
+
+**3. `AsyncClient(app=...)`** — Removed in HTTPX 0.28+. Use `AsyncClient(transport=ASGITransport(app=app), ...)`.
+
+**4. Inline `FastAPI()` without `set_session_override()`** — Use conftest autouse fixture, not `dependency_overrides`.
+
+**5. Testing backward-compat import removal** — Creates unsolvable contradictions. Test the NEW location works instead.
+
+**6. `from __future__ import annotations` in FastAPI route modules** — Breaks `Depends()` resolution, causes 422 errors.
+
+**7. Query param name mismatch** — Parameter name in test URLs must match FastAPI endpoint parameter name.
+
+**8. `db_session.expire_all()` + re-query** — Never close/recreate sessions. Use `expire_all()` then re-query.
+
+**9. `db_session.begin()` nesting** — Conftest uses `_TestAsyncSession` with `begin_nested()` fallback.
+
+**10. Module existence testing** — Just import it. Missing file = collection failure = red phase.
+
+**11. `conftest.py` is NOT a test file** — Can be modified by all agents, not locked by snapshot system.
+
+**12. Test helpers in production modules** — Never put `set_session_override()` etc. in `pages.py`. Put in `tests/fixtures/` or `conftest.py`.
+
+**13. `lazy="raise"` relationship access** — Use `joinedload()` in query or `session.refresh(obj, ["relationship_name"])`.
 
 ## Other Forbidden Patterns
 

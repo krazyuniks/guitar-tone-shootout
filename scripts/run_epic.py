@@ -34,9 +34,8 @@ import subprocess
 import sys
 import textwrap
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -51,7 +50,9 @@ VALID_PROJECTS = {"core", "audio", "t3k", "webapp", "worker", "scheduler"}
 # Task states in order of progression
 STATE_ORDER = ["pending", "locked", "validating", "complete"]
 
-MAX_TEST_AUTHOR_RETRIES = 2  # retry twice after initial failure (36% first-attempt failure rate in E86)
+MAX_TEST_AUTHOR_RETRIES = (
+    2  # retry twice after initial failure (36% first-attempt failure rate in E86)
+)
 MAX_IMPLEMENTER_RETRIES = 2  # retry twice after initial failure
 
 
@@ -69,7 +70,7 @@ def init_session_log(epic_dir: Path, epic_number: int) -> None:
     logs_dir = epic_dir / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     log_path = logs_dir / f"session_{timestamp}.log"
 
     logger = logging.getLogger(f"epic-{epic_number}")
@@ -103,7 +104,7 @@ def log_structured(event: str, **data: object) -> None:
     """Write a structured JSON log entry for machine parsing."""
     entry = {
         "event": event,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         **data,
     }
     log(f"STRUCTURED: {json.dumps(entry)}", "debug")
@@ -143,23 +144,31 @@ def git_sync() -> None:
     # Stage any unstaged changes (epic-sync updates .tasks/ timestamps)
     subprocess.run(
         ["git", "add", ".tasks/", "tests/", "frontend/"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     # Commit if there are staged changes (no-op if clean)
     check = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     if check.returncode != 0:
         subprocess.run(
             ["git", "commit", "-m", "chore: sync task state"],
-            cwd=PROJECT_ROOT, capture_output=True, text=True,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
         )
 
     log("  Git sync: pull --rebase --autostash origin main")
     result = subprocess.run(
         ["git", "pull", "--rebase", "--autostash", "origin", "main"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         log(f"  Git rebase failed (non-fatal): {result.stderr.strip()}", "warning")
@@ -169,7 +178,9 @@ def git_sync() -> None:
     log("  Git sync: push --force-with-lease")
     result = subprocess.run(
         ["git", "push", "--force-with-lease"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         log(f"  Git push failed (non-fatal): {result.stderr.strip()}", "warning")
@@ -244,7 +255,9 @@ def detect_chrome_executable() -> str | None:
     """Find Chrome/Chromium executable on the system."""
     for candidate in ["google-chrome", "chromium", "chromium-browser"]:
         result = subprocess.run(
-            ["which", candidate], capture_output=True, text=True,
+            ["which", candidate],
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             return result.stdout.strip()
@@ -324,11 +337,15 @@ def dispatch_agent(
     args = build_claude_args(agent_def, project=project, max_turns=max_turns)
 
     # Build full prompt: agent instructions + task
-    full_prompt = f"# Agent: {agent_def.name}\n\n{agent_def.prompt_body}\n\n---\n\n# Task\n\n{prompt}"
+    full_prompt = (
+        f"# Agent: {agent_def.name}\n\n{agent_def.prompt_body}\n\n---\n\n# Task\n\n{prompt}"
+    )
 
     if dry_run:
         tools_str = ", ".join(agent_def.tools) if agent_def.tools else "(all)"
-        log(f"  [dry-run] Would dispatch '{agent_name}' (model={agent_def.model}, tools={tools_str})")
+        log(
+            f"  [dry-run] Would dispatch '{agent_name}' (model={agent_def.model}, tools={tools_str})"
+        )
         log(f"  [dry-run] Max turns: {max_turns}, project: {project or 'none'}")
         return None
 
@@ -357,9 +374,7 @@ def preflight_scope_check(task: Task) -> list[tuple[str, bool]]:
 
     Returns list of (filepath, exists) tuples.
     """
-    task_path = (
-        TASKS_BASE / f"E{task.epic_number}" / "tasks" / f"T{task.task_id}.md"
-    )
+    task_path = TASKS_BASE / f"E{task.epic_number}" / "tasks" / f"T{task.task_id}.md"
     if not task_path.exists():
         return []
 
@@ -432,6 +447,7 @@ def parse_pytest_counts(output: str) -> tuple[int, int, int]:
 
     Returns (passed, failed, errors).
     """
+
     def _extract(pattern: str) -> int:
         match = re.search(pattern, output)
         return int(match.group(1)) if match else 0
@@ -446,23 +462,6 @@ def parse_pytest_counts(output: str) -> tuple[int, int, int]:
 # ---------------------------------------------------------------------------
 # Prompt builders
 # ---------------------------------------------------------------------------
-
-
-def load_testing_skill() -> str | None:
-    """Load GTS testing skill content for embedding in test-author prompts."""
-    skill_path = PROJECT_ROOT / ".claude" / "skills" / "gts-testing" / "SKILL.md"
-    if not skill_path.exists():
-        return None
-
-    content = skill_path.read_text()
-
-    # Strip YAML frontmatter if present
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            return parts[2].strip()
-
-    return content.strip()
 
 
 def build_test_author_prompt(task: Task, retry_context: str | None = None) -> str:
@@ -486,15 +485,17 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
     missing_scope = [(f, e) for f, e in scope_files if not e]
 
     if existing_scope or existing_tests:
-        lines.extend([
-            "",
-            "## Pre-flight Context (IMPORTANT)",
-            "",
-            "Some scope files already exist. This means code is partially implemented.",
-            "Every test you write MUST FAIL against the current code.",
-            "Do NOT write tests that verify already-working functionality.",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Pre-flight Context (IMPORTANT)",
+                "",
+                "Some scope files already exist. This means code is partially implemented.",
+                "Every test you write MUST FAIL against the current code.",
+                "Do NOT write tests that verify already-working functionality.",
+                "",
+            ]
+        )
 
         if existing_scope:
             lines.append("**Scope files that ALREADY EXIST (read these first):**")
@@ -514,79 +515,90 @@ def build_test_author_prompt(task: Task, retry_context: str | None = None) -> st
                 lines.append(f"- `{test_path}` ({count} tests)")
             lines.append("")
 
-        lines.extend([
-            "**Strategy for partially-implemented tasks:**",
-            "1. Read all existing scope files to understand what's already implemented",
-            "2. Read existing test files to avoid duplication",
-            "3. Write tests ONLY for genuinely missing functionality",
-            "4. If everything is already implemented, write tests for edge cases or",
-            "   acceptance criteria that existing tests don't cover",
-            "5. Every test MUST FAIL — if you can't find anything untested, STOP and",
-            "   report that the task appears fully implemented",
-        ])
+        lines.extend(
+            [
+                "**Strategy for partially-implemented tasks:**",
+                "1. Read all existing scope files to understand what's already implemented",
+                "2. Read existing test files to avoid duplication",
+                "3. Write tests ONLY for genuinely missing functionality",
+                "4. If everything is already implemented, write tests for edge cases or",
+                "   acceptance criteria that existing tests don't cover",
+                "5. Every test MUST FAIL — if you can't find anything untested, STOP and",
+                "   report that the task appears fully implemented",
+            ]
+        )
     elif missing_scope:
-        lines.extend([
-            "",
-            "## Scope Context",
-            "",
-            "None of the scope files exist yet — this is a fresh implementation task.",
-            "All tests should fail (imports will error on missing modules).",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Scope Context",
+                "",
+                "None of the scope files exist yet — this is a fresh implementation task.",
+                "All tests should fail (imports will error on missing modules).",
+            ]
+        )
 
-    lines.extend([
-        "",
-        "## Instructions",
-        "",
-        "1. Read the task spec for acceptance criteria",
-        "2. Write test files in tests/unit/, tests/integration/, or tests/e2e/python/tests/",
-        "3. Run tests to verify they compile and FAIL (not error)",
-        "4. Do NOT create any implementation files",
-        "5. Do NOT update any .tasks/ state files",
-        "6. You MAY modify existing test files when the task spec explicitly requires it",
-        "7. When modifying, ADD new test functions — do not alter existing tests",
-        "8. Prefer creating new files unless the task spec names a specific file to modify",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Instructions",
+            "",
+            "1. Read the task spec for acceptance criteria",
+            "2. Write test files in tests/unit/, tests/integration/, or tests/e2e/python/tests/",
+            "3. Run tests to verify they compile and FAIL (not error)",
+            "4. Do NOT create any implementation files",
+            "5. Do NOT update any .tasks/ state files",
+            "6. You MAY modify existing test files when the task spec explicitly requires it",
+            "7. When modifying, ADD new test functions — do not alter existing tests",
+            "8. Prefer creating new files unless the task spec names a specific file to modify",
+        ]
+    )
 
     if retry_context:
         passed, failed, errors = parse_pytest_counts(retry_context)
-        lines.extend([
-            "",
-            "## Previous Attempt Failed — RED GATE REJECTED",
-            "",
-            f"**Results:** {passed} passed, {failed} failed, {errors} errors",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Previous Attempt Failed — RED GATE REJECTED",
+                "",
+                f"**Results:** {passed} passed, {failed} failed, {errors} errors",
+                "",
+            ]
+        )
 
         if passed > 0 and failed == 0 and errors == 0:
-            lines.extend([
-                f"ALL {passed} tests passed. The red gate requires at least one failure.",
-                "",
-                "**You MUST:**",
-                "1. DELETE all test files you created (they test already-implemented code)",
-                "2. Read the existing implementation files listed in scope",
-                "3. Write NEW tests that target genuinely MISSING functionality",
-                "4. If everything is implemented, test edge cases or validation not yet covered",
-            ])
+            lines.extend(
+                [
+                    f"ALL {passed} tests passed. The red gate requires at least one failure.",
+                    "",
+                    "**You MUST:**",
+                    "1. DELETE all test files you created (they test already-implemented code)",
+                    "2. Read the existing implementation files listed in scope",
+                    "3. Write NEW tests that target genuinely MISSING functionality",
+                    "4. If everything is implemented, test edge cases or validation not yet covered",
+                ]
+            )
         elif passed > 0:
-            lines.extend([
-                f"{passed} tests already pass against current code.",
-                "The red gate tolerates some passing tests IF failures exist too,",
-                "but you should still review passing tests — they may be testing",
-                "already-implemented behaviour (wasting test budget).",
-            ])
+            lines.extend(
+                [
+                    f"{passed} tests already pass against current code.",
+                    "The red gate tolerates some passing tests IF failures exist too,",
+                    "but you should still review passing tests — they may be testing",
+                    "already-implemented behaviour (wasting test budget).",
+                ]
+            )
 
-        lines.extend([
-            "",
-            "Previous output (last 2000 chars):",
-            "```",
-            retry_context[-2000:],
-            "```",
-        ])
+        lines.extend(
+            [
+                "",
+                "Previous output (last 2000 chars):",
+                "```",
+                retry_context[-2000:],
+                "```",
+            ]
+        )
 
-    # Append GTS testing skill reference
-    skill_content = load_testing_skill()
-    if skill_content:
-        lines.extend(["", "---", "", "## GTS Testing Reference", "", skill_content])
+    # Agent .md body now contains all needed testing reference — no external skill loading
 
     return "\n".join(lines)
 
@@ -637,17 +649,21 @@ def build_implementer_prompt(
         # Get files modified so far
         diff_result = subprocess.run(
             ["git", "diff", "--name-only", "HEAD"],
-            cwd=PROJECT_ROOT, capture_output=True, text=True,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
         )
         modified_files = diff_result.stdout.strip()
 
-        lines.extend([
-            "",
-            "## Previous Attempt Failed",
-            "",
-            f"**Results:** {passed} passed, {failed} failed, {errors} errors",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Previous Attempt Failed",
+                "",
+                f"**Results:** {passed} passed, {failed} failed, {errors} errors",
+                "",
+            ]
+        )
 
         if error_types:
             lines.append("**Error categories:** " + "; ".join(error_types))
@@ -659,14 +675,16 @@ def build_implementer_prompt(
                 lines.append(f"- `{f}`")
             lines.append("")
 
-        lines.extend([
-            "Review the failures and fix the implementation.",
-            "",
-            "Previous output (last 3000 chars):",
-            "```",
-            retry_context[-3000:],
-            "```",
-        ])
+        lines.extend(
+            [
+                "Review the failures and fix the implementation.",
+                "",
+                "Previous output (last 3000 chars):",
+                "```",
+                retry_context[-3000:],
+                "```",
+            ]
+        )
 
     return "\n".join(lines)
 
@@ -702,10 +720,7 @@ def is_likely_test_bug(task: Task, green_output: str) -> bool:
 
     # Heuristic B: all failures in a single test file (one bad pattern)
     failing_files = find_failing_test_files(green_output)
-    if len(failing_files) == 1 and passed > 0:
-        return True
-
-    return False
+    return bool(len(failing_files) == 1 and passed > 0)
 
 
 def find_failing_test_files(green_output: str) -> list[str]:
@@ -765,35 +780,34 @@ def build_test_fix_prompt(
     for f in failing_test_files:
         lines.append(f"- `{f}`")
 
-    lines.extend([
-        "",
-        "## Rules",
-        "",
-        "1. ONLY modify the files listed above — no other test files",
-        "2. Read each failing test file and the implementation it tests",
-        "3. Fix the test bugs (wrong imports, wrong assertions, wrong patterns)",
-        "4. Do NOT add new tests — only fix existing ones",
-        "5. Do NOT modify implementation files (libs/, apps/, sources/)",
-        "6. Do NOT update any .tasks/ state files",
-        "",
-        "## BANNED Patterns (NEVER USE)",
-        "",
-        "- `importlib.util` / `find_spec` / `module_from_spec` — use standard `from X import Y`",
-        "- `db_session.get_bind()` — returns sync Engine, use fixtures directly",
-        "- Ad-hoc session fixtures when conftest fixtures exist",
-        "- `AsyncClient(app=...)` — removed in HTTPX 0.28+, use `AsyncClient(transport=ASGITransport(app=app), ...)`",
-        "",
-        "## Green Phase Output (failures to fix)",
-        "",
-        "```",
-        green_output[-3000:],
-        "```",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Rules",
+            "",
+            "1. ONLY modify the files listed above — no other test files",
+            "2. Read each failing test file and the implementation it tests",
+            "3. Fix the test bugs (wrong imports, wrong assertions, wrong patterns)",
+            "4. Do NOT add new tests — only fix existing ones",
+            "5. Do NOT modify implementation files (libs/, apps/, sources/)",
+            "6. Do NOT update any .tasks/ state files",
+            "",
+            "## BANNED Patterns (NEVER USE)",
+            "",
+            "- `importlib.util` / `find_spec` / `module_from_spec` — use standard `from X import Y`",
+            "- `db_session.get_bind()` — returns sync Engine, use fixtures directly",
+            "- Ad-hoc session fixtures when conftest fixtures exist",
+            "- `AsyncClient(app=...)` — removed in HTTPX 0.28+, use `AsyncClient(transport=ASGITransport(app=app), ...)`",
+            "",
+            "## Green Phase Output (failures to fix)",
+            "",
+            "```",
+            green_output[-3000:],
+            "```",
+        ]
+    )
 
-    # Append skill content for reference
-    skill_content = load_testing_skill()
-    if skill_content:
-        lines.extend(["", "---", "", "## GTS Testing Reference", "", skill_content])
+    # Agent .md body now contains all needed testing reference — no external skill loading
 
     return "\n".join(lines)
 
@@ -806,8 +820,15 @@ def restore_locked_test_files(task_id_str: str) -> tuple[bool, str]:
     """
     # Run snapshot verification to get violations
     result = subprocess.run(
-        [sys.executable, str(PROJECT_ROOT / "scripts" / "snapshot_tests.py"), "verify", task_id_str],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "snapshot_tests.py"),
+            "verify",
+            task_id_str,
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
 
     if result.returncode == 0:
@@ -827,7 +848,9 @@ def restore_locked_test_files(task_id_str: str) -> tuple[bool, str]:
     # Find the lock commit
     lock_result = subprocess.run(
         ["git", "log", f"--grep=test-lock: {task_id_str}", "-1", "--format=%H"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     lock_commit = lock_result.stdout.strip()
     if not lock_commit:
@@ -838,7 +861,9 @@ def restore_locked_test_files(task_id_str: str) -> tuple[bool, str]:
     for filepath in modified_files:
         restore = subprocess.run(
             ["git", "checkout", lock_commit, "--", filepath],
-            cwd=PROJECT_ROOT, capture_output=True, text=True,
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
         )
         if restore.returncode == 0:
             restored.append(filepath)
@@ -848,11 +873,15 @@ def restore_locked_test_files(task_id_str: str) -> tuple[bool, str]:
     # Stage and commit the restoration
     subprocess.run(
         ["git", "add", *restored],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     subprocess.run(
         ["git", "commit", "-m", f"fix(tests): restore locked test files for {task_id_str}"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
 
     return True, f"Restored {len(restored)} file(s): {', '.join(restored)}"
@@ -866,14 +895,18 @@ def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
     # Stage and commit test fixes
     result = subprocess.run(
         ["git", "add", "tests/"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         return False, result.stderr
 
     result = subprocess.run(
         ["git", "commit", "-m", f"fix(tests): Fix test bugs for {task_id_str} (bounce-back)"],
-        cwd=PROJECT_ROOT, capture_output=True, text=True,
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
     )
     # commit may fail if nothing changed — that's OK
     commit_output = result.stdout + result.stderr
@@ -903,7 +936,6 @@ class Task:
     def is_actionable(self) -> bool:
         """Task is actionable if not complete and not blocked."""
         return self.state != "complete" and not self.blocked_by_incomplete
-
 
     # Set after resolving dependencies
     blocked_by_incomplete: list[int] = field(default_factory=list)
@@ -1029,7 +1061,9 @@ def rebuild_index(epic_dir: Path, epic_number: int) -> None:
     rows = []
     for t in tasks:
         blocked = ", ".join(f"T{n}" for n in t.blocked_by) or "-"
-        rows.append(f"| T{t.task_id} | {t.title[:35]} | {t.state} | {t.project or '-'} | {blocked} |")
+        rows.append(
+            f"| T{t.task_id} | {t.title[:35]} | {t.state} | {t.project or '-'} | {blocked} |"
+        )
 
     content = f"""# E{epic_number}: {epic_title}
 
@@ -1081,6 +1115,31 @@ def run_just_command(command: str, task_id: str) -> tuple[bool, str]:
     return ok, output
 
 
+def _get_new_test_files() -> list[str]:
+    """Get new/modified test files since last commit (for mock quality gate)."""
+    modified = subprocess.run(
+        ["git", "diff", "--name-only", "HEAD", "--", "tests/"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "--", "tests/"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    all_files = set(modified.stdout.strip().splitlines() + untracked.stdout.strip().splitlines())
+    return sorted(
+        f
+        for f in all_files
+        if f.endswith(".py")
+        and ("test_" in f or f.endswith("_test.py"))
+        and not f.startswith("tests/e2e/")
+        and f  # filter empty strings
+    )
+
+
 def run_tdd_red(task_id: str) -> tuple[bool, str]:
     """Verify tests fail (red phase). Returns (passed, output)."""
     return run_just_command("tdd-red", task_id)
@@ -1105,11 +1164,16 @@ def run_tdd_green(task_id: str, task: Task | None = None) -> tuple[bool, str]:
             log(f"    Running scope-derived green: pytest {files_display} -v")
             result = subprocess.run(
                 ["docker", "compose", "exec", "-T", "webapp", "pytest", *test_files, "-v"],
-                capture_output=True, text=True, cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
             )
             output = result.stdout + result.stderr
             ok = result.returncode == 0
-            log(f"    scope-derived green -> {'OK' if ok else f'FAILED (exit {result.returncode})'}", "debug")
+            log(
+                f"    scope-derived green -> {'OK' if ok else f'FAILED (exit {result.returncode})'}",
+                "debug",
+            )
             if output.strip():
                 log(f"    Output:\n{output[-3000:]}", "debug")
             return ok, output
@@ -1138,12 +1202,12 @@ def write_error_report(
     errors_dir = epic_dir / "logs" / "errors"
     errors_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     report_path = errors_dir / f"T{task_id}_{phase}_{timestamp}.md"
 
     content = f"""# Error Report: T{task_id} — {phase}
 
-**Time:** {datetime.now(timezone.utc).isoformat()}
+**Time:** {datetime.now(UTC).isoformat()}
 **Phase:** {phase}
 **Task:** T{task_id}
 
@@ -1258,14 +1322,14 @@ def run_state_machine(
         log(f"  Next task: T{task.task_id} — {task.title} (state={task.state})")
 
         # 4b. Infrastructure health check before dispatch
-        if not dry_run:
+        if not dry_run and not check_infra_health():
+            log("  Waiting 15s for services to recover...")
+            import time
+
+            time.sleep(15)
             if not check_infra_health():
-                log("  Waiting 15s for services to recover...")
-                import time
-                time.sleep(15)
-                if not check_infra_health():
-                    log("  Infrastructure still unhealthy. Halting.", "error")
-                    stop_epic(epic_dir, task.task_id, "infra_unhealthy", "Docker services not healthy")
+                log("  Infrastructure still unhealthy. Halting.", "error")
+                stop_epic(epic_dir, task.task_id, "infra_unhealthy", "Docker services not healthy")
 
         # 5. Execute based on current state
         if task.state == "pending":
@@ -1278,7 +1342,7 @@ def run_state_machine(
 
             if not dry_run:
                 # Verify tests fail (red phase)
-                log(f"\n  Phase: RED (verifying tests fail)")
+                log("\n  Phase: RED (verifying tests fail)")
                 ok, output = run_tdd_red(task_id_str)
 
                 if not ok:
@@ -1295,8 +1359,34 @@ def run_state_machine(
                     if not ok:
                         stop_epic(epic_dir, task.task_id, "red_failed", output)
 
+                # Mock quality gate — only check new/modified test files
+                log("\n  Phase: MOCK CHECK (verifying no mock violations)")
+                new_test_files = _get_new_test_files()
+                if new_test_files:
+                    mock_result = subprocess.run(
+                        [
+                            sys.executable,
+                            str(PROJECT_ROOT / "scripts" / "test_quality_check.py"),
+                            "--strict",
+                            *new_test_files,
+                        ],
+                        cwd=PROJECT_ROOT,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if mock_result.returncode != 0:
+                        stop_epic(
+                            epic_dir,
+                            task.task_id,
+                            "mock_quality_failed",
+                            mock_result.stdout + mock_result.stderr,
+                        )
+                    log("    Mock check passed")
+                else:
+                    log("    No new test files to check")
+
                 # Lock tests
-                log(f"\n  Phase: LOCK (snapshotting tests)")
+                log("\n  Phase: LOCK (snapshotting tests)")
                 ok, output = run_tdd_lock(task_id_str)
                 if not ok:
                     stop_epic(epic_dir, task.task_id, "lock_failed", output)
@@ -1307,7 +1397,7 @@ def run_state_machine(
             else:
                 log(f"  [dry-run] Would run: tdd-red {task_id_str}")
                 log(f"  [dry-run] Would run: tdd-lock {task_id_str}")
-                log(f"  [dry-run] Would update state: pending → locked")
+                log("  [dry-run] Would update state: pending → locked")
                 update_task_state(epic_dir, task.task_id, "locked")
 
         elif task.state == "locked":
@@ -1322,7 +1412,7 @@ def run_state_machine(
                 if not dry_run:
                     ok, output = run_tdd_green(task_id_str, task)  # scope-derived
                 else:
-                    log(f"  [dry-run] Would run scope-derived green for test-only task")
+                    log("  [dry-run] Would run scope-derived green for test-only task")
                     ok, output = True, ""
 
                 if not dry_run and not ok:
@@ -1331,11 +1421,13 @@ def run_state_machine(
                     all_problem_files = sorted(set(failing_files) | set(error_files))
 
                     if all_problem_files:
-                        log(f"  Test-only task has {len(all_problem_files)} problem file(s), dispatching test-author FIX...")
+                        log(
+                            f"  Test-only task has {len(all_problem_files)} problem file(s), dispatching test-author FIX..."
+                        )
                         fix_prompt = build_test_fix_prompt(task, output, all_problem_files)
                         dispatch_agent("test-author", fix_prompt, project=task.project)
 
-                        log(f"\n  Re-locking tests after fix...")
+                        log("\n  Re-locking tests after fix...")
                         lock_ok, lock_output = re_lock_after_bounce(task_id_str)
                         if not lock_ok:
                             stop_epic(epic_dir, task.task_id, "test_fix_lock_failed", lock_output)
@@ -1351,19 +1443,25 @@ def run_state_machine(
                 log_structured("phase_start", task_id=task.task_id, phase="impl")
 
                 prompt = build_implementer_prompt(task)
-                dispatch_agent("implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run)
+                dispatch_agent(
+                    "implementer", prompt, project=task.project, max_turns=30, dry_run=dry_run
+                )
 
                 if not dry_run:
                     # Verify task's own tests pass (scope-derived, fast feedback)
-                    log(f"\n  Phase: GREEN (verifying task tests pass)")
+                    log("\n  Phase: GREEN (verifying task tests pass)")
                     ok, output = run_tdd_green(task_id_str, task)
 
                     if not ok:
                         # Retry up to MAX_IMPLEMENTER_RETRIES times with scope-derived
                         for attempt in range(MAX_IMPLEMENTER_RETRIES):
-                            log(f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}...")
+                            log(
+                                f"  Green phase failed. Retry {attempt + 1}/{MAX_IMPLEMENTER_RETRIES}..."
+                            )
                             retry_prompt = build_implementer_prompt(task, retry_context=output)
-                            dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
+                            dispatch_agent(
+                                "implementer", retry_prompt, project=task.project, max_turns=30
+                            )
 
                             ok, output = run_tdd_green(task_id_str, task)
                             if ok:
@@ -1375,35 +1473,45 @@ def run_state_machine(
                             if bounced == 0 and is_likely_test_bug(task, output):
                                 bounce_backs[task.task_id] = 1
                                 failing_files = find_failing_test_files(output)
-                                log(f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))")
-                                log(f"  Dispatching test-author in FIX mode...")
+                                log(
+                                    f"\n  BOUNCE-BACK: likely test bug ({len(failing_files)} failing test file(s))"
+                                )
+                                log("  Dispatching test-author in FIX mode...")
 
                                 fix_prompt = build_test_fix_prompt(task, output, failing_files)
                                 dispatch_agent("test-author", fix_prompt, project=task.project)
 
-                                log(f"\n  Re-locking tests after bounce-back...")
+                                log("\n  Re-locking tests after bounce-back...")
                                 lock_ok, lock_output = re_lock_after_bounce(task_id_str)
                                 if not lock_ok:
-                                    stop_epic(epic_dir, task.task_id, "bounce_lock_failed", lock_output)
+                                    stop_epic(
+                                        epic_dir, task.task_id, "bounce_lock_failed", lock_output
+                                    )
 
-                                log(f"\n  Re-running GREEN after bounce-back...")
+                                log("\n  Re-running GREEN after bounce-back...")
                                 ok, output = run_tdd_green(task_id_str, task)
                                 if not ok:
-                                    stop_epic(epic_dir, task.task_id, "green_failed_after_bounce", output)
+                                    stop_epic(
+                                        epic_dir, task.task_id, "green_failed_after_bounce", output
+                                    )
                             else:
                                 stop_epic(epic_dir, task.task_id, "green_failed", output)
 
             # --- FULL SUITE GREEN (both paths must pass the full suite) ---
             if not dry_run:
-                log(f"\n  Phase: FULL-SUITE GREEN (verifying ALL tests pass)")
+                log("\n  Phase: FULL-SUITE GREEN (verifying ALL tests pass)")
                 ok, output = run_tdd_green(task_id_str)  # no task = just tdd-green = full suite
 
                 if not ok:
                     # Dispatch implementer to fix broken existing tests
                     for attempt in range(MAX_IMPLEMENTER_RETRIES):
-                        log(f"  Full suite failed. Dispatching implementer (attempt {attempt + 1}/{MAX_IMPLEMENTER_RETRIES})...")
+                        log(
+                            f"  Full suite failed. Dispatching implementer (attempt {attempt + 1}/{MAX_IMPLEMENTER_RETRIES})..."
+                        )
                         retry_prompt = build_implementer_prompt(task, retry_context=output)
-                        dispatch_agent("implementer", retry_prompt, project=task.project, max_turns=30)
+                        dispatch_agent(
+                            "implementer", retry_prompt, project=task.project, max_turns=30
+                        )
 
                         ok, output = run_tdd_green(task_id_str)
                         if ok:
@@ -1413,15 +1521,27 @@ def run_state_machine(
                         stop_epic(epic_dir, task.task_id, "full_suite_green_failed", output)
 
                 # Auto-commit implementation + test fixes + task state
-                log(f"\n  Committing changes...")
-                impl_paths = ["libs/", "apps/", "sources/", "infrastructure/", "frontend/", "tests/", ".tasks/"]
+                log("\n  Committing changes...")
+                impl_paths = [
+                    "libs/",
+                    "apps/",
+                    "sources/",
+                    "infrastructure/",
+                    "frontend/",
+                    "tests/",
+                    ".tasks/",
+                ]
                 subprocess.run(
                     ["git", "add", *impl_paths],
-                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                    cwd=PROJECT_ROOT,
+                    capture_output=True,
+                    text=True,
                 )
                 subprocess.run(
                     ["git", "commit", "-m", f"impl: {task_id_str} — {task.title}"],
-                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                    cwd=PROJECT_ROOT,
+                    capture_output=True,
+                    text=True,
                 )
                 git_sync()
 
@@ -1429,8 +1549,8 @@ def run_state_machine(
                 log_structured("phase_end", task_id=task.task_id, phase="impl", result="validating")
             else:
                 log(f"  [dry-run] Would run: tdd-green {task_id_str} (full suite)")
-                log(f"  [dry-run] Would commit implementation files")
-                log(f"  [dry-run] Would update state: locked → validating")
+                log("  [dry-run] Would commit implementation files")
+                log("  [dry-run] Would update state: locked → validating")
                 update_task_state(epic_dir, task.task_id, "validating")
 
         elif task.state == "validating":
@@ -1443,14 +1563,21 @@ def run_state_machine(
                 if not ok:
                     # Check if failure is due to test file modifications
                     if "MODIFIED:" in output or "DELETED:" in output:
-                        log(f"  Validation failed: test files modified by implementer. Auto-restoring...")
+                        log(
+                            "  Validation failed: test files modified by implementer. Auto-restoring..."
+                        )
                         restore_ok, restore_output = restore_locked_test_files(task_id_str)
                         if restore_ok:
                             log(f"  {restore_output}")
-                            log(f"  Re-running validation after restore...")
+                            log("  Re-running validation after restore...")
                             ok, output = run_tdd_complete(task_id_str)
                             if not ok:
-                                write_error_report(epic_dir, task.task_id, "validation_failed_after_restore", output)
+                                write_error_report(
+                                    epic_dir,
+                                    task.task_id,
+                                    "validation_failed_after_restore",
+                                    output,
+                                )
                                 stop_epic(epic_dir, task.task_id, "validation_failed", output)
                         else:
                             log(f"  Auto-restore failed: {restore_output}", "error")
@@ -1460,21 +1587,27 @@ def run_state_machine(
 
                 update_task_state(epic_dir, task.task_id, "complete")
                 log(f"  T{task.task_id} COMPLETE")
-                log_structured("phase_end", task_id=task.task_id, phase="validate", result="complete")
+                log_structured(
+                    "phase_end", task_id=task.task_id, phase="validate", result="complete"
+                )
 
                 # Commit task state change and sync
                 subprocess.run(
                     ["git", "add", ".tasks/"],
-                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                    cwd=PROJECT_ROOT,
+                    capture_output=True,
+                    text=True,
                 )
                 subprocess.run(
                     ["git", "commit", "-m", f"chore: Mark {task_id_str} complete"],
-                    cwd=PROJECT_ROOT, capture_output=True, text=True,
+                    cwd=PROJECT_ROOT,
+                    capture_output=True,
+                    text=True,
                 )
                 git_sync()
             else:
                 log(f"  [dry-run] Would run: tdd-complete {task_id_str}")
-                log(f"  [dry-run] Would update state: validating → complete")
+                log("  [dry-run] Would update state: validating → complete")
                 update_task_state(epic_dir, task.task_id, "complete")
 
         else:
@@ -1493,6 +1626,55 @@ def run_state_machine(
 # ---------------------------------------------------------------------------
 
 
+def show_approval_screen(epic_number: int, dry_run: bool, max_iterations: int) -> None:
+    """Display epic run summary and wait for user confirmation."""
+    epic_dir = TASKS_BASE / f"E{epic_number}"
+    tasks = parse_all_tasks(epic_dir, epic_number) if epic_dir.exists() else []
+
+    complete = sum(1 for t in tasks if t.state == "complete")
+    pending = len(tasks) - complete
+
+    # Read agent definitions for model info
+    test_author_def = parse_agent_definition("test-author")
+    implementer_def = parse_agent_definition("implementer")
+
+    # Detect MCP availability
+    has_webapp = any(t.project == "webapp" for t in tasks if t.state != "complete")
+    mcp_note = "Chrome DevTools + Playwright (webapp tasks)" if has_webapp else "None required"
+
+    # Read epic title
+    title = f"Epic E{epic_number}"
+    index_path = epic_dir / "index.md"
+    if index_path.exists():
+        content = index_path.read_text()
+        title_match = re.search(r"^# E\d+:\s*(.+)$", content, re.MULTILINE)
+        if title_match:
+            title = title_match.group(1).strip()
+
+    print()
+    print("=" * 50)
+    print(f"  Epic E{epic_number} — {title}")
+    print("=" * 50)
+    print(f"  Tasks:        {len(tasks)} ({complete} complete, {pending} pending)")
+    print(
+        f"  Agents:       test-author ({test_author_def.model}), implementer ({implementer_def.model})"
+    )
+    print("  Max turns:    test-author=20, implementer=30")
+    print(
+        f"  Max retries:  test-author={MAX_TEST_AUTHOR_RETRIES}, implementer={MAX_IMPLEMENTER_RETRIES}"
+    )
+    print(f"  MCP:          {mcp_note}")
+    print(f"  Dry run:      {'Yes' if dry_run else 'No'}")
+    print()
+    print("  Quality gates:")
+    print("    - tdd-red (tests must fail)")
+    print("    - mock-check (no Mock/patch violations)")
+    print("    - tdd-lock (snapshot + commit)")
+    print("    - tdd-green (tests must pass)")
+    print("    - tdd-complete (full suite + golden path)")
+    print("=" * 50)
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     """Run the TDD state machine."""
     # Pre-flight validation (fail-fast if tasks are invalid)
@@ -1504,6 +1686,20 @@ def cmd_run(args: argparse.Namespace) -> None:
     )
     if result.returncode != 0:
         die(f"Pre-flight validation failed for epic #{args.epic}. Fix with: /epic fix {args.epic}")
+
+    # Approval screen
+    show_approval_screen(args.epic, args.dry_run, args.max_iterations)
+
+    if not getattr(args, "yes", False):
+        try:
+            answer = input("  Proceed? [Y/n] ").strip().lower()
+            if answer and answer not in ("y", "yes"):
+                print("Aborted.")
+                sys.exit(0)
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            sys.exit(0)
+
     print()
 
     run_state_machine(
@@ -1543,7 +1739,9 @@ def cmd_status(args: argparse.Namespace) -> None:
     actionable = [t for t in tasks if t.state != "complete" and not t.blocked_by_incomplete]
 
     print(f"=== Epic E{args.epic} Status ===")
-    print(f"  Total: {len(tasks)} | Complete: {len(complete)} | Actionable: {len(actionable)} | Blocked: {len(blocked)}")
+    print(
+        f"  Total: {len(tasks)} | Complete: {len(complete)} | Actionable: {len(actionable)} | Blocked: {len(blocked)}"
+    )
     print()
 
     if actionable:
@@ -1560,7 +1758,9 @@ def cmd_status(args: argparse.Namespace) -> None:
 
     if complete:
         print()
-        print(f"Complete: {', '.join(f'T{t.task_id}' for t in sorted(complete, key=lambda x: x.task_id))}")
+        print(
+            f"Complete: {', '.join(f'T{t.task_id}' for t in sorted(complete, key=lambda x: x.task_id))}"
+        )
 
     # Print index.md path
     print()
@@ -1570,7 +1770,9 @@ def cmd_status(args: argparse.Namespace) -> None:
 def cmd_dispatch(args: argparse.Namespace) -> None:
     """Dispatch a single agent."""
     if args.project and args.project not in VALID_PROJECTS:
-        die(f"Invalid project '{args.project}'. Must be one of: {', '.join(sorted(VALID_PROJECTS))}")
+        die(
+            f"Invalid project '{args.project}'. Must be one of: {', '.join(sorted(VALID_PROJECTS))}"
+        )
 
     result = dispatch_agent(
         agent_name=args.agent,
@@ -1602,8 +1804,15 @@ def main() -> None:
     # --- run ---
     run_parser = subparsers.add_parser("run", help="Run TDD state machine for an epic")
     run_parser.add_argument("epic", type=int, help="Epic issue number")
-    run_parser.add_argument("--dry-run", action="store_true", help="Show what would happen without dispatching agents")
-    run_parser.add_argument("--max-iterations", type=int, default=50, help="Max state machine iterations (default: 50)")
+    run_parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would happen without dispatching agents"
+    )
+    run_parser.add_argument(
+        "--max-iterations", type=int, default=50, help="Max state machine iterations (default: 50)"
+    )
+    run_parser.add_argument(
+        "--yes", "-y", action="store_true", help="Skip approval screen confirmation"
+    )
     run_parser.set_defaults(func=cmd_run)
 
     # --- validate ---
@@ -1621,8 +1830,12 @@ def main() -> None:
     dispatch_parser = subparsers.add_parser("dispatch", help="Dispatch a single agent")
     dispatch_parser.add_argument("agent", help="Agent name (e.g., test-author, implementer)")
     dispatch_parser.add_argument("prompt", help="Prompt for the agent")
-    dispatch_parser.add_argument("--project", help="Workspace project (core, audio, t3k, webapp, worker, scheduler)")
-    dispatch_parser.add_argument("--max-turns", type=int, default=20, help="Max conversation turns (default: 20)")
+    dispatch_parser.add_argument(
+        "--project", help="Workspace project (core, audio, t3k, webapp, worker, scheduler)"
+    )
+    dispatch_parser.add_argument(
+        "--max-turns", type=int, default=20, help="Max conversation turns (default: 20)"
+    )
     dispatch_parser.set_defaults(func=cmd_dispatch)
 
     args = parser.parse_args()
