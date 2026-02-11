@@ -94,16 +94,12 @@ class Job(UUIDMixin, TimestampMixin, Base):
     # Timing
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_heartbeat: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Retry tracking
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
-    next_retry_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Result and error tracking
     result_path: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -129,6 +125,39 @@ class Job(UUIDMixin, TimestampMixin, Base):
         Index("ix_jobs_entity_id", "entity_id"),
         Index("ix_jobs_task_id", "task_id"),
     )
+
+    @classmethod
+    def from_entity(cls, entity: Any) -> Job:
+        """Create a Job ORM model from a Job domain entity.
+
+        Args:
+            entity: Job domain entity
+
+        Returns:
+            Job ORM model instance
+        """
+        return cls(
+            id=entity.id,
+            user_id=entity.user_id,
+            job_type=entity.job_type,
+            parent_job_id=entity.parent_job_id,
+            depends_on=[str(dep) for dep in entity.depends_on],
+            status=entity.status,
+            progress=entity.progress,
+            message=entity.message,
+            started_at=entity.started_at,
+            completed_at=entity.completed_at,
+            last_heartbeat=entity.last_heartbeat,
+            attempt=entity.attempt,
+            max_attempts=entity.max_attempts,
+            next_retry_at=entity.next_retry_at,
+            result_path=entity.result_path,
+            error=entity.error,
+            task_id=entity.task_id,
+            entity_id=entity.entity_id,
+            created_at=entity.created_at,
+            updated_at=entity.updated_at,
+        )
 
 
 class AuditLog(Base):

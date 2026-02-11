@@ -36,3 +36,7 @@ async def example_task(message: str) -> str:
         Processed message
     """
     return f"Processed: {message}"
+
+
+# Import job handlers to register them with the broker
+from worker.jobs import handle_shootout_job  # noqa: E402, F401
