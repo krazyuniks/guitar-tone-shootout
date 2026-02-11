@@ -21,7 +21,7 @@ T115 → T120
 | T112 | Worker dual database session factor | complete | worker | - |
 | T113 | Worker container orchestration — ru | complete | worker | - |
 | T114 | T3K oauth_tokens Alembic migration | complete | source-t3k | - |
-| T115 | Admin API — enqueue, source dashboa | pending | worker | T112, T113 |
+| T115 | Admin API — enqueue, source dashboa | complete | worker | T112, T113 |
 | T116 | Interleaved backfill+newest sync lo | complete | source-t3k | - |
 | T117 | Model file download service | complete | source-t3k | - |
 | T118 | pgmq consumer and GearMapperService | pending | worker | T112, T116, T117 |
