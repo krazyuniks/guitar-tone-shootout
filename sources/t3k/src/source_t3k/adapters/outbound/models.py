@@ -93,6 +93,7 @@ class T3KPackStaging(Base):
     pack_type: Mapped[T3KPackType] = mapped_column(String(50), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @classmethod
     def from_domain(cls, entity: T3KPack) -> "T3KPackStaging":
