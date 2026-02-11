@@ -8,6 +8,7 @@ the catalog sync process.
 from uuid import UUID
 
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
+from source_t3k.adapters.inbound.oauth import T3KOAuthManager  # noqa: F401
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
 from source_t3k.services.sync_service import T3KSyncService
 from worker.db import get_t3k_session

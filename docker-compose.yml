@@ -97,6 +97,8 @@ services:
       # Tooling files for integration tests
       - ./justfile:/app/justfile:ro
       - ./pyproject.toml:/app/pyproject.toml:ro
+      # Scripts (CLI tools)
+      - ./scripts:/app/scripts:ro
     depends_on:
       db:
         condition: service_healthy

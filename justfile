@@ -267,6 +267,12 @@ video-types:
 # Development Utilities
 # =============================================================================
 
+# GTS admin CLI - manage worker and source sync operations
+# Usage: just admin source-status t3k, just admin jobs, etc.
+admin *ARGS:
+    # Calls scripts/gts-admin (Python module at scripts/gts_admin.py)
+    docker compose exec -T webapp python3 -m scripts.gts_admin {{ARGS}}
+
 # Open a shell in the backend container
 shell:
     docker compose exec webapp bash
