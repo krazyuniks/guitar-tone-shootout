@@ -2,19 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from core.domain.entities.shootout import Shootout
-from webapp.adapters.persistence.models.user import User
+from core.domain.value_objects.job_status import JobStatus, JobType
+from webapp.adapters.persistence.models.job import Job as JobModel
+from webapp.adapters.persistence.models.shootout import (
+    Shootout as ShootoutModel,
+)
+from webapp.adapters.persistence.models.shootout import ShootoutStatus
 from webapp.api.v1.schemas.shootout import (
     ShootoutCreateRequest,
     ShootoutResponse,
 )
+from webapp.services.processing_service import enqueue_to_worker
 from webapp.services.shootout_service import ShootoutService
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from webapp.adapters.persistence.models.user import User
 
 router = APIRouter(prefix="/api/v1/shootouts", tags=["shootouts"])
 
@@ -216,3 +228,78 @@ async def delete_shootout(
 
     async with db.begin():
         await service.delete(shootout_id)
+
+
+@router.post("/{shootout_id}/process", status_code=status.HTTP_202_ACCEPTED)
+async def process_shootout(
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> dict:
+    """Trigger processing for a shootout.
+
+    Protected endpoint - requires authentication.
+    Creates a Job and enqueues it to the worker for processing.
+
+    Args:
+        shootout_id: Shootout ID to process
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Dictionary with job_id
+
+    Raises:
+        HTTPException: 404 if shootout not found or not owned by user
+        HTTPException: 400 if shootout has no chains or is not in DRAFT status
+    """
+    # Query shootout with chains
+    stmt = (
+        select(ShootoutModel)
+        .where(ShootoutModel.id == shootout_id)
+        .options(joinedload(ShootoutModel.chains))
+    )
+    result = await db.execute(stmt)
+    shootout = result.unique().scalar_one_or_none()
+
+    # Return 404 if shootout not found or not owned by user
+    if not shootout or shootout.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    # Return 400 if shootout has no chains
+    if not shootout.chains:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Shootout has no chains",
+        )
+
+    # Return 400 if shootout is not in DRAFT status
+    if shootout.status != ShootoutStatus.DRAFT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Shootout is already being processed or has been processed",
+        )
+
+    # Create Job record
+    job = JobModel(
+        id=uuid4(),
+        user_id=current_user.id,
+        job_type=JobType.SHOOTOUT,
+        entity_id=shootout_id,
+        status=JobStatus.PENDING,
+    )
+    db.add(job)
+
+    # Update shootout status to PENDING
+    shootout.status = ShootoutStatus.PENDING
+
+    # Commit the transaction
+    await db.commit()
+
+    # Call worker admin API to enqueue the job
+    await enqueue_to_worker(job.id)
+
+    return {"job_id": str(job.id)}
