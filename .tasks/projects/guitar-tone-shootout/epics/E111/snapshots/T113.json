@@ -1,0 +1,19 @@
+{
+  "task_id": "T113",
+  "created": "2026-02-11T18:44:41.447921+00:00",
+  "commit": "0fd310f0d701",
+  "files": [
+    {
+      "path": "tests/integration/worker/test_entrypoint_orchestration.py",
+      "sha256": "75545a29a53afa6129b58a38245a3ad4c0af838caf96efbe3f0f049290aeb1cb",
+      "size": 4391,
+      "modified": "2026-02-11T18:40:20.168010+00:00"
+    },
+    {
+      "path": "tests/unit/worker/test_entrypoint.py",
+      "sha256": "29bac2926c1f0edb15319a0bdc67bc7df8e6ba025fa1696581c619aeb7a4bba7",
+      "size": 7832,
+      "modified": "2026-02-11T18:41:49.143998+00:00"
+    }
+  ]
+}
