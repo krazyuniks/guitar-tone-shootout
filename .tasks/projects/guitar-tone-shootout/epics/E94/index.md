@@ -33,20 +33,20 @@ T99 (unblocked)
 | T102 | T3K OAuth Token Management | pending | t3k | T100 |
 | T103 | T3K Sync Service — Backfill + Newes | pending | t3k | T100, T101, T102 |
 | T104 | GearSyncRecord pgmq Publisher | pending | t3k | T99, T100 |
-| T105 | Extend JobType Enum + Shootout Job  | pending | core | - |
+| T105 | Extend JobType Enum + Shootout Job  | complete | core | - |
 | T106 | Shootout Processing Orchestrator Jo | pending | worker | T105, T96 |
-| T107 | Scheduler Redis Broker + Distribute | pending | scheduler | - |
+| T107 | Scheduler Redis Broker + Distribute | complete | scheduler | - |
 | T108 | Scheduled Tasks — Stale Job Monitor | pending | scheduler | T107, T96 |
 | T109 | Per-Chain Audio Processing Job Hand | pending | worker | T108, T106 |
 | T110 | Loudness Normalisation + Master Aud | pending | worker | T109 |
 | T111 | Processing Trigger Endpoint | pending | webapp | T110 |
 | T112 | WebSocket Job Progress Endpoint | pending | webapp | T97, T98 |
 | T113 | Integration Smoke Test + Quality Ga | pending | worker | T112, T111, T103, T104 |
-| T95 | Worker Redis Broker + Settings | pending | worker | - |
+| T95 | Worker Redis Broker + Settings | complete | worker | - |
 | T96 | Worker Database Session Factory | pending | worker | T95 |
 | T97 | Worker Admin API Scaffold | pending | worker | T95 |
 | T98 | Admin API Job Management Endpoints | pending | worker | T96, T97 |
-| T99 | T3K Domain Model | pending | t3k | - |
+| T99 | T3K Domain Model | complete | t3k | - |
 
 ## Commands
 
