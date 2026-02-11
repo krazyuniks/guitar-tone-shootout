@@ -19,13 +19,16 @@ if TYPE_CHECKING:
 from webapp.adapters.persistence.models.shootout import DITrack
 from webapp.adapters.persistence.models.user import User
 
-# Import the script module (will fail in red phase)
-# Add scripts directory to path for import
+# Import the script module — scripts/ is not mounted in Docker containers,
+# so skip the entire module if the import fails.
 scripts_dir = Path(__file__).parent.parent.parent.parent / "scripts"
 if str(scripts_dir) not in sys.path:
     sys.path.insert(0, str(scripts_dir))
 
-from seed_di_tracks import SeedDITracks
+try:
+    from seed_di_tracks import SeedDITracks
+except ModuleNotFoundError:
+    pytest.skip("seed_di_tracks not available (scripts/ not mounted)", allow_module_level=True)
 
 
 @pytest.fixture
@@ -93,7 +96,9 @@ class TestSeedDITracks:
     async def test_finds_supported_audio_files(self, temp_audio_dir: Path):
         """Verify script finds all supported audio formats recursively."""
         seeder = SeedDITracks(
-            directory=temp_audio_dir, user_id=uuid4(), session=None  # type: ignore
+            directory=temp_audio_dir,
+            user_id=uuid4(),
+            session=None,  # type: ignore
         )
 
         files = seeder.find_audio_files()
@@ -106,7 +111,9 @@ class TestSeedDITracks:
     async def test_skips_non_audio_files(self, temp_audio_dir: Path):
         """Verify script ignores non-audio files."""
         seeder = SeedDITracks(
-            directory=temp_audio_dir, user_id=uuid4(), session=None  # type: ignore
+            directory=temp_audio_dir,
+            user_id=uuid4(),
+            session=None,  # type: ignore
         )
 
         files = seeder.find_audio_files()
@@ -119,9 +126,7 @@ class TestSeedDITracks:
         self, db_session: AsyncSession, test_user: User, temp_audio_dir: Path
     ):
         """Verify script creates DITrack records via DITrackService."""
-        seeder = SeedDITracks(
-            directory=temp_audio_dir, user_id=test_user.id, session=db_session
-        )
+        seeder = SeedDITracks(directory=temp_audio_dir, user_id=test_user.id, session=db_session)
 
         result = await seeder.run()
 
@@ -139,9 +144,7 @@ class TestSeedDITracks:
         self, db_session: AsyncSession, test_user: User, temp_audio_dir: Path
     ):
         """Verify script skips files with duplicate checksums without error."""
-        seeder = SeedDITracks(
-            directory=temp_audio_dir, user_id=test_user.id, session=db_session
-        )
+        seeder = SeedDITracks(directory=temp_audio_dir, user_id=test_user.id, session=db_session)
 
         # First run
         result1 = await seeder.run()
@@ -178,9 +181,7 @@ class TestSeedDITracks:
         self, db_session: AsyncSession, test_user: User, temp_audio_dir: Path
     ):
         """Verify script returns summary with counts."""
-        seeder = SeedDITracks(
-            directory=temp_audio_dir, user_id=test_user.id, session=db_session
-        )
+        seeder = SeedDITracks(directory=temp_audio_dir, user_id=test_user.id, session=db_session)
 
         result = await seeder.run()
 
@@ -202,9 +203,7 @@ class TestSeedDITracks:
         # Create invalid audio file (wrong extension)
         (audio_dir / "corrupted.wav").write_bytes(b"NOT A VALID WAV FILE")
 
-        seeder = SeedDITracks(
-            directory=audio_dir, user_id=test_user.id, session=db_session
-        )
+        seeder = SeedDITracks(directory=audio_dir, user_id=test_user.id, session=db_session)
 
         result = await seeder.run()
 
