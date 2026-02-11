@@ -1,0 +1,181 @@
+{
+  "epic_number": 94,
+  "materialised_at": "2026-02-11T02:19:47.940523+00:00",
+  "source": "tasks_from_plan.py",
+  "tasks": [
+    {
+      "plan_id": "A1",
+      "task_number": 95,
+      "title": "Worker Redis Broker + Settings",
+      "project": "worker",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "A2",
+      "task_number": 96,
+      "title": "Worker Database Session Factory",
+      "project": "worker",
+      "blocked_by": [
+        95
+      ]
+    },
+    {
+      "plan_id": "A3",
+      "task_number": 97,
+      "title": "Worker Admin API Scaffold",
+      "project": "worker",
+      "blocked_by": [
+        95
+      ]
+    },
+    {
+      "plan_id": "A4",
+      "task_number": 98,
+      "title": "Admin API Job Management Endpoints",
+      "project": "worker",
+      "blocked_by": [
+        96,
+        97
+      ]
+    },
+    {
+      "plan_id": "B1",
+      "task_number": 99,
+      "title": "T3K Domain Model",
+      "project": "t3k",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "B2",
+      "task_number": 100,
+      "title": "T3K Staging Tables + Alembic Migration",
+      "project": "t3k",
+      "blocked_by": [
+        99
+      ]
+    },
+    {
+      "plan_id": "B3",
+      "task_number": 101,
+      "title": "T3K API Client + Rate Limiting",
+      "project": "t3k",
+      "blocked_by": [
+        99
+      ]
+    },
+    {
+      "plan_id": "B4",
+      "task_number": 102,
+      "title": "T3K OAuth Token Management",
+      "project": "t3k",
+      "blocked_by": [
+        100
+      ]
+    },
+    {
+      "plan_id": "B5",
+      "task_number": 103,
+      "title": "T3K Sync Service \u2014 Backfill + Newest Algorithm",
+      "project": "t3k",
+      "blocked_by": [
+        100,
+        101,
+        102
+      ]
+    },
+    {
+      "plan_id": "B6",
+      "task_number": 104,
+      "title": "GearSyncRecord pgmq Publisher",
+      "project": "t3k",
+      "blocked_by": [
+        99,
+        100
+      ]
+    },
+    {
+      "plan_id": "C1",
+      "task_number": 105,
+      "title": "Extend JobType Enum + Shootout Job Types",
+      "project": "core",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "C2",
+      "task_number": 106,
+      "title": "Shootout Processing Orchestrator Job Handler",
+      "project": "worker",
+      "blocked_by": [
+        105,
+        96
+      ]
+    },
+    {
+      "plan_id": "D1",
+      "task_number": 107,
+      "title": "Scheduler Redis Broker + Distributed Lock",
+      "project": "scheduler",
+      "blocked_by": []
+    },
+    {
+      "plan_id": "D2",
+      "task_number": 108,
+      "title": "Scheduled Tasks \u2014 Stale Job Monitor + Retry Processing",
+      "project": "scheduler",
+      "blocked_by": [
+        107,
+        96
+      ]
+    },
+    {
+      "plan_id": "D3",
+      "task_number": 109,
+      "title": "Per-Chain Audio Processing Job Handler",
+      "project": "worker",
+      "blocked_by": [
+        108,
+        106
+      ]
+    },
+    {
+      "plan_id": "D4",
+      "task_number": 110,
+      "title": "Loudness Normalisation + Master Audio Creation",
+      "project": "worker",
+      "blocked_by": [
+        109
+      ]
+    },
+    {
+      "plan_id": "D5",
+      "task_number": 111,
+      "title": "Processing Trigger Endpoint",
+      "project": "webapp",
+      "blocked_by": [
+        110
+      ]
+    },
+    {
+      "plan_id": "E1",
+      "task_number": 112,
+      "title": "WebSocket Job Progress Endpoint",
+      "project": "webapp",
+      "blocked_by": [
+        97,
+        98
+      ]
+    },
+    {
+      "plan_id": "F1",
+      "task_number": 113,
+      "title": "Integration Smoke Test + Quality Gates",
+      "project": "worker",
+      "blocked_by": [
+        112,
+        111,
+        103,
+        104
+      ]
+    }
+  ]
+}
