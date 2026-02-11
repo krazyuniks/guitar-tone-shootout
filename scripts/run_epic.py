@@ -382,17 +382,24 @@ def git_sync() -> None:
     if check.returncode != 0:
         robust_commit("chore: sync task state", [".tasks/", "tests/", "frontend/"])
 
-    log("  Git sync: pull --rebase --autostash origin main")
+    log("  Git sync: fetch origin main")
+    subprocess.run(
+        ["git", "fetch", "origin", "main"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    log("  Git sync: merge origin/main --no-edit")
     result = subprocess.run(
-        ["git", "pull", "--rebase", "--autostash", "origin", "main"],
+        ["git", "merge", "origin/main", "--no-edit"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        log(f"  Git rebase failed (non-fatal): {result.stderr.strip()}", "warning")
+        log(f"  Git merge failed (non-fatal): {result.stderr.strip()}", "warning")
     else:
-        log(f"  Rebased: {result.stdout.strip()}", "debug")
+        log(f"  Merged: {result.stdout.strip()}", "debug")
 
     log("  Git sync: push --force-with-lease")
     result = subprocess.run(
