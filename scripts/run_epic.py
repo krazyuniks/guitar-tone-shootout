@@ -302,13 +302,12 @@ def check_infra_health() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Git sync — rebase + push after commits
+# Git helpers
 # ---------------------------------------------------------------------------
 
 
-def git_sync() -> None:
-    """Rebase on origin/main and push after commits."""
-    # Fix log files to prevent pre-commit hook failures
+def fix_log_files() -> None:
+    """Strip trailing whitespace and ensure final newlines in log files."""
     subprocess.run(
         [
             "find",
@@ -329,14 +328,51 @@ def git_sync() -> None:
         capture_output=True,
         text=True,
     )
-    # Stage any unstaged changes (epic-sync updates .tasks/ timestamps)
+
+
+def robust_commit(message: str, paths: list[str]) -> bool:
+    """Stage and commit with retry after pre-commit hook auto-fixes.
+
+    Pre-commit hooks may auto-fix lint/format issues which modifies staged files.
+    This retries once after re-staging the auto-fixed files.
+    """
+    fix_log_files()
+    subprocess.run(["git", "add", *paths], cwd=PROJECT_ROOT, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    # Pre-commit hooks may have auto-fixed files — re-stage and retry
+    log("  Pre-commit hooks modified files, retrying commit...")
+    subprocess.run(["git", "add", *paths], cwd=PROJECT_ROOT, capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "commit", "-m", message],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# Git sync — rebase + push after commits
+# ---------------------------------------------------------------------------
+
+
+def git_sync() -> None:
+    """Rebase on origin/main and push after commits."""
+    # Stage and commit any pending changes
+    fix_log_files()
     subprocess.run(
         ["git", "add", ".tasks/", "tests/", "frontend/"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
     )
-    # Commit if there are staged changes (no-op if clean)
     check = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
         cwd=PROJECT_ROOT,
@@ -344,12 +380,7 @@ def git_sync() -> None:
         text=True,
     )
     if check.returncode != 0:
-        subprocess.run(
-            ["git", "commit", "-m", "chore: sync task state"],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-        )
+        robust_commit("chore: sync task state", [".tasks/", "tests/", "frontend/"])
 
     log("  Git sync: pull --rebase --autostash origin main")
     result = subprocess.run(
@@ -1059,18 +1090,7 @@ def restore_locked_test_files(task_id_str: str) -> tuple[bool, str]:
             return False, f"Failed to restore {filepath}: {restore.stderr}"
 
     # Stage and commit the restoration
-    subprocess.run(
-        ["git", "add", *restored],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    subprocess.run(
-        ["git", "commit", "-m", f"fix(tests): restore locked test files for {task_id_str}"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-    )
+    robust_commit(f"fix(tests): restore locked test files for {task_id_str}", restored)
 
     return True, f"Restored {len(restored)} file(s): {', '.join(restored)}"
 
@@ -1080,24 +1100,9 @@ def re_lock_after_bounce(task_id_str: str) -> tuple[bool, str]:
 
     Returns (success, output).
     """
-    # Stage and commit test fixes
-    result = subprocess.run(
-        ["git", "add", "tests/"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return False, result.stderr
-
-    result = subprocess.run(
-        ["git", "commit", "-m", f"fix(tests): Fix test bugs for {task_id_str} (bounce-back)"],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-    )
-    # commit may fail if nothing changed — that's OK
-    commit_output = result.stdout + result.stderr
+    # Stage and commit test fixes (may fail if nothing changed — that's OK)
+    robust_commit(f"fix(tests): Fix test bugs for {task_id_str} (bounce-back)", ["tests/"])
+    commit_output = ""
 
     # Re-snapshot
     ok, snapshot_output = run_just_command("tdd-lock", task_id_str)
@@ -1719,18 +1724,7 @@ def run_state_machine(
                     "tests/",
                     ".tasks/",
                 ]
-                subprocess.run(
-                    ["git", "add", *impl_paths],
-                    cwd=PROJECT_ROOT,
-                    capture_output=True,
-                    text=True,
-                )
-                subprocess.run(
-                    ["git", "commit", "-m", f"impl: {task_id_str} — {task.title}"],
-                    cwd=PROJECT_ROOT,
-                    capture_output=True,
-                    text=True,
-                )
+                robust_commit(f"impl: {task_id_str} — {task.title}", impl_paths)
                 git_sync()
 
                 update_task_state(epic_dir, task.task_id, "validating")
@@ -1780,18 +1774,7 @@ def run_state_machine(
                 )
 
                 # Commit task state change and sync
-                subprocess.run(
-                    ["git", "add", ".tasks/"],
-                    cwd=PROJECT_ROOT,
-                    capture_output=True,
-                    text=True,
-                )
-                subprocess.run(
-                    ["git", "commit", "-m", f"chore: Mark {task_id_str} complete"],
-                    cwd=PROJECT_ROOT,
-                    capture_output=True,
-                    text=True,
-                )
+                robust_commit(f"chore: Mark {task_id_str} complete", [".tasks/"])
                 git_sync()
             else:
                 log(f"  [dry-run] Would run: tdd-complete {task_id_str}")

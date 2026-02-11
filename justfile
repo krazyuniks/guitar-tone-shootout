@@ -521,7 +521,12 @@ tdd-lock task:
     # Fix log files to prevent pre-commit hook failures (trailing whitespace + end-of-file)
     find .tasks/ -name '*.log' -exec sed -i -e 's/[[:space:]]*$//' -e '$a\' {} + 2>/dev/null || true
     git add .tasks/ tests/
-    git commit -m "test-lock: {{task}} tests ready for implementation"
+    # Pre-commit hooks may auto-fix lint/format issues. Retry once after auto-fixes.
+    if ! git commit -m "test-lock: {{task}} tests ready for implementation" 2>/dev/null; then
+        echo "Pre-commit hooks auto-fixed files. Re-staging and retrying commit..."
+        git add .tasks/ tests/
+        git commit -m "test-lock: {{task}} tests ready for implementation"
+    fi
     python scripts/snapshot_tests.py save {{task}}
     echo "Tests locked at $(git rev-parse --short HEAD)"
 
