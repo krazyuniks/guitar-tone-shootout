@@ -331,7 +331,8 @@ class TestUnhandledExceptionHandler:
     ) -> None:
         """Test unhandled exceptions return 500 with sanitised response."""
         async with AsyncClient(
-            transport=ASGITransport(app=app_with_handlers), base_url="http://test"
+            transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
+            base_url="http://test",
         ) as client:
             response = await client.get("/api/v1/test/unhandled")
 
@@ -354,7 +355,8 @@ class TestProductionSanitisation:
         """Test production mode strips stack traces from responses."""
         with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
             async with AsyncClient(
-                transport=ASGITransport(app=app_with_handlers), base_url="http://test"
+                transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
+                base_url="http://test",
             ) as client:
                 response = await client.get("/api/v1/test/unhandled")
 
@@ -396,7 +398,8 @@ class TestDevelopmentMode:
         """Test development mode includes error details and stack traces."""
         with patch.dict("os.environ", {"ENVIRONMENT": "development"}):
             async with AsyncClient(
-                transport=ASGITransport(app=app_with_handlers), base_url="http://test"
+                transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
+                base_url="http://test",
             ) as client:
                 response = await client.get("/api/v1/test/unhandled")
 

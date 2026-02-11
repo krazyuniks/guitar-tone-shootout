@@ -104,7 +104,8 @@ class TestExceptionHandlers:
             response = await client.get("/nonexistent")
             assert response.status_code == 404
             data = response.json()
-            assert "detail" in data
+            assert "error_code" in data
+            assert "message" in data
 
     @pytest.mark.asyncio
     async def test_http_exception_returns_json_content_type(self, app: FastAPI) -> None:

@@ -40,7 +40,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
 | T114 | Custom Exception Hierarchy | complete | webapp | - |
-| T115 | Exception Handlers + Content Negoti | pending | webapp | T114 |
+| T115 | Exception Handlers + Content Negoti | locked | webapp | T114 |
 | T116 | Error Pages (404/500 Astro + nginx  | pending | webapp | T115 |
 | T117 | AuditService (Wire to Auth) | pending | webapp | - |
 | T118 | UserNotification Model + Service +  | pending | webapp | - |
