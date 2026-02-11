@@ -200,6 +200,9 @@ services:
     build:
       context: ./frontend/astro
       dockerfile: Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     environment:
       SHELL: /bin/sh
     volumes:
