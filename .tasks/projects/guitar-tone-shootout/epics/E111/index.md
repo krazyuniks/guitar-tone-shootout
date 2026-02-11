@@ -19,7 +19,7 @@ T115 → T120
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
 | T112 | Worker dual database session factor | complete | worker | - |
-| T113 | Worker container orchestration — ru | pending | worker | - |
+| T113 | Worker container orchestration — ru | complete | worker | - |
 | T114 | T3K oauth_tokens Alembic migration | pending | - | - |
 | T115 | Admin API — enqueue, source dashboa | pending | worker | T112, T113 |
 | T116 | Interleaved backfill+newest sync lo | pending | - | - |
