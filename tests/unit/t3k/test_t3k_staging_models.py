@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 import sqlalchemy.exc
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -433,9 +433,7 @@ class TestStagingTablesExist:
     ) -> None:
         """Test that staging tables exist in the database schema."""
         # SQLite specific check - query sqlite_master
-        result = await session.execute(
-            select("name").select_from("sqlite_master").where("type = 'table'")
-        )
+        result = await session.execute(text("SELECT name FROM sqlite_master WHERE type = 'table'"))
         tables = {row[0] for row in result.fetchall()}
 
         assert "t3k_creators_staging" in tables

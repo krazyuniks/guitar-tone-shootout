@@ -1,1 +1,1 @@
-"""Outbound adapters - pgmq message publisher."""
+"""Outbound adapters for T3K source."""
