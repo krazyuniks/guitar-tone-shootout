@@ -85,3 +85,5 @@ class JobType(str, Enum):
     MODEL_DOWNLOAD = "model_download"  # Download NAM model file
     IR_DOWNLOAD = "ir_download"  # Download IR file
     NOTIFICATION = "notification"  # Send user notification
+    SHOOTOUT = "shootout"  # Parent orchestrator job for shootout
+    SHOOTOUT_AUDIO = "shootout_audio"  # Per-chain audio processing for shootout
