@@ -13,7 +13,7 @@ import json
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # GTS Python test patterns
@@ -58,10 +58,11 @@ def collect_test_files() -> list[Path]:
     """Collect all test files matching GTS patterns."""
     files = []
     for pattern in TEST_PATTERNS:
-        files.extend(Path(".").glob(pattern))
+        files.extend(Path().glob(pattern))
     # Exclude __pycache__, .venv, conftest.py (fixtures, not tests)
     files = [
-        f for f in files
+        f
+        for f in files
         if "__pycache__" not in str(f)
         and ".venv" not in str(f)
         and f.name != "conftest.py"
@@ -112,13 +113,21 @@ def get_snapshot_dir(task_id: str) -> Path:
     num = task_id.lstrip("T")
     task_filename = f"T{num}.md"
 
-    # Search for the task file to find the correct epic
+    # Search for the task file to find the correct epic.
+    # When multiple epics contain the same task ID, prefer the highest
+    # epic number (most recent epic).
+    candidates: list[tuple[int, Path]] = []
     for task_file in Path(".tasks").rglob(task_filename):
         # Task files live at .tasks/E{n}/tasks/T{n}.md
         # Epic dir is the grandparent of the task file
         epic_dir = task_file.parent.parent
         if epic_dir.name.startswith("E"):
-            return epic_dir / "snapshots"
+            epic_num = int(epic_dir.name[1:]) if epic_dir.name[1:].isdigit() else 0
+            candidates.append((epic_num, epic_dir))
+    if candidates:
+        # Pick the highest epic number
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1] / "snapshots"
 
     # Default location
     return Path(".tasks/snapshots")
@@ -139,7 +148,7 @@ def create_snapshot(task_id: str) -> TestSnapshot:
                 path=str(path),
                 sha256=hash_file(path),
                 size=stat.st_size,
-                modified=datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+                modified=datetime.fromtimestamp(stat.st_mtime, UTC).isoformat(),
             )
         )
 
@@ -153,13 +162,13 @@ def create_snapshot(task_id: str) -> TestSnapshot:
 
     return TestSnapshot(
         task_id=task_id,
-        created=datetime.now(timezone.utc).isoformat(),
+        created=datetime.now(UTC).isoformat(),
         commit=lock_commit,
         files=files,
     )
 
 
-def save_snapshot(task_id: str, snapshot_dir: Path = None):
+def save_snapshot(task_id: str, snapshot_dir: Path | None = None):
     """Save snapshot before implementation phase."""
     snapshot = create_snapshot(task_id)
 
@@ -176,7 +185,7 @@ def save_snapshot(task_id: str, snapshot_dir: Path = None):
     return snapshot_path
 
 
-def load_snapshot(task_id: str, snapshot_dir: Path = None) -> TestSnapshot | None:
+def load_snapshot(task_id: str, snapshot_dir: Path | None = None) -> TestSnapshot | None:
     if snapshot_dir is None:
         snapshot_dir = get_snapshot_dir(task_id)
 
@@ -200,7 +209,7 @@ def load_snapshot(task_id: str, snapshot_dir: Path = None) -> TestSnapshot | Non
     )
 
 
-def verify_snapshot(task_id: str, snapshot_dir: Path = None) -> tuple[bool, list[dict]]:
+def verify_snapshot(task_id: str, snapshot_dir: Path | None = None) -> tuple[bool, list[dict]]:
     """Verify locked test files unchanged since snapshot.
 
     Only checks the task's own test files (from the lock commit).
@@ -252,7 +261,7 @@ def verify_snapshot(task_id: str, snapshot_dir: Path = None) -> tuple[bool, list
     return passed, violations
 
 
-def diff_snapshot(task_id: str, snapshot_dir: Path = None):
+def diff_snapshot(task_id: str, snapshot_dir: Path | None = None):
     """Show detailed diff of changes since snapshot."""
     snapshot = load_snapshot(task_id, snapshot_dir)
     if not snapshot:

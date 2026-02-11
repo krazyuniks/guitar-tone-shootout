@@ -518,6 +518,8 @@ tdd-red task:
 tdd-lock task:
     #!/usr/bin/env bash
     set -e
+    # Strip trailing whitespace from log files to prevent pre-commit hook failures
+    find .tasks/ -name '*.log' -exec sed -i 's/[[:space:]]*$//' {} + 2>/dev/null || true
     git add .tasks/ tests/
     git commit -m "test-lock: {{task}} tests ready for implementation"
     python scripts/snapshot_tests.py save {{task}}
