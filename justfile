@@ -615,7 +615,7 @@ retry epic task:
         echo "Task file not found"
         exit 1
     fi
-    sed -i 's/state: .*/state: pending/' "$TASK_FILE"
-    sed -i 's/phase: .*/phase: -/' "$TASK_FILE"
+    sed -i 's/| State | [a-z_]* |/| State | pending |/' "$TASK_FILE"
+    sed -i 's/| Phase | [a-z_-]* |/| Phase | - |/' "$TASK_FILE"
     rm -f .tasks/projects/*/epics/E{{epic}}/logs/errors/{{task}}-*.log
     echo "Task {{task}} reset for retry"
