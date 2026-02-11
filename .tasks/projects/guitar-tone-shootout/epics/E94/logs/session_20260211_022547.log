@@ -1,0 +1,13 @@
+2026-02-11 03:25:47,331 [INFO] Session log: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E94/logs/session_20260211_022547.log
+2026-02-11 03:25:47,331 [INFO] Starting TDD state machine for Epic E94
+2026-02-11 03:25:47,331 [INFO]   Tasks dir: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E94
+2026-02-11 03:25:47,331 [INFO]   Max iterations: 50
+2026-02-11 03:25:47,331 [INFO]   Dry run: False
+2026-02-11 03:25:47,331 [INFO]
+2026-02-11 03:25:47,331 [INFO] === Iteration 1 ===
+2026-02-11 03:25:47,332 [INFO]   Next task: T95 — Worker Redis Broker + Settings (state=pending)
+2026-02-11 03:25:47,634 [INFO]
+  Phase: TEST (writing tests for T95)
+2026-02-11 03:25:47,635 [DEBUG] STRUCTURED: {"event": "phase_start", "timestamp": "2026-02-11T02:25:47.635124+00:00", "task_id": 95, "phase": "test"}
+2026-02-11 03:25:47,648 [INFO]   Dispatching 'test-author' (model=sonnet, max_turns=20)...
+2026-02-11 03:25:47,648 [DEBUG] STRUCTURED: {"event": "agent_dispatch", "timestamp": "2026-02-11T02:25:47.648551+00:00", "agent": "test-author", "model": "sonnet", "max_turns": 20}
