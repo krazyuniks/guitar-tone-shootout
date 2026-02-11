@@ -24,18 +24,25 @@ from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from webapp.adapters.persistence.models.user import User
+from webapp.auth.dependencies import set_session_override
 from webapp.main import create_app
 
 
 @pytest.fixture
-async def client() -> AsyncClient:
+async def client(db_session: AsyncSession) -> AsyncClient:
     """Create test client for the FastAPI app."""
+    # Override session to use test database
+    set_session_override(db_session)
+
     app = create_app()
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
     ) as client:
         yield client
+
+    # Cleanup
+    set_session_override(None)
 
 
 @pytest.fixture
@@ -84,8 +91,7 @@ async def completed_shootout(db_session: AsyncSession, test_user: User) -> Shoot
         status=ShootoutStatus.COMPLETED,
     )
     db_session.add(shootout)
-    await db_session.commit()
-    await db_session.refresh(shootout)
+    await db_session.flush()
     return shootout
 
 
@@ -99,8 +105,7 @@ async def draft_shootout(db_session: AsyncSession, test_user: User) -> Shootout:
         status=ShootoutStatus.DRAFT,
     )
     db_session.add(shootout)
-    await db_session.commit()
-    await db_session.refresh(shootout)
+    await db_session.flush()
     return shootout
 
 
