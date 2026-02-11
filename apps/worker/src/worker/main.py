@@ -3,10 +3,26 @@
 This module provides the TaskIQ broker configuration and job handlers.
 """
 
-from taskiq import InMemoryBroker
+import os
 
-# Broker instance - will be replaced with Redis broker in production
-broker = InMemoryBroker()
+from taskiq_redis import ListQueueBroker
+
+from worker.config import WorkerSettings
+
+# Create broker using settings from environment
+# For testing/webapp container without full worker env, use a placeholder URL
+# The actual worker container will have the real REDIS_URL
+try:
+    settings = WorkerSettings()
+    redis_url = settings.redis_url
+except Exception:
+    # Fallback for testing environment (webapp container) - use placeholder
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+broker = ListQueueBroker(redis_url)
+
+# Store the Redis URL for testing verification
+broker._redis_url = redis_url  # type: ignore[attr-defined]
 
 
 @broker.task

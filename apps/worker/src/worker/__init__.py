@@ -6,6 +6,7 @@ Bridges gts_core and gts_t3k_source databases.
 
 __version__ = "0.1.0"
 
+from worker import config
 from worker.main import broker
 
-__all__ = ["broker"]
+__all__ = ["broker", "config"]
