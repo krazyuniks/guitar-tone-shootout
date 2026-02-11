@@ -82,6 +82,7 @@ class DITrackService:
             with sf.SoundFile(file_path) as audio:
                 duration_seconds = len(audio) / audio.samplerate
                 sample_rate = audio.samplerate
+                channels = audio.channels
         except sf.LibsndfileError as e:
             # Check if it's a minimal test file (for unit tests)
             # Only apply leniency if the file has a valid audio format header
@@ -104,6 +105,7 @@ class DITrackService:
                     # Assume it's a test file with mock data
                     duration_seconds = 1.0  # Default duration for test files
                     sample_rate = 44100  # Default sample rate
+                    channels = 1  # Default channels for test files
                 else:
                     # Invalid format header - reject even if small
                     raise ValueError(f"Invalid audio file: {e!s}") from e
@@ -114,6 +116,16 @@ class DITrackService:
 
         # Generate checksum
         checksum = AudioChecksum.from_file(path)
+
+        # Extract waveform data (graceful fallback on failure)
+        waveform = None
+        try:
+            from audio.analysis.waveform import extract_waveform
+
+            waveform = extract_waveform(path, num_peaks=200)
+        except Exception:
+            # Waveform extraction failed - continue without it
+            pass
 
         # Check for duplicates (compare using the checksum value string)
         stmt = select(DITrack).where(DITrack.user_id == user_id)
@@ -140,6 +152,8 @@ class DITrackService:
             original_filename=original_filename,
             duration_seconds=duration_seconds,
             sample_rate=sample_rate,
+            channels=channels,
+            waveform=waveform,
             checksum=checksum,  # Pass AudioChecksum object, not .value
             description=description,
             guitar=guitar,

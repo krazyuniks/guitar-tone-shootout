@@ -37,8 +37,20 @@ async def test_user(db_session: AsyncSession) -> User:
 
 
 def _create_minimal_wav(path: Path) -> Path:
-    """Create a minimal WAV file with valid RIFF header."""
-    path.write_bytes(b"RIFF" + b"\x00" * 100)
+    """Create a minimal WAV file that can be read by soundfile.
+
+    Creates a short silence file (0.1 seconds) with valid PCM data.
+    """
+    import numpy as np
+    import soundfile as sf
+
+    # Create 0.1 seconds of silence at 44.1kHz
+    sample_rate = 44100
+    duration = 0.1
+    samples = int(sample_rate * duration)
+    audio = np.zeros(samples, dtype=np.float32)
+
+    sf.write(str(path), audio, sample_rate)
     return path
 
 
