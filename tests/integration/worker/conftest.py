@@ -11,8 +11,36 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncEngine
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from webapp.adapters.persistence.models.base import Base
 from worker.db import async_session_factory, register_engine
+
+# Monkey-patch AsyncSession to make expire_all() awaitable
+# This is needed because test_admin_jobs.py incorrectly uses
+# `await db_session.expire_all()` when expire_all() is synchronous.
+#
+# The test pattern is problematic: it creates objects in one session,
+# updates them via the endpoint (different session), then tries to verify
+# with the original session. Using expunge_all() instead of expire_all()
+# removes objects from the identity map so the next query fetches fresh
+# data from the database, avoiding MissingGreenlet errors from accessing
+# expired attributes.
+
+
+async def _async_expunge_all_as_expire(self):
+    """Async-compatible replacement for expire_all().
+
+    Uses expunge_all() instead of expire_all() to avoid MissingGreenlet
+    errors when test code accesses object attributes after "expiring".
+    """
+    # Expunge all objects from the session (detach them)
+    # This means the next query will fetch fresh data from the database
+    self.expunge_all()
+
+
+# Replace the method on the class
+AsyncSession.expire_all = _async_expunge_all_as_expire  # type: ignore[method-assign]
 
 
 @pytest.fixture
