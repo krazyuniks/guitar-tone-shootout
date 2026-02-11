@@ -26,7 +26,7 @@ T115 → T120
 | T117 | Model file download service | complete | source-t3k | - |
 | T118 | pgmq consumer and GearMapperService | complete | worker | T112, T116, T117 |
 | T119 | Scheduler tasks — SOURCE_SYNC handl | complete | worker | T114, T115, T116 |
-| T120 | gts-admin CLI and just admin regist | pending | - | T115 |
+| T120 | gts-admin CLI and just admin regist | complete | tooling | T115 |
 
 ## Commands
 
