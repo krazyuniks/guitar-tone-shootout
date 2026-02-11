@@ -51,7 +51,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T123 | Mount Signal Chain Groups Router +  | complete | webapp | - |
 | T124 | Fix DI Track Frontend/API Contract  | complete | webapp | - |
 | T125 | DI Track Browse Page (Pagination, W | complete | webapp | T124 |
-| T126 | DI Track Upload UI (Drag-Drop, Prog | validating | webapp | T124 |
+| T126 | DI Track Upload UI (Drag-Drop, Prog | complete | webapp | T124 |
 | T127 | Waveform + Audio Metadata Extractio | pending | webapp | - |
 | T128 | IR Upload Endpoint + Service | pending | webapp | - |
 | T129 | Asset/File Serving Service (HMAC Si | pending | webapp | - |
