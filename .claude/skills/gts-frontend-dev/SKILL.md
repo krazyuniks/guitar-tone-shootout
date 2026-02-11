@@ -17,7 +17,7 @@ context: fork
 | File watching, rebuild process, troubleshooting | references/hot-reload.md |
 | Template file structure, page/fragment patterns, HTMX mapping | references/template-patterns.md |
 | data-testid conventions, state exposure, naming | references/testability.md |
-| Astro ClientRouter, data-astro-reload, SSR routes | references/navigation.md |
+| Standard navigation, HTMX scope | references/navigation.md |
 
 > **CRITICAL: Pre-Bundled Architecture**
 >

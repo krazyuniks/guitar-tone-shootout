@@ -13,7 +13,7 @@ import '../../../styles/global.css';
 export const GET: APIRoute = () => {
   const template = `{# Single shootout card component #}
 <a href="/shootout/{{ shootout.id }}"
-   data-astro-reload
+
    data-testid="shootout-card"
    data-shootout-id="{{ shootout.id }}"
    class="group block rounded-lg overflow-hidden bg-[var(--color-bg-surface)] border border-[var(--border)] transition-all duration-200 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 w-64 flex-shrink-0">

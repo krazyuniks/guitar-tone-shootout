@@ -55,7 +55,6 @@ GTS-specific questions for structured epic planning.
 - Is this a dynamic page (Jinja2 SSR)?
 - Does it need HTMX fragments?
 - Is it the SignalChainBuilder (React)?
-- Navigation: Astro page to SSR page? (needs data-astro-reload)
 - Design tokens from Astro CSS?
 
 ### Job Processing

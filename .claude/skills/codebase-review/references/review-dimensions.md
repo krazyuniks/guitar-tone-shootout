@@ -158,12 +158,6 @@ grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/*.py
 just verify-astro-sync
 ```
 
-### data-astro-reload Audit
-
-```bash
-grep -E 'href="/(gear|shootouts|library|shootout|chain)' astro/src/components/Header.astro | grep -v 'data-astro-reload'
-```
-
 ### data-testid Coverage
 
 ```bash
@@ -176,7 +170,6 @@ grep -rn '<input\|<select\|<textarea' astro/src/pages/ | grep -v 'data-testid'
 
 - [ ] astro/dist/ in sync with astro/src/
 - [ ] pnpm lint passes
-- [ ] All SSR links have data-astro-reload
 - [ ] All interactive elements have data-testid
 - [ ] HTMX containers have loading skeletons
 - [ ] Fragment templates match backend routes

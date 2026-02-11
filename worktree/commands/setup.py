@@ -62,7 +62,6 @@ from ..registry import (
 from ..resources import check_ports_available, format_ports_display
 from ..templates import write_worktree_configs
 
-
 # Step timing for setup profiling
 _step_timings: list[tuple[str, float]] = []
 
@@ -373,7 +372,9 @@ def _run_setup(
             if result.returncode == 0:
                 console.print("  [green]✓[/green] Pre-commit hooks installed (prek)")
             else:
-                console.print("  [yellow]![/yellow] prek install failed (lint checks may not run on commit)")
+                console.print(
+                    "  [yellow]![/yellow] prek install failed (lint checks may not run on commit)"
+                )
         else:
             console.print("  [yellow]![/yellow] prek not found (run 'just infra' to install)")
 
@@ -616,7 +617,9 @@ def _start_and_configure_services(
     if startup_error:
         ready, issues = False, [f"Docker startup/build failed:\n{startup_error}"]
     else:
-        status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
+        status.update(
+            f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)..."
+        )
         ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
 
     if not ready:
@@ -678,7 +681,6 @@ def _import_database(status, worktree_path: Path, backup_file: Path, is_main: bo
         raise typer.Exit(1) from None
 
 
-
 def _restore_auth(status, worktree, worktree_path: Path) -> None:
     """Restore auth if available."""
     status.update("[bold green]Checking auth status...")
@@ -708,19 +710,13 @@ def _handle_resume_path(
 ) -> None:
     """Handle resuming an existing worktree.
 
-    This does the same steps as fresh setup:
-    1. Export database from main
-    2. Start db (and redis for main worktree only)
-    3. Import database
-    4. Start remaining services
-    5. Wait for healthy
-    6. Restore auth
-
-    This ensures the worktree always has fresh data from main.
+    Feature worktrees: export main's database, import it, start services.
+    Main worktree: start services only (database is the live source of truth).
     """
     import subprocess
 
-    # Step 1: Get database backup from main (unless skipped or main worktree)
+    # Step 1: Get database backup from main (feature worktrees only)
+    # Main's database is the live source of truth — never overwrite it from a backup.
     backup_file: Path | None = None
     if not skip_db_import and not is_main:
         with _timed_step("db-export"):
@@ -779,15 +775,11 @@ def _handle_resume_path(
             print_error("Database did not become ready in time")
             raise typer.Exit(1)
 
-    # Step 4: Import database (always, unless skipped)
+    # Step 4: Import database (feature worktrees only)
+    # Main's database is the live source of truth — never overwrite on resume.
     with _timed_step("db-import"):
-        if not skip_db_import and backup_file and backup_file.exists():
-            _import_database(status, worktree_path, backup_file, is_main=is_main)
-        elif is_main and not skip_db_import:
-            # For main, try to find an existing backup
-            backup_file = _get_latest_backup()
-            if backup_file:
-                _import_database(status, worktree_path, backup_file, is_main=True)
+        if not skip_db_import and not is_main and backup_file and backup_file.exists():
+            _import_database(status, worktree_path, backup_file)
 
     # Step 5: Start remaining services (db is already running — skip cleanup)
     # Don't fail hard — let Step 6 health check diagnose partial failures.
@@ -805,7 +797,9 @@ def _handle_resume_path(
         if startup_error:
             ready, issues = False, [f"Docker startup/build failed:\n{startup_error}"]
         else:
-            status.update(f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)...")
+            status.update(
+                f"[bold green]Waiting for services to be ready (timeout: {health_timeout}s)..."
+            )
             ready, issues = wait_for_services_ready(worktree, worktree_path, timeout=health_timeout)
         if not ready:
             container_logs = collect_container_logs(worktree_path)

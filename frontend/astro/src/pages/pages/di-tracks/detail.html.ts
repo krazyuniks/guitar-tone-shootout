@@ -137,7 +137,7 @@ const template = `{% extends "layouts/base.html" %}
             {% if user %}
             <a
               href="/shootout/create"
-              data-astro-reload
+
               class="inline-flex items-center px-4 py-2 text-sm font-medium bg-[var(--color-accent-primary)] text-white rounded-lg hover:bg-[var(--color-accent-primary-hover)] transition-colors"
             >
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

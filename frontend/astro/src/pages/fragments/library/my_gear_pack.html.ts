@@ -34,7 +34,7 @@ export const GET: APIRoute = () => {
 
 <a
   href="/gear/{{ pack.slug }}"
-  data-astro-reload
+
   data-testid="pack-card"
   data-pack-id="{{ pack.id }}"
   class="block border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--color-bg-elevated)] hover:border-[var(--border-hover)] transition-colors group"

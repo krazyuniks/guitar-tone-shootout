@@ -29,30 +29,6 @@ def is_traefik_running() -> bool:
     return bool(result.stdout.strip())
 
 
-def _get_compose_files(cwd: Path, args: list[str]) -> list[str]:
-    """Get compose file arguments based on context.
-
-    This function returns an empty list - compose file configuration is handled
-    via the COMPOSE_FILE environment variable in .env, which is set by
-    _ensure_compose_file_includes_traefik() during setup when Traefik is configured.
-
-    Previously this function automatically included docker-compose.traefik.yml
-    when Traefik was running, but this caused conflicts with the COMPOSE_FILE
-    env var approach and made the logic non-idempotent.
-
-    Args:
-        cwd: Working directory (worktree path)
-        args: docker compose arguments
-
-    Returns:
-        Empty list - compose files are configured via COMPOSE_FILE env var
-    """
-    # Compose file configuration is now handled entirely via COMPOSE_FILE in .env
-    # This is set by _ensure_compose_file_includes_traefik() in setup.py when
-    # Traefik is properly configured (deploy/traefik/.env exists)
-    return []
-
-
 def run_compose(
     args: list[str],
     cwd: Path,
@@ -62,6 +38,9 @@ def run_compose(
     timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a docker compose command.
+
+    Compose files are configured via COMPOSE_FILE in .env (set by worktree.py setup).
+    Docker Compose auto-loads .env when present.
 
     Args:
         args: docker compose arguments (without 'docker compose' prefix)
@@ -79,13 +58,8 @@ def run_compose(
     """
     import os
 
-    # Get compose file arguments (includes Traefik overlay when appropriate)
-    compose_files = _get_compose_files(cwd, args)
+    cmd = ["docker", "compose", *args]
 
-    # Docker compose auto-loads .env if present
-    cmd = ["docker", "compose", *compose_files, *args]
-
-    # Build environment
     full_env = os.environ.copy()
     if env:
         full_env.update(env)

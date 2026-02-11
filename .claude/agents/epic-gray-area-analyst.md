@@ -78,8 +78,7 @@ Receives prompt with:
        "frontend_layers": [
          "Is this a static page (Astro SSG)?",
          "Is this a dynamic page (Jinja2 SSR)?",
-         "Does it need HTMX fragments?",
-         "Navigation: Astro page to SSR page? (needs data-astro-reload)"
+         "Does it need HTMX fragments?"
        ]
      },
      "core_questions": [

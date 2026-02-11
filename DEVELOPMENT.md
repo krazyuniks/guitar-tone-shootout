@@ -272,16 +272,6 @@ just test-golden-path # Golden path tests (host, requires running containers)
 | Dynamic pages | Jinja2 + FastAPI | `/library/*`, `/shootouts`, `/gear/*` |
 | Complex UI | React island | `/library/chains/build` |
 
-### Navigation Caveat
-
-Astro's `<ClientRouter />` intercepts link clicks. SSR pages require `data-astro-reload`:
-
-```html
-<!-- In Astro components -->
-<a href="/gear" data-astro-reload>Gear</a>
-<a href="/shootouts" data-astro-reload>Shootouts</a>
-```
-
 ---
 
 ## Common Commands

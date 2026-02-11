@@ -20,7 +20,7 @@ export const GET: APIRoute = () => {
 >
   <div class="flex items-start gap-4 p-4">
     <!-- Thumbnail -->
-    <a href="/shootout/{{ shootout.id }}" data-astro-reload class="flex-shrink-0 w-24 h-24 bg-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors">
+    <a href="/shootout/{{ shootout.id }}" class="flex-shrink-0 w-24 h-24 bg-gray-700 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors">
       {% if shootout.status == 'completed' %}
         <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-500" viewBox="0 0 20 20" fill="currentColor">
           <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
@@ -37,7 +37,7 @@ export const GET: APIRoute = () => {
     </a>
 
     <!-- Content -->
-    <a href="/shootout/{{ shootout.id }}" data-astro-reload class="flex-1 min-w-0">
+    <a href="/shootout/{{ shootout.id }}" class="flex-1 min-w-0">
       <h3 class="text-white font-medium truncate">{{ shootout.name }}</h3>
       {% if shootout.description %}
         <p class="text-gray-400 text-sm truncate mt-1">{{ shootout.description }}</p>

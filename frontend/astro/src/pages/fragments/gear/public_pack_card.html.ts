@@ -43,7 +43,7 @@ export const GET: APIRoute = () => {
     <!-- Image section (left) -->
     <a
       href="/gear/{{ pack.slug }}"
-      data-astro-reload
+
       class="flex-shrink-0 w-28 sm:w-36"
       data-testid="pack-image-link"
     >
@@ -113,7 +113,7 @@ export const GET: APIRoute = () => {
       <!-- Title (clickable link) -->
       <a
         href="/gear/{{ pack.slug }}"
-        data-astro-reload
+
         data-testid="pack-title-link"
         class="group"
       >
@@ -212,7 +212,7 @@ export const GET: APIRoute = () => {
         <!-- View Details link (to /gear/{slug}) -->
         <a
           href="/gear/{{ pack.slug }}"
-          data-astro-reload
+
           class="text-xs text-[var(--color-accent-primary)] hover:text-[var(--color-accent-secondary)] transition-colors font-medium"
           data-testid="view-details-link"
         >

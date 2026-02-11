@@ -168,9 +168,6 @@ const scrollContainerId = `${id}-scroll`;
     });
   }
 
-  // Run on page load
-  document.addEventListener('astro:page-load', initSectionRowScrolling);
-  // Also run immediately for non-View Transitions pages
   if (document.readyState !== 'loading') {
     initSectionRowScrolling();
   } else {

@@ -44,14 +44,6 @@ grep -rn "\.commit()" apps/webapp/src/webapp/adapters/
 
 ## GTS Frontend Specifics
 
-### SSR Routes (require data-astro-reload)
-
-- `/gear`, `/gear/*`
-- `/shootouts`
-- `/library/*`
-- `/shootout/*`
-- `/chain/*`
-
 ### Fragment Mapping Convention
 
 `/api/v1/html/{domain}/{action}` maps to `fragments/{domain}/{action}.html`

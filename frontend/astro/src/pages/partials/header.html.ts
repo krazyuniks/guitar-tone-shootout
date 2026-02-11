@@ -46,7 +46,7 @@ export const GET: APIRoute = () => {
         <!-- Browse: Shootouts -->
         <a
           href="/shootouts"
-          data-astro-reload
+
           class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path == '/shootouts' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
           data-testid="nav-shootouts"
         >
@@ -56,7 +56,7 @@ export const GET: APIRoute = () => {
         <!-- Browse: Gear -->
         <a
           href="/gear"
-          data-astro-reload
+
           class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path.startswith('/gear') %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
           data-testid="nav-gear"
         >
@@ -66,7 +66,7 @@ export const GET: APIRoute = () => {
         <!-- Browse: DI Tracks -->
         <a
           href="/di-tracks"
-          data-astro-reload
+
           class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path.startswith('/di-tracks') %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
           data-testid="nav-di-tracks"
         >
@@ -80,7 +80,7 @@ export const GET: APIRoute = () => {
           <!-- Library Links -->
           <a
             href="/library/my-gear"
-            data-astro-reload
+
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path == '/library/my-gear' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
             data-testid="nav-my-gear"
           >
@@ -88,7 +88,7 @@ export const GET: APIRoute = () => {
           </a>
           <a
             href="/library/di-tracks"
-            data-astro-reload
+
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path == '/library/di-tracks' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
             data-testid="nav-my-di-tracks"
           >
@@ -96,7 +96,7 @@ export const GET: APIRoute = () => {
           </a>
           <a
             href="/library/chains"
-            data-astro-reload
+
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path == '/library/chains' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
             data-testid="nav-my-chains"
           >
@@ -104,7 +104,7 @@ export const GET: APIRoute = () => {
           </a>
           <a
             href="/library/shootouts"
-            data-astro-reload
+
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path == '/library/shootouts' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:text-amber-400 hover:bg-amber-400/10{% endif %}"
             data-testid="nav-my-shootouts"
           >
@@ -117,7 +117,7 @@ export const GET: APIRoute = () => {
           <!-- Create Shootout -->
           <a
             href="/shootout/create"
-            data-astro-reload
+
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if current_path == '/shootout/create' %}text-amber-400 bg-amber-500/20{% else %}bg-amber-500/10 text-amber-400 hover:bg-amber-500/20{% endif %}"
             data-testid="nav-create-shootout"
           >
@@ -185,7 +185,7 @@ export const GET: APIRoute = () => {
       <!-- Browse Links (visible to all) -->
       <a
         href="/shootouts"
-        data-astro-reload
+
         class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path == '/shootouts' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
         data-testid="nav-mobile-shootouts"
       >
@@ -193,7 +193,7 @@ export const GET: APIRoute = () => {
       </a>
       <a
         href="/gear"
-        data-astro-reload
+
         class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path.startswith('/gear') %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
         data-testid="nav-mobile-gear"
       >
@@ -201,7 +201,7 @@ export const GET: APIRoute = () => {
       </a>
       <a
         href="/di-tracks"
-        data-astro-reload
+
         class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path.startswith('/di-tracks') %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
         data-testid="nav-mobile-di-tracks"
       >
@@ -213,7 +213,7 @@ export const GET: APIRoute = () => {
         <div class="border-t border-border pt-4 mt-4 space-y-1">
           <a
             href="/library/my-gear"
-            data-astro-reload
+
             class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path == '/library/my-gear' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
             data-testid="nav-mobile-my-gear"
           >
@@ -221,7 +221,7 @@ export const GET: APIRoute = () => {
           </a>
           <a
             href="/library/di-tracks"
-            data-astro-reload
+
             class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path == '/library/di-tracks' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
             data-testid="nav-mobile-my-di-tracks"
           >
@@ -229,7 +229,7 @@ export const GET: APIRoute = () => {
           </a>
           <a
             href="/library/chains"
-            data-astro-reload
+
             class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path == '/library/chains' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
             data-testid="nav-mobile-my-chains"
           >
@@ -237,7 +237,7 @@ export const GET: APIRoute = () => {
           </a>
           <a
             href="/library/shootouts"
-            data-astro-reload
+
             class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path == '/library/shootouts' %}text-amber-400 bg-amber-400/10{% else %}text-[var(--color-text-secondary)] hover:bg-amber-400/10 hover:text-amber-400{% endif %}"
             data-testid="nav-mobile-my-shootouts"
           >
@@ -247,7 +247,7 @@ export const GET: APIRoute = () => {
           <!-- Create Shootout -->
           <a
             href="/shootout/create"
-            data-astro-reload
+
             class="block rounded-lg px-4 py-3 text-base font-medium transition-colors {% if current_path == '/shootout/create' %}text-amber-400 bg-amber-500/20{% else %}bg-amber-500/10 text-amber-400 hover:bg-amber-500/20{% endif %}"
             data-testid="nav-mobile-create-shootout"
           >

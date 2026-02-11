@@ -11,19 +11,11 @@ default:
 # Service Management
 # =============================================================================
 
-# Start all services in detached mode (auto-detects Traefik)
+# Start all services in detached mode
+# Compose files are configured via COMPOSE_FILE in .env (set by worktree.py setup)
 up-d:
     #!/usr/bin/env bash
     set -euo pipefail
-    COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml"
-
-    # Auto-include Traefik overlay if Traefik is running
-    if docker ps -q -f name=traefik 2>/dev/null | grep -q .; then
-        if [ -f docker-compose.traefik.yml ]; then
-            COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.traefik.yml"
-            echo "→ Traefik detected, including traefik overlay"
-        fi
-    fi
 
     # Main worktree runs jobs profile (worker, scheduler, redis)
     PROFILE_ARGS=""
@@ -31,7 +23,7 @@ up-d:
         PROFILE_ARGS="--profile jobs"
     fi
 
-    docker compose $COMPOSE_FILES $PROFILE_ARGS up -d
+    docker compose $PROFILE_ARGS up -d
 
 # Stop all services
 down:
