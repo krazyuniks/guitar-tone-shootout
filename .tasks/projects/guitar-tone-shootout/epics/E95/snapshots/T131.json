@@ -1,0 +1,19 @@
+{
+  "task_id": "T131",
+  "created": "2026-02-12T01:46:16.897329+00:00",
+  "commit": "1b451de1c3b6",
+  "files": [
+    {
+      "path": "tests/integration/webapp/test_tag_crud_t131.py",
+      "sha256": "8db2cf8240b52ad497ce0d6ae423129a22f16bea198b2ed932722b709b4b559a",
+      "size": 15121,
+      "modified": "2026-02-12T01:43:50.368601+00:00"
+    },
+    {
+      "path": "tests/unit/webapp/test_tag_schemas_t131.py",
+      "sha256": "175e3847ff39f771fedc2670d11065a3b88fb6f6d170273f1b511bbec5dae0cd",
+      "size": 1526,
+      "modified": "2026-02-12T01:46:04.696577+00:00"
+    }
+  ]
+}

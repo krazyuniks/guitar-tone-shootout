@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .notification import UserNotification
     from .shootout import DITrack, Shootout
     from .signal_chain import SignalChain, SignalChainGroup
+    from .tag import Tag
     from .user_gear import UserGear
 
 
@@ -127,6 +128,14 @@ class User(UUIDMixin, TimestampMixin, Base):
     # Relationship to notifications
     notifications: Mapped[list[UserNotification]] = relationship(
         "UserNotification",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
+
+    # Relationship to tags
+    tags: Mapped[list[Tag]] = relationship(
+        "Tag",
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="raise",

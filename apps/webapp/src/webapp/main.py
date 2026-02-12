@@ -24,6 +24,7 @@ from webapp.api.v1 import (
     shootouts,
     signal_chain_groups,
     signal_chains,
+    tags,
     test,
 )
 from webapp.auth.dependencies import RedirectToLogin
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(di_tracks.router)
     app.include_router(irs.router)
     app.include_router(notifications.router)
+    app.include_router(tags.router)
 
     # Include page routers
     app.include_router(pages.router)
