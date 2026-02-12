@@ -682,6 +682,25 @@ async def library_shootouts_page(
     )
 
 
+@router.get("/shootout/create", response_class=HTMLResponse)
+async def shootout_create_page(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user_page)],
+) -> HTMLResponse:
+    """Render shootout creation wizard page.
+
+    Protected page — wizard steps load via HTMX.
+    """
+    return templates.TemplateResponse(
+        request,
+        "pages/shootout_create.html",
+        {
+            "title": "Create Shootout",
+            "user": current_user,
+        },
+    )
+
+
 @router.get("/shootout/{shootout_id}", response_class=HTMLResponse)
 async def shootout_detail_page(
     request: Request,
@@ -868,25 +887,6 @@ async def chain_detail_page(
                 "created_at": chain.created_at,
                 "updated_at": chain.updated_at,
             },
-            "user": current_user,
-        },
-    )
-
-
-@router.get("/shootout/create", response_class=HTMLResponse)
-async def shootout_create_page(
-    request: Request,
-    current_user: Annotated[User, Depends(get_current_user_page)],
-) -> HTMLResponse:
-    """Render shootout creation wizard page.
-
-    Protected page — wizard steps load via HTMX.
-    """
-    return templates.TemplateResponse(
-        request,
-        "pages/shootout_create.html",
-        {
-            "title": "Create Shootout",
             "user": current_user,
         },
     )
