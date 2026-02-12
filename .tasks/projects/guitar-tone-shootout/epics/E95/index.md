@@ -62,7 +62,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T134 | Save/Remove Model UI + Model Counts | complete | webapp | - |
 | T135 | Library Sorting, Filtering, Grid-Al | complete | webapp | - |
 | T136 | License Text on Gear Detail Pages | complete | webapp | - |
-| T137 | ShootoutComment Domain Entity + ORM | locked | core | - |
+| T137 | ShootoutComment Domain Entity + ORM | validating | core | - |
 | T138 | Comments CRUD API | pending | webapp | T137 |
 | T139 | Comments HTMX Fragment on Shootout  | pending | webapp | T138 |
 | T140 | Wizard Step 2 — DI Track Selection  | pending | webapp | T124 |
