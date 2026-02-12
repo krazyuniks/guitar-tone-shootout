@@ -21,6 +21,7 @@ from webapp.api.v1 import (
     jobs,
     library,
     notifications,
+    presets,
     shootouts,
     signal_chain_groups,
     signal_chains,
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(irs.router)
     app.include_router(notifications.router)
     app.include_router(tags.router)
+    app.include_router(presets.router)
 
     # Include page routers
     app.include_router(pages.router)

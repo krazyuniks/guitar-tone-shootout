@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 from sqlalchemy import select
 
@@ -11,6 +10,8 @@ from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.signal_chain import SignalChainBlock
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -35,6 +36,7 @@ class PresetService:
         signal_chain_block_id: UUID,
         name: str,
         params: dict[str, float],
+        description: str | None = None,
     ) -> Preset:
         """Save a new preset for a signal chain block.
 
@@ -42,6 +44,7 @@ class PresetService:
             signal_chain_block_id: ID of the signal chain block
             name: Name for the preset
             params: Parameter values to save
+            description: Optional description for the preset
 
         Returns:
             Created Preset instance
@@ -65,6 +68,7 @@ class PresetService:
         preset = Preset(
             signal_chain_block_id=signal_chain_block_id,
             name=name.strip(),
+            description=description,
             params=params,
         )
 
@@ -120,6 +124,7 @@ class PresetService:
         preset_id: UUID,
         name: str,
         params: dict[str, float],
+        description: str | None = None,
     ) -> Preset | None:
         """Update an existing preset.
 
@@ -127,6 +132,7 @@ class PresetService:
             preset_id: ID of the preset to update
             name: New name for the preset
             params: New parameter values
+            description: Optional new description
 
         Returns:
             Updated preset if found, None otherwise
@@ -139,6 +145,7 @@ class PresetService:
             return None
 
         preset.name = name
+        preset.description = description
         preset.params = params
         await self.session.flush()
         await self.session.refresh(preset)

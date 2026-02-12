@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import uuid
+import uuid  # noqa: TC003
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .signal_chain import SignalChainBlock
 
-from sqlalchemy import JSON, ForeignKey, Index, String
+from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, UUIDMixin, UuidType
@@ -23,6 +23,7 @@ class Preset(UUIDMixin, Base):
         id: Primary key (UUIDv7)
         signal_chain_block_id: Foreign key to signal_chain_blocks table
         name: Preset name
+        description: Optional preset description
         params: Parameter values as JSON
         signal_chain_block: Reference to the SignalChainBlock
     """
@@ -35,6 +36,7 @@ class Preset(UUIDMixin, Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Relationship
