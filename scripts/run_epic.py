@@ -188,8 +188,20 @@ def validate_t3k_auth(dry_run: bool = False) -> None:
     if "AUTH_OK" in output:
         log(f"  T3K browser auth verified: {output}")
     elif "AUTH_FAIL" in output:
-        log(f"  T3K browser auth FAILED: {output}")
-        die("T3K browser auth verification failed. Run: ./worktree.py auth-login")
+        # Distinguish browser/infra issues from actual auth failures
+        infra_keywords = [
+            "not installed",
+            "cannot be installed",
+            "chrome",
+            "chromium",
+            "playwright",
+        ]
+        is_infra_issue = any(kw in output.lower() for kw in infra_keywords)
+        if is_infra_issue:
+            log(f"  T3K browser auth skipped (infra): {output[:200]}")
+        else:
+            log(f"  T3K browser auth FAILED: {output}")
+            die("T3K browser auth verification failed. Run: ./worktree.py auth-login")
     else:
         log(f"  T3K browser auth inconclusive — skipping layer 2: {output[:200]}")
 
