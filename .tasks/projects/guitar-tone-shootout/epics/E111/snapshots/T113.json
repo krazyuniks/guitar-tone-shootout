@@ -1,0 +1,13 @@
+{
+  "task_id": "T113",
+  "created": "2026-02-12T09:46:29.892203+00:00",
+  "commit": "792d32c550cd",
+  "files": [
+    {
+      "path": "tests/integration/worker/test_pgmq_consumer_wiring.py",
+      "sha256": "181549d8cf6d061addc275ed4edc8e1c4d7e3cac9594465d4560e612e4e97343",
+      "size": 4400,
+      "modified": "2026-02-12T09:46:29.607789+00:00"
+    }
+  ]
+}
