@@ -164,7 +164,9 @@ class TestNoConsoleErrors:
         # Wait for any deferred JS to execute
         await page.wait_for_load_state("networkidle")
 
-        return errors
+        # Filter out expected 401 responses — the auth navbar checks /api/v1/auth/me
+        # which returns 401 for unauthenticated guests (normal behaviour)
+        return [e for e in errors if "401" not in e]
 
     async def test_homepage_no_console_errors(self, guest_page: Page, frontend_url: str) -> None:
         """Homepage has no JS console errors."""
@@ -254,7 +256,7 @@ class TestIRUploadEndpoint:
     async def test_ir_upload_requires_auth(self, guest_page: Page, frontend_url: str) -> None:
         """IR upload POST endpoint requires authentication (not 404)."""
         response = await guest_page.request.post(
-            f"{frontend_url}/api/v1/irs/",
+            f"{frontend_url}/api/v1/irs/upload",
             multipart={"file": {"name": "test.wav", "mimeType": "audio/wav", "buffer": b"RIFF"}},
         )
         # Should get 401 (unauthenticated) or 422 (bad input), NOT 404
@@ -271,7 +273,7 @@ class TestIRUploadEndpoint:
         page = await auth_context.new_page()
         try:
             response = await page.request.post(
-                f"{frontend_url}/api/v1/irs/",
+                f"{frontend_url}/api/v1/irs/upload",
                 multipart={
                     "file": {
                         "name": "fake.wav",

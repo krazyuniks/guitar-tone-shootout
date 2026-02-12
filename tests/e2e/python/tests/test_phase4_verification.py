@@ -61,8 +61,9 @@ class TestAPIRoutersMounted:
 
     async def test_irs_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """IRs API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/irs/")
-        # IRs may require auth or return method not allowed — just not 404
+        # IR router only has POST /upload — no GET /
+        response = await guest_page.request.post(f"{frontend_url}/api/v1/irs/upload")
+        # Should get 401 (auth required) or 422 (missing fields), NOT 404
         assert response.status != 404, "irs router not mounted"
 
     async def test_files_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
