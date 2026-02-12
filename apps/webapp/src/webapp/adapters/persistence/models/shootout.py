@@ -20,6 +20,7 @@ from .base import (
 )
 
 if TYPE_CHECKING:
+    from .shootout_comment import ShootoutComment
     from .signal_chain import SignalChain
     from .user import User
 
@@ -164,6 +165,12 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         back_populates="shootout",
         cascade="all, delete-orphan",
         order_by="ShootoutChain.position",
+        lazy="raise",
+    )
+    comments: Mapped[list[ShootoutComment]] = relationship(
+        "ShootoutComment",
+        back_populates="shootout",
+        cascade="all, delete-orphan",
         lazy="raise",
     )
 

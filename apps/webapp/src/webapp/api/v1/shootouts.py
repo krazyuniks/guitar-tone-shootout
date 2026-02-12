@@ -20,7 +20,12 @@ from webapp.api.v1.schemas.shootout import (
     ShootoutCreateRequest,
     ShootoutResponse,
 )
+from webapp.api.v1.schemas.shootout_comment import (
+    CommentCreateRequest,
+    CommentResponse,
+)
 from webapp.services.processing_service import enqueue_to_worker
+from webapp.services.shootout_comment_service import ShootoutCommentService
 from webapp.services.shootout_service import ShootoutService
 
 router = APIRouter(prefix="/api/v1/shootouts", tags=["shootouts"])
@@ -298,3 +303,169 @@ async def process_shootout(
     await enqueue_to_worker(job.id)
 
     return {"job_id": str(job.id)}
+
+
+# --- Comment Endpoints ---
+
+
+@router.post(
+    "/{shootout_id}/comments",
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_comment(
+    shootout_id: UUID,
+    request: CommentCreateRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> CommentResponse:
+    """Create a new comment on a shootout.
+
+    Protected endpoint - requires authentication.
+
+    Args:
+        shootout_id: Shootout ID to comment on
+        request: Comment creation request
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        The created comment with author info
+
+    Raises:
+        HTTPException: 404 if shootout not found
+        HTTPException: 422 if content validation fails
+    """
+    service = ShootoutCommentService(db)
+
+    try:
+        comment = await service.create(
+            shootout_id=shootout_id,
+            user_id=current_user.id,
+            content=request.content,
+        )
+    except ValueError as e:
+        if "shootout" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Shootout not found",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+
+    return CommentResponse(
+        id=comment.id,
+        shootout_id=comment.shootout_id,
+        user_id=comment.user_id,
+        content=comment.content,
+        author_username=comment.user.username,
+        author_avatar_url=comment.user.avatar_url if hasattr(comment.user, "avatar_url") else None,
+        created_at=comment.created_at,
+    )
+
+
+@router.get("/{shootout_id}/comments")
+async def list_comments(
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    limit: int = 50,
+    offset: int = 0,
+) -> list[CommentResponse]:
+    """List comments for a shootout, newest first.
+
+    Protected endpoint - requires authentication.
+
+    Args:
+        shootout_id: Shootout ID to get comments for
+        db: Database session
+        current_user: Currently authenticated user
+        limit: Maximum number of comments to return
+        offset: Number of comments to skip
+
+    Returns:
+        List of comments with author info
+
+    Raises:
+        HTTPException: 404 if shootout not found
+    """
+    service = ShootoutCommentService(db)
+
+    try:
+        comments = await service.list_by_shootout(
+            shootout_id=shootout_id,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    return [
+        CommentResponse(
+            id=comment.id,
+            shootout_id=comment.shootout_id,
+            user_id=comment.user_id,
+            content=comment.content,
+            author_username=comment.user.username,
+            author_avatar_url=comment.user.avatar_url
+            if hasattr(comment.user, "avatar_url")
+            else None,
+            created_at=comment.created_at,
+        )
+        for comment in comments
+    ]
+
+
+@router.delete(
+    "/{shootout_id}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_comment(
+    shootout_id: UUID,
+    comment_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Delete a comment.
+
+    Protected endpoint - requires authentication.
+    Only the comment author can delete their comment.
+
+    Args:
+        shootout_id: Shootout ID (verified for consistency)
+        comment_id: Comment ID to delete
+        db: Database session
+        current_user: Currently authenticated user
+
+    Raises:
+        HTTPException: 404 if shootout or comment not found
+        HTTPException: 403 if user is not the comment author
+    """
+    # Verify shootout exists
+    service = ShootoutCommentService(db)
+    try:
+        await service.list_by_shootout(shootout_id=shootout_id, limit=1)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    # Delete the comment
+    try:
+        await service.delete(comment_id=comment_id, user_id=current_user.id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Comment not found",
+        )
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the comment author can delete the comment",
+        )

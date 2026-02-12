@@ -340,6 +340,7 @@ class SQLAlchemyGearRepository:
             existing.manufacturer = gear.manufacturer
             existing.thumbnail_url = gear.thumbnail_url
             existing.is_public = gear.is_public
+            existing.license_text = gear.license_text
             existing.updated_at = gear.updated_at
 
             # Update source if present
@@ -376,6 +377,7 @@ class SQLAlchemyGearRepository:
                 manufacturer=gear.manufacturer,
                 thumbnail_url=gear.thumbnail_url,
                 is_public=gear.is_public,
+                license_text=gear.license_text,
                 created_at=gear.created_at,
                 updated_at=gear.updated_at,
             )
@@ -544,6 +546,7 @@ class SQLAlchemyGearRepository:
             models=models,
             thumbnail_url=gear.thumbnail_url,
             is_public=gear.is_public,
+            license_text=gear.license_text,
             created_at=gear.created_at,
             updated_at=gear.updated_at,
         )

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-import uuid
+import uuid  # noqa: TC003 — needed at runtime by SQLAlchemy Mapped[]
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -137,6 +137,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         thumbnail_url: Preview image URL
         is_public: Whether visible to all users
         source_id: Foreign key to gear_sources table (optional)
+        license_text: Optional license/terms text for gear usage
         created_at: When created in GTS
         updated_at: When last updated in GTS
         make: Manufacturer relationship
@@ -168,6 +169,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         ForeignKey("gear_sources.id", ondelete="SET NULL"),
         nullable=True,
     )
+    license_text: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     make: Mapped[GearMake | None] = relationship(

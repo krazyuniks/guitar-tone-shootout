@@ -104,6 +104,7 @@ def _gear_to_detail_pack(gear) -> dict:
                 else "#"
             ),
             "created_at": (gear.created_at.strftime("%B %d, %Y") if gear.created_at else None),
+            "license_text": gear.license_text,
             "models": [
                 {
                     "id": str(m.id),
