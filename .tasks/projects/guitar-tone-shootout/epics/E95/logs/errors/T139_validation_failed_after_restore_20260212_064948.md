@@ -1,0 +1,94 @@
+# Error Report: T139 — validation_failed_after_restore
+
+**Time:** 2026-02-12T06:49:48.435076+00:00
+**Phase:** validation_failed_after_restore
+**Task:** T139
+
+## Output
+
+```
+uth_integration_t15.py:176 [mock_config]
+  BANNED: mock .side_effect — use real services
+x tests/integration/webapp/test_t3k_oauth_integration_t15.py:217 [mock_usage]
+  BANNED: MagicMock() — use real services
+x tests/integration/webapp/test_t3k_oauth_integration_t15.py:218 [mock_config]
+  BANNED: mock .return_value — use real services
+x tests/integration/webapp/test_t3k_oauth_integration_t15.py:219 [mock_usage]
+  BANNED: MagicMock() — use real services
+x tests/integration/webapp/test_t3k_oauth_integration_t15.py:220 [mock_config]
+  BANNED: mock .return_value — use real services
+x tests/integration/webapp/test_exception_handlers.py:14 [mock_import]
+  BANNED: unittest.mock import — use real services
+! tests/integration/webapp/test_library_model_level.py:129 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_library_model_level.py:233 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_shootout_service.py:117 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_shootout_service.py:225 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_shootout_service.py:294 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_shootout_service.py:326 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_shootout_wizard_groups.py:365 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_di_track_upload.py:144 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/test_seed_di_tracks.py:31 [skipped_test]
+  Programmatically skipped test
+! tests/integration/webapp/repositories/test_signal_chain_repository.py:164 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_signal_chain_repository.py:204 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_gear_repository.py:123 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_gear_repository.py:156 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_gear_repository.py:197 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_gear_repository.py:231 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_gear_repository.py:260 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_user_repository.py:120 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_user_repository.py:164 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_user_repository.py:201 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_user_repository.py:249 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/integration/webapp/repositories/test_user_repository.py:255 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/e2e/python/tests/test_regression.py:71 [weak_assertion]
+  Weak assertion: 'is not None' doesn't verify correctness
+! tests/e2e/python/tests/test_regression.py:75 [skipped_test]
+  Programmatically skipped test
+
+Errors: 946, Warnings: 258
+Test quality check failed
+4. Running regression tests...
+→ Running internal stack regression tests...
+============================= test session starts ==============================
+platform linux -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: cov-7.0.0, anyio-4.12.1, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 15 items
+
+tests/regression/test_chain_builder_route.py ......                      [ 40%]
+tests/regression/test_quality_gates_t46.py .                             [ 46%]
+tests/regression/test_stack.py ........                                  [100%]
+
+============================== 15 passed in 0.66s ==============================
+
+→ Testing external endpoint: https://95.tone-shootout.com
+→ Traefik detected: Testing SSL endpoint...
+  ✗ SSL endpoint not responding: https://95.tone-shootout.com
+    Check Traefik logs: cd deploy/traefik && docker compose logs
+error: Recipe `test-regression` failed with exit code 1
+error: Recipe `tdd-complete` failed with exit code 1
+
+```
