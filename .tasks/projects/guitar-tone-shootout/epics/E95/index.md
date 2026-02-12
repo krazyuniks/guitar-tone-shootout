@@ -67,7 +67,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T139 | Comments HTMX Fragment on Shootout  | complete | webapp | T138 |
 | T140 | Wizard Step 2 — DI Track Selection  | complete | webapp | T124 |
 | T141 | Wizard Step 3 — Review, Submit, Val | complete | webapp | T140 |
-| T142 | Shootout Detail Page Enhancement | validating | webapp | T139, T141 |
+| T142 | Shootout Detail Page Enhancement | complete | webapp | T139, T141 |
 | T143 | Full Regression + Golden Path | pending | - | T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T127, T128, T129, T130, T131, T132, T133, T134, T135, T136, T137, T138, T139, T140, T141, T142 |
 
 ## Commands
