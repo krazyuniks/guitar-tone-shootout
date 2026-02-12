@@ -25,6 +25,7 @@ from webapp.adapters.persistence.models import (
     Preset,
     Shootout,
     ShootoutChain,
+    ShootoutComment,
     SignalChain,
     SignalChainBlock,
     SignalChainGroup,
@@ -48,6 +49,7 @@ ALL_MODELS = [
     Preset,
     Shootout,
     ShootoutChain,
+    ShootoutComment,
     SignalChain,
     SignalChainBlock,
     SignalChainGroup,
@@ -181,7 +183,7 @@ class TestLazyRaiseEnforcement:
         """Verify Shootout model relationships (task acceptance criterion)."""
         relationships = get_relationship_properties(Shootout)
 
-        expected_relationships = {"user", "di_track", "chains"}
+        expected_relationships = {"user", "di_track", "chains", "comments"}
         actual_relationships = set(relationships.keys())
 
         # Verify we found all expected relationships
