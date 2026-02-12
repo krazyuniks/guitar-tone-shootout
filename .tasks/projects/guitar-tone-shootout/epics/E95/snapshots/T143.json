@@ -1,0 +1,31 @@
+{
+  "task_id": "T143",
+  "created": "2026-02-12T08:37:21.812846+00:00",
+  "commit": "8d275b66e792",
+  "files": [
+    {
+      "path": "tests/e2e/python/tests/test_phase4_auth_features.py",
+      "sha256": "e4624767b4973ff88ad568379735c1f6bfd1b2d2681bd30e3c4fd966d0f19a60",
+      "size": 6741,
+      "modified": "2026-02-12T08:30:55.516045+00:00"
+    },
+    {
+      "path": "tests/e2e/python/tests/test_phase4_regression_t143.py",
+      "sha256": "86adb71c757ca7f811f7c0cea4d32df981af383575ef2a23ac6302e002e2559e",
+      "size": 11896,
+      "modified": "2026-02-12T08:37:21.332118+00:00"
+    },
+    {
+      "path": "tests/e2e/python/tests/test_phase4_verification.py",
+      "sha256": "f4713ba5fc13a5653fc304e59ededd0e3f3b3ecfde0f4b6d1efa9665d3a695f6",
+      "size": 6324,
+      "modified": "2026-02-12T08:33:24.824078+00:00"
+    },
+    {
+      "path": "tests/integration/webapp/test_phase4_router_mounting_t143.py",
+      "sha256": "2217c5229113b1071b73c6fc1581685f7f6ed357b8ec5ea91e16dbb6562d1fc2",
+      "size": 8103,
+      "modified": "2026-02-12T08:18:12.099930+00:00"
+    }
+  ]
+}
