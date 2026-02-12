@@ -13,6 +13,7 @@ from webapp.api import pages
 from webapp.api.v1 import (
     auth,
     di_tracks,
+    files,
     gear,
     health,
     html,
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(health.router, prefix="/api/v1", tags=["health"])
     app.include_router(auth.router)
+    app.include_router(files.router)
     app.include_router(gear.router)
     app.include_router(shootouts.router)
     app.include_router(jobs.router)

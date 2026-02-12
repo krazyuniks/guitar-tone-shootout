@@ -224,15 +224,18 @@ async def _wire_auth_session(db_session: AsyncSession, tmp_path) -> AsyncGenerat
     All route modules (auth, pages, html, library) now import from
     webapp.auth.dependencies, so we only need to set the override once.
 
-    Also sets upload base directory to tmp_path for file upload tests.
+    Also sets upload base directory to tmp_path for file upload tests
+    and secret key to test-secret for HMAC signature tests.
     """
     from webapp.auth.dependencies import set_session_override, set_user_override
-    from webapp.config.uploads import set_upload_base_override
+    from webapp.config.uploads import set_secret_key_override, set_upload_base_override
 
     print(f"[FIXTURE] Setting session override: {db_session}")
     set_session_override(db_session)
     set_upload_base_override(tmp_path)
+    set_secret_key_override("test-secret")
     yield
     set_session_override(None)
     set_user_override(None)
     set_upload_base_override(None)
+    set_secret_key_override(None)

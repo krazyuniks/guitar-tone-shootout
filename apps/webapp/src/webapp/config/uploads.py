@@ -1,12 +1,14 @@
-"""Upload directory configuration for file uploads.
+"""Upload directory and secret key configuration for file uploads and asset signing.
 
-Provides configurable upload paths for testing and production.
+Provides configurable upload paths and secret keys for testing and production.
 """
 
+import os
 from pathlib import Path
 
-# Module-level override for testing
+# Module-level overrides for testing
 _upload_base_override: Path | None = None
+_secret_key_override: str | None = None
 
 
 def set_upload_base_override(path: Path | None) -> None:
@@ -30,3 +32,27 @@ def get_upload_base() -> Path:
     if _upload_base_override is not None:
         return _upload_base_override
     return Path("/app/uploads")
+
+
+def set_secret_key_override(key: str | None) -> None:
+    """Set secret key override for testing.
+
+    Args:
+        key: Secret key for HMAC signing, or None to use default
+    """
+    global _secret_key_override
+    _secret_key_override = key
+
+
+def get_secret_key() -> str:
+    """Get the secret key for HMAC signing.
+
+    Returns test override if set, otherwise environment variable,
+    otherwise dev default.
+
+    Returns:
+        Secret key string
+    """
+    if _secret_key_override is not None:
+        return _secret_key_override
+    return os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
