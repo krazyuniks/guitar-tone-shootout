@@ -56,7 +56,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T128 | IR Upload Endpoint + Service | complete | webapp | - |
 | T129 | Asset/File Serving Service (HMAC Si | complete | webapp | - |
 | T130 | Library DI Tracks Page (User Tracks | complete | webapp | T124, T129 |
-| T131 | Tag CRUD API | validating | webapp | - |
+| T131 | Tag CRUD API | complete | webapp | - |
 | T132 | Preset CRUD API | pending | webapp | - |
 | T133 | Block Types API | pending | webapp | - |
 | T134 | Save/Remove Model UI + Model Counts | pending | webapp | - |
