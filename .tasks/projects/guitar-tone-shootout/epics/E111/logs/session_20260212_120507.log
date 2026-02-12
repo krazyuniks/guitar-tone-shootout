@@ -88,3 +88,4 @@ Astro lint (graceful if Docker not running)..........(no files to check)Skipped
 Restored working tree changes from `/home/ryan/.cache/prek/patches/1770898045463-399746.patch`
 
 2026-02-12 13:07:25,607 [DEBUG] STRUCTURED: {"event": "phase_end", "timestamp": "2026-02-12T12:07:25.607929+00:00", "task_id": 119, "phase": "test", "result": "locked"}
+2026-02-12 13:07:25,813 [INFO]   Git sync: pull --rebase --autostash origin main

@@ -177,8 +177,12 @@ def get_redis_client() -> redis.Redis:
     return redis.from_url(settings.redis_url)
 
 
-async def ensure_source_sync_running() -> None:
-    """Ensure T3K source sync is running by checking Redis lock and dispatching if needed."""
+async def ensure_source_sync_running(db_engine: AsyncEngine | None = None) -> None:
+    """Ensure T3K source sync is running by checking Redis lock and dispatching if needed.
+
+    Args:
+        db_engine: Optional database engine (for testing). If None, uses registered engine.
+    """
     redis_client = get_redis_client()
     try:
         lock_exists = await redis_client.exists("t3k:sync:lock")
@@ -186,7 +190,72 @@ async def ensure_source_sync_running() -> None:
         if lock_exists == 0:
             sync_enabled = os.getenv("T3K_SYNC_ENABLED", "true").lower() == "true"
             if sync_enabled:
-                handle_source_sync.kiq()
+                # Import here to avoid circular dependencies
+                from uuid import uuid7
+
+                from core.domain.value_objects.job_status import JobType
+                from scheduler.db import _engine_cache
+
+                # Get database engine
+                engine: AsyncEngine
+                if db_engine is not None:
+                    engine = db_engine
+                else:
+                    # Check worker.db cache first (for tests that register there)
+                    try:
+                        from worker.db import _engine_cache as worker_cache
+
+                        database_url = os.getenv("DATABASE_URL", "")
+                        if database_url and database_url in worker_cache:
+                            engine = worker_cache[database_url]
+                        elif worker_cache:
+                            # Use first registered engine from worker cache
+                            engine = next(iter(worker_cache.values()))
+                        elif database_url in _engine_cache:
+                            engine = _engine_cache[database_url]
+                        elif _engine_cache:
+                            # Use first registered engine from scheduler cache
+                            engine = next(iter(_engine_cache.values()))
+                        else:
+                            # No registered engine, create new one
+                            if not database_url:
+                                msg = "DATABASE_URL environment variable not set"
+                                raise ValueError(msg)
+
+                            from sqlalchemy.ext.asyncio import create_async_engine
+
+                            engine = create_async_engine(database_url)
+                    except ImportError:
+                        # worker.db not available, use scheduler cache only
+                        from scheduler.db import get_registered_engine
+
+                        registered = get_registered_engine()
+                        if registered is not None:
+                            engine = registered
+                        else:
+                            database_url = os.getenv("DATABASE_URL", "")
+                            if not database_url:
+                                msg = "DATABASE_URL environment variable not set"
+                                raise ValueError(msg)
+
+                            from sqlalchemy.ext.asyncio import create_async_engine
+
+                            engine = create_async_engine(database_url)
+
+                # Create Job record
+                job_id = uuid7()
+                async with get_session(engine) as session:
+                    job = JobModel(
+                        id=job_id,
+                        job_type=JobType.SOURCE_SYNC,
+                        user_id=None,  # System-initiated job
+                        status=JobStatus.PENDING,
+                    )
+                    session.add(job)
+                    await session.flush()
+
+                # Dispatch job
+                await handle_source_sync.kiq(job_id)
     finally:
         await redis_client.aclose()
 

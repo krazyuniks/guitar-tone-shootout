@@ -307,6 +307,9 @@ class TestEnsureSourceSyncRunningDispatches:
     async def test_dispatch_awaits_kiq_coroutine(
         self,
         fake_redis: FakeRedis,
+        db_engine: AsyncEngine,
+        db_session: AsyncSession,
+        register_engines: None,
         monkeypatch,
     ) -> None:
         """ensure_source_sync_running must await the kiq() coroutine.
