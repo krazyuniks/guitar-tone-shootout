@@ -84,3 +84,4 @@ Validate dev-docs exist..................................................Passed
 Astro lint (graceful if Docker not running)..........(no files to check)Skipped
 
 2026-02-12 10:46:29,908 [DEBUG] STRUCTURED: {"event": "phase_end", "timestamp": "2026-02-12T09:46:29.908313+00:00", "task_id": 113, "phase": "test", "result": "locked"}
+2026-02-12 10:46:30,078 [INFO]   Git sync: pull --rebase --autostash origin main

@@ -18,7 +18,7 @@ T115 → T120
 | Task | Title | State | Project | Blocked By |
 |------|-------|-------|---------|------------|
 | T112 | Worker dual database session factor | complete | worker | - |
-| T113 | Wire real pgmq consumer in entrypoi | pending | worker | - |
+| T113 | Wire real pgmq consumer in entrypoi | locked | worker | - |
 | T114 | T3K oauth_tokens Alembic migration | complete | - | - |
 | T115 | Implement admin sync endpoints (rep | pending | worker | T112, T113 |
 | T117 | Integrate model downloader into syn | pending | - | - |

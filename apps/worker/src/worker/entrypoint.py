@@ -139,23 +139,39 @@ async def run_taskiq_worker(manager: ProcessManager) -> None:
 
 
 async def run_pgmq_consumer(manager: ProcessManager) -> None:
-    """Start the pgmq consumer (initial no-op loop).
+    """Start the pgmq consumer with real GearSyncConsumer.
 
     Args:
         manager: The process manager to register with
     """
-    logger.info("Starting pgmq consumer (no-op)")
+    logger.info("Starting pgmq consumer")
 
-    # For now, run a simple Python script that sleeps
-    # D1 will implement actual message consumption
+    # Run consumer in subprocess with database session setup
+    consumer_script = """
+import asyncio
+from worker.consumers.gear_sync import GearSyncConsumer
+from worker.db import get_core_session, get_t3k_session
+
+async def main():
+    async with get_core_session() as core_session, get_t3k_session() as t3k_session:
+        consumer = GearSyncConsumer(
+            core_session=core_session,
+            t3k_session=t3k_session,
+            pack_queue_name="gear_pack_sync",
+            model_queue_name="gear_model_sync",
+            dead_letter_queue="sync_dead_letter",
+        )
+        await consumer.run()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+"""
+
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-u",  # Unbuffered output
         "-c",
-        "import time\n"
-        "print('pgmq consumer started', flush=True)\n"
-        "while True:\n"
-        "    time.sleep(60)\n",
+        consumer_script,
     )
 
     manager.add_process(process)
