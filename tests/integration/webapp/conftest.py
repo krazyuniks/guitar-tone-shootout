@@ -218,16 +218,21 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def _wire_auth_session(db_session: AsyncSession) -> AsyncGenerator[None, None]:
+async def _wire_auth_session(db_session: AsyncSession, tmp_path) -> AsyncGenerator[None, None]:  # type: ignore[no-untyped-def]
     """Auto-wire test DB session into the centralised auth dependencies.
 
     All route modules (auth, pages, html, library) now import from
     webapp.auth.dependencies, so we only need to set the override once.
+
+    Also sets upload base directory to tmp_path for file upload tests.
     """
     from webapp.auth.dependencies import set_session_override, set_user_override
+    from webapp.config.uploads import set_upload_base_override
 
     print(f"[FIXTURE] Setting session override: {db_session}")
     set_session_override(db_session)
+    set_upload_base_override(tmp_path)
     yield
     set_session_override(None)
     set_user_override(None)
+    set_upload_base_override(None)

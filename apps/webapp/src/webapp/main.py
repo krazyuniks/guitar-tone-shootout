@@ -16,6 +16,7 @@ from webapp.api.v1 import (
     gear,
     health,
     html,
+    irs,
     jobs,
     library,
     notifications,
@@ -97,6 +98,7 @@ def create_app() -> FastAPI:
     app.include_router(signal_chains.router)
     app.include_router(signal_chain_groups.router)
     app.include_router(di_tracks.router)
+    app.include_router(irs.router)
     app.include_router(notifications.router)
 
     # Include page routers
