@@ -622,6 +622,10 @@ def _start_and_configure_services(
     except DockerError as e:
         startup_error = str(e)  # Capture for failure report
 
+    # Step 9.5: Run migrations (applies any new migrations since the dump)
+    if not startup_error:
+        _run_migrations(status, worktree_path)
+
     # Step 10: Wait for services to be ready
     # Skip the slow health poll if startup already failed (build error etc.)
     if startup_error:
@@ -689,6 +693,35 @@ def _import_database(status, worktree_path: Path, backup_file: Path, is_main: bo
         status.stop()
         print_error(f"Database import failed: {e}")
         raise typer.Exit(1) from None
+
+
+def _run_migrations(status, worktree_path: Path) -> None:
+    """Run alembic migrations to apply any schema changes since the dump."""
+    import subprocess
+
+    status.update("[bold green]Running database migrations...")
+    try:
+        result = subprocess.run(
+            ["just", "migrate"],
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            console.print("  [green]✓[/green] Database migrations applied")
+        else:
+            # Non-fatal: migrations may fail if schema is already up to date
+            # or if there's a real issue — health check will catch it
+            stderr = result.stderr.strip()
+            if stderr:
+                console.print(f"  [yellow]⚠[/yellow] Migration warning: {stderr[-200:]}")
+            else:
+                console.print("  [yellow]⚠[/yellow] Migration returned non-zero (may be fine)")
+    except subprocess.TimeoutExpired:
+        console.print("  [yellow]⚠[/yellow] Migration timed out (continuing)")
+    except FileNotFoundError:
+        console.print("  [yellow]⚠[/yellow] Migrations skipped (just not found)")
 
 
 def _restore_auth(status, worktree, worktree_path: Path) -> None:
@@ -800,6 +833,11 @@ def _handle_resume_path(
             start_services(worktree_path, cleanup=False)
         except DockerError as e:
             startup_error = str(e)  # Capture for failure report
+
+    # Step 5.5: Run migrations (applies any new migrations since the dump)
+    if not startup_error:
+        with _timed_step("migrations"):
+            _run_migrations(status, worktree_path)
 
     # Step 6: Wait for services to be ready
     # Skip the slow health poll if startup already failed (build error etc.)
