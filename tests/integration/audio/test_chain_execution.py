@@ -188,9 +188,7 @@ def signal_chain_with_pre_and_post_effects() -> SignalChain:
 
 
 @pytest.fixture
-def gear_path_resolver(
-    test_nam_model: Path, test_ir_file: Path
-) -> Callable[[str, GearType], Path]:
+def gear_path_resolver(test_nam_model: Path, test_ir_file: Path) -> Callable[[str, GearType], Path]:
     """Resolver that maps user_gear_id to actual file paths."""
 
     def resolver(user_gear_id: str, gear_type: GearType) -> Path:

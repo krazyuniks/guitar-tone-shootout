@@ -9,11 +9,16 @@ Tests T3K-specific OAuth provider including:
 """
 
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import HTTPStatusError, Request, Response
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
@@ -88,7 +93,10 @@ class TestT3KProvider:
         assert provider.authorization_url is not None
         assert isinstance(provider.authorization_url, str)
         # T3K uses tone3000.com domain
-        assert "tone3000.com" in provider.authorization_url or "t3k" in provider.authorization_url.lower()
+        assert (
+            "tone3000.com" in provider.authorization_url
+            or "t3k" in provider.authorization_url.lower()
+        )
 
     async def test_t3k_provider_has_token_url(self) -> None:
         """Test T3K provider defines token URL endpoint."""
@@ -317,7 +325,10 @@ class TestT3KProvider:
             assert provider.token_url is not None
             assert provider.user_info_url is not None
             # Default should be tone3000.com or similar
-            assert "tone3000" in provider.authorization_url.lower() or "t3k" in provider.authorization_url.lower()
+            assert (
+                "tone3000" in provider.authorization_url.lower()
+                or "t3k" in provider.authorization_url.lower()
+            )
 
     async def test_t3k_provider_token_exchange_includes_all_parameters(self) -> None:
         """Test T3K provider token exchange includes all required OAuth parameters."""

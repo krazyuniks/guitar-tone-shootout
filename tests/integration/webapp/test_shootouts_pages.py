@@ -66,9 +66,7 @@ async def authenticated_client(
     set_session_override(db_session)
     set_user_override(test_user)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
     # Cleanup
@@ -98,9 +96,7 @@ async def test_library_shootouts_page_requires_authentication(
     # Create client without auth override
     set_session_override(db_session)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/library/shootouts")
 
         assert response.status_code == 401
@@ -200,9 +196,7 @@ async def test_shootout_detail_page_requires_authentication(
     # Create client without auth override
     set_session_override(db_session)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"/shootout/{uuid4()}")
 
         assert response.status_code == 401

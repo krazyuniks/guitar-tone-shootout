@@ -30,6 +30,7 @@ class _TestAsyncSession(AsyncSession):
             return self.begin_nested(**kw)
         return super().begin(**kw)
 
+
 from uuid import uuid4
 
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
@@ -58,6 +59,7 @@ async def test_user(db_session: AsyncSession) -> User:
 @pytest.fixture
 async def make_user_gear(db_session: AsyncSession):
     """Factory fixture for creating UserGear instances."""
+
     async def _make_user_gear(user_id, gear_model_id):
         user_gear = UserGear(
             id=uuid4(),
@@ -68,6 +70,7 @@ async def make_user_gear(db_session: AsyncSession):
         await db_session.flush()
         await db_session.refresh(user_gear)
         return user_gear
+
     return _make_user_gear
 
 
@@ -104,7 +107,9 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
     """
     # Create session factory with custom session class
     async_session = async_sessionmaker(
-        db_engine, class_=_TestAsyncSession, expire_on_commit=False,
+        db_engine,
+        class_=_TestAsyncSession,
+        expire_on_commit=False,
     )
 
     # Create session

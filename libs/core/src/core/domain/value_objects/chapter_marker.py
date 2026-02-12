@@ -61,9 +61,7 @@ class ChapterMarker:
         return f"{self.youtube_timestamp} {self.title}"
 
     @classmethod
-    def from_segment_durations(
-        cls, segments: list[SegmentDuration]
-    ) -> list[ChapterMarker]:
+    def from_segment_durations(cls, segments: list[SegmentDuration]) -> list[ChapterMarker]:
         """Create chapter markers from segment duration data.
 
         Calculates cumulative start times based on segment durations,
@@ -106,9 +104,7 @@ class ChapterMarker:
         return "\n".join(marker.youtube_line for marker in markers)
 
     @staticmethod
-    def to_ffmpeg_chapter_file(
-        markers: list[ChapterMarker], total_duration_ms: int
-    ) -> str:
+    def to_ffmpeg_chapter_file(markers: list[ChapterMarker], total_duration_ms: int) -> str:
         """Format markers as FFmpeg metadata chapter file content.
 
         Creates content for an FFmpeg chapter metadata file that can be

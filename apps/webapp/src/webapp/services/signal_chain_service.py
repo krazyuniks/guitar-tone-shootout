@@ -64,9 +64,7 @@ class SignalChainService:
         # Validate chain
         result = self.validator.validate(chain)
         if not result.is_valid:
-            error_messages = [
-                f"{error.code}: {error.message}" for error in result.errors
-            ]
+            error_messages = [f"{error.code}: {error.message}" for error in result.errors]
             raise ValidationException(error_messages)
 
         # Persist chain (transaction managed by caller)
@@ -99,9 +97,7 @@ class SignalChainService:
         Returns:
             List of SignalChain entities
         """
-        return await self.repository.get_by_user_id(
-            user_id, limit=limit or 50, offset=offset
-        )
+        return await self.repository.get_by_user_id(user_id, limit=limit or 50, offset=offset)
 
     async def update(self, chain: SignalChain) -> SignalChain:
         """Update an existing signal chain.
@@ -120,9 +116,7 @@ class SignalChainService:
         # Validate chain
         result = self.validator.validate(chain)
         if not result.is_valid:
-            error_messages = [
-                f"{error.code}: {error.message}" for error in result.errors
-            ]
+            error_messages = [f"{error.code}: {error.message}" for error in result.errors]
             raise ValidationException(error_messages)
 
         # Persist chain (transaction managed by caller)

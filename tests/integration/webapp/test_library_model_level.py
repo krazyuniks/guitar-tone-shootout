@@ -50,9 +50,7 @@ async def test_gear(db_session: AsyncSession) -> Gear:
 
 
 @pytest.fixture
-async def test_gear_model(
-    db_session: AsyncSession, test_gear: Gear
-) -> GearModel:
+async def test_gear_model(db_session: AsyncSession, test_gear: Gear) -> GearModel:
     """Create a test gear model."""
     model = GearModel(
         id=uuid4(),
@@ -67,9 +65,7 @@ async def test_gear_model(
 
 
 @pytest.fixture
-async def second_gear_model(
-    db_session: AsyncSession, test_gear: Gear
-) -> GearModel:
+async def second_gear_model(db_session: AsyncSession, test_gear: Gear) -> GearModel:
     """Create a second test gear model for the same gear."""
     model = GearModel(
         id=uuid4(),
@@ -91,9 +87,7 @@ async def authenticated_client(db_session: AsyncSession, test_user: User):
     set_session_override(db_session)
     set_user_override(test_user)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
     # Cleanup
@@ -197,9 +191,7 @@ class TestLibraryModelLevelAPI:
         assert response.status_code == 204
 
         # Verify database state
-        result = await db_session.execute(
-            select(UserGear).where(UserGear.id == user_gear_id)
-        )
+        result = await db_session.execute(select(UserGear).where(UserGear.id == user_gear_id))
         assert result.scalar_one_or_none() is None
 
     async def test_toggle_adds_if_not_in_library(
@@ -269,9 +261,7 @@ class TestLibraryModelLevelAPI:
         assert data["gear_model_id"] == str(test_gear_model.id)
 
         # Verify database state
-        result = await db_session.execute(
-            select(UserGear).where(UserGear.id == user_gear_id)
-        )
+        result = await db_session.execute(select(UserGear).where(UserGear.id == user_gear_id))
         assert result.scalar_one_or_none() is None
 
     async def test_toggle_returns_404_for_nonexistent_model(
@@ -334,9 +324,7 @@ class TestLibraryModelLevelAPI:
         assert response.status_code == 201
 
         # Verify both are in library
-        result = await db_session.execute(
-            select(UserGear).where(UserGear.user_id == test_user.id)
-        )
+        result = await db_session.execute(select(UserGear).where(UserGear.user_id == test_user.id))
         user_gears = result.scalars().all()
         assert len(user_gears) == 2
 

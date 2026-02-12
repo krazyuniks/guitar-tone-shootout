@@ -26,9 +26,7 @@ class TestAudioCleanup:
     def test_video_stub_removed(self, audio_src: Path) -> None:
         """libs/audio/src/audio/video/ stub directory removed."""
         video_stub = audio_src / "video"
-        assert not video_stub.exists(), (
-            "libs/audio/src/audio/video/ stub must be removed"
-        )
+        assert not video_stub.exists(), "libs/audio/src/audio/video/ stub must be removed"
 
     def test_moviepy_dependency_removed(self, audio_root: Path) -> None:
         """moviepy dependency removed from libs/audio/pyproject.toml."""
@@ -36,6 +34,6 @@ class TestAudioCleanup:
         content = pyproject.read_text()
 
         # Check that moviepy is NOT in dependencies
-        assert 'moviepy' not in content.lower(), (
-            "moviepy must be removed from libs/audio/pyproject.toml dependencies"
-        )
+        assert (
+            "moviepy" not in content.lower()
+        ), "moviepy must be removed from libs/audio/pyproject.toml dependencies"

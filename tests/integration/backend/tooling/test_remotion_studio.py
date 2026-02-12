@@ -57,7 +57,6 @@ class TestRemotionStudio:
     def test_video_package_has_remotion_entry_point(self) -> None:
         """Verify libs/video has Remotion entry point (index.ts)."""
         entry_point = Path("/app/libs/video/src/video/remotion/index.ts")
-        assert entry_point.exists(), (
-            "libs/video/src/video/remotion/index.ts not found - "
-            "Remotion needs an entry point"
-        )
+        assert (
+            entry_point.exists()
+        ), "libs/video/src/video/remotion/index.ts not found - Remotion needs an entry point"

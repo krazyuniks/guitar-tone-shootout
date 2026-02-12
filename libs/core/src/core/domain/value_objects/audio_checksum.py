@@ -24,9 +24,7 @@ class AudioChecksum:
     def __post_init__(self) -> None:
         """Validate the checksum format."""
         if len(self.value) != 64:
-            raise ValueError(
-                f"Invalid SHA256 checksum length: expected 64, got {len(self.value)}"
-            )
+            raise ValueError(f"Invalid SHA256 checksum length: expected 64, got {len(self.value)}")
         try:
             int(self.value, 16)
         except ValueError as e:

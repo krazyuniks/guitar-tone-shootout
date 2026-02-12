@@ -5,7 +5,6 @@ from collections.abc import AsyncGenerator
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.composition_spec import CompositionSpec
 from video.api import create_app
 
 
@@ -46,9 +45,7 @@ class TestRenderEndpoint:
         assert isinstance(body["job_id"], str)
         assert len(body["job_id"]) > 0
 
-    async def test_rejects_missing_composition_type(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_rejects_missing_composition_type(self, client: AsyncClient) -> None:
         """POST /render returns 422 for missing composition_type."""
         response = await client.post(
             "/render",
@@ -103,17 +100,13 @@ class TestStatusEndpoint:
         assert "status" in body
         assert body["status"] in ["pending", "rendering", "complete", "failed"]
 
-    async def test_returns_404_for_unknown_job_id(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_returns_404_for_unknown_job_id(self, client: AsyncClient) -> None:
         """GET /render/{job_id} returns 404 for nonexistent job."""
         response = await client.get("/render/nonexistent-job-id")
 
         assert response.status_code == 404
 
-    async def test_includes_output_path_when_complete(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_includes_output_path_when_complete(self, client: AsyncClient) -> None:
         """GET /render/{job_id} includes output_path for completed jobs."""
         # This test verifies the schema shape - implementation will determine
         # when output_path is actually populated
@@ -128,13 +121,9 @@ class TestStatusEndpoint:
 
         # output_path should be null for pending jobs, str for complete
         assert "output_path" in body
-        assert body["output_path"] is None or isinstance(
-            body["output_path"], str
-        )
+        assert body["output_path"] is None or isinstance(body["output_path"], str)
 
-    async def test_includes_error_message_when_failed(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_includes_error_message_when_failed(self, client: AsyncClient) -> None:
         """GET /render/{job_id} includes error_message for failed jobs."""
         submit_response = await client.post(
             "/render",
@@ -147,9 +136,7 @@ class TestStatusEndpoint:
 
         # error_message should be null for non-failed jobs, str for failed
         assert "error_message" in body
-        assert body["error_message"] is None or isinstance(
-            body["error_message"], str
-        )
+        assert body["error_message"] is None or isinstance(body["error_message"], str)
 
 
 @pytest.mark.asyncio
@@ -166,9 +153,7 @@ class TestHealthEndpoint:
         assert "status" in body
         assert body["status"] in ["healthy", "unhealthy"]
 
-    async def test_health_check_does_not_require_auth(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_health_check_does_not_require_auth(self, client: AsyncClient) -> None:
         """GET /health is accessible without authentication."""
         # Health endpoint should be public
         response = await client.get("/health")

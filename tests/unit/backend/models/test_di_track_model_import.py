@@ -4,8 +4,6 @@ Per task specification, DITrack model should be importable from
 webapp.adapters.persistence.models.di_track.
 """
 
-import pytest
-
 
 class TestDITrackModelImport:
     """Tests for DITrack model import location."""

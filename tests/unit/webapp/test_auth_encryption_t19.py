@@ -73,7 +73,7 @@ class TestTokenEncryption:
         key = TokenEncryptor.generate_key()
 
         # Key should be bytes
-        assert isinstance(key, (bytes, str))
+        assert isinstance(key, bytes | str)
 
         # Key should be non-empty
         assert len(key) > 0
@@ -121,8 +121,8 @@ class TestTokenEncryption:
 
     def test_encryptor_uses_env_key_if_provided(self) -> None:
         """Test TokenEncryptor uses key from environment variable if set."""
+
         from webapp.auth.encryption import TokenEncryptor
-        import os
 
         # Generate a key
         test_key = TokenEncryptor.generate_key()

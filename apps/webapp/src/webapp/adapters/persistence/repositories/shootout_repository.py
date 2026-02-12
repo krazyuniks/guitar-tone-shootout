@@ -247,8 +247,7 @@ class SQLAlchemyShootoutRepository:
             # Remove chains that are no longer in the entity by clearing the list
             # and rebuilding it - this triggers the cascade delete-orphan
             existing.chains = [
-                orm_chain for orm_chain in existing.chains
-                if orm_chain.id in new_chain_ids
+                orm_chain for orm_chain in existing.chains if orm_chain.id in new_chain_ids
             ]
 
             # Track which chains exist for update vs create

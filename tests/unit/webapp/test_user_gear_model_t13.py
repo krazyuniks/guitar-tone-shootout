@@ -18,14 +18,12 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import joinedload
 
+from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
-
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 
 
 @pytest.fixture
@@ -49,9 +47,7 @@ async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
 class TestUserGearModel:
     """Tests for UserGear ORM model."""
 
-    async def test_user_gear_creation_with_required_fields(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_user_gear_creation_with_required_fields(self, session: AsyncSession) -> None:
         """Test creating UserGear with only required fields (user_id, gear_model_id)."""
         # Create user, gear, and gear model first
         user = User(username="test_user", email="test@example.com")
@@ -74,9 +70,7 @@ class TestUserGearModel:
         await session.commit()
 
         # Verify it was created
-        result = await session.execute(
-            select(UserGear).where(UserGear.user_id == user.id)
-        )
+        result = await session.execute(select(UserGear).where(UserGear.user_id == user.id))
         saved = result.scalar_one()
 
         assert saved.id is not None
@@ -119,9 +113,7 @@ class TestUserGearModel:
         with pytest.raises(IntegrityError):
             await session.commit()
 
-    async def test_user_gear_allows_different_users_same_gear(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_user_gear_allows_different_users_same_gear(self, session: AsyncSession) -> None:
         """Test that different users can add the same gear model to their library."""
         # Create two users, one gear, and one gear model
         user1 = User(username="user1", email="user1@example.com")
@@ -181,9 +173,7 @@ class TestUserGearModel:
         await session.commit()
 
         # Verify optional fields
-        result = await session.execute(
-            select(UserGear).where(UserGear.user_id == user.id)
-        )
+        result = await session.execute(select(UserGear).where(UserGear.user_id == user.id))
         saved = result.scalar_one()
 
         assert saved.nickname == "My Favourite Amp"
@@ -230,9 +220,7 @@ class TestUserGearModel:
         with pytest.raises(IntegrityError):
             await session.commit()
 
-    async def test_user_gear_cascade_delete_on_user(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_user_gear_cascade_delete_on_user(self, session: AsyncSession) -> None:
         """Test that deleting a user deletes their user_gear entries."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
@@ -263,9 +251,7 @@ class TestUserGearModel:
         remaining = result.scalars().all()
         assert len(remaining) == 0
 
-    async def test_user_gear_has_relationship_to_user(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_user_gear_has_relationship_to_user(self, session: AsyncSession) -> None:
         """Test that UserGear has a relationship to User model."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
@@ -289,9 +275,7 @@ class TestUserGearModel:
 
         # Fetch user_gear and access user via relationship
         result = await session.execute(
-            select(UserGear)
-            .where(UserGear.user_id == user.id)
-            .options(joinedload(UserGear.user))
+            select(UserGear).where(UserGear.user_id == user.id).options(joinedload(UserGear.user))
         )
         saved = result.unique().scalar_one()
 
@@ -299,9 +283,7 @@ class TestUserGearModel:
         assert saved.user is not None
         assert saved.user.username == "test_user"
 
-    async def test_user_gear_has_relationship_to_gear(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_user_gear_has_relationship_to_gear(self, session: AsyncSession) -> None:
         """Test that UserGear has a relationship to GearModel."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")

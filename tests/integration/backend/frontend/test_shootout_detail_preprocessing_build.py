@@ -46,8 +46,9 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # DI track section should exist
-        assert 'data-testid="di-track-section"' in content, \
-            "DI track section missing data-testid in detail fragment"
+        assert (
+            'data-testid="di-track-section"' in content
+        ), "DI track section missing data-testid in detail fragment"
 
     def test_di_track_section_has_audio_player(self) -> None:
         """DI track section contains audio player element."""
@@ -55,9 +56,8 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Audio player should exist within DI track section
-        assert '<audio' in content, "No audio element in detail fragment"
-        assert 'data-testid="di-track-player"' in content, \
-            "Audio player missing data-testid"
+        assert "<audio" in content, "No audio element in detail fragment"
+        assert 'data-testid="di-track-player"' in content, "Audio player missing data-testid"
 
     def test_di_track_section_shows_track_metadata(self) -> None:
         """DI track section displays track name and duration."""
@@ -65,10 +65,8 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Should have testids for track name and duration
-        assert 'data-testid="di-track-name"' in content, \
-            "DI track name missing data-testid"
-        assert 'data-testid="di-track-duration"' in content, \
-            "DI track duration missing data-testid"
+        assert 'data-testid="di-track-name"' in content, "DI track name missing data-testid"
+        assert 'data-testid="di-track-duration"' in content, "DI track duration missing data-testid"
 
     def test_detail_fragment_has_status_badge(self) -> None:
         """Detail fragment contains status badge element."""
@@ -76,8 +74,9 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Status badge should exist
-        assert 'data-testid="status-badge"' in content, \
-            "Status badge missing data-testid in detail fragment"
+        assert (
+            'data-testid="status-badge"' in content
+        ), "Status badge missing data-testid in detail fragment"
 
     def test_detail_fragment_has_processing_placeholder(self) -> None:
         """Detail fragment contains processing placeholder for pending state."""
@@ -85,12 +84,14 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Processing placeholder should exist
-        assert 'data-testid="processing-placeholder"' in content, \
-            "Processing placeholder missing data-testid"
+        assert (
+            'data-testid="processing-placeholder"' in content
+        ), "Processing placeholder missing data-testid"
 
         # Should contain explanatory text about pending state
-        assert "Pending Processing" in content or "pending" in content.lower(), \
-            "No pending state text in processing placeholder"
+        assert (
+            "Pending Processing" in content or "pending" in content.lower()
+        ), "No pending state text in processing placeholder"
 
     def test_detail_fragment_has_chain_list_section(self) -> None:
         """Detail fragment contains segments section for chain list."""
@@ -98,12 +99,12 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Segments section should exist
-        assert 'data-testid="segments-section"' in content, \
-            "Segments section missing data-testid"
+        assert 'data-testid="segments-section"' in content, "Segments section missing data-testid"
 
         # Should have segment button testid (for chain items)
-        assert 'data-testid="segment-button"' in content, \
-            "Segment button missing data-testid for chains"
+        assert (
+            'data-testid="segment-button"' in content
+        ), "Segment button missing data-testid for chains"
 
     def test_detail_fragment_has_description_section(self) -> None:
         """Detail fragment contains description section with testid."""
@@ -111,8 +112,9 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Description section should exist
-        assert 'data-testid="description-section"' in content, \
-            "Description section missing data-testid"
+        assert (
+            'data-testid="description-section"' in content
+        ), "Description section missing data-testid"
 
     def test_detail_fragment_has_back_link(self) -> None:
         """Detail fragment contains back link with testid."""
@@ -120,8 +122,7 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Back link should exist
-        assert 'data-testid="back-link"' in content, \
-            "Back link missing data-testid"
+        assert 'data-testid="back-link"' in content, "Back link missing data-testid"
 
     def test_audio_player_uses_stream_endpoint_pattern(self) -> None:
         """Audio player src references DI track stream endpoint."""
@@ -130,8 +131,7 @@ class TestShootoutDetailPreProcessingBuild:
 
         # Should reference stream endpoint pattern (Jinja2 template)
         # Looking for template variable references
-        assert "di_track" in content or "DI" in content, \
-            "No DI track reference in detail fragment"
+        assert "di_track" in content or "DI" in content, "No DI track reference in detail fragment"
 
     def test_all_required_testids_present(self) -> None:
         """All required data-testid attributes are present in build artifact."""
@@ -157,4 +157,6 @@ class TestShootoutDetailPreProcessingBuild:
         ]
 
         for testid in required_testids:
-            assert testid in content, f"{testid} not found in detail fragment (build artifact missing)"
+            assert (
+                testid in content
+            ), f"{testid} not found in detail fragment (build artifact missing)"

@@ -84,7 +84,12 @@ async def execute_signal_chain(
         gear_path = gear_path_resolver(str(block.user_gear_id), block.gear_type)
 
         # Process based on gear type
-        if block.gear_type in (GearType.AMP, GearType.FULL_RIG, GearType.PEDAL, GearType.POST_EFFECT):
+        if block.gear_type in (
+            GearType.AMP,
+            GearType.FULL_RIG,
+            GearType.PEDAL,
+            GearType.POST_EFFECT,
+        ):
             # NAM model processing
             current_audio = await _process_nam_block(
                 audio=current_audio,
@@ -99,9 +104,7 @@ async def execute_signal_chain(
                 ir_path=gear_path,
             )
         else:
-            raise ChainExecutionError(
-                f"Unsupported gear type for execution: {block.gear_type}"
-            )
+            raise ChainExecutionError(f"Unsupported gear type for execution: {block.gear_type}")
 
     return current_audio
 
@@ -133,8 +136,7 @@ def _validate_chain_constraints(blocks: list["SignalChainBlock"]) -> None:
     # HEAD constraint: AMP requires IR
     if has_amp and not has_ir:
         raise ChainExecutionError(
-            "Invalid chain: AMP (head) configuration requires an IR block "
-            "(cabinet simulation)"
+            "Invalid chain: AMP (head) configuration requires an IR block (cabinet simulation)"
         )
 
 

@@ -210,6 +210,4 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
     )
 
     # Indexes
-    __table_args__ = (
-        Index("ix_signal_chain_groups_user_id", "user_id"),
-    )
+    __table_args__ = (Index("ix_signal_chain_groups_user_id", "user_id"),)

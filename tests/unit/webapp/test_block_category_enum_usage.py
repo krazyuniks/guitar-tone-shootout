@@ -10,7 +10,12 @@ not just a plain string.
 from collections.abc import AsyncGenerator
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from core.domain.value_objects.block_category import BlockCategory
 from webapp.adapters.persistence.models.base import Base
@@ -95,7 +100,9 @@ class TestBlockCategoryEnumUsage:
         assert isinstance(saved.category, BlockCategory)
         assert saved.category.value == "reverb"
 
-    async def test_block_type_category_supports_all_enum_values(self, session: AsyncSession) -> None:
+    async def test_block_type_category_supports_all_enum_values(
+        self, session: AsyncSession
+    ) -> None:
         """BlockType.category should support all BlockCategory enum values from wiki:334-342."""
         from sqlalchemy import select
 

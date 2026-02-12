@@ -5,8 +5,6 @@ libs/core/src/core/domain/value_objects/platform.py as specified
 in the task requirements.
 """
 
-import pytest
-
 
 class TestPlatformEnum:
     """Tests for Platform enum module."""
@@ -57,9 +55,9 @@ class TestPlatformEnum:
         from core.domain.value_objects.platform import Platform
 
         for member in Platform:
-            assert isinstance(member.value, str), (
-                f"Platform.{member.name} value should be str, got {type(member.value)}"
-            )
+            assert isinstance(
+                member.value, str
+            ), f"Platform.{member.name} value should be str, got {type(member.value)}"
 
     def test_platform_supports_aa_snapshot(self) -> None:
         """Test that Platform includes AA_SNAPSHOT for Axe-FX/Helix snapshots."""

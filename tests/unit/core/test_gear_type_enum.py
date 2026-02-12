@@ -5,8 +5,6 @@ libs/core/src/core/domain/value_objects/gear_type.py as specified
 in the task requirements.
 """
 
-import pytest
-
 
 class TestGearTypeEnum:
     """Tests for GearType enum module."""
@@ -71,6 +69,6 @@ class TestGearTypeEnum:
         from core.domain.value_objects.gear_type import GearType
 
         for member in GearType:
-            assert isinstance(member.value, str), (
-                f"GearType.{member.name} value should be str, got {type(member.value)}"
-            )
+            assert isinstance(
+                member.value, str
+            ), f"GearType.{member.name} value should be str, got {type(member.value)}"

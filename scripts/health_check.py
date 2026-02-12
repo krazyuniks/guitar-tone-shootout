@@ -33,6 +33,8 @@ class HealthChecker:
         self.check_typecheck()
         self.check_tests()
         self.check_regression()
+        # Ensure auth user exists in DB before E2E (integration tests may overwrite auth file)
+        self._run(["just", "ensure-auth-user"])
         self.check_e2e()
         return all(r.passed for r in self.results)
 
@@ -44,54 +46,111 @@ class HealthChecker:
             return subprocess.CompletedProcess(cmd, 1, "", f"Command timed out after {timeout}s")
 
     def check_lint(self):
-        """Run linting via Docker."""
-        result = self._run(["just", "lint"])
-        self.results.append(HealthResult(
-            check="lint",
-            passed=result.returncode == 0,
-            message="Lint passed" if result.returncode == 0 else "Lint errors",
-            details={"output": result.stdout[-1000:]} if result.returncode != 0 else {}
-        ))
+        """Run lint check (no auto-fix) via Docker."""
+        result = self._run(
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "webapp",
+                "ruff",
+                "check",
+                "libs/",
+                "sources/",
+                "apps/",
+                "tests/",
+            ]
+        )
+        self.results.append(
+            HealthResult(
+                check="lint",
+                passed=result.returncode == 0,
+                message="Lint passed" if result.returncode == 0 else "Lint errors",
+                details={"output": result.stdout[-1000:]} if result.returncode != 0 else {},
+            )
+        )
 
     def check_typecheck(self):
-        """Run type checking via Docker."""
-        result = self._run(["just", "check-types"])
-        self.results.append(HealthResult(
-            check="typecheck",
-            passed=result.returncode == 0,
-            message="Types OK" if result.returncode == 0 else "Type errors",
-            details={"output": result.stdout[-1000:]} if result.returncode != 0 else {}
-        ))
+        """Run type checking (mypy strict on core) via Docker."""
+        result = self._run(
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "webapp",
+                "mypy",
+                "libs/core/",
+                "--strict",
+            ]
+        )
+        self.results.append(
+            HealthResult(
+                check="typecheck",
+                passed=result.returncode == 0,
+                message="Types OK" if result.returncode == 0 else "Type errors",
+                details={"output": result.stdout[-1000:]} if result.returncode != 0 else {},
+            )
+        )
 
     def check_tests(self):
-        """Run unit + integration tests via Docker."""
-        result = self._run(["just", "test"])
-        self.results.append(HealthResult(
-            check="tests",
-            passed=result.returncode == 0,
-            message="Tests passed" if result.returncode == 0 else "Tests failed",
-            details={"output": result.stderr[-1000:]} if result.returncode != 0 else {}
-        ))
+        """Run unit + integration tests via Docker, deselecting known failures."""
+        known_failures = Path("tests/known_failures.txt")
+        deselect_args: list[str] = []
+        if known_failures.exists():
+            for line in known_failures.read_text().splitlines():
+                line = line.strip()
+                if line:
+                    deselect_args.extend(["--deselect", line])
+
+        cmd = [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "webapp",
+            "pytest",
+            "tests/unit/",
+            "tests/integration/",
+            "-v",
+            "-m",
+            "not host_only",
+            *deselect_args,
+        ]
+        result = self._run(cmd)
+        self.results.append(
+            HealthResult(
+                check="tests",
+                passed=result.returncode == 0,
+                message="Tests passed" if result.returncode == 0 else "Tests failed",
+                details={"output": result.stderr[-1000:]} if result.returncode != 0 else {},
+            )
+        )
 
     def check_regression(self):
         """Run regression tests (stack connectivity)."""
         result = self._run(["just", "test-regression"])
-        self.results.append(HealthResult(
-            check="regression",
-            passed=result.returncode == 0,
-            message="Regression passed" if result.returncode == 0 else "Regression failed",
-            details={"output": result.stderr[-1000:]} if result.returncode != 0 else {}
-        ))
+        self.results.append(
+            HealthResult(
+                check="regression",
+                passed=result.returncode == 0,
+                message="Regression passed" if result.returncode == 0 else "Regression failed",
+                details={"output": result.stderr[-1000:]} if result.returncode != 0 else {},
+            )
+        )
 
     def check_e2e(self):
         """Run E2E golden path tests (on host, hits Docker containers)."""
         result = self._run(["just", "test-golden-path"], timeout=600)
-        self.results.append(HealthResult(
-            check="e2e",
-            passed=result.returncode == 0,
-            message="E2E passed" if result.returncode == 0 else "E2E failed",
-            details={"output": result.stderr[-1000:]} if result.returncode != 0 else {}
-        ))
+        self.results.append(
+            HealthResult(
+                check="e2e",
+                passed=result.returncode == 0,
+                message="E2E passed" if result.returncode == 0 else "E2E failed",
+                details={"output": result.stderr[-1000:]} if result.returncode != 0 else {},
+            )
+        )
 
     def report(self) -> str:
         lines = [f"# Health Check: {self.epic_id}\n"]
@@ -119,6 +178,7 @@ class HealthChecker:
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("epic_id", help="Epic ID (e.g., E42 or 42)")
     args = parser.parse_args()

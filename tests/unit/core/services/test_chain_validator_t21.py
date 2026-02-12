@@ -105,9 +105,7 @@ class TestMultipleAmpsValidation:
         assert result.is_valid is False
         assert any(err.code == ValidationRule.MULTIPLE_AMPS for err in result.errors)
         # Should report position of second amp
-        multiple_amp_errors = [
-            e for e in result.errors if e.code == ValidationRule.MULTIPLE_AMPS
-        ]
+        multiple_amp_errors = [e for e in result.errors if e.code == ValidationRule.MULTIPLE_AMPS]
         assert len(multiple_amp_errors) >= 1
         assert multiple_amp_errors[0].position is not None
 
@@ -140,9 +138,7 @@ class TestMultipleAmpsValidation:
         result = validator.validate(empty_chain)
 
         assert result.is_valid is False
-        multiple_amp_errors = [
-            e for e in result.errors if e.code == ValidationRule.MULTIPLE_AMPS
-        ]
+        multiple_amp_errors = [e for e in result.errors if e.code == ValidationRule.MULTIPLE_AMPS]
         # Should report 2 errors for positions 1 and 2
         assert len(multiple_amp_errors) >= 2
 
@@ -163,9 +159,7 @@ class TestIrRequiredValidation:
 
         assert result.is_valid is False
         assert any(err.code == ValidationRule.IR_REQUIRED for err in result.errors)
-        ir_required_error = next(
-            e for e in result.errors if e.code == ValidationRule.IR_REQUIRED
-        )
+        ir_required_error = next(e for e in result.errors if e.code == ValidationRule.IR_REQUIRED)
         assert "requires an ir" in ir_required_error.message.lower()
         assert ir_required_error.position == 0  # Position of amp
 
@@ -182,9 +176,7 @@ class TestIrRequiredValidation:
         result = validator.validate(empty_chain)
 
         # May fail for other reasons (order) but not IR_REQUIRED
-        ir_required_errors = [
-            e for e in result.errors if e.code == ValidationRule.IR_REQUIRED
-        ]
+        ir_required_errors = [e for e in result.errors if e.code == ValidationRule.IR_REQUIRED]
         assert len(ir_required_errors) == 0
 
 
@@ -205,9 +197,7 @@ class TestIrForbiddenValidation:
 
         assert result.is_valid is False
         assert any(err.code == ValidationRule.IR_FORBIDDEN for err in result.errors)
-        ir_forbidden_error = next(
-            e for e in result.errors if e.code == ValidationRule.IR_FORBIDDEN
-        )
+        ir_forbidden_error = next(e for e in result.errors if e.code == ValidationRule.IR_FORBIDDEN)
         assert "full-rig" in ir_forbidden_error.message.lower()
         assert ir_forbidden_error.position == 1  # Position of IR
 
@@ -223,9 +213,7 @@ class TestIrForbiddenValidation:
         result = validator.validate(empty_chain)
 
         # Should not have IR_FORBIDDEN error
-        ir_forbidden_errors = [
-            e for e in result.errors if e.code == ValidationRule.IR_FORBIDDEN
-        ]
+        ir_forbidden_errors = [e for e in result.errors if e.code == ValidationRule.IR_FORBIDDEN]
         assert len(ir_forbidden_errors) == 0
 
 
@@ -250,9 +238,7 @@ class TestLoopForbiddenValidation:
     ) -> None:
         """Test that FULL_RIG with loop position effect fails."""
         empty_chain.add_block(make_block(GearType.FULL_RIG, block_position=BlockPosition.PRE))
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP)
-        )
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP))
 
         result = validator.validate(empty_chain)
 
@@ -273,12 +259,8 @@ class TestLoopForbiddenValidation:
     ) -> None:
         """Test that multiple loop effects all get reported."""
         empty_chain.add_block(make_block(GearType.FULL_RIG, block_position=BlockPosition.PRE))
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP)
-        )
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP)
-        )
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP))
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP))
 
         result = validator.validate(empty_chain)
 
@@ -296,9 +278,7 @@ class TestLoopForbiddenValidation:
     ) -> None:
         """Test that FULL_RIG with POST position effect is allowed."""
         empty_chain.add_block(make_block(GearType.FULL_RIG, block_position=BlockPosition.PRE))
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST)
-        )
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST))
 
         result = validator.validate(empty_chain)
 
@@ -314,9 +294,7 @@ class TestLoopForbiddenValidation:
     ) -> None:
         """Test that HEAD amp (AMP) CAN use loop position effects."""
         empty_chain.add_block(make_block(GearType.AMP, block_position=BlockPosition.PRE))
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP)
-        )
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.LOOP))
         empty_chain.add_block(make_block(GearType.IR, block_position=BlockPosition.POST))
 
         result = validator.validate(empty_chain)
@@ -380,9 +358,7 @@ class TestInvalidOrderValidation:
     ) -> None:
         """Test that post-effect before IR fails."""
         empty_chain.add_block(make_block(GearType.AMP, block_position=BlockPosition.PRE))
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST)
-        )
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST))
         empty_chain.add_block(make_block(GearType.IR, block_position=BlockPosition.POST))
 
         result = validator.validate(empty_chain)
@@ -407,12 +383,8 @@ class TestInvalidOrderValidation:
         empty_chain.add_block(make_block(GearType.PEDAL, block_position=BlockPosition.PRE))
         empty_chain.add_block(make_block(GearType.AMP, block_position=BlockPosition.PRE))
         empty_chain.add_block(make_block(GearType.IR, block_position=BlockPosition.POST))
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST)
-        )
-        empty_chain.add_block(
-            make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST)
-        )
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST))
+        empty_chain.add_block(make_block(GearType.POST_EFFECT, block_position=BlockPosition.POST))
 
         result = validator.validate(empty_chain)
 
@@ -463,9 +435,7 @@ class TestDetailedValidationErrors:
         result = validator.validate(empty_chain)
 
         assert result.is_valid is False
-        multiple_amp_errors = [
-            e for e in result.errors if e.code == ValidationRule.MULTIPLE_AMPS
-        ]
+        multiple_amp_errors = [e for e in result.errors if e.code == ValidationRule.MULTIPLE_AMPS]
         assert len(multiple_amp_errors) > 0
         for error in multiple_amp_errors:
             assert error.position is not None

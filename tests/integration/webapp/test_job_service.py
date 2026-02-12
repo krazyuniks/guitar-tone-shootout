@@ -155,12 +155,8 @@ async def test_get_jobs_by_user_id_filters_by_status(
         await repo.save(completed_job)
 
     # Filter by status
-    pending_results = await service.get_by_user_id(
-        test_user.id, status=JobStatus.PENDING
-    )
-    running_results = await service.get_by_user_id(
-        test_user.id, status=JobStatus.RUNNING
-    )
+    pending_results = await service.get_by_user_id(test_user.id, status=JobStatus.PENDING)
+    running_results = await service.get_by_user_id(test_user.id, status=JobStatus.RUNNING)
 
     assert len(pending_results) == 1
     assert pending_results[0].status == JobStatus.PENDING
@@ -194,9 +190,7 @@ async def test_get_jobs_by_user_id_filters_by_job_type(
         await repo.save(video_job)
 
     # Filter by type
-    audio_results = await service.get_by_user_id(
-        test_user.id, job_type=JobType.AUDIO_PROCESSING
-    )
+    audio_results = await service.get_by_user_id(test_user.id, job_type=JobType.AUDIO_PROCESSING)
 
     assert len(audio_results) == 1
     assert audio_results[0].job_type == JobType.AUDIO_PROCESSING
@@ -273,12 +267,8 @@ async def test_count_jobs_by_user_id_filters_by_status(
         async with db_session.begin():
             await repo.save(completed)
 
-    pending_count = await service.count_by_user_id(
-        test_user.id, status=JobStatus.PENDING
-    )
-    completed_count = await service.count_by_user_id(
-        test_user.id, status=JobStatus.COMPLETED
-    )
+    pending_count = await service.count_by_user_id(test_user.id, status=JobStatus.PENDING)
+    completed_count = await service.count_by_user_id(test_user.id, status=JobStatus.COMPLETED)
 
     assert pending_count == 2
     assert completed_count == 3

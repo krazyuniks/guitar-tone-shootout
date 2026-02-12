@@ -13,7 +13,9 @@ from playwright.async_api import Page, expect
 class TestRemotionPlayerRendering:
     """Test that RemotionPlayer components render in the browser."""
 
-    @pytest.mark.xfail(reason="HeroAnimation not yet integrated into homepage — needs client:load island")
+    @pytest.mark.xfail(
+        reason="HeroAnimation not yet integrated into homepage — needs client:load island"
+    )
     async def test_hero_animation_renders_on_homepage(
         self, guest_page: Page, frontend_url: str
     ) -> None:
@@ -28,7 +30,9 @@ class TestRemotionPlayerRendering:
         hero_animation = guest_page.locator('[data-testid="hero-animation"]')
         await expect(hero_animation).to_be_visible(timeout=10000)
 
-    @pytest.mark.xfail(reason="HeroAnimation not yet integrated into homepage — needs client:load island")
+    @pytest.mark.xfail(
+        reason="HeroAnimation not yet integrated into homepage — needs client:load island"
+    )
     async def test_hero_animation_contains_player_element(
         self, guest_page: Page, frontend_url: str
     ) -> None:
@@ -45,9 +49,7 @@ class TestRemotionPlayerRendering:
         child_count = await hero_container.locator("*").count()
         assert child_count > 0, "Hero animation has no rendered content"
 
-    async def test_how_to_video_renders(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
+    async def test_how_to_video_renders(self, guest_page: Page, frontend_url: str) -> None:
         """How-to video should render when included on a page."""
         # This test assumes there's a page that includes the HowToVideo component
         # Adjust the URL path as needed based on where the component is used
@@ -62,9 +64,7 @@ class TestRemotionPlayerRendering:
         if count > 0:
             await expect(how_to_video).to_be_visible(timeout=10000)
 
-    async def test_remotion_player_no_ssr(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
+    async def test_remotion_player_no_ssr(self, guest_page: Page, frontend_url: str) -> None:
         """Remotion components should not be server-side rendered.
 
         This verifies that video compositions are client-side only,
@@ -86,9 +86,8 @@ class TestRemotionPlayerRendering:
 
             # Astro client directives appear as astro-island elements
             # or the component is wrapped in a script that hydrates it
-            has_client_directive = (
-                "astro-island" in parent_html.lower()
-                or "client:" in parent_html.lower()
+            _has_client_directive = (
+                "astro-island" in parent_html.lower() or "client:" in parent_html.lower()
             )
 
             # If not visible in HTML, it's likely client-side only
@@ -112,9 +111,7 @@ class TestRemotionPlayerRendering:
             # This is a smoke test - detailed behavior testing would be in component tests
             assert True, "Hero animation container rendered"
 
-    async def test_no_console_errors_on_homepage(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
+    async def test_no_console_errors_on_homepage(self, guest_page: Page, frontend_url: str) -> None:
         """Homepage should load without console errors from Remotion components."""
         console_messages: list[str] = []
 
@@ -131,8 +128,7 @@ class TestRemotionPlayerRendering:
 
         # Filter out known acceptable errors (if any)
         errors = [
-            msg for msg in console_messages
-            if "remotion" in msg.lower() or "player" in msg.lower()
+            msg for msg in console_messages if "remotion" in msg.lower() or "player" in msg.lower()
         ]
 
         assert len(errors) == 0, f"Console errors related to Remotion: {errors}"
@@ -143,10 +139,10 @@ class TestRemotionPlayerRendering:
 class TestRemotionPlayerAccessibility:
     """Test accessibility of Remotion components."""
 
-    @pytest.mark.xfail(reason="HeroAnimation not yet integrated into homepage — needs client:load island")
-    async def test_hero_animation_has_testid(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
+    @pytest.mark.xfail(
+        reason="HeroAnimation not yet integrated into homepage — needs client:load island"
+    )
+    async def test_hero_animation_has_testid(self, guest_page: Page, frontend_url: str) -> None:
         """Hero animation should have data-testid for Playwright testing."""
         await guest_page.goto(frontend_url)
 
@@ -157,9 +153,7 @@ class TestRemotionPlayerAccessibility:
         assert count > 0, "Hero animation missing data-testid attribute"
         await expect(hero_animation).to_be_visible(timeout=10000)
 
-    async def test_how_to_video_has_testid(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
+    async def test_how_to_video_has_testid(self, guest_page: Page, frontend_url: str) -> None:
         """How-to video should have data-testid for Playwright testing."""
         # This assumes the component is rendered somewhere
         # Adjust based on actual implementation

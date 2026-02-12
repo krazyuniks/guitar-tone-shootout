@@ -67,9 +67,7 @@ class GearSyncRecord:
         """
         source_updated_at = data["source_updated_at"]
         if isinstance(source_updated_at, str):
-            source_updated_at = datetime.fromisoformat(
-                source_updated_at.replace("Z", "+00:00")
-            )
+            source_updated_at = datetime.fromisoformat(source_updated_at.replace("Z", "+00:00"))
 
         return cls(
             source_name=data["source_name"],

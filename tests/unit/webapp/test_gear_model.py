@@ -198,9 +198,7 @@ class TestGear:
         await session.commit()
 
         # Query raw database to verify enum is stored by value
-        result = await session.execute(
-            select(Gear).where(Gear.name == "Test Pedal")
-        )
+        result = await session.execute(select(Gear).where(Gear.name == "Test Pedal"))
         saved_gear = result.scalar_one()
 
         assert saved_gear.gear_type == GearType.PEDAL
@@ -237,14 +235,8 @@ class TestGear:
 
         # Check gear_type index is defined
         gear_table: Table = Gear.__table__  # type: ignore[assignment]
-        assert any(
-            index.name == "ix_gear_type"
-            for index in gear_table.indexes
-        )
+        assert any(index.name == "ix_gear_type" for index in gear_table.indexes)
 
         # Check platform index on gear_models is defined
         gear_model_table: Table = GearModel.__table__  # type: ignore[assignment]
-        assert any(
-            index.name == "ix_gearmodel_platform"
-            for index in gear_model_table.indexes
-        )
+        assert any(index.name == "ix_gearmodel_platform" for index in gear_model_table.indexes)

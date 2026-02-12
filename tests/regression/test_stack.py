@@ -15,7 +15,6 @@ from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity
 from core.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.job_repository import SQLAlchemyJobRepository
 from webapp.adapters.persistence.repositories.user_repository import SQLAlchemyUserRepository
@@ -50,9 +49,7 @@ class TestUserRoundTrip:
     @pytest.mark.asyncio
     async def test_create_and_retrieve(self, db_session: AsyncSession) -> None:
         """Create user via repository, retrieve it - validates full stack."""
-        identity = UserIdentity(
-            provider="t3k", external_id="test-001", username="test_user"
-        )
+        identity = UserIdentity(provider="t3k", external_id="test-001", username="test_user")
         user = UserEntity.create_with_identity(identity=identity, email="test@gts.dev")
         original_id = user.id
 

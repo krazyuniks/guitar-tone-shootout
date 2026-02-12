@@ -238,7 +238,9 @@ async def test_signal_chain_group_creation(session: AsyncSession) -> None:
         description="Compare 3 amps",
         base_chain_id=base_chain.id,
         slot_positions=[1],
-        gear_options={1: ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"]},
+        gear_options={
+            1: ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"]
+        },
         include_null=False,
     )
     session.add(group)

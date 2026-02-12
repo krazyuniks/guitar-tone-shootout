@@ -122,9 +122,7 @@ class ProcessingMetadata:
             if isinstance(processed_at_str, str):
                 # Try to parse ISO format timestamp
                 with contextlib.suppress(ValueError):
-                    processed_at = datetime.fromisoformat(
-                        processed_at_str.replace("Z", "+00:00")
-                    )
+                    processed_at = datetime.fromisoformat(processed_at_str.replace("Z", "+00:00"))
             elif isinstance(processed_at_str, datetime):
                 processed_at = processed_at_str
 

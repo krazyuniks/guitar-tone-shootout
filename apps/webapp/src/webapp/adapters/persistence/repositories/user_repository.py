@@ -152,9 +152,7 @@ class SQLAlchemyUserRepository:
 
                 if not provider_obj:
                     # Create provider if it doesn't exist
-                    provider_obj = OAuthProvider(
-                        name=identity_vo.provider, enabled=True
-                    )
+                    provider_obj = OAuthProvider(name=identity_vo.provider, enabled=True)
                     self.session.add(provider_obj)
                     await self.session.flush()
 
@@ -203,9 +201,7 @@ class SQLAlchemyUserRepository:
                 provider_obj = provider_result.scalar_one_or_none()
 
                 if not provider_obj:
-                    provider_obj = OAuthProvider(
-                        name=identity_vo.provider, enabled=True
-                    )
+                    provider_obj = OAuthProvider(name=identity_vo.provider, enabled=True)
                     self.session.add(provider_obj)
                     await self.session.flush()
 

@@ -11,7 +11,12 @@ from uuid import uuid4
 
 import pytest
 from httpx import HTTPStatusError, Request, Response
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider

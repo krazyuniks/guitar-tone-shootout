@@ -149,11 +149,7 @@ class SQLAlchemyJobRepository:
         Returns:
             List of child Jobs
         """
-        stmt = (
-            select(Job)
-            .where(Job.parent_job_id == parent_job_id)
-            .order_by(Job.created_at.asc())
-        )
+        stmt = select(Job).where(Job.parent_job_id == parent_job_id).order_by(Job.created_at.asc())
         result = await self.session.execute(stmt)
         jobs = result.scalars().all()
 

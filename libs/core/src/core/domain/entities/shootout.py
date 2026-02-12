@@ -157,11 +157,7 @@ class Shootout(Entity):
                 )
 
         # Set position to end of list
-        next_position = (
-            max(c.position for c in self.chains) + 1
-            if self.chains
-            else 0
-        )
+        next_position = max(c.position for c in self.chains) + 1 if self.chains else 0
         new_chain = chain.with_position(next_position)
 
         self.chains.append(new_chain)
@@ -183,9 +179,7 @@ class Shootout(Entity):
                 self.updated_at = utcnow()
                 return
 
-        raise ChainNotFoundError(
-            f"Signal chain {signal_chain_id} not found in shootout"
-        )
+        raise ChainNotFoundError(f"Signal chain {signal_chain_id} not found in shootout")
 
     def reorder_chain(self, signal_chain_id: UUID, new_position: int) -> None:
         """Move a chain to a new position.
@@ -209,9 +203,7 @@ class Shootout(Entity):
                 break
 
         if chain_index is None:
-            raise ChainNotFoundError(
-                f"Signal chain {signal_chain_id} not found in shootout"
-            )
+            raise ChainNotFoundError(f"Signal chain {signal_chain_id} not found in shootout")
 
         # Move the chain
         chain = self.chains.pop(chain_index)
@@ -221,9 +213,7 @@ class Shootout(Entity):
 
     def _reorder_positions(self) -> None:
         """Reorder positions to be sequential starting from 0."""
-        self.chains = [
-            chain.with_position(i) for i, chain in enumerate(self.chains)
-        ]
+        self.chains = [chain.with_position(i) for i, chain in enumerate(self.chains)]
 
     def get_chain(self, signal_chain_id: UUID) -> ShootoutChain:
         """Get a specific chain reference.
@@ -241,9 +231,7 @@ class Shootout(Entity):
             if chain.signal_chain_id == signal_chain_id:
                 return chain
 
-        raise ChainNotFoundError(
-            f"Signal chain {signal_chain_id} not found in shootout"
-        )
+        raise ChainNotFoundError(f"Signal chain {signal_chain_id} not found in shootout")
 
     def update_chain_label(self, signal_chain_id: UUID, label: str) -> None:
         """Update the label for a chain.
@@ -261,9 +249,7 @@ class Shootout(Entity):
                 self.updated_at = utcnow()
                 return
 
-        raise ChainNotFoundError(
-            f"Signal chain {signal_chain_id} not found in shootout"
-        )
+        raise ChainNotFoundError(f"Signal chain {signal_chain_id} not found in shootout")
 
     def mark_processed(
         self,

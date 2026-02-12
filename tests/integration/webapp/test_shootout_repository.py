@@ -10,15 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from core.domain.entities.shootout import (
-    ChainNotFoundError,
-    DuplicateChainError,
-    MaxChainsExceededError,
     Shootout,
     ShootoutChain,
 )
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
+)
+from webapp.adapters.persistence.models.shootout import (
     ShootoutStatus,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
@@ -29,8 +28,6 @@ from webapp.adapters.persistence.repositories.shootout_repository import (
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
-    from core.domain.value_objects.signal_chain_enums import Platform
 
 
 @pytest.fixture

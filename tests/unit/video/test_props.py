@@ -1,7 +1,5 @@
 """Unit tests for video props serializer."""
 
-import pytest
-
 from core.domain.value_objects.composition_spec import CompositionSpec
 from video.props import (
     serialize_composition_props,

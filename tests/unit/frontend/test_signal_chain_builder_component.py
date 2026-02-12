@@ -68,7 +68,9 @@ class TestAstroReactIntegration:
             config_content = f.read()
 
         # Check for React integration
-        assert "@astrojs/react" in config_content, "React integration not configured in astro.config.mjs"
+        assert (
+            "@astrojs/react" in config_content
+        ), "React integration not configured in astro.config.mjs"
         assert "react()" in config_content, "React integration not added to integrations array"
 
     def test_package_json_has_react_dependencies(self) -> None:
@@ -82,7 +84,10 @@ class TestAstroReactIntegration:
         with open(package_json_path) as f:
             package_data = json.load(f)
 
-        dependencies = {**package_data.get("dependencies", {}), **package_data.get("devDependencies", {})}
+        dependencies = {
+            **package_data.get("dependencies", {}),
+            **package_data.get("devDependencies", {}),
+        }
 
         assert "react" in dependencies, "react not in dependencies"
         assert "react-dom" in dependencies, "react-dom not in dependencies"
@@ -160,8 +165,7 @@ class TestComponentFeatures:
 
         # Check for mode-related props or state
         has_mode_support = any(
-            keyword in component_content.lower()
-            for keyword in ["mode", "single", "permutation"]
+            keyword in component_content.lower() for keyword in ["mode", "single", "permutation"]
         )
         assert has_mode_support, "Component does not support single/permutation mode configuration"
 
@@ -183,8 +187,7 @@ class TestComponentFeatures:
 
         # Check for permutation/multiple gear support
         has_permutation = any(
-            keyword in component_content.lower()
-            for keyword in ["permutation", "multiple", "slot"]
+            keyword in component_content.lower() for keyword in ["permutation", "multiple", "slot"]
         )
         assert has_permutation, "Component does not support permutation mode"
 
@@ -208,9 +211,9 @@ class TestComponentFeatures:
         has_signal_chain_api = "/api/v1/signal-chains" in component_content
         has_library_api = "/api/v1/library" in component_content
 
-        assert has_signal_chain_api or has_library_api, (
-            "Component does not reference signal chain or library API endpoints"
-        )
+        assert (
+            has_signal_chain_api or has_library_api
+        ), "Component does not reference signal chain or library API endpoints"
 
 
 @pytest.mark.xfail(reason="Pre-existing: component not yet implemented")

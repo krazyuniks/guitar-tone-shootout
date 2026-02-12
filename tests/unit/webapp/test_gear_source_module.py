@@ -69,10 +69,9 @@ class TestGearSourceModule:
 
         model_fields = set(GearSource.__annotations__.keys())
 
-        assert required_fields.issubset(model_fields), (
-            f"Missing required fields. "
-            f"Expected at least {required_fields}, got {model_fields}"
-        )
+        assert required_fields.issubset(
+            model_fields
+        ), f"Missing required fields. Expected at least {required_fields}, got {model_fields}"
 
     def test_gear_source_uses_mixins(self) -> None:
         """Test that GearSource uses UUIDMixin and TimestampMixin."""
@@ -97,9 +96,7 @@ class TestGearSourceModule:
         await session.commit()
 
         # Verify
-        result = await session.execute(
-            select(GearSource).where(GearSource.source_name == "t3k")
-        )
+        result = await session.execute(select(GearSource).where(GearSource.source_name == "t3k"))
         saved_source = result.scalar_one()
 
         assert saved_source.source_name == "t3k"
@@ -259,8 +256,8 @@ class TestGearSourceModule:
 
     async def test_gear_has_foreign_key_to_source(self, session: AsyncSession) -> None:
         """Test that Gear has foreign key to GearSource."""
-        from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.base import UuidType
+        from webapp.adapters.persistence.models.gear import Gear
 
         # Check that Gear has source_id field
         assert "source_id" in Gear.__annotations__
@@ -274,7 +271,7 @@ class TestGearSourceModule:
         source_id_column = gear_table.c.source_id
 
         # Should be UUID type (UuidType is a custom type that wraps UUID)
-        assert isinstance(source_id_column.type, (Uuid, UuidType, type(uuid.UUID)))
+        assert isinstance(source_id_column.type, Uuid | UuidType | type(uuid.UUID))
 
         # Should be nullable (gear can exist without source)
         assert source_id_column.nullable is True

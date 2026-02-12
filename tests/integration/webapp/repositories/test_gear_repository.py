@@ -7,7 +7,12 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import GearModel as GearModelVO
@@ -19,7 +24,6 @@ from webapp.adapters.persistence.repositories.gear_repository import SQLAlchemyG
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-    from datetime import datetime
 
 
 class QueryCounter:

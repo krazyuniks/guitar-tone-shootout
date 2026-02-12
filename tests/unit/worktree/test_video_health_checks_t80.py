@@ -200,7 +200,9 @@ class TestHealthCheckWithVideo:
         result = check_worktree_health(Path("/fake/main"))
 
         assert result.healthy is False
-        assert any("video" in issue.lower() and "not found" in issue.lower() for issue in result.issues)
+        assert any(
+            "video" in issue.lower() and "not found" in issue.lower() for issue in result.issues
+        )
 
 
 class TestQuickHealthCheckWithVideo:
@@ -208,9 +210,7 @@ class TestQuickHealthCheckWithVideo:
 
     @patch("worktree.health.get_service_status")
     @patch("worktree.health.get_main_worktree_path")
-    def test_main_worktree_quick_check_includes_video(
-        self, mock_main_path, mock_service_status
-    ):
+    def test_main_worktree_quick_check_includes_video(self, mock_main_path, mock_service_status):
         """Quick health check should verify video running in main worktree."""
         mock_main_path.return_value = Path("/fake/main")
         mock_service_status.return_value = {
@@ -252,9 +252,7 @@ class TestQuickHealthCheckWithVideo:
 
     @patch("worktree.health.get_service_status")
     @patch("worktree.health.get_main_worktree_path")
-    def test_feature_worktree_quick_check_without_video(
-        self, mock_main_path, mock_service_status
-    ):
+    def test_feature_worktree_quick_check_without_video(self, mock_main_path, mock_service_status):
         """Quick health check should pass for feature worktree without video."""
         mock_main_path.return_value = Path("/fake/main")
         mock_service_status.return_value = {

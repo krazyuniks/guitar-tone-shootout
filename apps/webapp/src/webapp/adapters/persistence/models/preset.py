@@ -45,6 +45,4 @@ class Preset(UUIDMixin, Base):
     )
 
     # Index
-    __table_args__ = (
-        Index("ix_presets_block_id", "signal_chain_block_id"),
-    )
+    __table_args__ = (Index("ix_presets_block_id", "signal_chain_block_id"),)

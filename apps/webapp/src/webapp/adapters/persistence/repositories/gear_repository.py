@@ -53,12 +53,13 @@ def _slugify(text: str, manufacturer: str | None = None) -> str:
     slug = combined.lower()
     # Normalize unicode characters (ö -> o, etc.)
     import unicodedata
-    slug = unicodedata.normalize('NFKD', slug)
-    slug = slug.encode('ascii', 'ignore').decode('ascii')
+
+    slug = unicodedata.normalize("NFKD", slug)
+    slug = slug.encode("ascii", "ignore").decode("ascii")
     # Replace non-alphanumeric characters with hyphens
-    slug = re.sub(r'[^a-z0-9-]+', '-', slug)
+    slug = re.sub(r"[^a-z0-9-]+", "-", slug)
     # Remove leading/trailing hyphens and collapse multiple hyphens
-    slug = re.sub(r'-+', '-', slug).strip('-')
+    slug = re.sub(r"-+", "-", slug).strip("-")
     return slug
 
 
@@ -430,9 +431,7 @@ class SQLAlchemyGearRepository:
             tag_names: List of tag names
         """
         # Delete existing tag associations
-        delete_stmt = delete(gear_tags_table).where(
-            gear_tags_table.c.gear_id == gear.id
-        )
+        delete_stmt = delete(gear_tags_table).where(gear_tags_table.c.gear_id == gear.id)
         await self.session.execute(delete_stmt)
 
         # Get or create tags and add associations
@@ -469,9 +468,7 @@ class SQLAlchemyGearRepository:
         new_ids = {model.id for model in model_vos}
 
         # Delete removed models
-        models_to_delete = [
-            model for model in gear.models if model.id not in new_ids
-        ]
+        models_to_delete = [model for model in gear.models if model.id not in new_ids]
         for model in models_to_delete:
             await self.session.delete(model)
 
@@ -479,9 +476,7 @@ class SQLAlchemyGearRepository:
         for model_vo in model_vos:
             if model_vo.id in existing_ids:
                 # Update existing model
-                existing_model = next(
-                    m for m in gear.models if m.id == model_vo.id
-                )
+                existing_model = next(m for m in gear.models if m.id == model_vo.id)
                 existing_model.platform = model_vo.platform
                 existing_model.size = model_vo.size
                 existing_model.file_path = model_vo.file_path

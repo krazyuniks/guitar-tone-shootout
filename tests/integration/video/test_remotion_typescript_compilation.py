@@ -11,7 +11,9 @@ import pytest
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(reason="Pre-existing: video node_modules not installed in webapp container", strict=False)
+@pytest.mark.xfail(
+    reason="Pre-existing: video node_modules not installed in webapp container", strict=False
+)
 class TestTypeScriptCompilation:
     """Test TypeScript compilation for Remotion compositions."""
 
@@ -31,11 +33,9 @@ class TestTypeScriptCompilation:
         )
 
         # TypeScript should compile successfully (exit code 0)
-        assert result.returncode == 0, (
-            f"TypeScript compilation failed:\n"
-            f"STDOUT: {result.stdout}\n"
-            f"STDERR: {result.stderr}"
-        )
+        assert (
+            result.returncode == 0
+        ), f"TypeScript compilation failed:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
 
     def test_no_typescript_syntax_errors(self, video_root: Path) -> None:
         """TypeScript files have no syntax errors."""
@@ -48,9 +48,9 @@ class TestTypeScriptCompilation:
 
         # Check stderr for syntax errors
         stderr_lower = result.stderr.lower()
-        assert "syntax error" not in stderr_lower, (
-            f"TypeScript syntax errors found:\n{result.stderr}"
-        )
+        assert (
+            "syntax error" not in stderr_lower
+        ), f"TypeScript syntax errors found:\n{result.stderr}"
 
     def test_no_typescript_type_errors(self, video_root: Path) -> None:
         """TypeScript files have no type errors."""
@@ -68,13 +68,13 @@ class TestTypeScriptCompilation:
             or "cannot find name" in stderr_lower
             or "property does not exist" in stderr_lower
         )
-        assert not has_type_error, (
-            f"TypeScript type errors found:\n{result.stderr}"
-        )
+        assert not has_type_error, f"TypeScript type errors found:\n{result.stderr}"
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(reason="Pre-existing: video node_modules not installed in webapp container", strict=False)
+@pytest.mark.xfail(
+    reason="Pre-existing: video node_modules not installed in webapp container", strict=False
+)
 class TestRemotionStudioLaunch:
     """Test Remotion Studio can be launched (validation only)."""
 
@@ -94,13 +94,11 @@ class TestRemotionStudioLaunch:
         package_content = package_json.read_text()
 
         has_config = (
-            remotion_config.exists()
-            or "remotion" in package_content  # May have inline config
+            remotion_config.exists() or "remotion" in package_content  # May have inline config
         )
-        assert has_config, (
-            "Remotion configuration must exist "
-            "(remotion.config.ts or package.json config)"
-        )
+        assert (
+            has_config
+        ), "Remotion configuration must exist (remotion.config.ts or package.json config)"
 
     def test_remotion_cli_installed(self, video_root: Path) -> None:
         """Remotion CLI is installed and accessible."""
@@ -137,13 +135,15 @@ class TestRemotionStudioLaunch:
 
         # Output should mention ShootoutVideo composition
         output = result.stdout + result.stderr
-        assert "ShootoutVideo" in output or "shootout" in output.lower(), (
-            f"ShootoutVideo composition not found in Remotion output:\n{output}"
-        )
+        assert (
+            "ShootoutVideo" in output or "shootout" in output.lower()
+        ), f"ShootoutVideo composition not found in Remotion output:\n{output}"
 
 
 @pytest.mark.integration
-@pytest.mark.xfail(reason="Pre-existing: video node_modules not installed in webapp container", strict=False)
+@pytest.mark.xfail(
+    reason="Pre-existing: video node_modules not installed in webapp container", strict=False
+)
 class TestRemotionComponentImports:
     """Test that components can be imported without errors."""
 
@@ -219,11 +219,9 @@ const root = Root;
                 text=True,
             )
 
-            assert result.returncode == 0, (
-                f"Failed to import Root:\n"
-                f"STDOUT: {result.stdout}\n"
-                f"STDERR: {result.stderr}"
-            )
+            assert (
+                result.returncode == 0
+            ), f"Failed to import Root:\nSTDOUT: {result.stdout}\nSTDERR: {result.stderr}"
 
         finally:
             # Clean up test file

@@ -136,9 +136,7 @@ class TestDITrackUploadEndpoint:
         # Verify database record exists
         from sqlalchemy import select
 
-        result = await db_session.execute(
-            select(DITrack).where(DITrack.name == "My DI Track")
-        )
+        result = await db_session.execute(select(DITrack).where(DITrack.name == "My DI Track"))
         track = result.scalar_one_or_none()
         assert track is not None
         assert track.user_id == test_user.id
@@ -150,6 +148,7 @@ class TestDITrackUploadEndpoint:
     ) -> None:
         """Test upload endpoint requires CurrentUser authentication."""
         from fastapi import FastAPI
+
         from webapp.auth.dependencies import set_user_override
 
         # Clear user override to simulate unauthenticated request
@@ -398,6 +397,7 @@ class TestDITrackListEndpoint:
     ) -> None:
         """Test list endpoint requires CurrentUser authentication."""
         from fastapi import FastAPI
+
         from webapp.auth.dependencies import set_user_override
 
         # Clear user override
@@ -562,6 +562,7 @@ class TestDITrackGetEndpoint:
     ) -> None:
         """Test get endpoint requires CurrentUser authentication."""
         from fastapi import FastAPI
+
         from webapp.auth.dependencies import set_user_override
 
         # Clear user override

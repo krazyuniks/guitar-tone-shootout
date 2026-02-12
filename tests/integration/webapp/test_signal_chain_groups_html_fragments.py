@@ -87,9 +87,7 @@ class TestSignalChainGroupsHTMLFragments:
         """Verify GET /api/v1/html/library/groups returns HTML fragment."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             # Verify successful response
@@ -109,9 +107,7 @@ class TestSignalChainGroupsHTMLFragments:
         """Verify groups fragment is valid embeddable HTML."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             assert response.status_code == 200
@@ -176,9 +172,7 @@ class TestSignalChainGroupsHTMLFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             assert response.status_code == 200
@@ -208,9 +202,7 @@ class TestSignalChainGroupsHTMLFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             assert response.status_code == 200
@@ -232,9 +224,7 @@ class TestSignalChainGroupsHTMLFragments:
         """Verify groups fragment shows empty state when user has no groups."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             assert response.status_code == 200
@@ -254,9 +244,7 @@ class TestSignalChainGroupsHTMLFragments:
         """Verify groups fragment includes data-testid attributes for E2E testing."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             assert response.status_code == 200
@@ -272,9 +260,7 @@ class TestSignalChainGroupsHTMLFragments:
         """Verify groups fragment endpoint requires authentication."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/groups")
 
             # Should return 401 or redirect when not authenticated

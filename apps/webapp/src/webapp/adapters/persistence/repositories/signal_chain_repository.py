@@ -93,9 +93,7 @@ class SQLAlchemySignalChainRepository:
         Returns:
             Count of chains
         """
-        stmt = select(func.count(SignalChain.id)).where(
-            SignalChain.user_id == user_id
-        )
+        stmt = select(func.count(SignalChain.id)).where(SignalChain.user_id == user_id)
         result = await self.session.execute(stmt)
         return result.scalar_one()
 
@@ -185,9 +183,7 @@ class SQLAlchemySignalChainRepository:
         new_ids = {block.id for block in block_entities}
 
         # Delete removed blocks
-        blocks_to_delete = [
-            block for block in chain.blocks if block.id not in new_ids
-        ]
+        blocks_to_delete = [block for block in chain.blocks if block.id not in new_ids]
         for block in blocks_to_delete:
             await self.session.delete(block)
 
@@ -199,9 +195,7 @@ class SQLAlchemySignalChainRepository:
         for block_entity in block_entities:
             if block_entity.id in existing_ids:
                 # Update existing block
-                existing_block = next(
-                    b for b in chain.blocks if b.id == block_entity.id
-                )
+                existing_block = next(b for b in chain.blocks if b.id == block_entity.id)
                 existing_block.position = block_entity.position
                 existing_block.user_gear_id = block_entity.user_gear_id
                 existing_block.gear_type = block_entity.gear_type

@@ -166,9 +166,7 @@ async def test_multiple_identities_per_user_supported(db_session: AsyncSession) 
     await db_session.commit()
 
     # Query user's identities
-    result = await db_session.execute(
-        select(UserIdentity).where(UserIdentity.user_id == user.id)
-    )
+    result = await db_session.execute(select(UserIdentity).where(UserIdentity.user_id == user.id))
     identities = result.scalars().all()
 
     # Verify user has both identities

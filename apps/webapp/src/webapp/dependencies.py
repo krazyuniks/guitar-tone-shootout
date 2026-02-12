@@ -40,9 +40,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         RuntimeError: If session factory not initialized
     """
     if _session_factory is None:
-        raise RuntimeError(
-            "Database not initialized. Call init_db() before using get_db()."
-        )
+        raise RuntimeError("Database not initialized. Call init_db() before using get_db().")
 
     async with _session_factory() as session:
         yield session

@@ -11,7 +11,12 @@ the expected module structure.
 from collections.abc import AsyncGenerator
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webapp.adapters.persistence.models.base import Base
 
@@ -141,7 +146,6 @@ class TestPresetModelLocation:
 
     async def test_preset_persists_to_database(self, session: AsyncSession) -> None:
         """Preset should be persistable to database with parameter values."""
-        from uuid import uuid4
 
         from sqlalchemy import select
 
@@ -199,7 +203,9 @@ class TestPresetModelLocation:
         assert saved.params == {"low": 5, "mid": -8, "high": 3}
         assert saved.signal_chain_block_id == block.id
 
-    async def test_preset_has_relationship_to_signal_chain_block(self, session: AsyncSession) -> None:
+    async def test_preset_has_relationship_to_signal_chain_block(
+        self, session: AsyncSession
+    ) -> None:
         """Preset should have relationship to SignalChainBlock."""
         from sqlalchemy import select
         from sqlalchemy.orm import joinedload

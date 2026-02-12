@@ -46,7 +46,6 @@ class TestShootoutVideoFields:
     async def test_shootout_has_video_status_field(self, db_engine: AsyncEngine) -> None:
         """Verify Shootout model has video_status field."""
         # This import will fail if the field doesn't exist in the ORM model
-        from webapp.adapters.persistence.models.shootout import Shootout
 
         # Check that video_status is a mapped column
         assert hasattr(Shootout, "video_status")
@@ -66,7 +65,6 @@ class TestShootoutVideoFields:
     async def test_shootout_has_video_job_id_field(self, db_engine: AsyncEngine) -> None:
         """Verify Shootout model has video_job_id field."""
         # This import will fail if the field doesn't exist in the ORM model
-        from webapp.adapters.persistence.models.shootout import Shootout
 
         # Check that video_job_id is a mapped column
         assert hasattr(Shootout, "video_job_id")
@@ -129,7 +127,7 @@ class TestShootoutVideoFields:
         """Verify video_status can be set to NULL (default)."""
         from uuid import uuid4
 
-        from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+        from webapp.adapters.persistence.models.shootout import ShootoutStatus
         from webapp.adapters.persistence.models.user import User
 
         # Create test user
@@ -161,7 +159,7 @@ class TestShootoutVideoFields:
         """Verify video_job_id can be set to NULL (default)."""
         from uuid import uuid4
 
-        from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+        from webapp.adapters.persistence.models.shootout import ShootoutStatus
         from webapp.adapters.persistence.models.user import User
 
         # Create test user
@@ -193,7 +191,7 @@ class TestShootoutVideoFields:
         """Verify video_status accepts string values."""
         from uuid import uuid4
 
-        from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+        from webapp.adapters.persistence.models.shootout import ShootoutStatus
         from webapp.adapters.persistence.models.user import User
 
         # Create test user
@@ -225,7 +223,7 @@ class TestShootoutVideoFields:
         """Verify video_job_id accepts string values."""
         from uuid import uuid4
 
-        from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+        from webapp.adapters.persistence.models.shootout import ShootoutStatus
         from webapp.adapters.persistence.models.user import User
 
         # Create test user
@@ -255,7 +253,6 @@ class TestShootoutVideoFields:
 
     async def test_shootout_relationships_use_lazy_raise(self, session: AsyncSession) -> None:
         """Verify all Shootout relationships use lazy='raise'."""
-        from webapp.adapters.persistence.models.shootout import Shootout
 
         # Check each relationship has lazy="raise"
         user_rel = Shootout.user.property

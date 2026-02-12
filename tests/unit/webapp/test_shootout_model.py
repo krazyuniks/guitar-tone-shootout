@@ -375,9 +375,7 @@ async def test_cascade_delete_shootout(session: AsyncSession) -> None:
     )
     assert result.scalar_one_or_none() is None
 
-    result = await session.execute(
-        select(AudioSegment).where(AudioSegment.id == segment_id)
-    )
+    result = await session.execute(select(AudioSegment).where(AudioSegment.id == segment_id))
     assert result.scalar_one_or_none() is None
 
 

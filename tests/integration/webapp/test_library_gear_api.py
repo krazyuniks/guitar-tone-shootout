@@ -381,9 +381,7 @@ class TestLibraryGearDeleteEndpoint:
             assert response.status_code == 204
 
             # Verify it was actually deleted from database
-            result = await db_session.execute(
-                select(UserGear).where(UserGear.id == user_gear_id)
-            )
+            result = await db_session.execute(select(UserGear).where(UserGear.id == user_gear_id))
             assert result.scalar_one_or_none() is None
 
     async def test_delete_library_gear_only_allows_owner(
@@ -417,9 +415,7 @@ class TestLibraryGearDeleteEndpoint:
             assert response.status_code == 404
 
             # Verify gear was NOT deleted
-            result = await db_session.execute(
-                select(UserGear).where(UserGear.id == user_gear_id)
-            )
+            result = await db_session.execute(select(UserGear).where(UserGear.id == user_gear_id))
             assert result.scalar_one_or_none() is not None
 
     async def test_delete_nonexistent_gear_returns_404(

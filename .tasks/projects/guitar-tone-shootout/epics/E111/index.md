@@ -20,13 +20,13 @@ T115 → T120
 |------|-------|-------|---------|------------|
 | T112 | Worker dual database session factor | complete | worker | - |
 | T113 | Worker container orchestration — ru | complete | worker | - |
-| T114 | T3K oauth_tokens Alembic migration | complete | source-t3k | - |
+| T114 | T3K oauth_tokens Alembic migration | complete | - | - |
 | T115 | Admin API — enqueue, source dashboa | complete | worker | T112, T113 |
-| T116 | Interleaved backfill+newest sync lo | pending | t3k | - |
-| T117 | Model file download service | complete | source-t3k | - |
-| T118 | pgmq consumer and GearMapperService | pending | worker | T112, T116, T117 |
-| T119 | Scheduler tasks — SOURCE_SYNC handl | pending | worker | T114, T115, T116 |
-| T120 | gts-admin CLI and just admin regist | complete | tooling | T115 |
+| T116 | Interleaved backfill+newest sync lo | complete | t3k | - |
+| T117 | Model file download service | complete | - | - |
+| T118 | pgmq consumer and GearMapperService | complete | worker | T112, T116, T117 |
+| T119 | Scheduler tasks — SOURCE_SYNC handl | complete | worker | T114, T115, T116 |
+| T120 | gts-admin CLI and just admin regist | complete | - | T115 |
 
 ## Commands
 

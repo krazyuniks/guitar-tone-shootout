@@ -5,7 +5,7 @@ Tests the service layer for DI track upload and validation.
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import (
@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.models.shootout import DITrack
 from webapp.adapters.persistence.models.user import User
 
 
@@ -183,7 +182,7 @@ class TestDITrackService:
         service = DITrackService(session)
 
         # Upload first time
-        track1 = await service.upload(
+        await service.upload(
             user_id=test_user.id,
             file_path=str(audio_file),
             original_filename="test.wav",

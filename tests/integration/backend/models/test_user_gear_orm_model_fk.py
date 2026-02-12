@@ -4,8 +4,13 @@ from collections.abc import AsyncGenerator
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import inspect, select, text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
@@ -39,18 +44,14 @@ class TestUserGearORMModelFK:
     async def test_user_gear_has_gear_model_id_column(self, session: AsyncSession) -> None:
         """UserGear table should have gear_model_id column."""
         # Query column metadata
-        result = await session.execute(
-            text("PRAGMA table_info(user_gear)")
-        )
+        result = await session.execute(text("PRAGMA table_info(user_gear)"))
         columns = {row[1]: row for row in result.fetchall()}
 
         assert "gear_model_id" in columns
 
     async def test_user_gear_does_not_have_gear_id_column(self, session: AsyncSession) -> None:
         """UserGear table should NOT have gear_id column."""
-        result = await session.execute(
-            text("PRAGMA table_info(user_gear)")
-        )
+        result = await session.execute(text("PRAGMA table_info(user_gear)"))
         columns = {row[1]: row for row in result.fetchall()}
 
         assert "gear_id" not in columns
@@ -58,14 +59,13 @@ class TestUserGearORMModelFK:
     async def test_user_gear_fk_points_to_gear_models_table(self, session: AsyncSession) -> None:
         """gear_model_id foreign key should point to gear_models.id."""
         # Get foreign key constraints
-        result = await session.execute(
-            text("PRAGMA foreign_key_list(user_gear)")
-        )
+        result = await session.execute(text("PRAGMA foreign_key_list(user_gear)"))
         foreign_keys = result.fetchall()
 
         # Find the gear_model_id FK
         gear_model_fks = [
-            fk for fk in foreign_keys
+            fk
+            for fk in foreign_keys
             if fk[3] == "gear_model_id"  # 'from' column
         ]
 
@@ -79,9 +79,7 @@ class TestUserGearORMModelFK:
     ) -> None:
         """Unique constraint should be on (user_id, gear_model_id)."""
         # Get index info
-        result = await session.execute(
-            text("PRAGMA index_list(user_gear)")
-        )
+        result = await session.execute(text("PRAGMA index_list(user_gear)"))
         indexes = result.fetchall()
 
         # Find unique constraint index
@@ -91,9 +89,7 @@ class TestUserGearORMModelFK:
         found_correct_constraint = False
         for idx in unique_indexes:
             idx_name = idx[1]
-            result = await session.execute(
-                text(f"PRAGMA index_info({idx_name})")
-            )
+            result = await session.execute(text(f"PRAGMA index_info({idx_name})"))
             columns = [row[2] for row in result.fetchall()]
 
             if "user_id" in columns and "gear_model_id" in columns:
@@ -102,9 +98,7 @@ class TestUserGearORMModelFK:
 
         assert found_correct_constraint, "Expected unique constraint on (user_id, gear_model_id)"
 
-    async def test_user_gear_creation_with_gear_model_id(
-        self, session: AsyncSession
-    ) -> None:
+    async def test_user_gear_creation_with_gear_model_id(self, session: AsyncSession) -> None:
         """Should be able to create UserGear with gear_model_id FK."""
         # Create prerequisites
         user = User(id=uuid4(), username="test_user", email="test@example.com")
@@ -135,9 +129,7 @@ class TestUserGearORMModelFK:
         await session.commit()
 
         # Verify
-        result = await session.execute(
-            select(UserGear).where(UserGear.id == user_gear.id)
-        )
+        result = await session.execute(select(UserGear).where(UserGear.id == user_gear.id))
         saved = result.scalar_one()
         assert saved.gear_model_id == gear_model.id
 

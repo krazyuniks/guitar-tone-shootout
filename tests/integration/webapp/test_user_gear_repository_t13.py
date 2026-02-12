@@ -16,10 +16,8 @@ from core.domain.entities.base import new_id
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import UserGear as UserGearEntity
 from core.domain.entities.user import User as UserEntity
-from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
@@ -150,9 +148,7 @@ async def test_add_gear_to_library(
     await db_session.commit()
 
     # Verify it was added
-    retrieved = await user_gear_repository.get_by_user_and_gear(
-        test_user.id, test_gear_model.id
-    )
+    retrieved = await user_gear_repository.get_by_user_and_gear(test_user.id, test_gear_model.id)
 
     assert retrieved is not None
     assert retrieved.user_id == test_user.id
@@ -180,9 +176,7 @@ async def test_remove_gear_from_library(
     await db_session.commit()
 
     # Verify it was removed
-    retrieved = await user_gear_repository.get_by_user_and_gear(
-        test_user.id, test_gear_model.id
-    )
+    retrieved = await user_gear_repository.get_by_user_and_gear(test_user.id, test_gear_model.id)
     assert retrieved is None
 
 
@@ -251,9 +245,7 @@ async def test_get_by_user_and_gear_not_found(
 ) -> None:
     """Test getting user_gear that doesn't exist."""
     fake_gear_model_id = uuid4()
-    retrieved = await user_gear_repository.get_by_user_and_gear(
-        test_user.id, fake_gear_model_id
-    )
+    retrieved = await user_gear_repository.get_by_user_and_gear(test_user.id, fake_gear_model_id)
     assert retrieved is None
 
 

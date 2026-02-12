@@ -161,6 +161,7 @@ class TestSignalChainResponse:
 
     def test_response_from_attributes(self) -> None:
         """Test that response schema works with from_attributes."""
+
         # Arrange - mock entity-like object
         class MockBlock:
             id = uuid4()
@@ -174,7 +175,7 @@ class TestSignalChainResponse:
             name = "Test Chain"
             description = "Test"
             platform = "nam"
-            blocks = [MockBlock()]
+            blocks = [MockBlock()]  # noqa: RUF012
             created_at = "2024-01-01T00:00:00"
             updated_at = "2024-01-01T00:00:00"
 

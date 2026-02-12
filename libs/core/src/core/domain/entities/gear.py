@@ -57,10 +57,7 @@ class GearModel:
 
     def is_available(self) -> bool:
         """Check if the model is available for use."""
-        return (
-            self.download_status == DownloadStatus.COMPLETED
-            and self.file_path is not None
-        )
+        return self.download_status == DownloadStatus.COMPLETED and self.file_path is not None
 
 
 @dataclass(eq=False, slots=True)

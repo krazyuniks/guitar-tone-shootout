@@ -41,17 +41,11 @@ class StatusResponse(BaseModel):
     output_path: str | None = Field(
         None, description="Path to rendered video (only for complete jobs)"
     )
-    error_message: str | None = Field(
-        None, description="Error message (only for failed jobs)"
-    )
-    progress: float | None = Field(
-        None, description="Render progress percentage (0.0 to 1.0)"
-    )
+    error_message: str | None = Field(None, description="Error message (only for failed jobs)")
+    progress: float | None = Field(None, description="Render progress percentage (0.0 to 1.0)")
 
 
 class HealthResponse(BaseModel):
     """Response schema for GET /health endpoint."""
 
-    status: Literal["healthy", "unhealthy"] = Field(
-        ..., description="Service health status"
-    )
+    status: Literal["healthy", "unhealthy"] = Field(..., description="Service health status")

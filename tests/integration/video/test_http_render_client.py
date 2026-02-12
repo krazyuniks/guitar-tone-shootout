@@ -5,7 +5,6 @@ They are skipped until Phase 5A (worker) is complete.
 """
 
 import pytest
-from httpx import AsyncClient
 
 from core.domain.value_objects.composition_spec import CompositionSpec
 from core.domain.value_objects.render_status import RenderStatus
@@ -36,9 +35,7 @@ class TestHttpVideoRenderClient:
         """HttpVideoRenderClient implements VideoRenderClient protocol."""
         assert isinstance(client, VideoRenderClient)
 
-    async def test_submit_render_returns_job_id(
-        self, client: HttpVideoRenderClient
-    ) -> None:
+    async def test_submit_render_returns_job_id(self, client: HttpVideoRenderClient) -> None:
         """submit_render submits composition and returns job_id."""
         spec = CompositionSpec(
             composition_type="shootout",
@@ -50,9 +47,7 @@ class TestHttpVideoRenderClient:
         assert isinstance(job_id, str)
         assert len(job_id) > 0
 
-    async def test_submit_render_sends_correct_payload(
-        self, client: HttpVideoRenderClient
-    ) -> None:
+    async def test_submit_render_sends_correct_payload(self, client: HttpVideoRenderClient) -> None:
         """submit_render sends composition_type and data in request."""
         spec = CompositionSpec(
             composition_type="test_type",
@@ -64,9 +59,7 @@ class TestHttpVideoRenderClient:
         # Job ID returned indicates successful submission with correct payload
         assert job_id is not None
 
-    async def test_poll_status_returns_render_status(
-        self, client: HttpVideoRenderClient
-    ) -> None:
+    async def test_poll_status_returns_render_status(self, client: HttpVideoRenderClient) -> None:
         """poll_status returns RenderStatus for valid job_id."""
         # First submit a job
         spec = CompositionSpec(
@@ -122,9 +115,7 @@ class TestHttpVideoRenderClient:
         with pytest.raises(SubmissionError):
             await client.submit_render(spec)
 
-    async def test_client_handles_service_unavailable(
-        self, video_service_url: str
-    ) -> None:
+    async def test_client_handles_service_unavailable(self, video_service_url: str) -> None:
         """HttpVideoRenderClient raises appropriate error when service unavailable."""
         from video.client import SubmissionError
 

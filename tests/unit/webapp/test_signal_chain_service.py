@@ -1,7 +1,7 @@
 """Unit tests for SignalChainService."""
 
 from collections.abc import AsyncGenerator
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

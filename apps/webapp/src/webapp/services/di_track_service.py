@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from uuid import UUID
 
 import soundfile as sf
@@ -24,7 +24,7 @@ class DITrackService:
     """
 
     # Supported audio formats
-    SUPPORTED_FORMATS = {".wav", ".flac", ".ogg", ".mp3"}
+    SUPPORTED_FORMATS: ClassVar[set[str]] = {".wav", ".flac", ".ogg", ".mp3"}
 
     def __init__(self, session: AsyncSession) -> None:
         """Initialize the service with a database session.

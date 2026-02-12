@@ -41,19 +41,13 @@ class TestCORSMiddleware:
 
     @pytest.mark.asyncio
     async def test_cors_headers_present_on_response(self, app: FastAPI) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get(
-                "/health", headers={"Origin": "http://localhost:3000"}
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/health", headers={"Origin": "http://localhost:3000"})
             assert "access-control-allow-origin" in response.headers
 
     @pytest.mark.asyncio
     async def test_options_preflight_works(self, app: FastAPI) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.options(
                 "/health",
                 headers={
@@ -70,9 +64,7 @@ class TestRequestIDMiddleware:
 
     @pytest.mark.asyncio
     async def test_request_id_header_added_to_response(self, app: FastAPI) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
             assert "x-request-id" in response.headers
             assert len(response.headers["x-request-id"]) > 0
@@ -80,12 +72,8 @@ class TestRequestIDMiddleware:
     @pytest.mark.asyncio
     async def test_existing_request_id_preserved(self, app: FastAPI) -> None:
         request_id = "test-request-123"
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get(
-                "/health", headers={"X-Request-ID": request_id}
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/health", headers={"X-Request-ID": request_id})
             assert response.headers["x-request-id"] == request_id
 
 
@@ -94,17 +82,13 @@ class TestTimingMiddleware:
 
     @pytest.mark.asyncio
     async def test_process_time_header_added(self, app: FastAPI) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
             assert "x-process-time" in response.headers
 
     @pytest.mark.asyncio
     async def test_process_time_is_valid_number(self, app: FastAPI) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health")
             process_time = response.headers["x-process-time"]
             float_value = float(process_time)
@@ -116,21 +100,15 @@ class TestExceptionHandlers:
 
     @pytest.mark.asyncio
     async def test_404_returns_json_error(self, app: FastAPI) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/nonexistent")
             assert response.status_code == 404
             data = response.json()
             assert "detail" in data
 
     @pytest.mark.asyncio
-    async def test_http_exception_returns_json_content_type(
-        self, app: FastAPI
-    ) -> None:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+    async def test_http_exception_returns_json_content_type(self, app: FastAPI) -> None:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/does-not-exist")
             assert response.status_code == 404
             assert response.headers["content-type"].startswith("application/json")

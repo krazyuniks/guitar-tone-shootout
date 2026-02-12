@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity

@@ -7,10 +7,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
-from webapp.api.v1.signal_chains import router
 from webapp.auth.dependencies import set_session_override, set_user_override
 from webapp.main import create_app
 

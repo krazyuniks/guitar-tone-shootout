@@ -121,9 +121,7 @@ class PedalboardAudioProcessor:
         start_time = time.time()
 
         # Delegate to standalone loudness module
-        result_lufs, peak_dbfs = _normalize_loudness(
-            input_path, output_path, target_lufs
-        )
+        result_lufs, peak_dbfs = _normalize_loudness(input_path, output_path, target_lufs)
 
         # Load output file to get duration and sample rate
         audio, sample_rate = sf.read(output_path)

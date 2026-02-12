@@ -69,9 +69,7 @@ class TestIsHealthyWithVideo:
     @pytest.mark.xfail(reason="Pre-existing: is_healthy API changed since T80", strict=False)
     @patch("worktree.docker.get_service_status")
     @patch("worktree.docker.get_main_worktree_path")
-    def test_main_worktree_healthy_with_video_running(
-        self, mock_main_path, mock_status
-    ):
+    def test_main_worktree_healthy_with_video_running(self, mock_main_path, mock_status):
         """Main worktree is healthy when video is running."""
         mock_main_path.return_value = Path("/fake/main")
         mock_status.return_value = {
@@ -90,9 +88,7 @@ class TestIsHealthyWithVideo:
 
     @patch("worktree.docker.get_service_status")
     @patch("worktree.docker.get_main_worktree_path")
-    def test_main_worktree_unhealthy_when_video_not_running(
-        self, mock_main_path, mock_status
-    ):
+    def test_main_worktree_unhealthy_when_video_not_running(self, mock_main_path, mock_status):
         """Main worktree is unhealthy if video not running."""
         mock_main_path.return_value = Path("/fake/main")
         mock_status.return_value = {
@@ -111,9 +107,7 @@ class TestIsHealthyWithVideo:
 
     @patch("worktree.docker.get_service_status")
     @patch("worktree.docker.get_main_worktree_path")
-    def test_main_worktree_unhealthy_when_video_missing(
-        self, mock_main_path, mock_status
-    ):
+    def test_main_worktree_unhealthy_when_video_missing(self, mock_main_path, mock_status):
         """Main worktree is unhealthy if video service missing."""
         mock_main_path.return_value = Path("/fake/main")
         mock_status.return_value = {
@@ -133,9 +127,7 @@ class TestIsHealthyWithVideo:
     @pytest.mark.xfail(reason="Pre-existing: is_healthy API changed since T80", strict=False)
     @patch("worktree.docker.get_service_status")
     @patch("worktree.docker.get_main_worktree_path")
-    def test_feature_worktree_healthy_without_video(
-        self, mock_main_path, mock_status
-    ):
+    def test_feature_worktree_healthy_without_video(self, mock_main_path, mock_status):
         """Feature worktree is healthy without video service."""
         mock_main_path.return_value = Path("/fake/main")
         mock_status.return_value = {
@@ -151,9 +143,7 @@ class TestIsHealthyWithVideo:
     @pytest.mark.xfail(reason="Pre-existing: is_healthy API changed since T80", strict=False)
     @patch("worktree.docker.get_service_status")
     @patch("worktree.docker.get_main_worktree_path")
-    def test_feature_worktree_not_affected_by_video_presence(
-        self, mock_main_path, mock_status
-    ):
+    def test_feature_worktree_not_affected_by_video_presence(self, mock_main_path, mock_status):
         """Feature worktree health should not be affected by video service."""
         mock_main_path.return_value = Path("/fake/main")
         # Feature worktree has video service present but we don't check it
@@ -175,9 +165,7 @@ class TestWaitForHealthyWithVideo:
 
     @patch("worktree.docker.is_healthy")
     @patch("time.sleep")
-    def test_wait_succeeds_when_video_becomes_healthy(
-        self, mock_sleep, mock_is_healthy
-    ):
+    def test_wait_succeeds_when_video_becomes_healthy(self, mock_sleep, mock_is_healthy):
         """wait_for_healthy should succeed when video starts running."""
         # Simulate video starting after 2 checks
         call_count = [0]
@@ -196,9 +184,7 @@ class TestWaitForHealthyWithVideo:
     @patch("worktree.docker.is_healthy")
     @patch("time.time")
     @patch("time.sleep")
-    def test_wait_times_out_when_video_never_healthy(
-        self, mock_sleep, mock_time, mock_is_healthy
-    ):
+    def test_wait_times_out_when_video_never_healthy(self, mock_sleep, mock_time, mock_is_healthy):
         """wait_for_healthy should timeout if video never starts."""
         mock_is_healthy.return_value = False
 
@@ -220,9 +206,9 @@ class TestVideoHealthCheckEndpoint:
         from worktree import docker
 
         # Should have check_video_health function
-        assert hasattr(docker, "check_video_health"), (
-            "check_video_health function missing from docker module"
-        )
+        assert hasattr(
+            docker, "check_video_health"
+        ), "check_video_health function missing from docker module"
 
     @patch("httpx.get")
     def test_check_video_health_returns_true_when_responding(self, mock_get):
@@ -274,9 +260,7 @@ class TestVideoHealthCheckEndpoint:
         result = check_video_health(worktree)
 
         assert result is True
-        mock_get.assert_called_once_with(
-            "http://localhost:8002/health", timeout=5
-        )
+        mock_get.assert_called_once_with("http://localhost:8002/health", timeout=5)
 
     @patch("httpx.get")
     def test_check_video_health_returns_false_when_not_responding(self, mock_get):

@@ -60,17 +60,13 @@ def test_measure_loudness_silent_audio_raises_error(silent_audio_path: Path) -> 
         measure_loudness(silent_audio_path)
 
 
-def test_normalize_loudness_to_target(
-    test_audio_path: Path, tmp_path: Path
-) -> None:
+def test_normalize_loudness_to_target(test_audio_path: Path, tmp_path: Path) -> None:
     """Test that normalize_loudness adjusts to target LUFS."""
     output_path = tmp_path / "normalized.wav"
     target_lufs = -14.0
 
     # Normalize
-    result_lufs, result_peak = normalize_loudness(
-        test_audio_path, output_path, target_lufs
-    )
+    result_lufs, result_peak = normalize_loudness(test_audio_path, output_path, target_lufs)
 
     # Verify output file exists
     assert output_path.exists()
@@ -83,9 +79,7 @@ def test_normalize_loudness_to_target(
     assert abs(result_lufs - target_lufs) < 0.5
 
 
-def test_normalize_loudness_default_target(
-    test_audio_path: Path, tmp_path: Path
-) -> None:
+def test_normalize_loudness_default_target(test_audio_path: Path, tmp_path: Path) -> None:
     """Test that normalize_loudness uses default target of -14.0 LUFS."""
     output_path = tmp_path / "normalized_default.wav"
 
@@ -95,9 +89,7 @@ def test_normalize_loudness_default_target(
     assert abs(result_lufs - (-14.0)) < 0.5
 
 
-def test_normalize_loudness_preserves_sample_rate(
-    test_audio_path: Path, tmp_path: Path
-) -> None:
+def test_normalize_loudness_preserves_sample_rate(test_audio_path: Path, tmp_path: Path) -> None:
     """Test that normalize_loudness preserves sample rate."""
     output_path = tmp_path / "normalized_sr.wav"
 

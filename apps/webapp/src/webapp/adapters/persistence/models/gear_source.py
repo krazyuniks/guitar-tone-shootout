@@ -49,6 +49,4 @@ class GearSource(UUIDMixin, TimestampMixin, Base):
     )
 
     # Composite index for source lookups
-    __table_args__ = (
-        Index("ix_gear_sources_source_lookup", "source_name", "source_record_id"),
-    )
+    __table_args__ = (Index("ix_gear_sources_source_lookup", "source_name", "source_record_id"),)

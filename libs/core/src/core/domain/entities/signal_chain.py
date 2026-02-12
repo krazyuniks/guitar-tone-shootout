@@ -195,10 +195,7 @@ class SignalChain(Entity):
 
     def has_amp(self) -> bool:
         """Check if chain has an amp (AMP or FULL_RIG)."""
-        return any(
-            b.gear_type in (GearType.AMP, GearType.FULL_RIG)
-            for b in self.blocks
-        )
+        return any(b.gear_type in (GearType.AMP, GearType.FULL_RIG) for b in self.blocks)
 
     def has_ir(self) -> bool:
         """Check if chain has an IR."""

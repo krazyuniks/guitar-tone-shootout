@@ -78,9 +78,7 @@ async def authenticated_client(
     set_session_override(db_session)
     set_user_override(test_user)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
     # Cleanup
@@ -330,9 +328,7 @@ class TestSignalChainGroupAPI:
             },
         }
 
-        response = await authenticated_client.post(
-            "/api/v1/signal-chain-groups/", json=payload
-        )
+        response = await authenticated_client.post("/api/v1/signal-chain-groups/", json=payload)
 
         assert response.status_code == 201
         data = response.json()
@@ -365,9 +361,7 @@ class TestSignalChainGroupAPI:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.get(
-            f"/api/v1/signal-chain-groups/{group.id}"
-        )
+        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{group.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -382,9 +376,7 @@ class TestSignalChainGroupAPI:
         """Test GET /api/v1/signal-chain-groups/{id} returns 404 for non-existent group."""
         non_existent_id = uuid4()
 
-        response = await authenticated_client.get(
-            f"/api/v1/signal-chain-groups/{non_existent_id}"
-        )
+        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{non_existent_id}")
 
         assert response.status_code == 404
 
@@ -411,9 +403,7 @@ class TestSignalChainGroupAPI:
             await service.create(group)
 
         # Try to access as test_user (authenticated_client)
-        response = await authenticated_client.get(
-            f"/api/v1/signal-chain-groups/{group.id}"
-        )
+        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{group.id}")
 
         # Should return 404 to avoid leaking existence
         assert response.status_code == 404
@@ -504,9 +494,7 @@ class TestSignalChainGroupAPI:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.delete(
-            f"/api/v1/signal-chain-groups/{group.id}"
-        )
+        response = await authenticated_client.delete(f"/api/v1/signal-chain-groups/{group.id}")
 
         assert response.status_code == 204
 
@@ -535,9 +523,7 @@ class TestSignalChainGroupAPI:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.delete(
-            f"/api/v1/signal-chain-groups/{group.id}"
-        )
+        response = await authenticated_client.delete(f"/api/v1/signal-chain-groups/{group.id}")
 
         assert response.status_code == 404
 
@@ -550,9 +536,7 @@ class TestSignalChainGroupAPI:
         app: FastAPI,
     ) -> None:
         """Test POST requires authentication."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/signal-chain-groups/",
                 json={"name": "Test", "slot_positions": []},

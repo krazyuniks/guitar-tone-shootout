@@ -1,7 +1,5 @@
 """Integration tests for video BC Docker container configuration."""
 
-import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -22,8 +20,7 @@ class TestVideoDockerfile:
         content = dockerfile.read_text()
 
         # Check for Node.js 20 in FROM statement or installation
-        assert (
-            "node:20" in content.lower() or
+        assert "node:20" in content.lower() or (
             "nodejs" in content.lower() and "20" in content
         ), "Dockerfile must include Node.js 20"
 
@@ -91,7 +88,9 @@ class TestVideoDockerComposeService:
         build_config = video_service["build"]
 
         assert "dockerfile" in build_config, "video service must specify dockerfile"
-        assert "Dockerfile.video" in build_config["dockerfile"], "video service must use Dockerfile.video"
+        assert (
+            "Dockerfile.video" in build_config["dockerfile"]
+        ), "video service must use Dockerfile.video"
 
     def test_video_service_mounts_libs_video(self, compose_config: dict):
         """Video service must mount libs/video/ source directory."""
@@ -101,9 +100,7 @@ class TestVideoDockerComposeService:
         volumes = video_service["volumes"]
 
         # Check for libs/video mount
-        video_mount_found = any(
-            "libs/video" in str(volume) for volume in volumes
-        )
+        video_mount_found = any("libs/video" in str(volume) for volume in volumes)
         assert video_mount_found, "video service must mount libs/video/"
 
     def test_video_service_exposes_internal_port(self, compose_config: dict):
@@ -120,9 +117,9 @@ class TestVideoDockerComposeService:
 
         # Services should have health check or environment that indicates port
         assert (
-            "healthcheck" in video_service or
-            "environment" in video_service or
-            "command" in video_service
+            "healthcheck" in video_service
+            or "environment" in video_service
+            or "command" in video_service
         ), "video service must have configuration indicating port usage"
 
     def test_video_service_has_health_check(self, compose_config: dict):
@@ -144,7 +141,9 @@ class TestVideoDockerComposeService:
         # Video service should have restart policy (typically unless-stopped for background services)
         assert "restart" in video_service, "video service should have restart policy"
         assert video_service["restart"] in [
-            "unless-stopped", "always", "on-failure"
+            "unless-stopped",
+            "always",
+            "on-failure",
         ], "video service restart policy should be unless-stopped, always, or on-failure"
 
     def test_video_service_depends_on_nothing(self, compose_config: dict):
@@ -154,8 +153,7 @@ class TestVideoDockerComposeService:
         # Video BC is a standalone service that worker calls via HTTP
         # It should NOT depend on db, redis, etc.
         assert (
-            "depends_on" not in video_service or
-            len(video_service.get("depends_on", {})) == 0
+            "depends_on" not in video_service or len(video_service.get("depends_on", {})) == 0
         ), "video service should not depend on other services (standalone BC)"
 
 
@@ -183,7 +181,8 @@ class TestVideoServiceStartup:
         dockerfile = Path("/app/infrastructure/docker/Dockerfile.video")
         content = dockerfile.read_text()
         lines = [
-            line.strip() for line in content.splitlines()
+            line.strip()
+            for line in content.splitlines()
             if line.strip() and not line.strip().startswith("#")
         ]
 
@@ -228,9 +227,7 @@ class TestVideoDockerComposeOverride:
                     # Moved to next service
                     break
 
-        assert has_container_name, (
-            "video service in override template must have container_name"
-        )
+        assert has_container_name, "video service in override template must have container_name"
 
     def test_override_template_video_has_port_mapping(self):
         """Override template must expose video service port to host."""
@@ -253,6 +250,4 @@ class TestVideoDockerComposeOverride:
                     # Moved to next service
                     break
 
-        assert has_ports, (
-            "video service in override template must have ports configuration"
-        )
+        assert has_ports, "video service in override template must have ports configuration"

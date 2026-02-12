@@ -12,7 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from httpx import HTTPStatusError, Request, Response
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
@@ -68,9 +73,7 @@ async def t3k_provider(db_session: AsyncSession) -> OAuthProvider:
 class TestT3KAuthIntegration:
     """Integration tests for T3K auth flow."""
 
-    def test_t3k_provider_builds_login_url(
-        self, t3k_provider: OAuthProvider
-    ) -> None:
+    def test_t3k_provider_builds_login_url(self, t3k_provider: OAuthProvider) -> None:
         """Test T3KProvider generates valid login URL with redirect."""
         from webapp.auth.providers.t3k import T3KProvider
 
@@ -105,9 +108,10 @@ class TestT3KAuthIntegration:
             "email": "user@tone3000.com",
         }
 
-        with patch("httpx.AsyncClient.post") as mock_post, patch(
-            "httpx.AsyncClient.get"
-        ) as mock_get:
+        with (
+            patch("httpx.AsyncClient.post") as mock_post,
+            patch("httpx.AsyncClient.get") as mock_get,
+        ):
             # Mock api_key exchange response
             mock_token_resp = MagicMock()
             mock_token_resp.json.return_value = mock_token_response
@@ -126,9 +130,7 @@ class TestT3KAuthIntegration:
             assert tokens["refresh_token"] == "t3k_refresh_def456"
 
             # Fetch user info using access token
-            user_info = await t3k.get_user_info(
-                access_token=tokens["access_token"]
-            )
+            user_info = await t3k.get_user_info(access_token=tokens["access_token"])
 
             assert user_info["id"] == "t3k_user_789"
             assert user_info["username"] == "tone_enthusiast"
@@ -182,9 +184,7 @@ class TestT3KAuthIntegration:
             with pytest.raises(HTTPStatusError):
                 await t3k.get_user_info(access_token="expired_token")
 
-    def test_t3k_uses_custom_api_url_from_env(
-        self, t3k_provider: OAuthProvider
-    ) -> None:
+    def test_t3k_uses_custom_api_url_from_env(self, t3k_provider: OAuthProvider) -> None:
         """Test T3K provider uses custom API URL from environment."""
         from webapp.auth.providers.t3k import T3KProvider
 

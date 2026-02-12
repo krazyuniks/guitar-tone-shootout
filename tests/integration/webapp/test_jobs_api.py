@@ -51,9 +51,7 @@ async def authenticated_client(
     set_session_override(db_session)
     set_user_override(test_user)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
     # Cleanup
@@ -153,9 +151,7 @@ async def test_get_job_by_id_requires_authentication(
     # Create client without auth override
     set_session_override(db_session)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"/api/v1/jobs/{job.id}")
 
         assert response.status_code == 401

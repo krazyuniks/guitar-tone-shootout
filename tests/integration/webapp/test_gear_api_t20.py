@@ -62,7 +62,7 @@ def app(db_session: AsyncSession) -> FastAPI:
     """Create FastAPI app with gear API routes."""
     from fastapi import FastAPI
 
-    from webapp.api.v1.gear import get_db_session, router, set_session_override
+    from webapp.api.v1.gear import router, set_session_override
 
     # Set session override for testing
     set_session_override(db_session)
@@ -76,9 +76,7 @@ def app(db_session: AsyncSession) -> FastAPI:
 @pytest.fixture
 async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
     """Create test client."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 

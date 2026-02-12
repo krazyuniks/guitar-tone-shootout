@@ -48,11 +48,13 @@ class BlockType(Entity):
     def is_pre_amp(self) -> bool:
         """Check if this block type is valid in pre-amp position."""
         from core.domain.value_objects.block_category import PRE_AMP_CATEGORIES
+
         return self.category in PRE_AMP_CATEGORIES
 
     def is_post_amp(self) -> bool:
         """Check if this block type is valid in post-amp position."""
         from core.domain.value_objects.block_category import POST_AMP_CATEGORIES
+
         return self.category in POST_AMP_CATEGORIES
 
     def get_default_param(self, param_name: str) -> float | int | str | bool | None:

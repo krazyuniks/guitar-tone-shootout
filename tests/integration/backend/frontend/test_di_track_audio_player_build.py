@@ -44,8 +44,9 @@ class TestDITrackAudioPlayerBuild:
         public_content = public_path.read_text()
 
         # Should have data-testid on audio elements
-        assert 'data-testid="track-audio-player"' in public_content, \
-            "Audio player missing data-testid in public page"
+        assert (
+            'data-testid="track-audio-player"' in public_content
+        ), "Audio player missing data-testid in public page"
 
     def test_library_page_contains_upload_form(self) -> None:
         """Library page contains upload form with proper structure."""
@@ -56,8 +57,9 @@ class TestDITrackAudioPlayerBuild:
         assert "<form" in content, "No form element in library page"
 
         # Should have upload button to trigger modal
-        assert 'data-testid="upload-track-btn"' in content, \
-            "Upload button missing data-testid in library page"
+        assert (
+            'data-testid="upload-track-btn"' in content
+        ), "Upload button missing data-testid in library page"
 
     def test_upload_form_has_htmx_attributes(self) -> None:
         """Upload form uses HTMX for submission."""
@@ -68,12 +70,12 @@ class TestDITrackAudioPlayerBuild:
         assert "hx-post" in content, "No hx-post attribute in library page form"
 
         # Should post to upload endpoint
-        assert "/api/v1/di-tracks/upload" in content, \
-            "Upload form not posting to correct endpoint"
+        assert "/api/v1/di-tracks/upload" in content, "Upload form not posting to correct endpoint"
 
         # Should have hx-encoding for multipart
-        assert 'hx-encoding="multipart/form-data"' in content, \
-            "Upload form missing hx-encoding for file upload"
+        assert (
+            'hx-encoding="multipart/form-data"' in content
+        ), "Upload form missing hx-encoding for file upload"
 
     def test_upload_form_fields_have_testids(self) -> None:
         """Upload form fields have data-testid attributes."""
@@ -101,10 +103,10 @@ class TestDITrackAudioPlayerBuild:
         public_content = public_path.read_text()
 
         # Should reference stream endpoint pattern
-        assert "/api/v1/di-tracks/" in public_content, \
-            "Audio player src not referencing DI tracks API"
-        assert "/stream" in public_content, \
-            "Audio player src not referencing stream endpoint"
+        assert (
+            "/api/v1/di-tracks/" in public_content
+        ), "Audio player src not referencing DI tracks API"
+        assert "/stream" in public_content, "Audio player src not referencing stream endpoint"
 
     def test_track_items_have_testid(self) -> None:
         """Track items have data-testid for identification."""
@@ -112,5 +114,6 @@ class TestDITrackAudioPlayerBuild:
         public_content = public_path.read_text()
 
         # Track items should be identifiable
-        assert 'data-testid="track-item"' in public_content, \
-            "Track items missing data-testid in public page"
+        assert (
+            'data-testid="track-item"' in public_content
+        ), "Track items missing data-testid in public page"

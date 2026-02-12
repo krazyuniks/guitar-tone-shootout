@@ -9,7 +9,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from core.domain.entities.signal_chain import SignalChain as SignalChainEntity
 from core.domain.entities.signal_chain_group import SignalChainGroup
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.gear import Gear
@@ -266,9 +265,7 @@ async def authenticated_client(
     set_session_override(db_session)
     set_user_override(test_user)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
     # Cleanup
@@ -397,9 +394,9 @@ class TestSignalChainGroupPermutations:
                 await service.generate_permutations(group.id)
 
             # Error should mention max permutations
-            assert "max" in str(exc_info.value).lower() or "permutation" in str(
-                exc_info.value
-            ).lower()
+            assert (
+                "max" in str(exc_info.value).lower() or "permutation" in str(exc_info.value).lower()
+            )
 
     async def test_includes_null_option_when_enabled(
         self,
@@ -527,9 +524,7 @@ class TestGeneratePermutationsAPI:
     ) -> None:
         """Test that generate endpoint requires authentication."""
         # Create unauthenticated client
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/api/v1/signal-chain-groups/{group_with_2x2.id}/generate",
             )
@@ -554,9 +549,7 @@ class TestGeneratePermutationsAPI:
         set_session_override(db_session)
         set_user_override(other_user)
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 f"/api/v1/signal-chain-groups/{group_with_2x2.id}/generate",
             )

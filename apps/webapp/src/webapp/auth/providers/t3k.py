@@ -16,9 +16,7 @@ class T3KProvider:
     """T3K authentication provider supporting api_key and OAuth2 flows."""
 
     def __init__(self) -> None:
-        self.base_url = os.environ.get(
-            "T3K_API_URL", "https://www.tone3000.com"
-        )
+        self.base_url = os.environ.get("T3K_API_URL", "https://www.tone3000.com")
         self.authorization_url = f"{self.base_url}/oauth/authorize"
         self.token_url = f"{self.base_url}/oauth/token"
         self.user_info_url = f"{self.base_url}/api/v1/user"

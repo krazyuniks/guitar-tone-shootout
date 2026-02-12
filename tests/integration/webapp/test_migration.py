@@ -11,6 +11,7 @@ def test_migration_creates_all_tables() -> None:
 
     # Verify migration file exists
     import pathlib
+
     migration_dir = pathlib.Path("infrastructure/migrations/versions")
     assert migration_dir.exists(), "Migration directory should exist"
 
@@ -32,7 +33,9 @@ def test_migration_creates_all_tables() -> None:
     ]
 
     for table in expected_new_tables:
-        assert f"op.create_table('{table}'" in migration_content, f"Migration should create {table} table"
+        assert (
+            f"op.create_table('{table}'" in migration_content
+        ), f"Migration should create {table} table"
 
     # Expected tables being modified
     expected_modified_tables = [
@@ -64,7 +67,9 @@ def test_migration_creates_all_tables() -> None:
     print("\nNOTE: This migration was generated against existing schema.")
     print("For a fresh database, you should:")
     print("  1. Run: just reset  # (will prompt for confirmation)")
-    print("  2. Regenerate migration: export DATABASE_URL=... && uv run alembic -c infrastructure/migrations/alembic.ini revision --autogenerate -m 'Initial schema'")
+    print(
+        "  2. Regenerate migration: export DATABASE_URL=... && uv run alembic -c infrastructure/migrations/alembic.ini revision --autogenerate -m 'Initial schema'"
+    )
     print("  3. Run: just migrate")
     print("  4. Verify: just psql -c '\\dt'")
 

@@ -14,8 +14,8 @@ from httpx import ASGITransport, AsyncClient
 
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.shootout import Shootout
+from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.main import create_app
@@ -66,9 +66,7 @@ class TestHTMLFragmentNamespace:
         """Verify /api/v1/html/ namespace is routable."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Try to access the namespace - should not 404 on the namespace itself
             # We expect either 200 (if root handler) or 404 (no root handler)
             # or 405 (method not allowed) - but NOT a routing error
@@ -90,9 +88,7 @@ class TestGearBrowseFragments:
         """Verify GET /api/v1/html/gear/list returns HTML fragment."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/gear/list")
 
             # Verify successful response
@@ -130,13 +126,9 @@ class TestGearBrowseFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Filter by amp
-            response = await client.get(
-                "/api/v1/html/gear/list", params={"gear_type": "amp"}
-            )
+            response = await client.get("/api/v1/html/gear/list", params={"gear_type": "amp"})
 
             assert response.status_code == 200
             html = response.text
@@ -170,22 +162,16 @@ class TestGearBrowseFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Filter by Fender
-            response = await client.get(
-                "/api/v1/html/gear/list", params={"manufacturer": "Fender"}
-            )
+            response = await client.get("/api/v1/html/gear/list", params={"manufacturer": "Fender"})
 
             assert response.status_code == 200
             html = response.text
             assert "Fender Amp" in html
             assert "Marshall Amp" not in html
 
-    async def test_gear_list_fragment_accepts_search_query(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_gear_list_fragment_accepts_search_query(self, db_session: AsyncSession) -> None:
         """Verify gear list fragment accepts query parameter for search."""
         # Create gear with searchable content
         gear1 = Gear(
@@ -209,22 +195,16 @@ class TestGearBrowseFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Search for unique term
-            response = await client.get(
-                "/api/v1/html/gear/list", params={"query": "Unique Search"}
-            )
+            response = await client.get("/api/v1/html/gear/list", params={"query": "Unique Search"})
 
             assert response.status_code == 200
             html = response.text
             assert "Unique Search Term Amp" in html
             assert "Other Amp" not in html
 
-    async def test_gear_list_fragment_accepts_pagination(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_gear_list_fragment_accepts_pagination(self, db_session: AsyncSession) -> None:
         """Verify gear list fragment accepts limit and offset parameters."""
         # Create multiple gear items
         for i in range(5):
@@ -240,13 +220,9 @@ class TestGearBrowseFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Request with pagination
-            response = await client.get(
-                "/api/v1/html/gear/list", params={"limit": 2, "offset": 0}
-            )
+            response = await client.get("/api/v1/html/gear/list", params={"limit": 2, "offset": 0})
 
             assert response.status_code == 200
             html = response.text
@@ -277,9 +253,7 @@ class TestGearBrowseFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/gear/list")
 
             assert response.status_code == 200
@@ -312,9 +286,7 @@ class TestLibraryMyGearFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/my-gear/list")
 
             # Verify successful response
@@ -381,9 +353,7 @@ class TestLibraryMyGearFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/my-gear/list")
 
             assert response.status_code == 200
@@ -417,17 +387,13 @@ class TestLibraryMyGearFragments:
 
         # Link to user
         user_gear_amp = UserGear(id=uuid4(), user_id=test_user.id, gear_id=amp.id)
-        user_gear_pedal = UserGear(
-            id=uuid4(), user_id=test_user.id, gear_id=pedal.id
-        )
+        user_gear_pedal = UserGear(id=uuid4(), user_id=test_user.id, gear_id=pedal.id)
         db_session.add_all([user_gear_amp, user_gear_pedal])
         await db_session.commit()
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Filter by gear type
             response = await client.get(
                 "/api/v1/html/library/my-gear/list", params={"gear_type": "amp"}
@@ -464,9 +430,7 @@ class TestLibraryChainsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/chains/list")
 
             # Verify successful response
@@ -515,9 +479,7 @@ class TestLibraryChainsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/chains/list")
 
             assert response.status_code == 200
@@ -545,9 +507,7 @@ class TestLibraryChainsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Request with pagination
             response = await client.get(
                 "/api/v1/html/library/chains/list", params={"limit": 2, "offset": 0}
@@ -583,9 +543,7 @@ class TestLibraryShootoutsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/shootouts/list")
 
             # Verify successful response
@@ -634,9 +592,7 @@ class TestLibraryShootoutsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/library/shootouts/list")
 
             assert response.status_code == 200
@@ -670,9 +626,7 @@ class TestLibraryShootoutsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Filter by status
             response = await client.get(
                 "/api/v1/html/library/shootouts/list", params={"status": "draft"}
@@ -703,9 +657,7 @@ class TestLibraryShootoutsFragments:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Request with pagination
             response = await client.get(
                 "/api/v1/html/library/shootouts/list",
@@ -730,9 +682,7 @@ class TestHTMLFragmentResponseFormat:
         """Verify all fragment endpoints return text/html content type."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             endpoints = [
                 "/api/v1/html/gear/list",
             ]
@@ -748,9 +698,7 @@ class TestHTMLFragmentResponseFormat:
         """Verify fragments are partial HTML, not full pages."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/gear/list")
 
             assert response.status_code == 200
@@ -769,9 +717,7 @@ class TestHTMLFragmentResponseFormat:
         """Verify fragments contain valid embeddable HTML."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/html/gear/list")
 
             assert response.status_code == 200

@@ -21,7 +21,6 @@ from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.gear_repository import SQLAlchemyGearRepository
 
 if TYPE_CHECKING:
-
     from collections.abc import AsyncGenerator
 
 

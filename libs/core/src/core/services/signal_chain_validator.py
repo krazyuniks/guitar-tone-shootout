@@ -155,9 +155,7 @@ class SignalChainValidator:
         if total_amps >= 1:
             is_full_rig = len(full_rig_blocks) >= 1
             # Use the first amp position for order checks (even if there are multiple)
-            amp_position = (
-                full_rig_blocks[0][0] if full_rig_blocks else amp_blocks[0][0]
-            )
+            amp_position = full_rig_blocks[0][0] if full_rig_blocks else amp_blocks[0][0]
 
             # Rules that only apply when there's exactly one amp
             if total_amps == 1:
@@ -190,8 +188,7 @@ class SignalChainValidator:
                                 ValidationError(
                                     code=ValidationRule.LOOP_FORBIDDEN,
                                     message=(
-                                        "Loop position effects are incompatible with "
-                                        "full-rig amps"
+                                        "Loop position effects are incompatible with full-rig amps"
                                     ),
                                     position=i,
                                 )
@@ -295,20 +292,14 @@ class SignalChainValidator:
         # Complete chains
         if has_full_rig:
             if has_post_effects:
-                return (
-                    "Signal chain complete! Add more post-effects "
-                    "(delay, reverb) or save."
-                )
+                return "Signal chain complete! Add more post-effects (delay, reverb) or save."
             return (
                 "Signal chain complete! Optionally add post-amp effects "
                 "(delay, reverb, etc.) or save."
             )
         if has_amp and has_ir:
             if has_post_effects:
-                return (
-                    "Signal chain complete! Add more post-effects "
-                    "(delay, reverb) or save."
-                )
+                return "Signal chain complete! Add more post-effects (delay, reverb) or save."
             return (
                 "Signal chain complete! Optionally add post-amp effects "
                 "(delay, reverb, etc.) or save."

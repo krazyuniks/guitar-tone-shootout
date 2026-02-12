@@ -307,9 +307,7 @@ class TestDITrackStreamEndpoint:
             base_url="http://test",
         ) as client:
             # test_user tries to stream other_user's track
-            response = await client.get(
-                f"/api/v1/di-tracks/{other_user_track.id}/stream"
-            )
+            response = await client.get(f"/api/v1/di-tracks/{other_user_track.id}/stream")
 
         # Should return 404, not 403, to avoid leaking existence
         assert response.status_code == 404
@@ -342,6 +340,7 @@ class TestDITrackStreamEndpoint:
     ) -> None:
         """Test stream endpoint requires authentication."""
         from fastapi import FastAPI
+
         from webapp.auth.dependencies import set_user_override
 
         # Clear user override to simulate unauthenticated request

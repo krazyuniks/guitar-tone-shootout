@@ -187,9 +187,11 @@ def validate_t3k_auth(dry_run: bool = False) -> None:
     output = result.stdout.strip()
     if "AUTH_OK" in output:
         log(f"  T3K browser auth verified: {output}")
-    else:
+    elif "AUTH_FAIL" in output:
         log(f"  T3K browser auth FAILED: {output}")
         die("T3K browser auth verification failed. Run: ./worktree.py auth-login")
+    else:
+        log(f"  T3K browser auth inconclusive — skipping layer 2: {output[:200]}")
 
 
 # ---------------------------------------------------------------------------

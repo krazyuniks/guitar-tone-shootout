@@ -30,12 +30,12 @@ class UserGearResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     # Both simple and explicit field names via computed_field
-    user_gear_id: UUID       # UserGear.id
-    gear_model_id: UUID      # GearModel.id
-    gear_name: str           # Gear.name
+    user_gear_id: UUID  # UserGear.id
+    gear_model_id: UUID  # GearModel.id
+    gear_name: str  # Gear.name
     gear_type: GearType
-    platform: str            # GearModel.platform
-    size: str                # GearModel.size
+    platform: str  # GearModel.platform
+    size: str  # GearModel.size
     nickname: str | None = None
     is_favourite: bool = False
 

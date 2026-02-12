@@ -23,32 +23,30 @@ class TestRootWorkspaceConfig:
         content = root_pyproject.read_text()
 
         # Workspace members pattern should include libs/*
-        assert '[tool.uv.workspace]' in content, "must have [tool.uv.workspace] section"
-        assert 'members = [' in content, "must have workspace members list"
+        assert "[tool.uv.workspace]" in content, "must have [tool.uv.workspace] section"
+        assert "members = [" in content, "must have workspace members list"
 
         # libs/* pattern covers libs/video
-        assert '"libs/*"' in content or "'libs/*'" in content, (
-            "workspace members must include libs/* pattern"
-        )
+        assert (
+            '"libs/*"' in content or "'libs/*'" in content
+        ), "workspace members must include libs/* pattern"
 
     def test_import_linter_has_video_package(self, root_pyproject: Path) -> None:
         """Import-linter root_packages includes video."""
         content = root_pyproject.read_text()
 
-        assert '[tool.importlinter]' in content, "must have [tool.importlinter] section"
-        assert 'root_packages' in content, "must declare root_packages"
+        assert "[tool.importlinter]" in content, "must have [tool.importlinter] section"
+        assert "root_packages" in content, "must declare root_packages"
 
         # Video must be in root_packages list
-        assert '"video"' in content or "'video'" in content, (
-            "root_packages must include video"
-        )
+        assert '"video"' in content or "'video'" in content, "root_packages must include video"
 
     def test_import_linter_video_isolation_contract(self, root_pyproject: Path) -> None:
         """Import-linter contract enforces video can only depend on core."""
         content = root_pyproject.read_text()
 
         # Look for video-dependencies contract (similar to audio-dependencies)
-        assert '[[tool.importlinter.contracts]]' in content, "must have contracts section"
+        assert "[[tool.importlinter.contracts]]" in content, "must have contracts section"
 
         # Check for video-dependencies contract
         lines = content.splitlines()
@@ -68,45 +66,33 @@ class TestRootWorkspaceConfig:
                     continue
 
                 # Look for source_modules = ["video"]
-                if 'source_modules' in line:
-                    assert 'video' in line, "source_modules must include video"
+                if "source_modules" in line:
+                    assert "video" in line, "source_modules must include video"
                     continue
 
                 # Look for forbidden_modules
-                if 'forbidden_modules' in line:
+                if "forbidden_modules" in line:
                     # Should forbid: audio, source_t3k, webapp, worker, scheduler
                     # (video can only depend on core)
                     next_line_idx = i + 1
                     # Collect the full forbidden_modules list (may span multiple lines)
                     forbidden_block = line
-                    while next_line_idx < len(lines) and ']' not in forbidden_block:
+                    while next_line_idx < len(lines) and "]" not in forbidden_block:
                         forbidden_block += lines[next_line_idx]
                         next_line_idx += 1
 
                     # Verify forbidden modules
-                    assert 'audio' in forbidden_block, (
-                        "video must not depend on audio"
-                    )
-                    assert 'source_t3k' in forbidden_block, (
-                        "video must not depend on source_t3k"
-                    )
-                    assert 'webapp' in forbidden_block, (
-                        "video must not depend on webapp"
-                    )
-                    assert 'worker' in forbidden_block, (
-                        "video must not depend on worker"
-                    )
-                    assert 'scheduler' in forbidden_block, (
-                        "video must not depend on scheduler"
-                    )
+                    assert "audio" in forbidden_block, "video must not depend on audio"
+                    assert "source_t3k" in forbidden_block, "video must not depend on source_t3k"
+                    assert "webapp" in forbidden_block, "video must not depend on webapp"
+                    assert "worker" in forbidden_block, "video must not depend on worker"
+                    assert "scheduler" in forbidden_block, "video must not depend on scheduler"
 
                     # Stop checking after finding forbidden_modules
                     break
 
                 # If we hit another contract, stop looking
-                if '[[tool.importlinter.contracts]]' in line:
+                if "[[tool.importlinter.contracts]]" in line:
                     break
 
-        assert video_contract_found, (
-            "must have video-dependencies import-linter contract"
-        )
+        assert video_contract_found, "must have video-dependencies import-linter contract"

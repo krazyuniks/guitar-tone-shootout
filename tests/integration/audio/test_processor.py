@@ -98,23 +98,17 @@ class TestGetSupportedFormats:
         assert "flac" in formats
 
     @pytest.mark.asyncio
-    async def test_is_format_supported_wav(
-        self, processor: PedalboardAudioProcessor
-    ) -> None:
+    async def test_is_format_supported_wav(self, processor: PedalboardAudioProcessor) -> None:
         """Test that WAV format is supported."""
         assert processor.is_format_supported("wav") is True
 
     @pytest.mark.asyncio
-    async def test_is_format_supported_flac(
-        self, processor: PedalboardAudioProcessor
-    ) -> None:
+    async def test_is_format_supported_flac(self, processor: PedalboardAudioProcessor) -> None:
         """Test that FLAC format is supported."""
         assert processor.is_format_supported("flac") is True
 
     @pytest.mark.asyncio
-    async def test_is_format_supported_unknown(
-        self, processor: PedalboardAudioProcessor
-    ) -> None:
+    async def test_is_format_supported_unknown(self, processor: PedalboardAudioProcessor) -> None:
         """Test that unknown formats are not supported."""
         assert processor.is_format_supported("xyz") is False
 

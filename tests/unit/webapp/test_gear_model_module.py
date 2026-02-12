@@ -70,20 +70,18 @@ class TestGearModelModule:
 
         model_fields = set(GearModel.__annotations__.keys())
 
-        assert required_fields.issubset(model_fields), (
-            f"Missing required fields. "
-            f"Expected at least {required_fields}, got {model_fields}"
-        )
+        assert required_fields.issubset(
+            model_fields
+        ), f"Missing required fields. Expected at least {required_fields}, got {model_fields}"
 
     async def test_gear_model_creation(self, session: AsyncSession) -> None:
         """Test creating a GearModel instance."""
         from sqlalchemy import select
 
-        from webapp.adapters.persistence.models.gear import Gear
-        from webapp.adapters.persistence.models.gear_model import GearModel
-
         # Create parent gear first
         from core.domain.value_objects.signal_chain_enums import GearType
+        from webapp.adapters.persistence.models.gear import Gear
+        from webapp.adapters.persistence.models.gear_model import GearModel
 
         gear = Gear(
             name="Test Amp",
@@ -105,9 +103,7 @@ class TestGearModelModule:
         await session.commit()
 
         # Verify
-        result = await session.execute(
-            select(GearModel).where(GearModel.gear_id == gear.id)
-        )
+        result = await session.execute(select(GearModel).where(GearModel.gear_id == gear.id))
         saved_model = result.scalar_one()
 
         assert saved_model.platform == Platform.NAM
@@ -118,10 +114,9 @@ class TestGearModelModule:
         """Test that platform enum is stored by value."""
         from sqlalchemy import select
 
+        from core.domain.value_objects.signal_chain_enums import GearType
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
-
-        from core.domain.value_objects.signal_chain_enums import GearType
 
         gear = Gear(name="Test", gear_type=GearType.AMP)
         session.add(gear)
@@ -138,9 +133,7 @@ class TestGearModelModule:
         await session.commit()
 
         # Verify enum storage
-        result = await session.execute(
-            select(GearModel).where(GearModel.gear_id == gear.id)
-        )
+        result = await session.execute(select(GearModel).where(GearModel.gear_id == gear.id))
         saved_model = result.scalar_one()
 
         assert saved_model.platform == Platform.AIDA_X
@@ -150,10 +143,9 @@ class TestGearModelModule:
         """Test that optional fields can be null."""
         from sqlalchemy import select
 
+        from core.domain.value_objects.signal_chain_enums import GearType
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
-
-        from core.domain.value_objects.signal_chain_enums import GearType
 
         gear = Gear(name="Test", gear_type=GearType.AMP)
         session.add(gear)
@@ -171,9 +163,7 @@ class TestGearModelModule:
         await session.commit()
 
         # Verify nullable fields
-        result = await session.execute(
-            select(GearModel).where(GearModel.gear_id == gear.id)
-        )
+        result = await session.execute(select(GearModel).where(GearModel.gear_id == gear.id))
         saved_model = result.scalar_one()
 
         assert saved_model.file_path is None
@@ -182,12 +172,10 @@ class TestGearModelModule:
 
     async def test_gear_model_has_indexes(self, session: AsyncSession) -> None:
         """Test that GearModel has indexes for common query patterns."""
-        from sqlalchemy import Table
-
         from webapp.adapters.persistence.models.gear_model import GearModel
 
         # Verify indexes exist in model definition
-        gear_model_table: Table = GearModel.__table__  # type: ignore[assignment]
+        gear_model_table = GearModel.__table__
 
         index_names = {index.name for index in gear_model_table.indexes}
 

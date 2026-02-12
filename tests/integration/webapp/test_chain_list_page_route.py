@@ -67,9 +67,7 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             # Verify successful response
@@ -80,7 +78,7 @@ class TestLibraryChainsPageRoute:
 
             # Verify page contains expected structure
             html = response.text
-            assert "data-testid=\"library-chains-page\"" in html
+            assert 'data-testid="library-chains-page"' in html
             assert "Signal Chains" in html or "My Chains" in html or "Chains" in html
 
     async def test_library_chains_renders_base_layout(
@@ -93,9 +91,7 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
@@ -118,9 +114,7 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
@@ -146,9 +140,7 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
@@ -157,7 +149,7 @@ class TestLibraryChainsPageRoute:
             assert "Test Chain" in html
 
             # Should have chain card or item container
-            assert "data-testid=\"chain-item\"" in html or "chain-card" in html
+            assert 'data-testid="chain-item"' in html or "chain-card" in html
 
     async def test_library_chains_has_create_chain_button(
         self, db_session: AsyncSession, test_user: User
@@ -169,16 +161,14 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
 
             # Should have create chain button with testid
             assert (
-                "data-testid=\"create-chain-btn\"" in html
+                'data-testid="create-chain-btn"' in html
                 or "create-chain" in html
                 or "new-chain" in html
             )
@@ -193,19 +183,14 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
 
             # Should have HTMX attributes (hx-get, hx-post, hx-delete, etc.)
             assert (
-                "hx-get" in html
-                or "hx-post" in html
-                or "hx-delete" in html
-                or "hx-target" in html
+                "hx-get" in html or "hx-post" in html or "hx-delete" in html or "hx-target" in html
             )
 
     async def test_library_chains_has_delete_buttons(
@@ -221,16 +206,14 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
 
             # Should have delete button with testid
             assert (
-                "data-testid=\"delete-chain-btn\"" in html
+                'data-testid="delete-chain-btn"' in html
                 or "delete-chain" in html
                 or "remove-chain" in html
             )
@@ -248,16 +231,14 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
 
             # Should have duplicate button with testid
             assert (
-                "data-testid=\"duplicate-chain-btn\"" in html
+                'data-testid="duplicate-chain-btn"' in html
                 or "duplicate-chain" in html
                 or "copy-chain" in html
             )
@@ -275,23 +256,19 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
 
             # Should have edit link or button
             assert (
-                "data-testid=\"edit-chain-btn\"" in html
+                'data-testid="edit-chain-btn"' in html
                 or "edit-chain" in html
                 or "/library/chains/build" in html
             )
 
-    async def test_library_chains_requires_authentication(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_library_chains_requires_authentication(self, db_session: AsyncSession) -> None:
         """Verify page requires authentication."""
         from webapp.api import pages
 
@@ -299,9 +276,7 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         # Do NOT override get_current_user - should fail with 401
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             # Should return 401 Unauthorized
@@ -320,19 +295,13 @@ class TestLibraryChainsPageRoute:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/chains")
 
             html = response.text
 
             # Should show platform (NAM, AIDA-X, etc.)
-            assert (
-                "NAM" in html
-                or "nam" in html
-                or "data-testid=\"platform-badge\"" in html
-            )
+            assert "NAM" in html or "nam" in html or 'data-testid="platform-badge"' in html
 
 
 @pytest.mark.xfail(reason="Pre-existing: template assertions need update")
@@ -354,9 +323,7 @@ class TestChainListFragments:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Fragment endpoint should exist (may return 405 if not DELETE method)
             # This test verifies the route exists
             response = await client.delete(f"/fragments/chains/{test_chain.id}")
@@ -377,9 +344,7 @@ class TestChainListFragments:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Fragment endpoint should exist
             response = await client.post(f"/fragments/chains/{test_chain.id}/duplicate")
 
@@ -399,9 +364,7 @@ class TestChainListFragments:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/fragments/chains/list")
 
             # Should return success
@@ -425,16 +388,12 @@ class TestChainListFragments:
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
         app.dependency_overrides[pages.get_current_user] = lambda: test_user
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/fragments/chains/list")
 
             html = response.text
 
             # Should show empty state
             assert (
-                "no chains" in html.lower()
-                or "empty" in html.lower()
-                or "create" in html.lower()
+                "no chains" in html.lower() or "empty" in html.lower() or "create" in html.lower()
             )

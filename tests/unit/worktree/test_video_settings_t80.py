@@ -14,9 +14,7 @@ class TestVideoPortSettings:
     def test_settings_has_base_port_video_attribute(self):
         """Settings should have base_port_video field."""
         settings = Settings()
-        assert hasattr(settings, "base_port_video"), (
-            "Settings missing base_port_video attribute"
-        )
+        assert hasattr(settings, "base_port_video"), "Settings missing base_port_video attribute"
 
     def test_base_port_video_default_is_8002(self):
         """Default video port should be 8002 (matches docker-compose.yml)."""

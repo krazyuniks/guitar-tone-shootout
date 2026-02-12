@@ -1,7 +1,5 @@
 """Unit tests for RemotionPlayer React component structure."""
 
-import pytest
-
 
 class TestRemotionPlayerStructure:
     """Test that the RemotionPlayer component structure exists."""
@@ -45,7 +43,9 @@ class TestRemotionPlayerStructure:
             "RemotionPlayer",
             "HeroAnimation.tsx",
         )
-        assert os.path.isfile(component_file), f"HeroAnimation component file not found at {component_file}"
+        assert os.path.isfile(
+            component_file
+        ), f"HeroAnimation component file not found at {component_file}"
 
     def test_how_to_video_component_exists(self) -> None:
         """HowToVideo component file should exist."""
@@ -59,7 +59,9 @@ class TestRemotionPlayerStructure:
             "RemotionPlayer",
             "HowToVideo.tsx",
         )
-        assert os.path.isfile(component_file), f"HowToVideo component file not found at {component_file}"
+        assert os.path.isfile(
+            component_file
+        ), f"HowToVideo component file not found at {component_file}"
 
 
 class TestRemotionPlayerDependencies:
@@ -76,7 +78,10 @@ class TestRemotionPlayerDependencies:
         with open(package_json_path) as f:
             package_data = json.load(f)
 
-        dependencies = {**package_data.get("dependencies", {}), **package_data.get("devDependencies", {})}
+        dependencies = {
+            **package_data.get("dependencies", {}),
+            **package_data.get("devDependencies", {}),
+        }
 
         assert "@remotion/player" in dependencies, "@remotion/player not in dependencies"
 
@@ -90,7 +95,10 @@ class TestRemotionPlayerDependencies:
         with open(package_json_path) as f:
             package_data = json.load(f)
 
-        dependencies = {**package_data.get("dependencies", {}), **package_data.get("devDependencies", {})}
+        dependencies = {
+            **package_data.get("dependencies", {}),
+            **package_data.get("devDependencies", {}),
+        }
 
         # Remotion requires react and remotion core
         assert "react" in dependencies, "react not in dependencies"

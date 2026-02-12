@@ -3,12 +3,13 @@
 from collections.abc import AsyncGenerator
 
 import pytest
-from alembic import command
-from alembic.config import Config
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-
-from webapp.adapters.persistence.models.base import Base
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 
 @pytest.fixture
@@ -40,9 +41,7 @@ class TestUserGearFKMigration:
         migration_file = Path(
             "infrastructure/migrations/versions/0003_user_gear_fk_to_gear_model.py"
         )
-        assert (
-            migration_file.exists()
-        ), f"Migration file not found: {migration_file}"
+        assert migration_file.exists(), f"Migration file not found: {migration_file}"
 
     async def test_migration_renames_column_from_gear_id_to_gear_model_id(
         self, migration_session: AsyncSession
@@ -100,9 +99,7 @@ class TestUserGearFKMigration:
         await migration_session.commit()
 
         # Verify old schema
-        result = await migration_session.execute(
-            text("PRAGMA table_info(user_gear)")
-        )
+        result = await migration_session.execute(text("PRAGMA table_info(user_gear)"))
         columns_before = {row[1] for row in result.fetchall()}
         assert "gear_id" in columns_before
         assert "gear_model_id" not in columns_before
@@ -132,9 +129,7 @@ class TestUserGearFKMigration:
         # 2. Add new unique constraint on (user_id, gear_model_id)
         pass  # Test structure verification only
 
-    async def test_migration_updates_indexes(
-        self, migration_session: AsyncSession
-    ) -> None:
+    async def test_migration_updates_indexes(self, migration_session: AsyncSession) -> None:
         """Migration should update indexes to use gear_model_id instead of gear_id."""
         # This test verifies the expected end state after migration
         # The migration should:
@@ -153,9 +148,7 @@ class TestUserGearFKMigration:
         )
 
         if migration_file.exists():
-            spec = importlib.util.spec_from_file_location(
-                "migration_0003", migration_file
-            )
+            spec = importlib.util.spec_from_file_location("migration_0003", migration_file)
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)

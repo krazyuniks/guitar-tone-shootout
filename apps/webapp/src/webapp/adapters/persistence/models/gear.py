@@ -53,13 +53,15 @@ def _slugify(text: str, manufacturer: str | None = None) -> str:
     slug = combined.lower()
     # Normalize unicode characters (ö -> o, etc.)
     import unicodedata
-    slug = unicodedata.normalize('NFKD', slug)
-    slug = slug.encode('ascii', 'ignore').decode('ascii')
+
+    slug = unicodedata.normalize("NFKD", slug)
+    slug = slug.encode("ascii", "ignore").decode("ascii")
     # Replace non-alphanumeric characters with hyphens
-    slug = re.sub(r'[^a-z0-9-]+', '-', slug)
+    slug = re.sub(r"[^a-z0-9-]+", "-", slug)
     # Remove leading/trailing hyphens and collapse multiple hyphens
-    slug = re.sub(r'-+', '-', slug).strip('-')
+    slug = re.sub(r"-+", "-", slug).strip("-")
     return slug
+
 
 # Junction table for gear-tag many-to-many relationship
 gear_tags_table = Table(
@@ -201,7 +203,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
 
 
 # Event listener to auto-generate slug before insert
-@event.listens_for(Gear, 'before_insert')
+@event.listens_for(Gear, "before_insert")
 def generate_slug(mapper, connection, target):
     """Automatically generate slug if not provided."""
     if not target.slug:

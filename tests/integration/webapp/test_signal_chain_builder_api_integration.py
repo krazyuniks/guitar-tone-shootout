@@ -20,7 +20,9 @@ from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
-from webapp.adapters.persistence.models.signal_chain_block import SignalChainBlock as SignalChainBlockModel
+from webapp.adapters.persistence.models.signal_chain_block import (
+    SignalChainBlock as SignalChainBlockModel,
+)
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.auth.dependencies import set_session_override, set_user_override
@@ -94,7 +96,9 @@ async def test_gear(db_session: AsyncSession) -> list[Gear]:
 
 
 @pytest.fixture
-async def user_gear(db_session: AsyncSession, test_user: User, test_gear: list[Gear]) -> list[UserGear]:
+async def user_gear(
+    db_session: AsyncSession, test_user: User, test_gear: list[Gear]
+) -> list[UserGear]:
     """Create user's gear library via gear models."""
     # Create a gear model for each gear item
     gear_models = []

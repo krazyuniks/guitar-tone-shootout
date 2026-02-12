@@ -81,9 +81,7 @@ class IdentityService:
 
             # Re-fetch user with identities eagerly loaded
             result = await self.db_session.execute(
-                select(User)
-                .where(User.id == user.id)
-                .options(joinedload(User.identities))
+                select(User).where(User.id == user.id).options(joinedload(User.identities))
             )
             return result.unique().scalar_one()
 
@@ -112,9 +110,7 @@ class IdentityService:
 
         # Re-fetch user with identities eagerly loaded
         result = await self.db_session.execute(
-            select(User)
-            .where(User.id == user.id)
-            .options(joinedload(User.identities))
+            select(User).where(User.id == user.id).options(joinedload(User.identities))
         )
         return result.unique().scalar_one()
 

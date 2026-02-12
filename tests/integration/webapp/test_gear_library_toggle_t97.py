@@ -5,7 +5,7 @@ used by the gear detail page checkboxes.
 """
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -128,9 +128,7 @@ class TestGearLibraryToggleEndpoint:
     ) -> None:
         """Verify toggle endpoint requires authentication."""
         # Find a gear model
-        result = await db_session.execute(
-            select(GearModel).limit(1)
-        )
+        result = await db_session.execute(select(GearModel).limit(1))
         gear_model = result.scalar_one_or_none()
         assert gear_model is not None, "No gear models found"
 
@@ -144,8 +142,7 @@ class TestGearLibraryToggleEndpoint:
             )
 
         # Verify response is 401 Unauthorized
-        assert response.status_code == 401, \
-            f"Expected 401 Unauthorized, got {response.status_code}"
+        assert response.status_code == 401, f"Expected 401 Unauthorized, got {response.status_code}"
 
     async def test_toggle_returns_404_for_nonexistent_model(
         self,
@@ -167,8 +164,7 @@ class TestGearLibraryToggleEndpoint:
             )
 
         # Verify response is 404 Not Found
-        assert response.status_code == 404, \
-            f"Expected 404 Not Found, got {response.status_code}"
+        assert response.status_code == 404, f"Expected 404 Not Found, got {response.status_code}"
 
     async def test_toggle_endpoint_uses_post_method(
         self,
@@ -177,9 +173,7 @@ class TestGearLibraryToggleEndpoint:
     ) -> None:
         """Verify toggle endpoint only accepts POST requests."""
         # Find a gear model
-        result = await db_session.execute(
-            select(GearModel).limit(1)
-        )
+        result = await db_session.execute(select(GearModel).limit(1))
         gear_model = result.scalar_one_or_none()
         assert gear_model is not None, "No gear models found"
 
@@ -194,5 +188,6 @@ class TestGearLibraryToggleEndpoint:
             )
 
         # Verify response is 405 Method Not Allowed
-        assert response.status_code == 405, \
-            f"Expected 405 Method Not Allowed, got {response.status_code}"
+        assert (
+            response.status_code == 405
+        ), f"Expected 405 Method Not Allowed, got {response.status_code}"

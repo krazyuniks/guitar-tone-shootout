@@ -173,11 +173,9 @@ class TestChainBuilderPageRoute:
         # (Astro bundles are in /_astro/*.js)
         # Or inline script that mounts the component
         has_script = (
-            "/_astro/" in html and ".js" in html
-        ) or (
-            "SignalChainBuilder" in html
-        ) or (
-            "<script>" in html
+            ("/_astro/" in html and ".js" in html)
+            or ("SignalChainBuilder" in html)
+            or ("<script>" in html)
         )
         assert has_script, "No React mounting scripts found"
 
@@ -203,9 +201,7 @@ class TestBuilderWithChainId:
         """Builder should accept ?chain_id=<uuid> query parameter."""
         test_chain_id = uuid4()
 
-        response = await authenticated_client.get(
-            f"/library/chains/build?chain_id={test_chain_id}"
-        )
+        response = await authenticated_client.get(f"/library/chains/build?chain_id={test_chain_id}")
 
         # Should return 200 (even if chain doesn't exist, page still renders)
         # Component handles "chain not found" on client side
@@ -218,9 +214,7 @@ class TestBuilderWithChainId:
         """Builder should pass chain_id to template context for React props."""
         test_chain_id = uuid4()
 
-        response = await authenticated_client.get(
-            f"/library/chains/build?chain_id={test_chain_id}"
-        )
+        response = await authenticated_client.get(f"/library/chains/build?chain_id={test_chain_id}")
 
         assert response.status_code == 200
         html = response.text
@@ -262,7 +256,7 @@ class TestBuilderPageIntegration:
         # Should have title tag with builder-related content
         assert "<title>" in html
         # Title should mention "build" or "create" or "builder"
-        title_section = html[html.find("<title>"):html.find("</title>") + 8]
+        title_section = html[html.find("<title>") : html.find("</title>") + 8]
         title_lower = title_section.lower()
         assert (
             "build" in title_lower

@@ -7,16 +7,22 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from core.domain.entities.shootout import Shootout as ShootoutEntity
 from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
 from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.repositories.shootout_repository import SQLAlchemyShootoutRepository
+from webapp.adapters.persistence.repositories.shootout_repository import (
+    SQLAlchemyShootoutRepository,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-    from datetime import datetime
 
 
 class QueryCounter:
@@ -88,10 +94,10 @@ async def test_shootout_get_by_id_single_query(
     Expected: 1 SQL query total (single SELECT with JOIN).
     """
     # Create test data: 1 shootout with chains
-    from datetime import UTC, datetime
 
     # Create user
     from webapp.adapters.persistence.models.user import User
+
     test_user = User(
         id=uuid4(),
         username="test_user",
@@ -101,6 +107,7 @@ async def test_shootout_get_by_id_single_query(
 
     # Create DI track
     from webapp.adapters.persistence.models.shootout import DITrack
+
     di_track = DITrack(
         id=uuid4(),
         user_id=test_user.id,
@@ -115,6 +122,7 @@ async def test_shootout_get_by_id_single_query(
     # Create signal chains
     from core.domain.value_objects.signal_chain_enums import Platform
     from webapp.adapters.persistence.models.signal_chain import SignalChain
+
     chain1 = SignalChain(
         id=uuid4(),
         user_id=test_user.id,
@@ -207,10 +215,10 @@ async def test_shootout_get_public_single_query_with_pagination(
     limits rows instead of entities.
     """
     # Create test data: 10 processed shootouts with di_track and chains
-    from datetime import UTC, datetime
 
     # First, create users for the shootouts
     from webapp.adapters.persistence.models.user import User
+
     test_user = User(
         id=uuid4(),
         username="test_user",
@@ -220,6 +228,7 @@ async def test_shootout_get_public_single_query_with_pagination(
 
     # Create DI tracks
     from webapp.adapters.persistence.models.shootout import DITrack
+
     di_tracks = []
     for i in range(10):
         di_track = DITrack(
@@ -237,6 +246,7 @@ async def test_shootout_get_public_single_query_with_pagination(
     # Create signal chains for shootout chains
     from core.domain.value_objects.signal_chain_enums import Platform
     from webapp.adapters.persistence.models.signal_chain import SignalChain
+
     signal_chains = []
     for i in range(20):  # 20 chains total (2 per shootout)
         chain = SignalChain(
@@ -249,7 +259,6 @@ async def test_shootout_get_public_single_query_with_pagination(
         signal_chains.append(chain)
 
     # Create 10 processed shootouts
-    from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
     for i in range(10):
         shootout_entity = ShootoutEntity(
             id=uuid4(),
@@ -331,6 +340,7 @@ async def test_shootout_get_by_user_id_uses_id_subquery_pattern(
     """
     # Create test user
     from webapp.adapters.persistence.models.user import User
+
     test_user = User(
         id=uuid4(),
         username="test_user",
@@ -340,6 +350,7 @@ async def test_shootout_get_by_user_id_uses_id_subquery_pattern(
 
     # Create DI tracks
     from webapp.adapters.persistence.models.shootout import DITrack
+
     di_tracks = []
     for i in range(10):
         di_track = DITrack(
@@ -357,6 +368,7 @@ async def test_shootout_get_by_user_id_uses_id_subquery_pattern(
     # Create signal chains for shootout chains
     from core.domain.value_objects.signal_chain_enums import Platform
     from webapp.adapters.persistence.models.signal_chain import SignalChain
+
     signal_chains = []
     for i in range(20):  # 20 chains total (2 per shootout)
         chain = SignalChain(

@@ -1,15 +1,14 @@
 """Unit tests for video image preparation utilities."""
 
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 
-import pytest
 from PIL import Image
 
 from video.image_prep import (
+    convert_to_format,
     normalize_gear_image,
     resize_image,
-    convert_to_format,
 )
 
 

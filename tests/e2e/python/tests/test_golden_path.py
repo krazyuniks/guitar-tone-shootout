@@ -9,7 +9,6 @@ import re
 import pytest
 from playwright.async_api import Page, expect
 
-
 # --- Public pages (200) ---
 
 
@@ -142,7 +141,9 @@ MIN_GEAR_COUNT = 6213
 class TestGearDataPresent:
     """Verify gear data exists — database must not be empty."""
 
-    async def test_gear_api_returns_minimum_count(self, guest_page: Page, frontend_url: str) -> None:
+    async def test_gear_api_returns_minimum_count(
+        self, guest_page: Page, frontend_url: str
+    ) -> None:
         """Gear API reports at least MIN_GEAR_COUNT items."""
         response = await guest_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
         assert response.ok
@@ -169,7 +170,9 @@ class TestGearSSRContent:
         results_count = guest_page.locator('[data-testid="results-count"]')
         pagination_count = await pagination.count()
         results_count_count = await results_count.count()
-        assert pagination_count > 0 or results_count_count > 0, "Expected pagination or results count"
+        assert (
+            pagination_count > 0 or results_count_count > 0
+        ), "Expected pagination or results count"
 
     async def test_gear_browse_no_htmx_loading(self, guest_page: Page, frontend_url: str) -> None:
         """Verify no HTMX loading skeleton — content is SSR."""

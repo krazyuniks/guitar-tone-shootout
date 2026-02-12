@@ -87,18 +87,14 @@ async def test_user_identity_links_to_user(db_session: AsyncSession) -> None:
     await db_session.close()
 
     # Create new session
-    async_session = async_sessionmaker(
-        db_session.bind, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)
     new_session = async_session()
 
     # Query back and verify relationships
     result = await new_session.execute(
         select(User)
         .where(User.id == user_id)
-        .options(
-            joinedload(User.identities).joinedload(UserIdentity.provider)
-        )
+        .options(joinedload(User.identities).joinedload(UserIdentity.provider))
     )
     loaded_user = result.unique().scalar_one()
 
@@ -146,18 +142,14 @@ async def test_user_has_many_identities(db_session: AsyncSession) -> None:
     await db_session.close()
 
     # Create new session
-    async_session = async_sessionmaker(
-        db_session.bind, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)
     new_session = async_session()
 
     # Query and verify
     result = await new_session.execute(
         select(User)
         .where(User.id == user_id)
-        .options(
-            joinedload(User.identities).joinedload(UserIdentity.provider)
-        )
+        .options(joinedload(User.identities).joinedload(UserIdentity.provider))
     )
     loaded_user = result.unique().scalar_one()
 

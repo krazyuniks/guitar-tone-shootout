@@ -68,9 +68,9 @@ def test_user_model_is_active_column_is_boolean() -> None:
     assert hasattr(is_active_col, "type"), "Column has no type attribute"
     # SQLAlchemy Boolean type will have __visit_name__ == 'boolean'
     assert hasattr(is_active_col.type, "__visit_name__"), "Type has no __visit_name__"
-    assert is_active_col.type.__visit_name__ == "boolean", (
-        f"is_active column must be Boolean type, got {is_active_col.type.__visit_name__}"
-    )
+    assert (
+        is_active_col.type.__visit_name__ == "boolean"
+    ), f"is_active column must be Boolean type, got {is_active_col.type.__visit_name__}"
 
 
 def test_user_model_is_active_column_not_nullable() -> None:
@@ -87,9 +87,9 @@ def test_user_model_is_active_column_not_nullable() -> None:
     assert is_active_col is not None, "is_active column not found"
 
     # Column should not be nullable (has default value)
-    assert is_active_col.nullable is False, (
-        "is_active column should not be nullable (should have default=True)"
-    )
+    assert (
+        is_active_col.nullable is False
+    ), "is_active column should not be nullable (should have default=True)"
 
 
 def test_user_model_is_active_column_has_default() -> None:
@@ -107,9 +107,9 @@ def test_user_model_is_active_column_has_default() -> None:
 
     # Check for default value
     # In SQLAlchemy, column.default might be a ColumnDefault object or None
-    assert is_active_col.default is not None, (
-        "is_active column must have a default value (should default to True)"
-    )
+    assert (
+        is_active_col.default is not None
+    ), "is_active column must have a default value (should default to True)"
 
 
 @pytest.mark.asyncio
@@ -171,9 +171,7 @@ async def test_user_model_is_active_persists_to_database(db_session: AsyncSessio
     retrieved_user = result.scalar_one()
 
     # Should still be inactive
-    assert retrieved_user.is_active is False, (
-        "is_active value not persisted correctly to database"
-    )
+    assert retrieved_user.is_active is False, "is_active value not persisted correctly to database"
 
 
 @pytest.mark.asyncio

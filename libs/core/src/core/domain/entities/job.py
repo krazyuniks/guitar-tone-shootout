@@ -134,9 +134,7 @@ class Job(Entity):
             raise ValueError(f"Progress must be between 0 and 100, got {progress}")
 
         if self.status != JobStatus.RUNNING:
-            raise JobError(
-                f"Cannot update progress on job in {self.status.value} state"
-            )
+            raise JobError(f"Cannot update progress on job in {self.status.value} state")
 
         self.progress = progress
         if message is not None:
@@ -188,9 +186,7 @@ class Job(Entity):
             JobError: If job is not in RUNNING state
         """
         if self.status != JobStatus.RUNNING:
-            raise JobError(
-                f"Cannot update heartbeat on job in {self.status.value} state"
-            )
+            raise JobError(f"Cannot update heartbeat on job in {self.status.value} state")
 
         self.last_heartbeat = utcnow()
         self.updated_at = utcnow()
@@ -209,9 +205,7 @@ class Job(Entity):
             JobError: If max attempts already reached
         """
         if self.attempt >= self.max_attempts:
-            raise JobError(
-                f"Cannot retry job: max attempts ({self.max_attempts}) reached"
-            )
+            raise JobError(f"Cannot retry job: max attempts ({self.max_attempts}) reached")
 
         self.attempt += 1
         self.next_retry_at = next_retry_at

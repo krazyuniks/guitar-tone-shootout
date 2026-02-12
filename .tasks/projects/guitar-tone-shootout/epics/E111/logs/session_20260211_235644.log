@@ -1,0 +1,42 @@
+2026-02-12 00:56:44,478 [INFO] Session log: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111/logs/session_20260211_235644.log
+2026-02-12 00:56:44,478 [INFO] Starting TDD state machine for Epic E111
+2026-02-12 00:56:44,479 [INFO]   Tasks dir: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111
+2026-02-12 00:56:44,479 [INFO]   Max iterations: 50
+2026-02-12 00:56:44,479 [INFO]   Dry run: False
+2026-02-12 00:56:44,479 [INFO]
+2026-02-12 00:56:44,479 [INFO] === Iteration 1 ===
+2026-02-12 00:56:44,498 [INFO]
+2026-02-12 00:56:44,498 [INFO] All tasks complete! Running final health check...
+2026-02-12 00:56:44,498 [INFO]     Running: just epic-health 111
+2026-02-12 00:58:41,577 [DEBUG]     just epic-health 111 -> FAILED (exit 1)
+2026-02-12 00:58:41,578 [DEBUG]     Output:
+Report saved to .tasks/projects/guitar-tone-shootout/epics/E111/health-report.md
+# Health Check: 111
+
+**Status**: ❌ UNHEALTHY
+
+| Check | Status | Message |
+|-------|--------|---------|
+| lint | ❌ | Lint errors |
+| typecheck | ❌ | Type errors |
+| tests | ❌ | Tests failed |
+| regression | ✅ | Regression passed |
+| e2e | ❌ | E2E failed |
+python scripts/health_check.py 111
+error: Recipe `epic-health` failed on line 616 with exit code 1
+
+2026-02-12 00:58:41,578 [INFO] Health check failed:
+2026-02-12 00:58:41,578 [INFO] Report saved to .tasks/projects/guitar-tone-shootout/epics/E111/health-report.md
+# Health Check: 111
+
+**Status**: ❌ UNHEALTHY
+
+| Check | Status | Message |
+|-------|--------|---------|
+| lint | ❌ | Lint errors |
+| typecheck | ❌ | Type errors |
+| tests | ❌ | Tests failed |
+| regression | ✅ | Regression passed |
+| e2e | ❌ | E2E failed |
+python scripts/health_check.py 111
+error: Recipe `epic-health` failed on line 616 with exit code 1

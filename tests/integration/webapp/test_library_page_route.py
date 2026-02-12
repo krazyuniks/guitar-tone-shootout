@@ -69,9 +69,7 @@ class TestLibraryMyGearPageRoute:
         app = create_app()
         app.dependency_overrides[pages.get_db_session] = lambda: db_session
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             # Verify successful response
@@ -82,7 +80,7 @@ class TestLibraryMyGearPageRoute:
 
             # Verify page contains expected structure
             html = response.text
-            assert "data-testid=\"library-my-gear-page\"" in html
+            assert 'data-testid="library-my-gear-page"' in html
             assert "My Gear" in html or "My Library" in html
 
     async def test_library_my_gear_renders_base_layout(
@@ -91,9 +89,7 @@ class TestLibraryMyGearPageRoute:
         """Verify library page extends base layout."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
@@ -112,9 +108,7 @@ class TestLibraryMyGearPageRoute:
         """Verify page shows empty state when user has no gear."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
@@ -146,9 +140,7 @@ class TestLibraryMyGearPageRoute:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
@@ -157,7 +149,7 @@ class TestLibraryMyGearPageRoute:
             assert "Test Amp" in html or "My Test Amp" in html
 
             # Should have gear card or item container
-            assert "data-testid=\"gear-item\"" in html or "gear-card" in html
+            assert 'data-testid="gear-item"' in html or "gear-card" in html
 
     async def test_library_my_gear_has_add_gear_button(
         self, db_session: AsyncSession, test_user: User
@@ -165,15 +157,13 @@ class TestLibraryMyGearPageRoute:
         """Verify page has button/link to add gear to library."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
 
             # Should have add gear button with testid
-            assert "data-testid=\"add-gear-btn\"" in html or "add-gear" in html
+            assert 'data-testid="add-gear-btn"' in html or "add-gear" in html
 
     async def test_library_my_gear_has_htmx_attributes(
         self, db_session: AsyncSession, test_user: User
@@ -181,19 +171,14 @@ class TestLibraryMyGearPageRoute:
         """Verify page uses HTMX for dynamic add/remove operations."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
 
             # Should have HTMX attributes (hx-get, hx-post, hx-delete, etc.)
             assert (
-                "hx-get" in html
-                or "hx-post" in html
-                or "hx-delete" in html
-                or "hx-target" in html
+                "hx-get" in html or "hx-post" in html or "hx-delete" in html or "hx-target" in html
             )
 
     async def test_library_my_gear_has_remove_buttons(
@@ -214,16 +199,14 @@ class TestLibraryMyGearPageRoute:
 
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
 
             # Should have remove button with testid
             assert (
-                "data-testid=\"remove-gear-btn\"" in html
+                'data-testid="remove-gear-btn"' in html
                 or "remove-gear" in html
                 or "delete-gear" in html
             )
@@ -234,16 +217,14 @@ class TestLibraryMyGearPageRoute:
         """Verify page has filter controls for gear types."""
         app = create_app()
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/library/my-gear")
 
             html = response.text
 
             # Should have filter controls
             assert (
-                "data-testid=\"gear-type-filter\"" in html
+                'data-testid="gear-type-filter"' in html
                 or "gear-type-filter" in html
                 or "filter" in html.lower()
             )

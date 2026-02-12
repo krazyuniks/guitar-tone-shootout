@@ -3,10 +3,7 @@
 Tests verify the protocol interface exists with correct method signatures.
 """
 
-import pytest
-
 from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
 from core.ports.video_render_client import VideoRenderClient
 
 
@@ -29,7 +26,7 @@ class TestVideoRenderClientProtocol:
         """submit_render method accepts CompositionSpec parameter."""
         # This test verifies the protocol method signature shape
         # Actual implementation will be tested in integration tests
-        spec = CompositionSpec(
+        CompositionSpec(
             composition_type="shootout",
             data={"shootout_id": "s-123"},
         )

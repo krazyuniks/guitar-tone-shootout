@@ -8,11 +8,15 @@ Tests for IdentityService which handles user creation and identity linking:
 """
 
 from collections.abc import AsyncGenerator
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import joinedload
 
 from webapp.adapters.persistence.models.base import Base
@@ -103,9 +107,7 @@ class TestIdentityService:
 
         # Re-query user with identities eagerly loaded (lazy="raise" on model)
         result = await db_session.execute(
-            select(User)
-            .where(User.id == user.id)
-            .options(joinedload(User.identities))
+            select(User).where(User.id == user.id).options(joinedload(User.identities))
         )
         user = result.unique().scalar_one()
 
@@ -164,8 +166,6 @@ class TestIdentityService:
             username="old_username",
             email="old@email.com",
         )
-        initial_username = user.username
-
         # Update with new OAuth data
         updated_user = await service.get_or_create_user(
             provider_name="t3k",
@@ -284,9 +284,7 @@ class TestIdentityService:
 
         # Re-query user with identities eagerly loaded (lazy="raise" on model)
         result = await db_session.execute(
-            select(User)
-            .where(User.id == t3k_user.id)
-            .options(joinedload(User.identities))
+            select(User).where(User.id == t3k_user.id).options(joinedload(User.identities))
         )
         t3k_user = result.unique().scalar_one()
 

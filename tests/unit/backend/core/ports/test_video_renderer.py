@@ -3,8 +3,6 @@
 Tests the generic video rendering port interface for composition submissions.
 """
 
-import pytest
-
 from core.domain.value_objects.composition_spec import CompositionSpec
 from core.domain.value_objects.render_status import RenderStatus
 from core.ports.video_renderer import VideoRenderer
@@ -46,7 +44,7 @@ class TestVideoRendererProtocol:
         sig = signature(submit_method)
 
         # Return type should be str
-        assert sig.return_annotation == str
+        assert sig.return_annotation is str
 
     def test_poll_signature_accepts_job_id(self) -> None:
         """poll() method signature must accept job_id string."""
@@ -60,7 +58,7 @@ class TestVideoRendererProtocol:
 
         # Should have 'self' and 'job_id' parameters
         assert "job_id" in params
-        assert sig.parameters["job_id"].annotation == str
+        assert sig.parameters["job_id"].annotation is str
 
     def test_poll_returns_render_status(self) -> None:
         """poll() must return RenderStatus value object."""

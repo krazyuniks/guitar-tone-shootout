@@ -132,24 +132,21 @@ Waves:
 
 ---
 
-### C1: Interleaved backfill+newest sync loop
+### C1: Interleaved backfill+newest sync loop (REDO — integration tests)
 
-**Objective:** Refactor `T3KSyncService` with a `run_catalog_sync()` method that alternates backfill walk (oldest→newest from checkpoint) + newest check (scan from most recent until hitting already-synced records). Implements skip-recently-synced and stale detection for efficient continuous operation.
+**Objective:** Implementation exists and is wired. Original unit tests used mocks (violated no-mock policy). Rewrite as real integration tests verifying observable product behaviour.
 
-**Citation:** Epic #111 Phase 5B — "Interleaved backfill+newest sync loop (run_catalog_sync()) — alternating backfill walk + newest check with skip-recently-synced and stale detection"
+**Test Acceptance Criteria:**
+- [ ] After `run_catalog_sync(max_iterations=1)`, `SyncCheckpoint.last_record_id` in DB has advanced
+- [ ] After sync, staging tables have rows (pack + model)
+- [ ] Publisher receives real `GearSyncRecord` objects from staged data
+- [ ] Skip-recently-synced and stale checkpoint detection verified via DB reads
+- [ ] Each batch commits checkpoint (verified via DB read between batches)
 
-**Acceptance Criteria:**
-- [ ] `run_catalog_sync()` is the main entry point for continuous sync
-- [ ] Alternates between backfill batch (N pages from checkpoint) and newest check (2 pages from newest)
-- [ ] Backfill advances checkpoint forward through catalog
-- [ ] Newest check stops when hitting records already in staging
-- [ ] Records synced within last 7 days are skipped (skip-recently-synced)
-- [ ] Checkpoint older than 30 days triggers reset (stale detection)
-- [ ] Each batch commits checkpoint for resumability
-- [ ] Publishes GearSyncRecord to pgmq via existing GearSyncPublisher after staging
-
-**Scope:**
-- Modify: `sources/t3k/src/source_t3k/services/sync_service.py`
+**Test Scope:**
+- Create: `tests/integration/t3k/test_catalog_sync.py`
+- Create: `tests/integration/t3k/conftest.py`
+- Mock only: T3K HTTP API client (external network)
 
 **Dependencies:** None
 
@@ -182,29 +179,20 @@ Waves:
 
 ---
 
-### D1: pgmq consumer and GearMapperService
+### D1: pgmq consumer and GearMapperService (REDO — integration tests)
 
-**Objective:** Build the pgmq consumer polling loop that reads from `gear_pack_sync` and `gear_model_sync` queues in gts_t3k_source, validates messages against GearSyncRecord schema, and upserts to gts_core via GearMapperService. Implements dead-letter handling, file migration, and `pgmq.archive()` on success.
+**Objective:** Implementation exists and is wired. Original unit tests used mocks (violated no-mock policy). Rewrite as real integration tests verifying observable product behaviour with dual SQLite sessions.
 
-**Citation:** Epic #111 Phase 5D — entire "Consumer Flow" section
+**Test Acceptance Criteria:**
+- [ ] After `mapper.process_pack_sync(record)`, Gear and GearSource rows exist in DB
+- [ ] After `mapper.process_model_sync(record)`, GearModel row exists linked to parent Gear
+- [ ] Last-write-wins: source_updated_at comparison verified via DB reads
+- [ ] Consumer dead-letter handling for invalid messages and read_ct > 5
+- [ ] Consumer archives message after successful processing
 
-**Acceptance Criteria:**
-- [ ] Consumer polls `gear_pack_sync` queue using `pgmq.read_with_poll('gear_pack_sync', vt=60, qty=10)`
-- [ ] Consumer polls `gear_model_sync` queue
-- [ ] Messages deserialised via `GearSyncRecord.from_dict()`
-- [ ] Invalid messages (schema validation failure) moved to `sync_dead_letter` queue
-- [ ] Messages with `read_ct > 5` moved to `sync_dead_letter` queue
-- [ ] GearMapperService creates/updates Gear + GearSource in gts_core using `(source_name, source_record_id)` lookup
-- [ ] GearMapperService creates/updates GearModel in gts_core
-- [ ] `source_updated_at` comparison for last-write-wins (skip if source_updated_at <= existing)
-- [ ] Model files moved from `source_downloads/{source}/{source_record_id}/` to `models/{gear_model_uuid}.nam` within UoW
-- [ ] `pgmq.archive(queue_name, msg_id)` called in gts_t3k_source after successful gts_core commit
-- [ ] Consumer runs as async loop with 5-second poll interval
-- [ ] Consumer handles database connection errors with exponential backoff
-
-**Scope:**
-- Create: `apps/worker/src/worker/consumers/gear_sync.py`
-- Create: `apps/worker/src/worker/services/gear_mapper.py`
+**Test Scope:**
+- Create: `tests/integration/worker/test_gear_sync_consumer.py`
+- Mock only: pgmq SQL functions (not available in SQLite — test processing logic via test input)
 
 **Dependencies:** A1, C1, C2
 
@@ -212,28 +200,20 @@ Waves:
 
 ---
 
-### E1: Scheduler tasks — SOURCE_SYNC handler, ensure_sync, auth refresh
+### E1: Scheduler tasks — SOURCE_SYNC handler, ensure_sync, auth refresh (REDO — integration tests)
 
-**Objective:** Create `SOURCE_SYNC` TaskIQ job handler that triggers T3K sync. Add `ensure_source_sync_running` scheduler task (every 5 min) that auto-starts sync if not running. Add T3K auth refresh task (every 12h) that refreshes OAuth tokens and stores them in `oauth_tokens` table.
+**Objective:** Implementation exists and is wired. Original unit tests used mocks (violated no-mock policy). Rewrite as real integration tests verifying observable product behaviour with real SQLite sessions and real Redis.
 
-**Citation:** Epic #111 Phase 5A — "ensure_source_sync_running scheduler task (*/5 min)", "SOURCE_SYNC job handler", "T3K auth refresh scheduled task (every 12h via scheduler)"
+**Test Acceptance Criteria:**
+- [ ] `handle_source_sync` runs with mocked T3K API client, staging rows appear in DB
+- [ ] `ensure_source_sync_running` with no Redis lock + T3K_SYNC_ENABLED=true dispatches job
+- [ ] `ensure_source_sync_running` with existing Redis lock does NOT dispatch
+- [ ] `ensure_source_sync_running` with T3K_SYNC_ENABLED=false does NOT dispatch
+- [ ] Auth refresh task updates `oauth_tokens` table in gts_t3k_source
 
-**Acceptance Criteria:**
-- [ ] `SOURCE_SYNC` TaskIQ job handler creates T3KSyncService and calls `run_catalog_sync()`
-- [ ] `ensure_source_sync_running` checks for active sync via Redis lock
-- [ ] If no sync running and T3K sync enabled, dispatches `SOURCE_SYNC` job
-- [ ] `ensure_source_sync_running` runs every 5 minutes via TaskIQ schedule labels
-- [ ] T3K auth refresh task calls OAuth manager's refresh flow
-- [ ] Refreshed tokens stored in `oauth_tokens` table (gts_t3k_source)
-- [ ] Auth refresh runs every 12 hours via TaskIQ schedule labels
-- [ ] `SOURCE_SYNC` registered as JobType enum value
-
-**Scope:**
-- Create: `apps/worker/src/worker/jobs/source_sync.py`
-- Modify: `apps/scheduler/src/scheduler/schedules/jobs.py`
-- Create: `apps/scheduler/src/scheduler/schedules/auth.py`
-- Modify: `libs/core/src/core/domain/value_objects/job_status.py`
-- Modify: `apps/worker/src/worker/main.py`
+**Test Scope:**
+- Create: `tests/integration/worker/test_source_sync_jobs.py`
+- Mock only: T3K OAuth HTTP calls (external network)
 
 **Dependencies:** A3, B1, C1
 

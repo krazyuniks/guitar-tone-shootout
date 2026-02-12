@@ -14,11 +14,16 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
-from webapp.auth.token import create_access_token, JWT_COOKIE_NAME
+from webapp.auth.token import JWT_COOKIE_NAME, create_access_token
 
 
 @pytest.fixture
@@ -75,8 +80,9 @@ class TestAuthLoginEndpoint:
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test /api/v1/auth/login/t3k redirects to T3K login page."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -96,8 +102,9 @@ class TestAuthLoginEndpoint:
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test /api/v1/auth/login/t3k preserves ?next= in temp cookie."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -111,16 +118,13 @@ class TestAuthLoginEndpoint:
             assert response.status_code == 307
             # Check that gts_next cookie was set
             cookies = response.cookies
-            assert "gts_next" in cookies or any(
-                "gts_next" in str(h) for h in response.headers.raw
-            )
+            assert "gts_next" in cookies or any("gts_next" in str(h) for h in response.headers.raw)
 
-    async def test_login_unknown_provider_returns_404(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_login_unknown_provider_returns_404(self, db_session: AsyncSession) -> None:
         """Test /api/v1/auth/login/{provider} returns 404 for unknown providers."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -141,8 +145,9 @@ class TestAuthCallbackEndpoint:
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test /api/v1/auth/callback processes T3K api_key and creates user."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -163,7 +168,9 @@ class TestAuthCallbackEndpoint:
             instance.exchange_api_key = AsyncMock(return_value=mock_token_response)
             instance.get_user_info = AsyncMock(return_value=mock_user_info)
 
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
                 response = await client.get(
                     "/api/v1/auth/callback?api_key=test_key",
                     follow_redirects=False,
@@ -186,8 +193,9 @@ class TestAuthCallbackEndpoint:
         self, db_session: AsyncSession
     ) -> None:
         """Test /api/v1/auth/callback without api_key redirects to login with error."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -206,8 +214,9 @@ class TestAuthCallbackEndpoint:
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test /api/v1/auth/callback creates UserIdentity for new user."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -227,7 +236,9 @@ class TestAuthCallbackEndpoint:
             instance.exchange_api_key = AsyncMock(return_value=mock_token_response)
             instance.get_user_info = AsyncMock(return_value=mock_user_info)
 
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
                 await client.get(
                     "/api/v1/auth/callback?api_key=test_key",
                     follow_redirects=False,
@@ -244,8 +255,9 @@ class TestAuthCallbackEndpoint:
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test /api/v1/auth/callback returns existing user on repeat login."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         # Create existing user and identity
         user = User(
@@ -283,7 +295,9 @@ class TestAuthCallbackEndpoint:
             instance.exchange_api_key = AsyncMock(return_value=mock_token_response)
             instance.get_user_info = AsyncMock(return_value=mock_user_info)
 
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
                 await client.get(
                     "/api/v1/auth/callback?api_key=test_key",
                     follow_redirects=False,
@@ -298,12 +312,11 @@ class TestAuthCallbackEndpoint:
 class TestTokenAuthentication:
     """Test suite for JWT cookie authentication."""
 
-    async def test_me_requires_authentication(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_me_requires_authentication(self, db_session: AsyncSession) -> None:
         """Test /api/v1/auth/me returns 401 without JWT cookie."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)
@@ -316,8 +329,9 @@ class TestTokenAuthentication:
         self, db_session: AsyncSession, t3k_provider: OAuthProvider
     ) -> None:
         """Test /api/v1/auth/me returns user info with valid JWT cookie."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         # Create user
         user = User(
@@ -346,12 +360,11 @@ class TestTokenAuthentication:
             assert data["id"] == str(user.id)
             assert data["username"] == "token_user"
 
-    async def test_me_rejects_invalid_jwt(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_me_rejects_invalid_jwt(self, db_session: AsyncSession) -> None:
         """Test /api/v1/auth/me rejects invalid JWT cookie."""
-        from webapp.api.v1.auth import router
         from fastapi import FastAPI
+
+        from webapp.api.v1.auth import router
 
         app = FastAPI()
         app.include_router(router)

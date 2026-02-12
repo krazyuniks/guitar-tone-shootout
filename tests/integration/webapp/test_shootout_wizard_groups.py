@@ -103,9 +103,7 @@ async def authenticated_client(
     set_session_override(db_session)
     set_user_override(test_user)
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
     # Cleanup
@@ -349,9 +347,10 @@ async def test_shootout_create_with_group_chains_persists_selection(
     assert "HX-Redirect" in response.headers
 
     # Verify shootout was created with selected chains
-    from webapp.adapters.persistence.models.shootout import Shootout
     from sqlalchemy import select
     from sqlalchemy.orm import joinedload
+
+    from webapp.adapters.persistence.models.shootout import Shootout
 
     stmt = (
         select(Shootout)

@@ -1,7 +1,6 @@
 """Unit tests for SignalChainBlock with BlockType reference."""
 
 from collections.abc import AsyncGenerator
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import select

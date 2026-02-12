@@ -13,10 +13,10 @@ class TestVideoComposerDeprecation:
     def test_video_composer_is_removed_or_deprecated(self) -> None:
         """VideoComposer should be removed or have deprecation warning."""
         try:
-            from core.ports.video_composer import VideoComposer
-
             # If it still exists, check for deprecation markers
             import warnings
+
+            from core.ports.video_composer import VideoComposer
 
             # Check if the module has a deprecation notice in docstring
             if VideoComposer.__doc__:
@@ -28,7 +28,7 @@ class TestVideoComposerDeprecation:
             # Check if importing triggers a deprecation warning
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                from core.ports.video_composer import VideoComposer  # noqa: F401
+                from core.ports.video_composer import VideoComposer
 
                 # If no deprecation warning, the test should document this
                 if len(w) == 0:

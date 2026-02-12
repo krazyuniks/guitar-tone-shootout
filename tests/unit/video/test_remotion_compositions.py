@@ -39,9 +39,7 @@ class TestRemotionCompositions:
         assert gear_block.exists(), "GearBlock.tsx must exist"
         assert gear_block.is_file(), "GearBlock.tsx must be a file"
 
-    def test_signal_chain_segment_component_exists(
-        self, compositions_dir: Path
-    ) -> None:
+    def test_signal_chain_segment_component_exists(self, compositions_dir: Path) -> None:
         """SignalChainSegment.tsx component file exists."""
         signal_chain = compositions_dir / "SignalChainSegment.tsx"
         assert signal_chain.exists(), "SignalChainSegment.tsx must exist"
@@ -86,9 +84,7 @@ class TestShootoutVideoComposition:
         assert "import" in content, "ShootoutVideo.tsx must have imports"
         assert "react" in content.lower(), "ShootoutVideo.tsx must import React"
 
-    def test_shootout_video_exports_component(
-        self, shootout_video_file: Path
-    ) -> None:
+    def test_shootout_video_exports_component(self, shootout_video_file: Path) -> None:
         """ShootoutVideo.tsx exports a component."""
         content = shootout_video_file.read_text()
         assert "export" in content, "ShootoutVideo.tsx must export a component"
@@ -132,9 +128,7 @@ class TestGearBlockComponent:
         content = gear_block_file.read_text()
         # Must have interface or type definition for props
         has_props = (
-            "interface" in content
-            or "type GearBlockProps" in content
-            or ": React.FC<" in content
+            "interface" in content or "type GearBlockProps" in content or ": React.FC<" in content
         )
         assert has_props, "GearBlock.tsx must define props interface or type"
 
@@ -163,9 +157,7 @@ class TestSignalChainSegmentComponent:
             or "export const SignalChainSegment" in content
             or "export function SignalChainSegment" in content
         )
-        assert (
-            has_export
-        ), "SignalChainSegment.tsx must export SignalChainSegment component"
+        assert has_export, "SignalChainSegment.tsx must export SignalChainSegment component"
 
 
 class TestSlideTransitionComponent:
@@ -182,9 +174,7 @@ class TestSlideTransitionComponent:
         assert "import" in content, "SlideTransition.tsx must have imports"
         assert "react" in content.lower(), "SlideTransition.tsx must import React"
 
-    def test_slide_transition_exports_component(
-        self, slide_transition_file: Path
-    ) -> None:
+    def test_slide_transition_exports_component(self, slide_transition_file: Path) -> None:
         """SlideTransition.tsx exports a component."""
         content = slide_transition_file.read_text()
         assert "export" in content, "SlideTransition.tsx must export a component"
@@ -194,9 +184,7 @@ class TestSlideTransitionComponent:
             or "export const SlideTransition" in content
             or "export function SlideTransition" in content
         )
-        assert (
-            has_export
-        ), "SlideTransition.tsx must export SlideTransition component"
+        assert has_export, "SlideTransition.tsx must export SlideTransition component"
 
 
 class TestMetadataOverlayComponent:
@@ -207,17 +195,13 @@ class TestMetadataOverlayComponent:
         """Path to MetadataOverlay.tsx file."""
         return Path("libs/video/src/video/remotion/compositions/MetadataOverlay.tsx")
 
-    def test_metadata_overlay_imports_react(
-        self, metadata_overlay_file: Path
-    ) -> None:
+    def test_metadata_overlay_imports_react(self, metadata_overlay_file: Path) -> None:
         """MetadataOverlay.tsx imports React."""
         content = metadata_overlay_file.read_text()
         assert "import" in content, "MetadataOverlay.tsx must have imports"
         assert "react" in content.lower(), "MetadataOverlay.tsx must import React"
 
-    def test_metadata_overlay_exports_component(
-        self, metadata_overlay_file: Path
-    ) -> None:
+    def test_metadata_overlay_exports_component(self, metadata_overlay_file: Path) -> None:
         """MetadataOverlay.tsx exports a component."""
         content = metadata_overlay_file.read_text()
         assert "export" in content, "MetadataOverlay.tsx must export a component"
@@ -227,9 +211,7 @@ class TestMetadataOverlayComponent:
             or "export const MetadataOverlay" in content
             or "export function MetadataOverlay" in content
         )
-        assert (
-            has_export
-        ), "MetadataOverlay.tsx must export MetadataOverlay component"
+        assert has_export, "MetadataOverlay.tsx must export MetadataOverlay component"
 
 
 class TestRemotionRootRegistration:
@@ -249,18 +231,14 @@ class TestRemotionRootRegistration:
     def test_root_imports_shootout_video(self, root_file: Path) -> None:
         """Root.tsx imports ShootoutVideo composition."""
         content = root_file.read_text()
-        assert (
-            "ShootoutVideo" in content
-        ), "Root.tsx must import ShootoutVideo composition"
+        assert "ShootoutVideo" in content, "Root.tsx must import ShootoutVideo composition"
 
     def test_root_registers_composition(self, root_file: Path) -> None:
         """Root.tsx registers composition with Remotion."""
         content = root_file.read_text()
         # Remotion uses <Composition> component to register
         has_composition = "<Composition" in content or "Composition(" in content
-        assert (
-            has_composition
-        ), "Root.tsx must register composition using Remotion's Composition"
+        assert has_composition, "Root.tsx must register composition using Remotion's Composition"
 
     def test_root_exports_default(self, root_file: Path) -> None:
         """Root.tsx exports a default component."""
@@ -280,8 +258,5 @@ class TestRemotionIndexEntry:
         """index.ts exports Root or re-exports from Root."""
         content = index_file.read_text()
         # Must either export or re-export Root
-        has_root_export = (
-            "export" in content
-            and ("Root" in content or "from './Root'" in content)
-        )
+        has_root_export = "export" in content and ("Root" in content or "from './Root'" in content)
         assert has_root_export, "index.ts must export or re-export Root"

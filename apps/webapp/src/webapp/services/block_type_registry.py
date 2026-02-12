@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import select
 
@@ -21,7 +21,7 @@ class BlockTypeRegistry:
     """
 
     # Built-in processor definitions
-    BUILTIN_PROCESSORS = [
+    BUILTIN_PROCESSORS: ClassVar[list[dict]] = [
         {
             "name": "Compressor",
             "category": BlockCategory.DYNAMICS,

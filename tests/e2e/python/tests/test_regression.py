@@ -94,9 +94,7 @@ class TestGearPages:
         self, guest_page: Page, frontend_url: str
     ) -> None:
         """Gear detail page returns 200 with model listing."""
-        api_response = await guest_page.request.get(
-            f"{frontend_url}/api/v1/gear/?limit=1"
-        )
+        api_response = await guest_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
         assert api_response.ok, "Gear API must return 200"
         data = await api_response.json()
         assert data.get("items"), "Database must contain gear data"
@@ -105,9 +103,7 @@ class TestGearPages:
         await guest_page.goto(f"{frontend_url}/gear/{slug}")
         await expect(guest_page.locator("body")).to_be_visible()
 
-    async def test_gear_browse_page_returns_200(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
+    async def test_gear_browse_page_returns_200(self, guest_page: Page, frontend_url: str) -> None:
         """Gear browse page returns 200."""
         await guest_page.goto(f"{frontend_url}/gear")
 
@@ -209,18 +205,14 @@ class TestHTMXFragments:
         # Should render without error
         await expect(guest_page.locator("body")).to_be_visible()
 
-    async def test_library_tracks_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
+    async def test_library_tracks_fragment_returns_200(self, page: Page, frontend_url: str) -> None:
         """Library tracks fragment endpoint returns 200."""
         await page.goto(f"{frontend_url}/api/v1/html/library/tracks")
 
         # Should render without error
         await expect(page.locator("body")).to_be_visible()
 
-    async def test_library_chains_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
+    async def test_library_chains_fragment_returns_200(self, page: Page, frontend_url: str) -> None:
         """Library chains fragment endpoint returns 200."""
         await page.goto(f"{frontend_url}/api/v1/html/library/chains")
 
@@ -236,9 +228,7 @@ class TestHTMXFragments:
         # Should render without error
         await expect(page.locator("body")).to_be_visible()
 
-    async def test_library_groups_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
+    async def test_library_groups_fragment_returns_200(self, page: Page, frontend_url: str) -> None:
         """Library groups fragment endpoint returns 200."""
         await page.goto(f"{frontend_url}/api/v1/html/library/groups")
 

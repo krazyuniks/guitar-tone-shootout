@@ -209,9 +209,7 @@ async def toggle_gear_in_library(
         HTTPException: 404 if gear model not found
     """
     # Verify gear model exists
-    result = await db.execute(
-        select(GearModel).where(GearModel.id == gear_model_id)
-    )
+    result = await db.execute(select(GearModel).where(GearModel.id == gear_model_id))
     gear_model = result.scalar_one_or_none()
 
     if not gear_model:

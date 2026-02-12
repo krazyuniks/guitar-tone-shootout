@@ -6,13 +6,6 @@ as mentioned in the acceptance criteria.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-import pytest
-
-if TYPE_CHECKING:
-    from core.ports.repositories import GearRepository
-
 
 def test_gear_repository_protocol_has_get_by_slug_method() -> None:
     """Test that GearRepository protocol defines get_by_slug method."""
@@ -29,7 +22,7 @@ def test_gear_repository_protocol_get_by_slug_signature() -> None:
     from core.ports.repositories import GearRepository
 
     # Get the method from protocol
-    method = getattr(GearRepository, "get_by_slug")
+    method = GearRepository.get_by_slug
 
     # Check signature
     sig = signature(method)
@@ -52,4 +45,4 @@ def test_sqlalchemy_gear_repository_implements_get_by_slug() -> None:
     assert hasattr(SQLAlchemyGearRepository, "get_by_slug")
 
     # Should be callable
-    assert callable(getattr(SQLAlchemyGearRepository, "get_by_slug"))
+    assert callable(SQLAlchemyGearRepository.get_by_slug)

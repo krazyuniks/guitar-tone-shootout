@@ -47,3 +47,8 @@ tests/integration/webapp/test_seed_di_tracks.py::TestSeedDITracks::test_creates_
 tests/integration/webapp/test_seed_di_tracks.py::TestSeedDITracks::test_skips_duplicates_by_checksum
 tests/integration/webapp/test_seed_di_tracks.py::TestSeedDITracks::test_reports_summary
 tests/integration/webapp/test_seed_di_tracks.py::TestSeedDITracks::test_handles_invalid_audio_files
+tests/integration/webapp/test_auth_api_t19.py::TestAuthCallbackEndpoint::test_callback_with_api_key_creates_user
+tests/integration/webapp/test_auth_api_t19.py::TestAuthCallbackEndpoint::test_callback_without_api_key_redirects_to_login
+tests/integration/webapp/test_auth_api_t19.py::TestAuthCallbackEndpoint::test_callback_creates_user_identity
+tests/integration/webapp/test_auth_api_t19.py::TestAuthCallbackEndpoint::test_callback_returns_existing_user
+tests/integration/webapp/test_auth_api_t19.py::TestTokenAuthentication::test_me_returns_user_with_valid_jwt

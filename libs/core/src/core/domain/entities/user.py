@@ -65,9 +65,7 @@ class User(Entity):
         """
         for existing in self.identities:
             if existing.provider == identity.provider:
-                raise ValueError(
-                    f"Identity for provider '{identity.provider}' already exists"
-                )
+                raise ValueError(f"Identity for provider '{identity.provider}' already exists")
         self.identities.append(identity)
         self.updated_at = utcnow()
 

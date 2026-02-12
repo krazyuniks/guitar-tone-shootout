@@ -131,7 +131,6 @@ select = [
     "ARG",    # flake8-unused-arguments
     "SIM",    # flake8-simplify
     "TCH",    # flake8-type-checking
-    "PTH",    # flake8-use-pathlib
     "RUF",    # Ruff-specific rules
 ]
 ignore = [
@@ -139,19 +138,24 @@ ignore = [
     "B008",   # do not perform function calls in argument defaults (FastAPI Depends)
     "B904",   # raise from err (too noisy)
     "ARG001", # unused function argument (common in protocols/interfaces)
+    "UP042",  # replace-str-enum (codebase uses str, Enum pattern)
+    "RUF003", # ambiguous-unicode-character-comment (intentional unicode in comments)
+    "RUF002", # ambiguous-unicode-character-docstring (intentional unicode in docstrings)
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["core", "audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG001", "ARG002"]
-"apps/webapp/src/webapp/adapters/persistence/models/job.py" = ["TC003"]
-"apps/webapp/src/webapp/adapters/persistence/models/shootout.py" = ["TC003"]
-"apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py" = ["TC003"]
-"apps/webapp/src/webapp/adapters/persistence/models/user.py" = ["TC003"]
-"apps/webapp/src/webapp/adapters/persistence/unit_of_work.py" = ["TC002"]
-"tests/unit/webapp/test_job_model.py" = ["TC003"]
+"tests/**/*.py" = ["ARG001", "ARG002", "E402", "B017", "B011", "RUF043"]
+# SQLAlchemy models need runtime imports for Mapped[] annotations — cannot move to TYPE_CHECKING
+"apps/webapp/src/webapp/adapters/persistence/models/*.py" = ["TCH001", "TCH002", "TCH003"]
+"apps/webapp/src/webapp/adapters/persistence/unit_of_work.py" = ["TCH002"]
+"apps/webapp/src/webapp/services/*.py" = ["TCH001", "TCH002", "TCH003"]
+"apps/webapp/src/webapp/api/**/*.py" = ["TCH001", "TCH002", "TCH003"]
+"apps/webapp/src/webapp/auth/*.py" = ["TCH001", "TCH002", "TCH003"]
+"apps/webapp/src/webapp/dependencies.py" = ["TCH001", "TCH002", "TCH003"]
+"tests/unit/webapp/test_job_model.py" = ["TCH003"]
 "infrastructure/migrations/**/*.py" = ["E501", "F401", "E402", "F811", "F821"]
 
 # =============================================================================

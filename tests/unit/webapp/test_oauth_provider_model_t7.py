@@ -170,9 +170,7 @@ async def test_oauth_provider_query_by_name(db_session: AsyncSession) -> None:
     await db_session.commit()
 
     # Query by name
-    result = await db_session.execute(
-        select(OAuthProvider).where(OAuthProvider.name == "t3k")
-    )
+    result = await db_session.execute(select(OAuthProvider).where(OAuthProvider.name == "t3k"))
     found = result.scalar_one()
 
     assert found.name == "t3k"
@@ -225,15 +223,11 @@ async def test_oauth_provider_client_secret_is_stored(db_session: AsyncSession) 
     await db_session.close()
 
     # Create new session
-    async_session = async_sessionmaker(
-        db_session.bind, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = async_sessionmaker(db_session.bind, class_=AsyncSession, expire_on_commit=False)
     new_session = async_session()
 
     # Query back and verify secret is persisted
-    result = await new_session.execute(
-        select(OAuthProvider).where(OAuthProvider.id == provider_id)
-    )
+    result = await new_session.execute(select(OAuthProvider).where(OAuthProvider.id == provider_id))
     loaded_provider = result.scalar_one()
 
     assert loaded_provider.client_secret == "very_secret_value_abc123"

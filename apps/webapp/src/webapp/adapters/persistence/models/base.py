@@ -224,12 +224,13 @@ class UuidType(TypeDecorator[uuid.UUID]):
         """Choose storage type based on database dialect."""
         if dialect.name == "postgresql":
             from sqlalchemy.dialects.postgresql import UUID
+
             return dialect.type_descriptor(UUID())
         else:
             # SQLite and others: use string with hyphens
             return dialect.type_descriptor(String(36))
 
-    def process_bind_param(self, value: uuid.UUID | str | None, dialect: Any) -> str | None:
+    def process_bind_param(self, value: uuid.UUID | str | None, dialect: Any) -> str | None:  # noqa: ARG002
         """Convert UUID to string with hyphens for database storage."""
         if value is None:
             return None
@@ -237,7 +238,7 @@ class UuidType(TypeDecorator[uuid.UUID]):
             return str(value)
         return str(value)
 
-    def process_result_value(self, value: str | None, dialect: Any) -> uuid.UUID | None:
+    def process_result_value(self, value: str | None, dialect: Any) -> uuid.UUID | None:  # noqa: ARG002
         """Convert string from database to UUID object."""
         if value is None:
             return None

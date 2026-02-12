@@ -45,10 +45,7 @@ def validate_remotion_props(props: dict[str, Any]) -> bool:
     if "data" not in props:
         return False
 
-    if not isinstance(props["data"], dict):
-        return False
-
-    return True
+    return isinstance(props["data"], dict)
 
 
 def deserialize_composition_props(props: dict[str, Any]) -> CompositionSpec:
