@@ -99,9 +99,9 @@ class IRUploadService:
     async def upload(
         self,
         *,
-        _user_id: UUID,
+        user_id: UUID,  # noqa: ARG002
         file_path: str,
-        _original_filename: str,
+        original_filename: str,  # noqa: ARG002
         name: str,
         description: str | None = None,
     ) -> Gear:
