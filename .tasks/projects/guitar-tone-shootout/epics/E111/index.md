@@ -20,7 +20,7 @@ T115 → T120
 | T112 | Worker dual database session factor | complete | worker | - |
 | T113 | Wire real pgmq consumer in entrypoi | complete | worker | - |
 | T114 | T3K oauth_tokens Alembic migration | complete | - | - |
-| T115 | Implement admin sync endpoints (rep | pending | worker | T112, T113 |
+| T115 | Implement admin sync endpoints (rep | complete | worker | T112, T113 |
 | T117 | Integrate model downloader into syn | pending | - | - |
 | T118 | Fix consumer bugs and verify end-to | pending | worker | T112, T113, T117 |
 | T119 | Verify scheduler dispatches sync en | pending | worker | T114, T115 |

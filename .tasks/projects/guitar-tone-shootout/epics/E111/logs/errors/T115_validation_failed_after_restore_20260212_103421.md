@@ -1,0 +1,48 @@
+# Error Report: T115 — validation_failed_after_restore
+
+**Time:** 2026-02-12T10:34:21.850649+00:00
+**Phase:** validation_failed_after_restore
+**Task:** T115
+
+## Output
+
+```
+ changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_generates_authorization_url_with_scope - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_exchanges_code_for_token - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_retrieves_user_info - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_handles_token_exchange_error - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_handles_user_info_error - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_uses_environment_config - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_has_default_api_url - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_token_exchange_includes_all_parameters - Pre-existing: T3K provider API changed
+XPASS tests/unit/webapp/test_t3k_provider_t15.py::TestT3KProvider::test_t3k_provider_user_info_includes_authorization_header - Pre-existing: T3K provider API changed
+XPASS tests/integration/video/test_remotion_typescript_compilation.py::TestTypeScriptCompilation::test_no_typescript_syntax_errors - Pre-existing: video node_modules not installed in webapp container
+XPASS tests/integration/video/test_remotion_typescript_compilation.py::TestTypeScriptCompilation::test_no_typescript_type_errors - Pre-existing: video node_modules not installed in webapp container
+XPASS tests/integration/video/test_remotion_typescript_compilation.py::TestRemotionStudioLaunch::test_remotion_config_exists - Pre-existing: video node_modules not installed in webapp container
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearBrowsePageRoute::test_gear_browse_route_returns_html - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearBrowsePageRoute::test_gear_browse_renders_base_layout - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_route_returns_html - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_renders_all_fields - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_returns_404_for_nonexistent_slug - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_returns_404_for_non_public_gear - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_gear_page_routes.py::TestGearDetailPageRoute::test_gear_detail_renders_base_layout - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_renders_base_layout - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_has_htmx_attributes - Pre-existing: template assertions need update
+XPASS tests/integration/webapp/test_library_page_route.py::TestLibraryMyGearPageRoute::test_library_my_gear_shows_gear_type_filter - Pre-existing: template assertions need update
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncStatus::test_returns_real_checkpoint_data
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncStatus::test_status_idle_when_no_lock
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncStatus::test_no_checkpoint_returns_null
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncTrigger::test_returns_202_accepted
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncTrigger::test_creates_source_sync_job
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncUnlock::test_returns_200
+FAILED tests/integration/worker/test_admin_sync.py::TestSyncUnlock::test_message_confirms_lock_released
+FAILED tests/integration/worker/test_admin_sync.py::TestSchedulerUnlock::test_returns_200
+FAILED tests/integration/worker/test_admin_sync.py::TestSchedulerUnlock::test_message_confirms_lock_released
+FAILED tests/integration/worker/test_admin_sync.py::TestEnqueue::test_dispatches_real_job
+FAILED tests/integration/worker/test_admin_sync.py::TestEnqueue::test_nonexistent_job_returns_404
+= 11 failed, 1460 passed, 19 skipped, 75 deselected, 72 xfailed, 33 xpassed, 42 warnings in 64.09s (0:01:04) =
+error: Recipe `tdd-green` failed with exit code 1
+error: Recipe `tdd-complete` failed with exit code 1
+
+```

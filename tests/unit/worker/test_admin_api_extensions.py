@@ -24,6 +24,8 @@ from uuid import uuid4
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+    from redis.asyncio import Redis
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
@@ -34,9 +36,32 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from core.domain.value_objects.job_status import JobStatus, JobType
+from source_t3k.adapters.outbound.models import Base as T3KBase
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job
-from worker.admin import app, get_db_session
+from worker.admin import app, get_db_session, get_redis_client, get_t3k_db_session
+
+
+class FakeRedis:
+    """Fake Redis client for unit tests."""
+
+    def __init__(self):
+        self._data = {}
+
+    async def exists(self, key: str) -> int:
+        """Check if key exists."""
+        return 1 if key in self._data else 0
+
+    async def delete(self, key: str) -> int:
+        """Delete key."""
+        if key in self._data:
+            del self._data[key]
+            return 1
+        return 0
+
+    async def aclose(self):
+        """Close connection (no-op for fake)."""
+        pass
 
 
 @pytest.fixture
@@ -44,7 +69,9 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create an in-memory SQLite database for testing."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
+        # Create both Core and T3K tables
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(T3KBase.metadata.create_all)
     yield engine
     await engine.dispose()
 
@@ -66,13 +93,69 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 
 
 @pytest.fixture
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """HTTP client with database session override."""
+def fake_redis() -> FakeRedis:
+    """Fake Redis client for tests."""
+    return FakeRedis()
+
+
+@pytest.fixture
+async def test_broker(monkeypatch):
+    """Replace the real TaskIQ broker with an InMemoryBroker for testing.
+
+    This prevents task dispatch from trying to connect to Redis during tests.
+    The InMemoryBroker provides the same interface (.kiq()) but doesn't require
+    any external services.
+    """
+    from taskiq import InMemoryBroker
+
+    # Create an in-memory broker that doesn't need Redis
+    test_broker_instance = InMemoryBroker()
+
+    # Register all the job handlers with the test broker
+    from worker.jobs.audio import handle_shootout_audio_job
+    from worker.jobs.audio_processing import handle_audio_processing
+    from worker.jobs.shootout import handle_shootout_job
+    from worker.jobs.source_sync import handle_source_sync
+
+    # Re-register tasks with the test broker
+    test_handle_audio_processing = test_broker_instance.task(handle_audio_processing.__wrapped__)
+    test_handle_shootout_job = test_broker_instance.task(handle_shootout_job.__wrapped__)
+    test_handle_shootout_audio_job = test_broker_instance.task(
+        handle_shootout_audio_job.__wrapped__
+    )
+    test_handle_source_sync = test_broker_instance.task(handle_source_sync.__wrapped__)
+
+    # Monkeypatch the imported functions in the admin module
+    monkeypatch.setattr(
+        "worker.jobs.audio_processing.handle_audio_processing", test_handle_audio_processing
+    )
+    monkeypatch.setattr("worker.jobs.shootout.handle_shootout_job", test_handle_shootout_job)
+    monkeypatch.setattr(
+        "worker.jobs.audio.handle_shootout_audio_job", test_handle_shootout_audio_job
+    )
+    monkeypatch.setattr("worker.jobs.source_sync.handle_source_sync", test_handle_source_sync)
+
+    return test_broker_instance
+
+
+@pytest.fixture
+async def client(
+    db_session: AsyncSession, fake_redis: FakeRedis, test_broker
+) -> AsyncGenerator[AsyncClient, None]:
+    """HTTP client with database session and Redis overrides."""
 
     async def override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
+    async def override_get_t3k_db_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    async def override_get_redis_client() -> AsyncGenerator[Redis, None]:
+        yield fake_redis  # type: ignore[misc]
+
     app.dependency_overrides[get_db_session] = override_get_db_session
+    app.dependency_overrides[get_t3k_db_session] = override_get_t3k_db_session
+    app.dependency_overrides[get_redis_client] = override_get_redis_client
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as test_client:
         yield test_client
@@ -313,9 +396,9 @@ class TestDeadLetteredJobs:
         assert isinstance(data, list)
         assert len(data) >= 1
         # Find our job
-        job_data = next((j for j in data if j["id"] == str(job_id)), None)
-        assert job_data is not None
-        assert job_data["status"] == "dead_lettered"
+        matching = [j for j in data if j["id"] == str(job_id)]
+        assert len(matching) == 1, f"Expected exactly 1 job with id {job_id}, found {len(matching)}"
+        assert matching[0]["status"] == "dead_lettered"
 
     async def test_excludes_non_dead_lettered_jobs(
         self, client: AsyncClient, db_session: AsyncSession

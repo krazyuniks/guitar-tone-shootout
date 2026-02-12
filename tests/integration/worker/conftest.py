@@ -67,8 +67,8 @@ def worker_env_vars(monkeypatch):
     monkeypatch.setenv("T3K_DATABASE_URL", "postgresql+asyncpg://user:pass@db/gts_t3k_source")
 
 
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
+@pytest.fixture(autouse=True)
+async def db_engine(worker_env_vars) -> AsyncGenerator[AsyncEngine, None]:
     """Create a test database engine using worker's async_session_factory.
 
     This fixture uses the worker's session factory to ensure that sessions
@@ -78,6 +78,12 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     - Original :memory: format
     - Shared cache format (what async_session_factory converts to)
     - PostgreSQL URLs from worker_env_vars (for get_core_session/get_t3k_session)
+
+    This fixture is autouse=True to ensure that the test database is always
+    available, even for tests that don't explicitly depend on it. This is
+    necessary because endpoints in admin.py always require database access
+    via Depends(get_db_session), and the engine must be registered before
+    any request can be processed.
     """
     # Use shared memory SQLite database so multiple connections can access it
     database_url = "sqlite+aiosqlite:///file::memory:?cache=shared&uri=true"

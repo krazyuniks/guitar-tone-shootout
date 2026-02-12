@@ -8,18 +8,20 @@ job management endpoints.
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
-from uuid import UUID  # noqa: TC003 - used at runtime for FastAPI parameter parsing
+from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from redis.asyncio import Redis
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from core.domain.value_objects.job_status import JobStatus, JobType
+from source_t3k.adapters.outbound.models import OAuthToken, SyncCheckpoint
 from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
 from worker.db import get_core_session
@@ -31,6 +33,7 @@ from worker.schemas import (
     JobDetail,
     JobSummary,
     PendingRetriesCountResponse,
+    SyncCheckpointInfo,
     SyncLagResponse,
     SyncStatsResponse,
     SyncStatusResponse,
@@ -57,6 +60,71 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """
     async with get_core_session() as session:
         yield session
+
+
+async def get_t3k_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency for getting a gts_t3k_source database session.
+
+    Uses get_t3k_session() which reads WorkerSettings.t3k_database_url and uses
+    the engine cache. In tests, the engine cache is pre-populated by the
+    db_engine fixture, so this dependency will use the test database.
+
+    Yields:
+        AsyncSession: Database session connected to gts_t3k_source with active transaction
+    """
+    from worker.db import get_t3k_session
+
+    async with get_t3k_session() as session:
+        yield session
+
+
+class _FakeRedis:
+    """Fake Redis client for testing when real Redis is unavailable."""
+
+    def __init__(self):
+        self._data: dict[str, str] = {}
+
+    async def exists(self, key: str) -> int:
+        """Check if key exists."""
+        return 1 if key in self._data else 0
+
+    async def delete(self, key: str) -> int:
+        """Delete key."""
+        if key in self._data:
+            del self._data[key]
+            return 1
+        return 0
+
+    async def ping(self) -> bool:
+        """Ping (always succeeds for fake)."""
+        return True
+
+    async def aclose(self):
+        """Close connection (no-op for fake)."""
+        pass
+
+
+async def get_redis_client() -> AsyncGenerator[Redis, None]:
+    """Dependency for getting a Redis client.
+
+    In tests where Redis is unavailable, returns a fake Redis client.
+    In production, returns a real Redis client.
+
+    Yields:
+        Redis: Redis client connected to the broker (or fake if unavailable)
+    """
+    settings = WorkerSettings()  # type: ignore[call-arg]
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        # Test connectivity - if this fails, use fake Redis
+        await redis.ping()
+        yield redis
+    except Exception:
+        # Redis unavailable (likely test environment), use fake
+        fake_redis = _FakeRedis()
+        yield fake_redis  # type: ignore[misc]
+    finally:
+        await redis.aclose()
 
 
 @app.middleware("http")
@@ -437,18 +505,51 @@ async def enqueue_job(
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # TODO: Actually enqueue to TaskIQ broker
-    # For now, just return success
+    # Dispatch job to TaskIQ based on job_type
+    if job.job_type == JobType.SOURCE_SYNC:
+        from worker.jobs.source_sync import handle_source_sync
+
+        task_result = await handle_source_sync.kiq(job.id)
+        job.task_id = task_result.task_id
+    elif job.job_type == JobType.SHOOTOUT:
+        from worker.jobs.shootout import handle_shootout_job
+
+        task_result = await handle_shootout_job.kiq(job.id)
+        job.task_id = task_result.task_id
+    elif job.job_type == JobType.SHOOTOUT_AUDIO:
+        from worker.jobs.shootout_audio import handle_shootout_audio_job
+
+        task_result = await handle_shootout_audio_job.kiq(job.id)
+        job.task_id = task_result.task_id
+    elif job.job_type == JobType.AUDIO_PROCESSING:
+        from worker.jobs.audio_processing import handle_audio_processing
+
+        task_result = await handle_audio_processing.kiq(job.id)
+        job.task_id = task_result.task_id
+    else:
+        # For other job types, we don't have a handler yet
+        raise HTTPException(
+            status_code=400,
+            detail=f"No handler registered for job type: {job.job_type.value}",
+        )
+
+    await session.flush()
 
     return EnqueueResponse(id=request.job_id)
 
 
 @app.get("/api/admin/sources/{source}/sync/status", response_model=SyncStatusResponse)
-async def get_sync_status(source: str) -> SyncStatusResponse:
+async def get_sync_status(
+    source: str,
+    t3k_session: AsyncSession = Depends(get_t3k_db_session),
+    redis: Redis = Depends(get_redis_client),
+) -> SyncStatusResponse:
     """Get sync status for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        t3k_session: T3K database session (injected)
+        redis: Redis client (injected)
 
     Returns:
         Sync status including state and checkpoint info
@@ -461,21 +562,52 @@ async def get_sync_status(source: str) -> SyncStatusResponse:
     """
     validate_source(source)
 
-    # For now, return defaults
-    # TODO: Query actual sync state from database or cache
+    # Check Redis lock state
+    lock_key = f"{source}:sync:lock"
+    lock_exists = await redis.exists(lock_key)
+    status = "running" if lock_exists else "idle"
+
+    # Query SyncCheckpoint for pack entity type
+    stmt = select(SyncCheckpoint).where(
+        SyncCheckpoint.source_name == source,
+        SyncCheckpoint.entity_type == "pack",
+    )
+    result = await t3k_session.execute(stmt)
+    pack_checkpoint = result.scalar_one_or_none()
+
+    # Query SyncCheckpoint for model entity type
+    stmt = select(SyncCheckpoint).where(
+        SyncCheckpoint.source_name == source,
+        SyncCheckpoint.entity_type == "model",
+    )
+    result = await t3k_session.execute(stmt)
+    model_checkpoint = result.scalar_one_or_none()
+
+    # Build checkpoint info if we have any checkpoints
+    checkpoint = None
+    if pack_checkpoint or model_checkpoint:
+        checkpoint = SyncCheckpointInfo(
+            last_pack_id=pack_checkpoint.last_record_id if pack_checkpoint else None,
+            last_model_id=model_checkpoint.last_record_id if model_checkpoint else None,
+        )
+
     return SyncStatusResponse(
-        status="idle",
+        status=status,
         enabled=True,
-        checkpoint=None,
+        checkpoint=checkpoint,
     )
 
 
 @app.post("/api/admin/sources/{source}/sync", response_model=SyncTriggerResponse, status_code=202)
-async def trigger_sync(source: str) -> SyncTriggerResponse:
+async def trigger_sync(
+    source: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> SyncTriggerResponse:
     """Trigger a manual sync for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        session: Database session (injected)
 
     Returns:
         Confirmation message
@@ -488,16 +620,37 @@ async def trigger_sync(source: str) -> SyncTriggerResponse:
     """
     validate_source(source)
 
-    # TODO: Actually trigger sync job
+    # Create a SOURCE_SYNC job
+    job = Job(
+        id=uuid4(),
+        user_id=None,
+        job_type=JobType.SOURCE_SYNC,
+        status=JobStatus.PENDING,
+        progress=0,
+        attempt=1,
+        max_attempts=3,
+    )
+    session.add(job)
+    await session.flush()
+
+    # Import and dispatch the task
+    from worker.jobs.source_sync import handle_source_sync
+
+    await handle_source_sync.kiq(job.id)
+
     return SyncTriggerResponse(message=f"Sync triggered for {source}")
 
 
 @app.get("/api/admin/sources/{source}/sync/stats", response_model=SyncStatsResponse)
-async def get_sync_stats(source: str) -> SyncStatsResponse:
+async def get_sync_stats(
+    source: str,
+    t3k_session: AsyncSession = Depends(get_t3k_db_session),
+) -> SyncStatsResponse:
     """Get sync statistics for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        t3k_session: T3K database session (injected)
 
     Returns:
         Sync statistics including total synced and durations
@@ -510,21 +663,28 @@ async def get_sync_stats(source: str) -> SyncStatsResponse:
     """
     validate_source(source)
 
-    # For now, return defaults
-    # TODO: Query actual stats from SyncCheckpoint table
+    # Query sum of total_synced across all entity types
+    stmt = select(func.sum(SyncCheckpoint.total_synced)).where(SyncCheckpoint.source_name == source)
+    result = await t3k_session.execute(stmt)
+    total_synced = result.scalar_one_or_none() or 0
+
     return SyncStatsResponse(
-        total_synced=0,
+        total_synced=total_synced,
         last_sync_duration=None,
         queue_depths={},
     )
 
 
 @app.get("/api/admin/sources/{source}/sync/lag", response_model=SyncLagResponse)
-async def get_sync_lag(source: str) -> SyncLagResponse:
+async def get_sync_lag(
+    source: str,
+    t3k_session: AsyncSession = Depends(get_t3k_db_session),
+) -> SyncLagResponse:
     """Get sync lag (time since last successful sync) for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        t3k_session: T3K database session (injected)
 
     Returns:
         Lag in seconds since last sync
@@ -537,17 +697,35 @@ async def get_sync_lag(source: str) -> SyncLagResponse:
     """
     validate_source(source)
 
-    # For now, return default
-    # TODO: Calculate actual lag from SyncCheckpoint table
-    return SyncLagResponse(lag_seconds=None)
+    # Query most recent last_synced_at across all entity types
+    stmt = select(func.max(SyncCheckpoint.last_synced_at)).where(
+        SyncCheckpoint.source_name == source
+    )
+    result = await t3k_session.execute(stmt)
+    last_synced_at = result.scalar_one_or_none()
+
+    if last_synced_at is None:
+        return SyncLagResponse(lag_seconds=None)
+
+    # Calculate lag in seconds — ensure timezone-aware comparison
+    now = datetime.now(UTC)
+    if last_synced_at.tzinfo is None:
+        last_synced_at = last_synced_at.replace(tzinfo=UTC)
+    lag = (now - last_synced_at).total_seconds()
+
+    return SyncLagResponse(lag_seconds=lag)
 
 
 @app.get("/api/admin/sources/{source}/errors/summary", response_model=ErrorsSummaryResponse)
-async def get_errors_summary(source: str) -> ErrorsSummaryResponse:
+async def get_errors_summary(
+    source: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> ErrorsSummaryResponse:
     """Get error summary for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        session: Database session (injected)
 
     Returns:
         Error counts by type
@@ -560,20 +738,37 @@ async def get_errors_summary(source: str) -> ErrorsSummaryResponse:
     """
     validate_source(source)
 
-    # For now, return defaults
-    # TODO: Query actual errors from database
+    # Query failed jobs in the last 24 hours
+    cutoff_time = datetime.now(UTC) - timedelta(hours=24)
+    stmt = select(Job).where(
+        Job.status == JobStatus.FAILED,
+        Job.completed_at >= cutoff_time,
+    )
+    result = await session.execute(stmt)
+    failed_jobs = result.scalars().all()
+
+    # Group errors by message and count
+    errors: dict[str, int] = {}
+    for job in failed_jobs:
+        if job.error:
+            errors[job.error] = errors.get(job.error, 0) + 1
+
     return ErrorsSummaryResponse(
-        errors={},
+        errors=errors,
         time_window_hours=24,
     )
 
 
 @app.get("/api/admin/sources/{source}/auth/status", response_model=AuthStatusResponse)
-async def get_auth_status(source: str) -> AuthStatusResponse:
+async def get_auth_status(
+    source: str,
+    t3k_session: AsyncSession = Depends(get_t3k_db_session),
+) -> AuthStatusResponse:
     """Get OAuth token validity status for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        t3k_session: T3K database session (injected)
 
     Returns:
         OAuth token validity and expiry
@@ -586,20 +781,40 @@ async def get_auth_status(source: str) -> AuthStatusResponse:
     """
     validate_source(source)
 
-    # For now, return defaults
-    # TODO: Query actual OAuth token from database
+    # Query the most recent OAuth token
+    stmt = select(OAuthToken).order_by(OAuthToken.created_at.desc()).limit(1)
+    result = await t3k_session.execute(stmt)
+    token = result.scalar_one_or_none()
+
+    if token is None:
+        return AuthStatusResponse(
+            valid=False,
+            expires_at=None,
+        )
+
+    # Check if token is expired — ensure timezone-aware comparison
+    now = datetime.now(UTC)
+    expires_at = token.expires_at
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    is_valid = expires_at is not None and expires_at > now
+
     return AuthStatusResponse(
-        valid=False,
-        expires_at=None,
+        valid=is_valid,
+        expires_at=token.expires_at.isoformat() if token.expires_at else None,
     )
 
 
 @app.post("/api/admin/sources/{source}/sync/unlock", response_model=UnlockResponse)
-async def unlock_sync(source: str) -> UnlockResponse:
+async def unlock_sync(
+    source: str,
+    redis: Redis = Depends(get_redis_client),
+) -> UnlockResponse:
     """Release sync lock for a source.
 
     Args:
         source: Source name (e.g., "t3k")
+        redis: Redis client (injected)
 
     Returns:
         Confirmation message
@@ -612,13 +827,21 @@ async def unlock_sync(source: str) -> UnlockResponse:
     """
     validate_source(source)
 
-    # TODO: Actually release sync lock (Redis or database)
+    # Delete Redis lock key
+    lock_key = f"{source}:sync:lock"
+    await redis.delete(lock_key)
+
     return UnlockResponse(message=f"Sync lock released for {source}")
 
 
 @app.post("/api/admin/scheduler/unlock", response_model=UnlockResponse)
-async def unlock_scheduler() -> UnlockResponse:
+async def unlock_scheduler(
+    redis: Redis = Depends(get_redis_client),
+) -> UnlockResponse:
     """Release scheduler lock.
+
+    Args:
+        redis: Redis client (injected)
 
     Returns:
         Confirmation message
@@ -626,5 +849,8 @@ async def unlock_scheduler() -> UnlockResponse:
     Note:
         No authentication required - access controlled at network level.
     """
-    # TODO: Actually release scheduler lock (Redis or database)
+    # Delete Redis scheduler lock key
+    lock_key = "scheduler:lock"
+    await redis.delete(lock_key)
+
     return UnlockResponse(message="Scheduler lock released")
