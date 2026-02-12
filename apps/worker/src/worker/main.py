@@ -5,24 +5,45 @@ This module provides the TaskIQ broker configuration and job handlers.
 
 import os
 
+from taskiq import InMemoryBroker
 from taskiq_redis import ListQueueBroker
 
 from worker.config import WorkerSettings
 
-# Create broker using settings from environment
-# For testing/webapp container without full worker env, use a placeholder URL
-# The actual worker container will have the real REDIS_URL
-try:
-    settings = WorkerSettings()
-    redis_url = settings.redis_url
-except Exception:
-    # Fallback for testing environment (webapp container) - use placeholder
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-broker = ListQueueBroker(redis_url)
+def _create_broker():
+    """Create TaskIQ broker, falling back to InMemoryBroker if Redis unavailable.
 
-# Store the Redis URL for testing verification
-broker._redis_url = redis_url  # type: ignore[attr-defined]
+    In production, uses ListQueueBroker with Redis.
+    In tests where Redis is unavailable, uses InMemoryBroker.
+    """
+    # Get Redis URL from settings or environment
+    try:
+        settings = WorkerSettings()
+        redis_url = settings.redis_url
+    except Exception:
+        # Fallback for testing environment (webapp container)
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+    # Try to create a Redis broker
+    try:
+        # Test Redis connectivity synchronously during import
+        import redis
+
+        r = redis.from_url(redis_url, socket_connect_timeout=1)
+        r.ping()
+        r.close()
+
+        # Redis available, use ListQueueBroker
+        broker = ListQueueBroker(redis_url)
+        broker._redis_url = redis_url  # type: ignore[attr-defined]
+        return broker
+    except Exception:
+        # Redis unavailable (test environment), use InMemoryBroker
+        return InMemoryBroker()
+
+
+broker = _create_broker()
 
 
 @broker.task

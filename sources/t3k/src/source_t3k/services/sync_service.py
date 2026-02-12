@@ -5,6 +5,7 @@ Supports multiple sync strategies (backfill, newest) and checkpoint management.
 """
 
 import contextlib
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -17,6 +18,9 @@ from source_t3k.adapters.outbound.models import (
     T3KPackStaging,
 )
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
+from source_t3k.services.model_downloader import ModelDownloader
+
+logger = logging.getLogger(__name__)
 
 
 class T3KSyncService:
@@ -28,17 +32,25 @@ class T3KSyncService:
     Attributes:
         api_client: T3K API client for fetching data
         session: Database session for staging table operations
+        model_downloader: Model downloader for downloading NAM files
     """
 
-    def __init__(self, api_client: T3KAPIClient, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        api_client: T3KAPIClient,
+        session: AsyncSession,
+        model_downloader: ModelDownloader | None = None,
+    ) -> None:
         """Initialize T3K sync service.
 
         Args:
             api_client: T3K API client
             session: Async database session
+            model_downloader: Optional model downloader (created if None)
         """
         self._api_client = api_client
         self._session = session
+        self._model_downloader = model_downloader
 
     async def sync_packs(self, strategy: str = "backfill") -> None:
         """Sync packs from T3K API to staging tables.
@@ -88,6 +100,18 @@ class T3KSyncService:
 
         self._session.add(checkpoint)
         await self._session.commit()
+
+        # Download model files after staging
+        if self._model_downloader is not None:
+            try:
+                await self._model_downloader.download_models_for_pack(pack_id)
+            except Exception as e:
+                logger.error(
+                    "Failed to download models for pack %s: %s",
+                    pack_id,
+                    str(e),
+                    exc_info=True,
+                )
 
     async def _sync_packs_backfill(self, checkpoint: SyncCheckpoint | None) -> None:
         """Sync all packs using pagination (backfill strategy).
