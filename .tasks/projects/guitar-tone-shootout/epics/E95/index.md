@@ -60,7 +60,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T132 | Preset CRUD API | complete | webapp | - |
 | T133 | Block Types API | complete | webapp | - |
 | T134 | Save/Remove Model UI + Model Counts | complete | webapp | - |
-| T135 | Library Sorting, Filtering, Grid-Al | pending | webapp | - |
+| T135 | Library Sorting, Filtering, Grid-Al | validating | webapp | - |
 | T136 | License Text on Gear Detail Pages | pending | webapp | - |
 | T137 | ShootoutComment Domain Entity + ORM | pending | core | - |
 | T138 | Comments CRUD API | pending | webapp | T137 |
