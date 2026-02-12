@@ -1,0 +1,13 @@
+{
+  "task_id": "T132",
+  "created": "2026-02-12T02:30:05.073261+00:00",
+  "commit": "3d069aba6c80",
+  "files": [
+    {
+      "path": "tests/integration/webapp/test_preset_crud_api_t132.py",
+      "sha256": "c2409c7c359fe56b02724a8b30a19772d585a6a4a70baef502de6af0ae40fdc0",
+      "size": 19991,
+      "modified": "2026-02-12T02:29:18.668353+00:00"
+    }
+  ]
+}
