@@ -55,7 +55,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T127 | Waveform + Audio Metadata Extractio | complete | webapp | - |
 | T128 | IR Upload Endpoint + Service | complete | webapp | - |
 | T129 | Asset/File Serving Service (HMAC Si | complete | webapp | - |
-| T130 | Library DI Tracks Page (User Tracks | locked | webapp | T124, T129 |
+| T130 | Library DI Tracks Page (User Tracks | validating | webapp | T124, T129 |
 | T131 | Tag CRUD API | pending | webapp | - |
 | T132 | Preset CRUD API | pending | webapp | - |
 | T133 | Block Types API | pending | webapp | - |
