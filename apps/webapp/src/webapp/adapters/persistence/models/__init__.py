@@ -30,6 +30,7 @@ from webapp.adapters.persistence.models.signal_chain import (
     SignalChainBlock,
     SignalChainGroup,
 )
+from webapp.adapters.persistence.models.tag import Tag
 from webapp.adapters.persistence.models.user import OAuthProvider, User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.models.user_identity import UserIdentity
@@ -55,6 +56,7 @@ __all__ = [
     "SignalChain",
     "SignalChainBlock",
     "SignalChainGroup",
+    "Tag",
     "TimestampMixin",
     "UUIDMixin",
     "User",
