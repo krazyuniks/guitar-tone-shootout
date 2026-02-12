@@ -1,0 +1,19 @@
+{
+  "task_id": "T137",
+  "created": "2026-02-12T04:47:29.421755+00:00",
+  "commit": "b1cac3e6eec8",
+  "files": [
+    {
+      "path": "tests/unit/core/test_shootout_comment_entity.py",
+      "sha256": "3fb95d699d9c460005c97c0d16be21b33640f19b7cd05f09042ce32d0453a836",
+      "size": 2784,
+      "modified": "2026-02-12T04:46:32.480156+00:00"
+    },
+    {
+      "path": "tests/unit/webapp/test_shootout_comment_model.py",
+      "sha256": "4633c04f01e309548e46910d07705ba1b8dbd58d1e842cb6a25c13f4342e43b7",
+      "size": 7950,
+      "modified": "2026-02-12T04:47:29.160153+00:00"
+    }
+  ]
+}
