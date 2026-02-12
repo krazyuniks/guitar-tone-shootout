@@ -33,7 +33,7 @@ class TestShootoutDetailPreProcessingBuild:
             'data-testid="shootout-detail"',
             'data-testid="shootout-title"',
             'data-testid="tone-count"',
-            'data-testid="relative-time"',
+            'data-testid="creation-date"',
             'data-testid="shootout-header"',
         ]
 
@@ -145,7 +145,7 @@ class TestShootoutDetailPreProcessingBuild:
             'data-testid="shootout-header"',
             'data-testid="shootout-title"',
             'data-testid="tone-count"',
-            'data-testid="relative-time"',
+            'data-testid="creation-date"',
             'data-testid="status-badge"',
             'data-testid="description-section"',
             'data-testid="segments-section"',
