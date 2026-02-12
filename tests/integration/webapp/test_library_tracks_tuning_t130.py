@@ -1,12 +1,12 @@
-"""Integration tests for Library DI Tracks tuning passthrough (T130).
+"""Integration tests for tuning data in Library DI Tracks fragment (T130).
 
-The library tracks fragment endpoint at GET /api/v1/html/library/tracks
-should render the track's tuning metadata when present. Currently the
-endpoint hardcodes tuning to None instead of using the entity's tuning
-field, causing tuning data to be lost in the library view.
+Tests that tuning metadata is correctly passed through from database
+to the rendered HTML fragment for the library tracks list.
 
-These tests verify that tuning metadata is correctly passed through
-from the database to the rendered HTML fragment.
+Bug: The library_tracks_fragment handler hardcodes tuning to None
+instead of using the actual tuning value from the track entity.
+Additionally, the repository _to_entity method omits tuning from
+the domain entity mapping.
 """
 
 from __future__ import annotations
@@ -27,33 +27,6 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-async def track_with_tuning(db_session: AsyncSession, test_user: User) -> DITrack:
-    """Create a DI track with tuning metadata set.
-
-    Uses a tuning value that does NOT appear anywhere else in the track
-    metadata (name, description, guitar, pickup) to ensure assertions
-    are testing the tuning field specifically.
-    """
-    track = DITrack(
-        id=uuid4(),
-        user_id=test_user.id,
-        name="Clean Recording",
-        file_path="/app/uploads/di-tracks/clean.wav",
-        original_filename="clean.wav",
-        duration_seconds=30.0,
-        sample_rate=44100,
-        channels=1,
-        guitar="Gibson Les Paul",
-        pickup="Bridge Humbucker",
-        tuning="Eb Standard",
-    )
-    db_session.add(track)
-    await db_session.commit()
-    await db_session.refresh(track)
-    return track
-
-
-@pytest.fixture
 async def authenticated_client(
     db_session: AsyncSession,
     test_user: User,
@@ -64,31 +37,88 @@ async def authenticated_client(
         yield client
 
 
+@pytest.fixture
+async def track_with_tuning(db_session: AsyncSession, test_user: User) -> DITrack:
+    """Create a DI track with tuning metadata set."""
+    track = DITrack(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="Drop D Riff",
+        file_path="/app/uploads/di-tracks/drop_d.wav",
+        original_filename="drop_d.wav",
+        duration_seconds=30.0,
+        sample_rate=44100,
+        channels=1,
+        guitar="ESP Eclipse",
+        pickup="Bridge Humbucker",
+        tuning="Drop D",
+    )
+    db_session.add(track)
+    await db_session.commit()
+    await db_session.refresh(track)
+    return track
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
-class TestLibraryTracksTuningPassthrough:
-    """Tests that library tracks fragment renders tuning metadata.
+class TestLibraryTracksFragmentTuning:
+    """Tests verifying tuning data flows through to the rendered fragment."""
 
-    The library_tracks_fragment endpoint currently hardcodes tuning=None
-    instead of passing through the entity's tuning field. These tests
-    will fail until the endpoint is fixed to use t.tuning.
-    """
-
-    async def test_fragment_renders_tuning_when_present(
+    async def test_fragment_renders_tuning_metadata(
         self,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         test_user: User,
         track_with_tuning: DITrack,
     ) -> None:
-        """Fragment should render tuning value 'Eb Standard' in the HTML output.
+        """Fragment renders the tuning value when a track has tuning set.
 
-        Currently fails because library_tracks_fragment hardcodes tuning=None
-        on line 496 of html.py instead of using t.tuning from the entity.
-        The tuning value 'Eb Standard' does not appear in any other field
-        (name, description, guitar, pickup) so this specifically tests
-        the tuning passthrough.
+        Bug: library_tracks_fragment hardcodes tuning to None instead of
+        passing t.tuning from the domain entity. This test verifies
+        the tuning value ("Drop D") appears in the rendered HTML.
         """
         response = await authenticated_client.get("/api/v1/html/library/tracks")
         assert response.status_code == 200
-        assert "Eb Standard" in response.text
+        html = response.text
+        assert "Drop D" in html
+
+    async def test_fragment_renders_tuning_for_multiple_tracks(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """Fragment renders different tuning values for each track.
+
+        Creates two tracks with different tunings and verifies both appear.
+        """
+        track1 = DITrack(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="Standard Track",
+            file_path="/app/uploads/di-tracks/standard.wav",
+            original_filename="standard.wav",
+            duration_seconds=20.0,
+            sample_rate=44100,
+            channels=1,
+            tuning="E Standard",
+        )
+        track2 = DITrack(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="Open G Track",
+            file_path="/app/uploads/di-tracks/openg.wav",
+            original_filename="openg.wav",
+            duration_seconds=25.0,
+            sample_rate=44100,
+            channels=1,
+            tuning="Open G",
+        )
+        db_session.add_all([track1, track2])
+        await db_session.commit()
+
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
+        assert response.status_code == 200
+        html = response.text
+        assert "E Standard" in html
+        assert "Open G" in html

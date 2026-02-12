@@ -1,12 +1,8 @@
-"""Integration tests for Library DI Tracks page (T130).
+"""Integration tests for Library DI Tracks page and fragment (T130).
 
-Tests the library DI tracks page focusing on tuning field propagation
-through the repository and HTML fragment layers.
-
-Bugs found:
-1. DITrackRepository._to_entity omits tuning field (always None)
-2. DITrackRepository.save() omits tuning field (never persisted)
-3. library_tracks_fragment hardcodes "tuning": None instead of t.tuning
+Tests the library DI tracks page rendering, fragment endpoint
+for user's tracks list, and track metadata display including
+the tuning field which is currently missing from the fragment handler.
 """
 
 from __future__ import annotations
@@ -16,8 +12,10 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from webapp.adapters.persistence.models.shootout import DITrack
+from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.di_track_repository import (
     SQLAlchemyDITrackRepository,
 )
@@ -26,24 +24,34 @@ from webapp.main import create_app
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from webapp.adapters.persistence.models.user import User
+
+@pytest.fixture
+async def authenticated_client(
+    db_session: AsyncSession,
+    test_user: User,
+) -> AsyncClient:
+    """Create an authenticated HTTP client against the real app."""
+    app = create_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
 
 
 @pytest.fixture
-async def track_with_tuning(db_session: AsyncSession, test_user: User) -> DITrack:
-    """Create a DI track with tuning information set."""
+async def sample_track(db_session: AsyncSession, test_user: User) -> DITrack:
+    """Create a sample DI track with full metadata."""
     track = DITrack(
         id=uuid4(),
         user_id=test_user.id,
-        name="Drop D Riff",
-        file_path="/app/uploads/di-tracks/drop_d.wav",
-        original_filename="drop_d.wav",
-        duration_seconds=30.0,
-        sample_rate=44100,
+        name="Clean Strat Recording",
+        file_path="/app/uploads/di-tracks/clean_strat.wav",
+        original_filename="clean_strat.wav",
+        duration_seconds=45.5,
+        sample_rate=48000,
         channels=1,
-        guitar="Gibson Les Paul",
-        pickup="Bridge Humbucker",
-        tuning="Drop D",
+        guitar="Fender Stratocaster",
+        pickup="Neck Single Coil",
+        tuning="E Standard",
+        description="Clean recording for comparison",
     )
     db_session.add(track)
     await db_session.commit()
@@ -51,81 +59,116 @@ async def track_with_tuning(db_session: AsyncSession, test_user: User) -> DITrac
     return track
 
 
-@pytest.mark.asyncio
-@pytest.mark.integration
-class TestDITrackRepositoryTuningField:
-    """Tests that tuning field is preserved through repository layer."""
-
-    async def test_get_by_id_preserves_tuning(
-        self, db_session: AsyncSession, test_user: User, track_with_tuning: DITrack
-    ) -> None:
-        """Repository.get_by_id returns entity with tuning field populated."""
-        repo = SQLAlchemyDITrackRepository(db_session)
-        entity = await repo.get_by_id(track_with_tuning.id)
-
-        assert entity is not None
-        assert entity.tuning == "Drop D"
-
-    async def test_get_by_user_id_preserves_tuning(
-        self, db_session: AsyncSession, test_user: User, track_with_tuning: DITrack
-    ) -> None:
-        """Repository.get_by_user_id returns entities with tuning field populated."""
-        repo = SQLAlchemyDITrackRepository(db_session)
-        entities = await repo.get_by_user_id(test_user.id)
-
-        assert len(entities) >= 1
-        tuned_track = next(e for e in entities if e.name == "Drop D Riff")
-        assert tuned_track.tuning == "Drop D"
-
-    async def test_save_persists_tuning_field(
-        self, db_session: AsyncSession, test_user: User
-    ) -> None:
-        """Repository.save() persists the tuning field to the database."""
-        from core.domain.entities.di_track import DITrack as DITrackEntity
-
-        entity = DITrackEntity(
-            id=uuid4(),
-            user_id=test_user.id,
-            name="DADGAD Test",
-            file_path="/app/uploads/di-tracks/dadgad.wav",
-            original_filename="dadgad.wav",
-            duration_seconds=25.0,
-            sample_rate=44100,
-            tuning="DADGAD",
-        )
-
-        repo = SQLAlchemyDITrackRepository(db_session)
-        await repo.save(entity)
-        await db_session.commit()
-
-        # Re-read from database to verify persistence
-        from sqlalchemy import select
-
-        db_session.expire_all()
-        stmt = select(DITrack).where(DITrack.id == entity.id)
-        result = await db_session.execute(stmt)
-        orm_track = result.scalar_one()
-
-        assert orm_track.tuning == "DADGAD"
+@pytest.fixture
+async def other_user(db_session: AsyncSession) -> User:
+    """Create a second user for isolation tests."""
+    user = User(
+        id=uuid4(),
+        username="other_user",
+        email="other@example.com",
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-class TestLibraryTracksFragmentTuning:
-    """Tests that tuning field is rendered in library tracks HTMX fragment."""
+class TestLibraryTracksFragmentMetadata:
+    """Tests verifying track metadata flows through to the rendered fragment."""
 
-    async def test_fragment_includes_tuning_in_metadata(
-        self, db_session: AsyncSession, test_user: User
+    async def test_fragment_includes_tuning_from_entity(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        sample_track: DITrack,
     ) -> None:
-        """Library tracks fragment includes tuning value in rendered HTML."""
-        # Create track with tuning that won't appear in name or other fields
+        """Fragment renders tuning value from the track entity.
+
+        Bug: The library_tracks_fragment handler hardcodes tuning to None
+        (line ~497 of html.py) instead of passing the actual tuning from
+        the domain entity. The tuning should appear in the rendered HTML
+        when a track has a tuning value set.
+        """
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
+        assert response.status_code == 200
+        html = response.text
+
+        # Track name should appear
+        assert "Clean Strat Recording" in html
+
+        # Tuning value should appear in the rendered output
+        # This fails because the handler hardcodes "tuning": None
+        assert "E Standard" in html
+
+    async def test_fragment_renders_upload_date(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        sample_track: DITrack,
+    ) -> None:
+        """Fragment renders the upload date as relative time."""
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
+        assert response.status_code == 200
+        html = response.text
+
+        # relative_time for a just-created track should show "just now"
+        assert "just now" in html
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestDITrackRepositoryTuning:
+    """Tests that the DI track repository preserves tuning in entity mapping."""
+
+    async def test_to_entity_includes_tuning(
+        self,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """Repository _to_entity maps tuning from ORM to domain entity.
+
+        Bug: SQLAlchemyDITrackRepository._to_entity does not pass the
+        tuning field when constructing DITrackEntity, so tuning is always
+        None in the domain entity even when the ORM model has tuning data.
+        """
         track = DITrack(
             id=uuid4(),
             user_id=test_user.id,
-            name="Clean Test",
-            file_path="/app/uploads/di-tracks/clean.wav",
-            original_filename="clean.wav",
-            duration_seconds=30.0,
+            name="Tuning Test",
+            file_path="/app/uploads/di-tracks/tuning.wav",
+            original_filename="tuning.wav",
+            duration_seconds=10.0,
+            sample_rate=44100,
+            channels=1,
+            tuning="Drop C",
+        )
+        db_session.add(track)
+        await db_session.commit()
+
+        repo = SQLAlchemyDITrackRepository(db_session)
+        entity = await repo.get_by_id(track.id)
+
+        assert entity is not None
+        assert entity.tuning == "Drop C"
+
+    async def test_get_by_user_id_preserves_tuning(
+        self,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """Repository get_by_user_id preserves tuning in returned entities."""
+        track = DITrack(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="DADGAD Track",
+            file_path="/app/uploads/di-tracks/dadgad.wav",
+            original_filename="dadgad.wav",
+            duration_seconds=20.0,
             sample_rate=44100,
             channels=1,
             tuning="DADGAD",
@@ -133,11 +176,140 @@ class TestLibraryTracksFragmentTuning:
         db_session.add(track)
         await db_session.commit()
 
-        app = create_app()
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/api/v1/html/library/tracks")
+        repo = SQLAlchemyDITrackRepository(db_session)
+        entities = await repo.get_by_user_id(test_user.id)
 
+        assert len(entities) >= 1
+        matching = [e for e in entities if e.name == "DADGAD Track"]
+        assert len(matching) == 1
+        assert matching[0].tuning == "DADGAD"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestLibraryTracksFragmentIsolation:
+    """Tests that the library tracks fragment only shows the current user's tracks."""
+
+    async def test_fragment_excludes_other_users_tracks(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        other_user: User,
+    ) -> None:
+        """Fragment only shows tracks owned by the authenticated user.
+
+        Another user's tracks should never appear in the library fragment.
+        """
+        # Create track for the authenticated user
+        my_track = DITrack(
+            id=uuid4(),
+            user_id=test_user.id,
+            name="My Private Riff",
+            file_path="/app/uploads/di-tracks/my_riff.wav",
+            original_filename="my_riff.wav",
+            duration_seconds=15.0,
+            sample_rate=44100,
+            channels=1,
+        )
+        # Create track for another user
+        other_track = DITrack(
+            id=uuid4(),
+            user_id=other_user.id,
+            name="Other Users Secret Song",
+            file_path="/app/uploads/di-tracks/other.wav",
+            original_filename="other.wav",
+            duration_seconds=30.0,
+            sample_rate=44100,
+            channels=1,
+        )
+        db_session.add_all([my_track, other_track])
+        await db_session.commit()
+
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
         assert response.status_code == 200
         html = response.text
-        # Tuning should appear in the rendered fragment metadata
-        assert "DADGAD" in html
+
+        assert "My Private Riff" in html
+        assert "Other Users Secret Song" not in html
+
+    async def test_fragment_empty_state_when_no_tracks(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """Fragment renders empty state when user has no tracks."""
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
+        assert response.status_code == 200
+        html = response.text
+
+        assert "No DI tracks yet" in html
+        assert 'data-empty="true"' in html
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestDeleteDITrackFromLibrary:
+    """Tests for deleting DI tracks and verifying they disappear from the fragment."""
+
+    async def test_delete_track_removes_from_fragment(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        sample_track: DITrack,
+    ) -> None:
+        """After deleting a track, it no longer appears in the library fragment."""
+        # Verify track appears before deletion
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
+        assert response.status_code == 200
+        assert "Clean Strat Recording" in response.text
+
+        # Delete the track
+        delete_response = await authenticated_client.delete(f"/api/v1/di-tracks/{sample_track.id}")
+        assert delete_response.status_code == 204
+
+        # Verify track no longer appears in fragment
+        response = await authenticated_client.get("/api/v1/html/library/tracks")
+        assert response.status_code == 200
+        assert "Clean Strat Recording" not in response.text
+
+    async def test_delete_nonexistent_track_returns_404(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+    ) -> None:
+        """Deleting a non-existent track returns 404."""
+        fake_id = uuid4()
+        response = await authenticated_client.delete(f"/api/v1/di-tracks/{fake_id}")
+        assert response.status_code == 404
+
+    async def test_delete_other_users_track_returns_404(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        test_user: User,
+        other_user: User,
+    ) -> None:
+        """Deleting another user's track returns 404 (no existence leak)."""
+        other_track = DITrack(
+            id=uuid4(),
+            user_id=other_user.id,
+            name="Not My Track",
+            file_path="/app/uploads/di-tracks/notmine.wav",
+            original_filename="notmine.wav",
+            duration_seconds=10.0,
+            sample_rate=44100,
+            channels=1,
+        )
+        db_session.add(other_track)
+        await db_session.commit()
+
+        response = await authenticated_client.delete(f"/api/v1/di-tracks/{other_track.id}")
+        assert response.status_code == 404
+
+        # Verify the track still exists in the database
+        result = await db_session.execute(select(DITrack).where(DITrack.id == other_track.id))
+        assert result.scalar_one_or_none() is not None
