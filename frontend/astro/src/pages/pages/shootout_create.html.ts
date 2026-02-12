@@ -177,15 +177,21 @@ export const GET: APIRoute = () => {
         }
 
         // Handle errors
-        const errorText = await response.text();
         if (response.status === 401) {
           window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname);
           return;
         }
 
-        // Try to extract error message from HTML response
-        const errorMatch = errorText.match(/<p[^>]*>(.*?)<\\/p>/);
-        this.submitError = errorMatch ? errorMatch[1] : 'Failed to create shootout. Please try again.';
+        // Try to parse JSON error response
+        try {
+          const errorData = await response.json();
+          this.submitError = errorData.detail || 'Failed to create shootout. Please try again.';
+        } catch {
+          // If not JSON, try to extract from HTML
+          const errorText = await response.text();
+          const errorMatch = errorText.match(/<p[^>]*>(.*?)<\\/p>/);
+          this.submitError = errorMatch ? errorMatch[1] : 'Failed to create shootout. Please try again.';
+        }
       } catch (error) {
         console.error('Submit error:', error);
         this.submitError = 'Network error. Please check your connection and try again.';

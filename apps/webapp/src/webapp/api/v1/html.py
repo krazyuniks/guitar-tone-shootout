@@ -1064,11 +1064,24 @@ async def shootout_create_submit(
     di_track_id = form.get("di_track_id")
     chain_ids = form.getlist("chain_ids[]") or form.getlist("chain_ids")
 
-    # Validate minimum 2 chains required
+    # Validate DI track required
+    if not di_track_id or str(di_track_id).strip() == "":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A DI track is required to create a shootout",
+        )
+
+    # Validate chain count (minimum 2, maximum 20)
     if len(chain_ids) < 2:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="At least 2 chains are required to create a shootout",
+        )
+
+    if len(chain_ids) > ShootoutEntity.MAX_CHAINS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot add more than {ShootoutEntity.MAX_CHAINS} chains to a shootout",
         )
 
     chains = []
