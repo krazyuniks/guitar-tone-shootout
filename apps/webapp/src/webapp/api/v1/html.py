@@ -493,7 +493,7 @@ async def library_tracks_fragment(
                 "duration_formatted": _format_duration(t.duration_seconds),
                 "sample_rate": t.sample_rate,
                 "guitar": t.guitar,
-                "tuning": None,
+                "tuning": t.tuning,
                 "pickups": t.pickup,
                 "is_system_track": False,
                 "relative_time": _relative_time(t.created_at),
