@@ -1,0 +1,13 @@
+{
+  "task_id": "T142",
+  "created": "2026-02-12T07:42:46.185214+00:00",
+  "commit": "aa437b30137c",
+  "files": [
+    {
+      "path": "tests/integration/webapp/test_shootout_detail_enhancement_t142.py",
+      "sha256": "15ad1af762fe0782bcdccd8696ec1e181b4fb5d2a72197dc551504c85a370eb7",
+      "size": 21124,
+      "modified": "2026-02-12T07:42:45.719935+00:00"
+    }
+  ]
+}
