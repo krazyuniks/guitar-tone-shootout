@@ -63,7 +63,7 @@ T114, T115, T116, T117, T118, T119, T120, T121, T122, T123, T124, T125, T126, T1
 | T135 | Library Sorting, Filtering, Grid-Al | complete | webapp | - |
 | T136 | License Text on Gear Detail Pages | complete | webapp | - |
 | T137 | ShootoutComment Domain Entity + ORM | complete | core | - |
-| T138 | Comments CRUD API | pending | webapp | T137 |
+| T138 | Comments CRUD API | validating | webapp | T137 |
 | T139 | Comments HTMX Fragment on Shootout  | pending | webapp | T138 |
 | T140 | Wizard Step 2 — DI Track Selection  | pending | webapp | T124 |
 | T141 | Wizard Step 3 — Review, Submit, Val | pending | webapp | T140 |
