@@ -437,6 +437,22 @@
         }
       </script>
 
+      <!-- License section (collapsible) -->
+      {% if pack.license_text or pack.t3k_url != "#" %}
+      <details data-testid="license-section" class="mb-8 border border-[var(--border)] rounded-lg overflow-hidden">
+        <summary class="px-4 py-3 bg-[var(--color-bg-elevated)] cursor-pointer hover:bg-[var(--color-bg-secondary)] transition-colors">
+          <h2 class="text-lg font-semibold text-[var(--color-text-primary)] inline">License & Terms</h2>
+        </summary>
+        <div class="px-4 py-3 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+          {% if pack.license_text %}
+            {{ pack.license_text }}
+          {% else %}
+            This gear is community-contributed. Users may download and use the data files in software and publish the resulting outputs without royalties or restrictions. However, they may not upload, republish, or distribute the data files without the author's permission.
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
+
       <!-- External links section -->
       {% if pack.external_links %}
       <div class="mb-8">
@@ -461,11 +477,6 @@
         </div>
       </div>
       {% endif %}
-
-      <!-- License info (like T3K) -->
-      <div class="text-sm text-[var(--color-text-muted)] mt-8 pt-6 border-t border-[var(--border)]">
-        <span class="font-medium">License:</span> T3K - Users may download and use the data file in software and publish the resulting outputs without royalties or restrictions. However, they may not upload, republish, or distribute the data file without the author's permission.
-      </div>
     </div>
   </div>
 </div>
