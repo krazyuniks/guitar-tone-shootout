@@ -1,0 +1,33 @@
+#!/bin/sh
+# Wrapper around prek that auto-restages files fixed by hooks (ruff, trailing-whitespace, etc.)
+# Without this, auto-fixes cause commit failure requiring manual re-stage + retry.
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PREK="/home/ryan/.cargo/bin/prek"
+
+if [ ! -x "$PREK" ]; then
+    PREK="prek"
+fi
+
+# First run
+"$PREK" hook-impl --hook-dir "$HERE" --script-version 4 --hook-type=pre-commit -- "$@"
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+    exit 0
+fi
+
+# Check if any staged files were modified (auto-fixed) by the hooks
+CHANGED=$(git diff --name-only -- $(git diff --cached --name-only))
+if [ -z "$CHANGED" ]; then
+    # No files were modified — this is a real error, not an auto-fix
+    exit $EXIT_CODE
+fi
+
+# Auto-fixes detected: re-stage the fixed files and retry
+echo ""
+echo "Pre-commit hooks auto-fixed files. Re-staging and retrying..."
+echo "$CHANGED" | xargs git add
+
+# Second run — if this fails, it's a real error
+exec "$PREK" hook-impl --hook-dir "$HERE" --script-version 4 --hook-type=pre-commit -- "$@"

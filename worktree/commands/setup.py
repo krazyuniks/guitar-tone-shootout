@@ -358,25 +358,35 @@ def _run_setup(
             if install_hook("post-commit"):
                 console.print("  [green]✓[/green] Auto-sync hook installed")
 
-        # Step 4.6: Install pre-commit hooks (prek)
-        if shutil.which("prek"):
-            import subprocess
-
+        # Step 4.6: Install pre-commit hook (auto-fix wrapper)
+        # The template in worktree/hooks/pre-commit wraps prek with auto-restage.
+        # `prek install` must NOT be used — it overwrites our wrapper.
+        if not is_hook_installed("pre-commit"):
             status.update("[bold green]Installing pre-commit hooks...")
-            result = subprocess.run(
-                ["prek", "install"],
-                cwd=worktree_path,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                console.print("  [green]✓[/green] Pre-commit hooks installed (prek)")
+            if shutil.which("prek"):
+                from ..git_ops import get_hooks_path
+
+                hooks_dir = get_hooks_path()
+                was_clobbered = (hooks_dir / "pre-commit").exists()
+                if install_hook("pre-commit"):
+                    # Clean up .legacy file left by `prek install`
+                    legacy = hooks_dir / "pre-commit.legacy"
+                    if legacy.exists():
+                        legacy.unlink()
+                    if was_clobbered:
+                        console.print(
+                            "  [green]✓[/green] Pre-commit hook repaired (was overwritten by prek)"
+                        )
+                    else:
+                        console.print(
+                            "  [green]✓[/green] Pre-commit hook installed (ruff auto-fix)"
+                        )
+                else:
+                    console.print(
+                        "  [yellow]![/yellow] pre-commit template missing from worktree/hooks/"
+                    )
             else:
-                console.print(
-                    "  [yellow]![/yellow] prek install failed (lint checks may not run on commit)"
-                )
-        else:
-            console.print("  [yellow]![/yellow] prek not found (run 'just infra' to install)")
+                console.print("  [yellow]![/yellow] prek not found (run 'just infra' to install)")
 
         # Step 4.8: Start Traefik (server deployments only - guards itself)
         with _timed_step("traefik"):

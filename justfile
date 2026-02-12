@@ -358,19 +358,25 @@ infra:
 # Git Hooks (prek)
 # =============================================================================
 
-# Install prek hooks
+# Install pre-commit hook (auto-fix wrapper — do NOT use `prek install` directly)
 install-hooks:
-    prek install
-    @echo "✓ prek hooks installed"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HOOKS_DIR="$(git rev-parse --git-common-dir)/hooks"
+    cp worktree/hooks/pre-commit "$HOOKS_DIR/pre-commit"
+    chmod +x "$HOOKS_DIR/pre-commit"
+    echo "✓ pre-commit hook installed (ruff auto-fix)"
 
 # Run prek hooks on all files
 run-hooks:
     prek run --all-files
 
-# Uninstall prek hooks
+# Uninstall pre-commit hook
 uninstall-hooks:
-    prek uninstall
-    @echo "✓ prek hooks uninstalled"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    HOOK="$(git rev-parse --git-common-dir)/hooks/pre-commit"
+    [ -f "$HOOK" ] && rm "$HOOK" && echo "✓ pre-commit hook uninstalled" || echo "No hook to uninstall"
 
 # =============================================================================
 # AI Development Workflow (Epic/TDD)

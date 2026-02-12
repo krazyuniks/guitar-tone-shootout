@@ -60,10 +60,16 @@ def fix_docker_ownership(path: Path) -> bool:
     with contextlib.suppress(Exception):
         result = subprocess.run(
             [
-                "docker", "run", "--rm",
-                "-v", f"{path}:/work",
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{path}:/work",
                 "alpine",
-                "chown", "-R", f"{uid}:{gid}", "/work"
+                "chown",
+                "-R",
+                f"{uid}:{gid}",
+                "/work",
             ],
             capture_output=True,
             timeout=60,
@@ -737,16 +743,24 @@ def get_hook_template_path() -> Path:
 
 
 def is_hook_installed(hook_name: str) -> bool:
-    """Check if a hook is installed in the bare repo.
+    """Check if a hook is installed in the bare repo and matches the template.
 
     Args:
         hook_name: Name of the hook (e.g., "post-commit")
 
     Returns:
-        True if the hook exists and is executable
+        True if the hook exists, is executable, and matches the template content
     """
     hook_path = get_hooks_path() / hook_name
-    return hook_path.exists() and bool(hook_path.stat().st_mode & 0o111)
+    if not hook_path.exists() or not bool(hook_path.stat().st_mode & 0o111):
+        return False
+
+    template_path = get_hook_template_path() / hook_name
+    if not template_path.exists():
+        # No template to compare against — existence check only
+        return True
+
+    return hook_path.read_text() == template_path.read_text()
 
 
 def install_hook(hook_name: str) -> bool:
