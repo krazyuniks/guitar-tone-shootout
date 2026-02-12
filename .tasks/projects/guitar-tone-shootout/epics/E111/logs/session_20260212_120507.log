@@ -1,0 +1,35 @@
+2026-02-12 13:05:07,001 [INFO] Session log: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111/logs/session_20260212_120507.log
+2026-02-12 13:05:07,001 [INFO] Starting TDD state machine for Epic E111
+2026-02-12 13:05:07,001 [INFO]   Tasks dir: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111
+2026-02-12 13:05:07,001 [INFO]   Max iterations: 50
+2026-02-12 13:05:07,001 [INFO]   Dry run: False
+2026-02-12 13:05:07,001 [INFO]
+2026-02-12 13:05:07,001 [INFO] === Iteration 1 ===
+2026-02-12 13:05:07,002 [INFO]   Next task: T119 — Verify scheduler dispatches sync end-to-end (state=pending)
+2026-02-12 13:05:07,193 [INFO]
+  Phase: TEST (writing tests for T119)
+2026-02-12 13:05:07,193 [DEBUG] STRUCTURED: {"event": "phase_start", "timestamp": "2026-02-12T12:05:07.193236+00:00", "task_id": 119, "phase": "test"}
+2026-02-12 13:05:07,198 [INFO]   Dispatching 'test-author' (model=opus, max_turns=20)...
+2026-02-12 13:05:07,198 [DEBUG] STRUCTURED: {"event": "agent_dispatch", "timestamp": "2026-02-12T12:05:07.198927+00:00", "agent": "test-author", "model": "opus", "max_turns": 20}
+2026-02-12 13:07:18,171 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-12 13:07:18,171 [INFO]
+  Phase: RED (verifying tests fail)
+2026-02-12 13:07:18,171 [INFO]     Running: just tdd-red T119
+2026-02-12 13:07:25,125 [DEBUG]     just tdd-red T119 -> OK
+2026-02-12 13:07:25,125 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/integration/scheduler/test_sync_dispatch.py
+
+Results: 3 failed, 6 passed, 0 errors
+WARNING: 6 tests already pass (code may partially exist).
+  This is OK — 3 tests still fail, so there's work to do.
+
+Red phase verified: 3 failing + 0 erroring tests found.
+
+2026-02-12 13:07:25,125 [INFO]
+  Phase: MOCK CHECK (verifying no mock violations)
+2026-02-12 13:07:25,161 [INFO]     Mock check passed
+2026-02-12 13:07:25,161 [INFO]
+  Phase: LOCK (snapshotting tests)
+2026-02-12 13:07:25,161 [INFO]     Running: just tdd-lock T119

@@ -22,7 +22,7 @@ T115 → T120
 | T114 | T3K oauth_tokens Alembic migration | complete | - | - |
 | T115 | Implement admin sync endpoints (rep | complete | worker | T112, T113 |
 | T117 | Integrate model downloader into syn | complete | - | - |
-| T118 | Fix consumer bugs and verify end-to | pending | worker | T112, T113, T117 |
+| T118 | Fix consumer bugs and verify end-to | complete | worker | T112, T113, T117 |
 | T119 | Verify scheduler dispatches sync en | pending | worker | T114, T115 |
 | T120 | gts-admin CLI and just admin regist | complete | - | T115 |
 

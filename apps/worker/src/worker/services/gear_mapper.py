@@ -88,14 +88,17 @@ class GearMapperService:
 
     async def _lookup_model_by_source(
         self,
-        gear_id: UUID,
+        _gear_id: UUID,
         _source_name: str,
         _source_record_id: str,
     ) -> GearModel | None:
-        """Look up gear model by gear_id and source tracking."""
-        stmt = select(GearModel).where(GearModel.gear_id == gear_id)
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        """Look up gear model by gear_id and source tracking.
+
+        Note: GearModel currently has no source tracking fields,
+        so we always return None to allow creation of new models.
+        This will need to be updated when GearModelSource table is added.
+        """
+        return None
 
     async def _create_gear(self, record: GearSyncRecord) -> None:
         """Create new Gear and GearSource from sync record."""

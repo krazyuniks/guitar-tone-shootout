@@ -82,9 +82,7 @@ class GearSyncConsumer:
             stmt = text("SELECT * FROM pgmq.read_with_poll(:queue, :vt, :qty)")
             result = await self.t3k_session.execute(
                 stmt,
-                queue=queue_name,
-                vt=60,
-                qty=10,
+                {"queue": queue_name, "vt": 60, "qty": 10},
             )
             return result.fetchall()
         except Exception:
@@ -96,8 +94,7 @@ class GearSyncConsumer:
         stmt = text("SELECT pgmq.archive(:queue, :msg_id)")
         await self.t3k_session.execute(
             stmt,
-            queue=queue_name,
-            msg_id=msg_id,
+            {"queue": queue_name, "msg_id": msg_id},
         )
 
     async def _dead_letter(self, message: object, queue_name: str) -> None:
@@ -105,10 +102,10 @@ class GearSyncConsumer:
         msg_data = message.message
         if isinstance(msg_data, dict):
             msg_data = json.dumps(msg_data)
-        stmt = text(f"SELECT pgmq.send('{self.dead_letter_queue}', :message::jsonb)")
+        stmt = text("SELECT pgmq.send(:queue, :message::jsonb)")
         await self.t3k_session.execute(
             stmt,
-            message=msg_data,
+            {"queue": self.dead_letter_queue, "message": msg_data},
         )
         await self._archive_message(queue_name, message.msg_id)
 
