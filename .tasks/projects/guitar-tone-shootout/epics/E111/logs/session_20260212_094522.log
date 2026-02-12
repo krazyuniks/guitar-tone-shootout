@@ -1,0 +1,35 @@
+2026-02-12 10:45:22,186 [INFO] Session log: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111/logs/session_20260212_094522.log
+2026-02-12 10:45:22,186 [INFO] Starting TDD state machine for Epic E111
+2026-02-12 10:45:22,186 [INFO]   Tasks dir: /home/ryan/Work/guitar-tone-worktrees/main/.tasks/projects/guitar-tone-shootout/epics/E111
+2026-02-12 10:45:22,186 [INFO]   Max iterations: 50
+2026-02-12 10:45:22,186 [INFO]   Dry run: False
+2026-02-12 10:45:22,186 [INFO]
+2026-02-12 10:45:22,186 [INFO] === Iteration 1 ===
+2026-02-12 10:45:22,212 [INFO]   Next task: T113 — Wire real pgmq consumer in entrypoint (state=pending)
+2026-02-12 10:45:22,508 [INFO]
+  Phase: TEST (writing tests for T113)
+2026-02-12 10:45:22,508 [DEBUG] STRUCTURED: {"event": "phase_start", "timestamp": "2026-02-12T09:45:22.508460+00:00", "task_id": 113, "phase": "test"}
+2026-02-12 10:45:22,515 [INFO]   Dispatching 'test-author' (model=opus, max_turns=20)...
+2026-02-12 10:45:22,516 [DEBUG] STRUCTURED: {"event": "agent_dispatch", "timestamp": "2026-02-12T09:45:22.516186+00:00", "agent": "test-author", "model": "opus", "max_turns": 20}
+2026-02-12 10:46:22,309 [DEBUG]   Agent 'test-author' exited with code 0
+2026-02-12 10:46:22,309 [INFO]
+  Phase: RED (verifying tests fail)
+2026-02-12 10:46:22,309 [INFO]     Running: just tdd-red T113
+2026-02-12 10:46:29,300 [DEBUG]     just tdd-red T113 -> OK
+2026-02-12 10:46:29,300 [DEBUG]     Output:
+Verifying new tests fail (red phase)...
+New test files:
+  tests/integration/worker/test_pgmq_consumer_wiring.py
+
+Results: 5 failed, 2 passed, 0 errors
+WARNING: 2 tests already pass (code may partially exist).
+  This is OK — 5 tests still fail, so there's work to do.
+
+Red phase verified: 5 failing + 0 erroring tests found.
+
+2026-02-12 10:46:29,300 [INFO]
+  Phase: MOCK CHECK (verifying no mock violations)
+2026-02-12 10:46:29,338 [INFO]     Mock check passed
+2026-02-12 10:46:29,338 [INFO]
+  Phase: LOCK (snapshotting tests)
+2026-02-12 10:46:29,338 [INFO]     Running: just tdd-lock T113
