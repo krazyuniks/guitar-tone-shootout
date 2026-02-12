@@ -1026,11 +1026,17 @@ async def gear_model_toggle(
     size_value = (
         gear_model.size.value if hasattr(gear_model.size, "value") else str(gear_model.size)
     )
+    download_status_value = (
+        gear_model.download_status.value
+        if hasattr(gear_model.download_status, "value")
+        else str(gear_model.download_status)
+    )
     model_context = {
         "id": str(gear_model.id),
         "name": f"{gear_name} ({size_value})" if gear_name else size_value,
         "model_size": size_value,
         "is_saved": is_saved,
+        "download_status": download_status_value,
     }
 
     return templates.TemplateResponse(
@@ -1038,3 +1044,100 @@ async def gear_model_toggle(
         "fragments/gear/model_row.html",
         {"model": model_context},
     )
+
+
+# Bulk Gear Model Toggle (save/unsave multiple models)
+
+
+@router.post("/gear/models/bulk-toggle", response_class=HTMLResponse)
+async def gear_models_bulk_toggle(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Bulk add or remove multiple gear models from the user's library.
+
+    Expects JSON payload:
+    {
+        "model_ids": ["uuid1", "uuid2", ...],
+        "action": "add" or "remove"
+    }
+
+    Returns 200 on success.
+    """
+    from pydantic import BaseModel
+
+    class BulkToggleRequest(BaseModel):
+        model_ids: list[str]
+        action: str  # "add" or "remove"
+
+    try:
+        body = await request.json()
+        bulk_request = BulkToggleRequest(**body)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid request body: {e}",
+        ) from e
+
+    if bulk_request.action not in ["add", "remove"]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="action must be 'add' or 'remove'",
+        )
+
+    # Convert string IDs to UUIDs
+    try:
+        model_uuids = [UUID(mid) for mid in bulk_request.model_ids]
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid UUID format: {e}",
+        ) from e
+
+    # Verify all models exist
+    result = await db.execute(select(GearModel.id).where(GearModel.id.in_(model_uuids)))
+    existing_model_ids = {row[0] for row in result.all()}
+
+    if len(existing_model_ids) != len(model_uuids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more models not found",
+        )
+
+    if bulk_request.action == "add":
+        # Get currently saved models to avoid duplicates
+        result = await db.execute(
+            select(UserGear.gear_model_id)
+            .where(UserGear.user_id == current_user.id)
+            .where(UserGear.gear_model_id.in_(model_uuids))
+        )
+        already_saved = {row[0] for row in result.all()}
+
+        # Add models that aren't already saved
+        for model_id in model_uuids:
+            if model_id not in already_saved:
+                user_gear = UserGear(
+                    id=uuid4(),
+                    user_id=current_user.id,
+                    gear_model_id=model_id,
+                )
+                db.add(user_gear)
+
+        await db.commit()
+
+    elif bulk_request.action == "remove":
+        # Delete all matching UserGear entries
+        result = await db.execute(
+            select(UserGear)
+            .where(UserGear.user_id == current_user.id)
+            .where(UserGear.gear_model_id.in_(model_uuids))
+        )
+        to_delete = result.scalars().all()
+
+        for user_gear in to_delete:
+            await db.delete(user_gear)
+
+        await db.commit()
+
+    return HTMLResponse(content="", status_code=200)

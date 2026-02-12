@@ -112,6 +112,11 @@ def _gear_to_detail_pack(gear) -> dict:
                     ),
                     "model_size": (m.size.value if hasattr(m.size, "value") else str(m.size)),
                     "is_saved": False,
+                    "download_status": (
+                        m.download_status.value
+                        if hasattr(m.download_status, "value")
+                        else str(m.download_status)
+                    ),
                 }
                 for m in gear.models
             ],
