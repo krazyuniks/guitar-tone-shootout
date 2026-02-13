@@ -59,9 +59,9 @@ class TestDragAndDropZone:
 
     def test_has_drop_zone_element(self, upload_modal_content: str) -> None:
         """Modal must contain a dedicated drop zone element with data-testid."""
-        assert 'data-testid="upload-drop-zone"' in upload_modal_content, (
-            "Upload modal must have a drag-and-drop zone with " 'data-testid="upload-drop-zone"'
-        )
+        assert (
+            'data-testid="upload-drop-zone"' in upload_modal_content
+        ), 'Upload modal must have a drag-and-drop zone with data-testid="upload-drop-zone"'
 
     def test_drop_zone_has_drag_event_handlers(self, template_content: str) -> None:
         """Drop zone must handle dragenter, dragleave, dragover, and drop events.
@@ -86,10 +86,9 @@ class TestDragAndDropZone:
             "Drop zone must handle dragover events "
             "(via Alpine.js @dragover, x-on:dragover, or inline ondragover)"
         )
-        assert has_drop, (
-            "Drop zone must handle drop events "
-            "(via Alpine.js @drop, x-on:drop, or inline ondrop)"
-        )
+        assert (
+            has_drop
+        ), "Drop zone must handle drop events (via Alpine.js @drop, x-on:drop, or inline ondrop)"
 
     def test_drop_zone_has_click_fallback(self, upload_modal_content: str) -> None:
         """Drop zone must support click-to-select as a fallback.
@@ -144,10 +143,9 @@ class TestUploadProgressBar:
 
     def test_has_progress_bar_element(self, upload_modal_content: str) -> None:
         """Modal must contain a progress bar element with data-testid."""
-        assert 'data-testid="upload-progress-bar"' in upload_modal_content, (
-            "Upload modal must have a progress bar element with "
-            'data-testid="upload-progress-bar"'
-        )
+        assert (
+            'data-testid="upload-progress-bar"' in upload_modal_content
+        ), 'Upload modal must have a progress bar element with data-testid="upload-progress-bar"'
 
     def test_has_progress_percentage_display(self, upload_modal_content: str) -> None:
         """Modal must show upload percentage text."""

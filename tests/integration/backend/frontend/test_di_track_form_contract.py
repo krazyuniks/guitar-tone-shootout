@@ -37,9 +37,9 @@ class TestUploadFormURL:
         The frontend currently has hx-post="/api/v1/di-tracks/upload" which 404s.
         """
         # The correct URL must be present
-        assert 'hx-post="/api/v1/di-tracks"' in template_content, (
-            "Upload form hx-post must be '/api/v1/di-tracks', " "not '/api/v1/di-tracks/upload'"
-        )
+        assert (
+            'hx-post="/api/v1/di-tracks"' in template_content
+        ), "Upload form hx-post must be '/api/v1/di-tracks', not '/api/v1/di-tracks/upload'"
 
     def test_form_does_not_use_upload_suffix(self, template_content: str) -> None:
         """Verify the /upload suffix is NOT present in the form action.
