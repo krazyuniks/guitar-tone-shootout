@@ -454,8 +454,24 @@ def _process_agent_result(
             _log_validation_event(event_logger, story_id, result)
         return result
 
-    # Parse structured output
+    # Parse structured output.
+    # agent_result.structured_output is the Claude Code envelope:
+    #   {"type":"result","result":"<agent text>","num_turns":N,...}
+    # The validation JSON is inside the "result" field as a string.
     structured = agent_result.structured_output
+    if isinstance(structured, dict) and "result" in structured:
+        result_text = structured["result"]
+        if isinstance(result_text, str):
+            try:
+                structured = json.loads(result_text)
+            except json.JSONDecodeError:
+                logger.debug(
+                    "Could not parse 'result' field as JSON for story '%s'",
+                    story_id,
+                )
+        elif isinstance(result_text, dict):
+            structured = result_text
+
     if not isinstance(structured, dict):
         result = ValidationResult(
             passed=False,
