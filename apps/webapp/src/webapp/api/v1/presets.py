@@ -108,7 +108,7 @@ async def _get_preset_with_ownership_check(
 async def list_presets(
     db: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
-) -> list[Preset]:
+) -> list[PresetResponse]:
     """List current user's presets.
 
     Returns all presets owned by the authenticated user through their
