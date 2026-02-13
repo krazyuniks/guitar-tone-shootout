@@ -62,7 +62,7 @@ def set_user_override(user: User | None) -> None:
 # --- Gear mapping helpers ---
 
 
-def _gear_to_pack(gear) -> dict:
+def _gear_to_pack(gear: Gear) -> dict[str, object]:
     """Map Gear domain entity to pack dict for browse templates."""
     platform = "nam"
     if gear.models:
@@ -88,7 +88,7 @@ def _gear_to_pack(gear) -> dict:
     }
 
 
-def _gear_to_detail_pack(gear) -> dict:
+def _gear_to_detail_pack(gear: Gear) -> dict[str, object]:
     """Map Gear domain entity to detailed pack dict for detail template."""
     pack = _gear_to_pack(gear)
     pack.update(
@@ -303,11 +303,11 @@ async def gear_list_fragment(
     )
 
 
-@router.get("/shootouts", response_class=HTMLResponse)
+@router.get("/shootouts", response_model=None)
 async def shootouts_page(
     request: Request,
     current_user: Annotated[User | None, Depends(get_current_user_optional)],
-) -> HTMLResponse:
+) -> HTMLResponse | RedirectResponse:
     """Render public shootouts page.
 
     If authenticated, redirects to library shootouts.
@@ -745,7 +745,9 @@ async def shootout_detail_page(
                 }
             )
 
-    chain_items.sort(key=lambda x: x["position"])
+    chain_items.sort(
+        key=lambda x: int(x["position"]) if isinstance(x["position"], int | str) else 0
+    )
 
     return templates.TemplateResponse(
         request,
@@ -870,7 +872,9 @@ async def chain_detail_page(
             }
         )
 
-    block_items.sort(key=lambda x: x["position"])
+    block_items.sort(
+        key=lambda x: int(x["position"]) if isinstance(x["position"], int | str) else 0
+    )
 
     return templates.TemplateResponse(
         request,
