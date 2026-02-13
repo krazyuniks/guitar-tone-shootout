@@ -53,8 +53,8 @@ rebuild *ARGS:
 # Quality Gates (all run in Docker)
 # =============================================================================
 
-# Run all quality checks
-check: lint check-types check-tests check-imports
+# Run all quality checks (read-only — safe in Docker with :ro mounts)
+check: check-lint check-types check-tests check-imports
 
 # Run type checking (strict on core, TypeScript on video)
 check-types:
@@ -72,6 +72,11 @@ check-imports:
 # =============================================================================
 # Linting (all run in Docker)
 # =============================================================================
+
+# Check lint and formatting (read-only — no file modifications)
+check-lint:
+    docker compose exec -T webapp ruff check libs/ sources/ apps/ tests/
+    docker compose exec -T webapp ruff format --check libs/ sources/ apps/ tests/
 
 # Fix all lint issues (Python + Astro)
 lint:
