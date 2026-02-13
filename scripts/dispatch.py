@@ -484,12 +484,13 @@ def dispatch_agent(
         prompt_tokens,
     )
 
-    # Build CLI arguments
+    # Build CLI arguments — prompt and skills passed positionally because
+    # ClaudeAdapter names them _prompt/_skills (unused, piped via stdin).
     args = adapter.build_args(
-        prompt=prompt,
-        model=model,
-        tools=tools,
-        skills=skills,
+        prompt,
+        model,
+        tools,
+        skills,
         mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
