@@ -11,6 +11,7 @@ No dependency on run_epic.py or any V1 code.
 import hashlib
 import json
 import logging
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,6 +43,7 @@ FALLBACK_MODELS: dict[str, str] = {
 
 # Tool restrictions per agent role (Section 8.2 Strategy 4)
 TOOL_SETS: dict[str, list[str]] = {
+    "planning": ["Read", "Bash", "Glob", "Grep"],
     "implementation": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
     "validation_browser": ["Read", "Bash", "Glob", "Grep"],
     "validation_api": ["Bash", "Read", "Glob", "Grep"],
@@ -116,9 +118,8 @@ class ProviderAdapter(Protocol):
 class ClaudeAdapter:
     """Claude Code CLI adapter.
 
-    Uses --agents JSON as the canonical dispatch mechanism (Section 8.5
-    Decision 7). Falls back to individual CLI flags if --agents JSON
-    dispatch fails.
+    Passes prompt via stdin (-p -) to avoid OS argument length limits.
+    Model, tools, skills, and MCP are passed as individual CLI flags.
     """
 
     @property
@@ -126,61 +127,6 @@ class ClaudeAdapter:
         return "claude"
 
     def build_args(
-        self,
-        prompt: str,
-        model: str,
-        tools: list[str],
-        skills: list[str],
-        mcp_config: dict | None,
-        max_turns: int,
-        max_budget_usd: float,
-        json_schema: dict | None,
-        fallback_model: str | None = None,
-    ) -> list[str]:
-        """Build CLI arguments using --agents JSON declaration.
-
-        Consolidates model, tools, skills, MCP, and prompt into a single
-        --agents JSON blob. This is the canonical V2 dispatch mechanism.
-        """
-        agent_def: dict = {
-            "story-agent": {
-                "description": "Implementation agent",
-                "prompt": prompt,
-                "model": model,
-                "maxTurns": max_turns,
-            }
-        }
-
-        if skills:
-            agent_def["story-agent"]["skills"] = skills
-
-        if tools:
-            agent_def["story-agent"]["tools"] = tools
-
-        if mcp_config:
-            agent_def["story-agent"]["mcpServers"] = mcp_config
-
-        args = [
-            "claude",
-            "--agents",
-            json.dumps(agent_def),
-            "--max-budget-usd",
-            str(max_budget_usd),
-            "--no-session-persistence",
-            "--output-format",
-            "json",
-            "--dangerously-skip-permissions",
-        ]
-
-        if json_schema:
-            args.extend(["--json-schema", json.dumps(json_schema)])
-
-        if fallback_model:
-            args.extend(["--fallback-model", fallback_model])
-
-        return args
-
-    def build_args_fallback(
         self,
         _prompt: str,
         model: str,
@@ -191,17 +137,11 @@ class ClaudeAdapter:
         max_budget_usd: float,
         json_schema: dict | None,
         fallback_model: str | None = None,
-        skill_file: Path | None = None,
     ) -> list[str]:
-        """Build CLI arguments using individual flags (fallback path).
+        """Build CLI arguments. Prompt is piped via stdin by the caller.
 
-        Used when --agents JSON is unavailable or fails. Passes prompt
-        via stdin (-p -), skills via --append-system-prompt-file, and
-        MCP via --strict-mcp-config --mcp-config.
-
-        Note: _prompt is not embedded in args (it is piped via subprocess
-        stdin by the caller). _skills is replaced by skill_file (a pre-
-        assembled temp file containing skill content).
+        _prompt and _skills are accepted for protocol compatibility but
+        not embedded in args. The caller pipes prompt via stdin.
         """
         args = [
             "claude",
@@ -222,9 +162,6 @@ class ClaudeAdapter:
         if tools:
             args.extend(["--tools", ",".join(tools)])
 
-        if skill_file and skill_file.exists():
-            args.extend(["--append-system-prompt-file", str(skill_file)])
-
         if mcp_config:
             mcp_json = json.dumps({"mcpServers": mcp_config})
             args.extend(["--strict-mcp-config", "--mcp-config", mcp_json])
@@ -243,36 +180,40 @@ class ClaudeAdapter:
     ) -> AgentResult:
         """Parse Claude Code JSON output into AgentResult.
 
-        Claude Code with --output-format json emits JSON to stdout.
-        We parse cost_usd and turns from the structured output when
-        available.
+        Claude Code --output-format json emits:
+        {"type":"result","subtype":"success","is_error":false,
+         "duration_ms":N,"duration_api_ms":N,"num_turns":N,
+         "result":"the agent's text response"}
+
+        The agent's text response is extracted as `output`.
+        The full envelope is kept as `structured_output`.
         """
-        output = completed.stdout or ""
+        raw = completed.stdout or ""
         exit_code = completed.returncode
         success = exit_code == 0
 
+        output = raw
         structured_output = None
         cost_usd = None
         turns = None
 
-        if output.strip():
+        if raw.strip():
             try:
-                parsed = json.loads(output)
+                parsed = json.loads(raw)
                 structured_output = parsed
 
-                # Extract cost and turns from Claude's JSON output
                 if isinstance(parsed, dict):
                     cost_usd = parsed.get("cost_usd")
-                    turns = parsed.get("turns")
-                    # The actual result may be nested
-                    if "result" in parsed:
-                        structured_output = parsed["result"]
+                    turns = parsed.get("num_turns") or parsed.get("turns")
+                    # Extract the agent's text response as the primary output
+                    if "result" in parsed and isinstance(parsed["result"], str):
+                        output = parsed["result"]
             except json.JSONDecodeError:
                 # Raw text output — not structured
                 pass
 
         # Detect overload/transient failures
-        is_transient = _is_overload_or_transient(exit_code, output, completed.stderr or "")
+        is_transient = _is_overload_or_transient(exit_code, raw, completed.stderr or "")
 
         return AgentResult(
             success=success,
@@ -556,13 +497,17 @@ def dispatch_agent(
         fallback_model=fallback_model,
     )
 
-    # Run subprocess
+    # Run subprocess — prompt piped via stdin to avoid OS arg length limits.
+    # Clear CLAUDECODE env var to allow nested dispatch from within a Claude session.
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     try:
         completed = subprocess.run(
             args,
+            input=prompt,
             capture_output=True,
             text=True,
             cwd=cwd,
+            env=env,
             timeout=600,  # 10 minute timeout
         )
     except subprocess.TimeoutExpired:
@@ -573,6 +518,10 @@ def dispatch_agent(
             exit_code=-1,
             is_overload_or_transient=True,
         )
+
+    # Log stderr for debugging dispatch failures
+    if completed.returncode != 0 and completed.stderr:
+        logger.warning("Agent stderr: %s", completed.stderr[:500])
 
     # Parse result
     result = adapter.parse_result(completed)
@@ -702,7 +651,7 @@ def get_dispatch_metadata(
         "model": model,
         "prompt_hash": compute_prompt_hash(prompt),
         "prompt_tokens": estimate_tokens(prompt),
-        "skill_tokens": 0,  # Skills via --agents JSON, not counted separately
+        "skill_tokens": 0,  # Skills loaded from project config, not counted separately
     }
 
 

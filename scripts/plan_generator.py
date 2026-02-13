@@ -742,7 +742,7 @@ def generate_plan(
         prompt=prompt,
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
-        tools=get_tools_for_role("implementation"),
+        tools=get_tools_for_role("planning"),
         skills=["gts-architecture", "gts-backend-dev", "gts-frontend-dev"],
         max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
@@ -755,13 +755,15 @@ def generate_plan(
             f"Output: {result.output[:500]}"
         )
 
-    # Extract the output text
+    # result.output is the agent's text response (already unwrapped
+    # from the Claude Code JSON envelope by parse_result).
     output = result.output
-    if result.structured_output and isinstance(result.structured_output, dict):
-        # Claude --output-format json wraps the result; extract the text
-        text_output = result.structured_output.get("result", "")
-        if text_output:
-            output = text_output
+
+    logger.info(
+        "Planner output length: %d chars, first 500: %s",
+        len(output),
+        output[:500],
+    )
 
     # Parse the planner's output
     plan_md_content, plan_json_dict = _parse_plan_output(output)

@@ -587,8 +587,8 @@ def write_skill_file(story: StorySpec, tmp_dir: Path) -> Path:
     strips YAML frontmatter (not needed at runtime), and concatenates
     with separators.
 
-    This is the fallback path when --agents JSON skills field is
-    unavailable. The --agents JSON dispatch uses skill names directly.
+    Skills are loaded from project config by Claude Code at runtime.
+    This assembles skill content for injection via --append-system-prompt-file.
 
     Args:
         story: Story specification with a skills list.
