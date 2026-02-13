@@ -157,8 +157,17 @@ gts/
 
 ### Testing
 - Unit/Integration in Docker, E2E on Host
+- Tests are regression nets -- written AFTER the product works, not before
 - `just test-regression` before commits, `just test` before PRs
 - See `tests/AGENTS.md` for structure and patterns
+
+### Epic Workflow (Behavioural Validation)
+- Epics run via the stateless orchestrator (`scripts/orchestrator.py`)
+- Planning: `just epic-ingest <N>` then `just epic-plan <N>` (context -> scope -> plan -> verify -> gate)
+- Execution: `just epic-start <N>` (dispatches stories, runs validation checkpoints, logs JSONL)
+- Status: `just epic-status <N>` (reads JSONL, reports progress)
+- Plans stored as `plan.json` + `PLAN.md` in `.planning/epics/E<N>/`
+- All events logged to JSONL for crash recovery, debugging, and analytics
 
 ## Conversation UX (CLI Environment)
 
@@ -248,7 +257,7 @@ git push
 **Separate exploration from execution.** Research sessions should NOT be used for implementation.
 
 1. **Exploration sessions** — research, planning, epic creation, codebase analysis
-2. **Execution sessions** — implementation, one task at a time, fresh context
+2. **Execution sessions** — implementation with fresh context
 3. **Never mix** — if you've done significant exploration, hand off to fresh session
 
 ## Landing the Plane (Session Completion)
