@@ -14,6 +14,7 @@ import logging
 import os
 import subprocess
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -388,6 +389,23 @@ def _is_overload_or_transient(exit_code: int, stdout: str, stderr: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _log_dispatch_prompt(prompt: str, prompt_hash: str, model: str) -> None:
+    """Write the full prompt text to the logs directory for debugging.
+
+    Creates .planning/epics/logs/ if needed. Each dispatch writes a
+    timestamped file so failed agents can be debugged after the fact.
+    """
+    logs_dir = PROJECT_ROOT / ".planning" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+    path = logs_dir / f"dispatch-{model}-{prompt_hash}-{ts}.txt"
+    try:
+        path.write_text(prompt, encoding="utf-8")
+        logger.debug("Prompt logged to %s", path)
+    except OSError as exc:
+        logger.warning("Failed to write dispatch prompt log: %s", exc)
+
+
 def compute_prompt_hash(prompt: str) -> str:
     """Compute a short hash of the prompt text for JSONL logging.
 
@@ -484,6 +502,9 @@ def dispatch_agent(
         prompt_hash,
         prompt_tokens,
     )
+
+    # Write prompt to logs dir for post-mortem debugging
+    _log_dispatch_prompt(prompt, prompt_hash, model)
 
     # Build CLI arguments — prompt and skills passed positionally because
     # ClaudeAdapter names them _prompt/_skills (unused, piped via stdin).
