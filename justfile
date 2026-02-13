@@ -417,24 +417,24 @@ epic-ingest epic_num:
 
 # Run the full planning pipeline (context → scope → plan → verify → gate)
 epic-plan epic_num:
-    python scripts/orchestrator.py plan {{epic_num}}
+    PYTHONPATH=. python scripts/orchestrator.py plan {{epic_num}}
 
 # Start epic execution (dispatches stories sequentially)
 epic-start epic_num:
-    python scripts/orchestrator.py run {{epic_num}}
+    PYTHONPATH=. python scripts/orchestrator.py run {{epic_num}}
 
 # Resume a crashed/interrupted epic execution
 epic-resume epic_num:
-    python scripts/orchestrator.py run {{epic_num}} --resume
+    PYTHONPATH=. python scripts/orchestrator.py run {{epic_num}} --resume
 
 # Resume a crashed/interrupted planning phase
 epic-plan-resume epic_num:
-    python scripts/orchestrator.py plan {{epic_num}} --resume
+    PYTHONPATH=. python scripts/orchestrator.py plan {{epic_num}} --resume
 
 # Show epic status from JSONL logs
 epic-status epic_num:
-    python scripts/orchestrator.py status {{epic_num}}
+    PYTHONPATH=. python scripts/orchestrator.py status {{epic_num}}
 
 # Validate plan.json against schema (Phase A only)
 epic-validate-plan epic_num:
-    python scripts/plan_validator.py {{epic_num}}
+    PYTHONPATH=. python scripts/plan_validator.py {{epic_num}}
