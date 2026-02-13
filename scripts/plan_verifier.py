@@ -31,7 +31,6 @@ from scripts.dispatch import (
 )
 from scripts.plan_generator import (
     PlanGenerationError,
-    build_planner_output_schema,
     build_verifier_revision_prompt,
 )
 from scripts.plan_validator import validate_plan
@@ -650,11 +649,11 @@ def verify_with_revision_cycle(
 # ---------------------------------------------------------------------------
 
 
-def _extract_structured_plan(result) -> tuple[str, dict]:
+def _extract_plan_from_output(result) -> tuple[str, dict]:
     """Extract plan_md and plan_json from a dispatch result.
 
-    Tries structured_output first (from --json-schema), then falls back
-    to _parse_plan_output() for text delimiter extraction.
+    Parses the agent's text output using delimiter-based extraction
+    (===PLAN_MD_START===, ===PLAN_JSON_START===).
 
     Args:
         result: AgentResult from dispatch_with_fallback.
@@ -663,70 +662,10 @@ def _extract_structured_plan(result) -> tuple[str, dict]:
         Tuple of (plan_md_content, plan_json_dict).
 
     Raises:
-        PlanGenerationError: If neither structured nor text output can be parsed.
+        PlanGenerationError: If output cannot be parsed.
     """
     from scripts.plan_generator import _parse_plan_output
 
-    # Try structured output first (from --json-schema)
-    so = result.structured_output
-    if so and isinstance(so, dict):
-        # Claude Code wraps the JSON schema result inside the envelope.
-        # The envelope has {"result": <json-schema output>} when using
-        # --output-format json + --json-schema together. dispatch.py
-        # already extracts result.output as the text, but
-        # structured_output holds the full envelope.
-        candidate = so
-
-        # If the envelope wraps a "result" field that is itself a dict
-        # with plan_md/plan_json, use that.
-        if "result" in candidate and isinstance(candidate["result"], dict):
-            candidate = candidate["result"]
-
-        if "plan_md" in candidate and "plan_json" in candidate:
-            plan_md = candidate["plan_md"]
-            plan_json = candidate["plan_json"]
-            if isinstance(plan_md, str) and isinstance(plan_json, dict):
-                logger.info(
-                    "Extracted plan from structured_output (plan_md=%d chars)", len(plan_md)
-                )
-                return plan_md, plan_json
-
-        # The result field may be a JSON string (envelope serialises as string)
-        result_str = so.get("result", "")
-        if isinstance(result_str, str) and result_str.strip().startswith("{"):
-            try:
-                parsed = json.loads(result_str)
-                if isinstance(parsed, dict) and "plan_md" in parsed and "plan_json" in parsed:
-                    logger.info("Extracted plan from envelope result string")
-                    return parsed["plan_md"], parsed["plan_json"]
-            except (json.JSONDecodeError, ValueError):
-                pass
-
-    # Log diagnostic info at WARNING level to help debug extraction failures
-    so_keys = sorted(so.keys()) if so and isinstance(so, dict) else None
-    result_type = type(so.get("result")).__name__ if so and isinstance(so, dict) else None
-    logger.warning(
-        "Structured output extraction: envelope keys=%s, result_type=%s, "
-        "output_len=%d, output[:300]=%s",
-        so_keys,
-        result_type,
-        len(result.output) if result.output else 0,
-        repr((result.output or "")[:300]),
-    )
-
-    # Try parsing the text output from result.output as JSON
-    # (--json-schema output may arrive as the text result field)
-    if result.output and result.output.strip():
-        try:
-            parsed = json.loads(result.output)
-            if isinstance(parsed, dict) and "plan_md" in parsed and "plan_json" in parsed:
-                logger.info("Extracted plan from output text JSON")
-                return parsed["plan_md"], parsed["plan_json"]
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    # Fall back to text delimiter parsing
-    logger.info("Falling back to text delimiter parsing")
     return _parse_plan_output(result.output)
 
 
@@ -757,8 +696,8 @@ def _regenerate_plan_with_errors(
 
     Builds a revision prompt containing the original planning prompt plus
     the specific validation errors, then dispatches the planner again.
-    Uses --json-schema to force structured output with plan_md and plan_json
-    fields, avoiding fragile text delimiter parsing.
+    The agent emits output using ===PLAN_MD_START=== / ===PLAN_JSON_START===
+    delimiters, parsed by _parse_plan_output().
     """
     from scripts.plan_generator import (
         _build_planner_prompt,
@@ -782,13 +721,10 @@ def _regenerate_plan_with_errors(
     # Build revision prompt with errors
     revision_prompt = build_revision_prompt(original_prompt, validation_errors)
 
-    # Build wrapper schema for structured output
-    output_schema = build_planner_output_schema(plan_schema)
-
     logger.info("Dispatching planner revision (Phase A errors, %d chars)", len(revision_prompt))
 
     # Revision agents get no tools — all context is in the prompt, they
-    # only need to produce structured JSON output.
+    # only need to produce delimited text output.
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
@@ -797,7 +733,6 @@ def _regenerate_plan_with_errors(
         tools=[],
         max_turns=5,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
-        json_schema=output_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -808,7 +743,7 @@ def _regenerate_plan_with_errors(
         )
 
     # Extract plan_md and plan_json from structured output
-    plan_md_content, plan_json_dict = _extract_structured_plan(result)
+    plan_md_content, plan_json_dict = _extract_plan_from_output(result)
 
     (epic_dir / "PLAN.md").write_text(plan_md_content, encoding="utf-8")
     (epic_dir / "plan.json").write_text(
@@ -828,8 +763,8 @@ def _regenerate_plan_with_verifier_feedback(
 
     Builds a revision prompt containing the original planning prompt plus
     the structured verifier output, then dispatches the planner again.
-    Uses --json-schema to force structured output with plan_md and plan_json
-    fields, avoiding fragile text delimiter parsing.
+    The agent emits output using ===PLAN_MD_START=== / ===PLAN_JSON_START===
+    delimiters, parsed by _parse_plan_output().
     """
     from scripts.plan_generator import (
         _build_planner_prompt,
@@ -852,13 +787,10 @@ def _regenerate_plan_with_verifier_feedback(
     # Build revision prompt with verifier feedback
     revision_prompt = build_verifier_revision_prompt(original_prompt, verifier_result)
 
-    # Build wrapper schema for structured output
-    output_schema = build_planner_output_schema(plan_schema)
-
     logger.info("Dispatching planner revision (verifier feedback, %d chars)", len(revision_prompt))
 
     # Revision agents get no tools — all context is in the prompt, they
-    # only need to produce structured JSON output.
+    # only need to produce delimited text output.
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
@@ -867,7 +799,6 @@ def _regenerate_plan_with_verifier_feedback(
         tools=[],
         max_turns=5,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
-        json_schema=output_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -878,7 +809,7 @@ def _regenerate_plan_with_verifier_feedback(
         )
 
     # Extract plan_md and plan_json from structured output
-    plan_md_content, plan_json_dict = _extract_structured_plan(result)
+    plan_md_content, plan_json_dict = _extract_plan_from_output(result)
 
     (epic_dir / "PLAN.md").write_text(plan_md_content, encoding="utf-8")
     (epic_dir / "plan.json").write_text(
