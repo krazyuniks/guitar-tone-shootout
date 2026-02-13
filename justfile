@@ -413,28 +413,28 @@ mock-check +FILES:
 
 # Fetch a GitHub epic locally
 epic-ingest epic_num:
-    python scripts/epic_ingest.py {{epic_num}}
+    python -m scripts.epic_ingest {{epic_num}}
 
 # Run the full planning pipeline (context → scope → plan → verify → gate)
 epic-plan epic_num:
-    PYTHONPATH=. python scripts/orchestrator.py plan {{epic_num}}
+    python -m scripts.orchestrator plan {{epic_num}}
 
 # Start epic execution (dispatches stories sequentially)
 epic-start epic_num:
-    PYTHONPATH=. python scripts/orchestrator.py run {{epic_num}}
+    python -m scripts.orchestrator run {{epic_num}}
 
 # Resume a crashed/interrupted epic execution
 epic-resume epic_num:
-    PYTHONPATH=. python scripts/orchestrator.py run {{epic_num}} --resume
+    python -m scripts.orchestrator run {{epic_num}} --resume
 
 # Resume a crashed/interrupted planning phase
 epic-plan-resume epic_num:
-    PYTHONPATH=. python scripts/orchestrator.py plan {{epic_num}} --resume
+    python -m scripts.orchestrator plan {{epic_num}} --resume
 
 # Show epic status from JSONL logs
 epic-status epic_num:
-    PYTHONPATH=. python scripts/orchestrator.py status {{epic_num}}
+    python -m scripts.orchestrator status {{epic_num}}
 
 # Validate plan.json against schema (Phase A only)
 epic-validate-plan epic_num:
-    PYTHONPATH=. python scripts/plan_validator.py {{epic_num}}
+    python -m scripts.plan_validator {{epic_num}}
