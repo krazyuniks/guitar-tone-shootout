@@ -51,6 +51,41 @@ def _load_plan_schema() -> dict:
     return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
+def build_planner_output_schema(plan_schema: dict) -> dict:
+    """Build a JSON Schema for structured planner output via --json-schema.
+
+    Wraps the plan schema into a two-field object: plan_md (string) and
+    plan_json (the plan object). Lifts $defs to the wrapper root so
+    internal $ref paths (e.g. "#/$defs/observable_truth") resolve correctly.
+
+    Args:
+        plan_schema: The raw plan.schema.json dict.
+
+    Returns:
+        Wrapper schema suitable for --json-schema.
+    """
+    plan_obj = {
+        "type": "object",
+        "properties": plan_schema["properties"],
+        "required": plan_schema["required"],
+        "additionalProperties": plan_schema.get("additionalProperties", False),
+    }
+
+    return {
+        "type": "object",
+        "properties": {
+            "plan_md": {
+                "type": "string",
+                "description": "The full PLAN.md content in markdown format.",
+            },
+            "plan_json": plan_obj,
+        },
+        "required": ["plan_md", "plan_json"],
+        "additionalProperties": False,
+        "$defs": plan_schema.get("$defs", {}),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Context reader
 # ---------------------------------------------------------------------------
@@ -580,8 +615,9 @@ errors and re-emit both PLAN.md and plan.json:
 
 {error_list}
 
-All other instructions from the original prompt still apply. Emit the corrected
-output using the same delimiters (===PLAN_MD_START=== etc.).
+All other instructions from the original prompt still apply. Your output will
+be captured via --json-schema as a JSON object with "plan_md" (string) and
+"plan_json" (object) fields.
 """
 
     return original_prompt + revision_section
@@ -675,8 +711,8 @@ def build_verifier_revision_prompt(
         feedback_lines.append("")
 
     feedback_lines.append(
-        "Fix all issues above. Emit corrected output using the same delimiters "
-        "(===PLAN_MD_START=== etc.)."
+        "Fix all issues above. Your output will be captured via --json-schema "
+        'as a JSON object with "plan_md" (string) and "plan_json" (object) fields.'
     )
 
     return original_prompt + "\n".join(feedback_lines)

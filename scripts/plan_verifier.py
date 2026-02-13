@@ -31,6 +31,7 @@ from scripts.dispatch import (
 )
 from scripts.plan_generator import (
     PlanGenerationError,
+    build_planner_output_schema,
     build_verifier_revision_prompt,
 )
 from scripts.plan_validator import validate_plan
@@ -645,6 +646,63 @@ def verify_with_revision_cycle(
 
 
 # ---------------------------------------------------------------------------
+# Structured plan extraction
+# ---------------------------------------------------------------------------
+
+
+def _extract_structured_plan(result) -> tuple[str, dict]:
+    """Extract plan_md and plan_json from a dispatch result.
+
+    Tries structured_output first (from --json-schema), then falls back
+    to _parse_plan_output() for text delimiter extraction.
+
+    Args:
+        result: AgentResult from dispatch_with_fallback.
+
+    Returns:
+        Tuple of (plan_md_content, plan_json_dict).
+
+    Raises:
+        PlanGenerationError: If neither structured nor text output can be parsed.
+    """
+    from scripts.plan_generator import _parse_plan_output
+
+    # Try structured output first (from --json-schema)
+    so = result.structured_output
+    if so and isinstance(so, dict):
+        # Claude Code wraps the JSON schema result inside the envelope.
+        # The envelope has {"result": <json-schema output>} when using
+        # --output-format json + --json-schema together. dispatch.py
+        # already extracts result.output as the text, but
+        # structured_output holds the full envelope.
+        candidate = so
+
+        # If the envelope wraps a "result" field that is itself a dict
+        # with plan_md/plan_json, use that.
+        if "result" in candidate and isinstance(candidate["result"], dict):
+            candidate = candidate["result"]
+
+        if "plan_md" in candidate and "plan_json" in candidate:
+            plan_md = candidate["plan_md"]
+            plan_json = candidate["plan_json"]
+            if isinstance(plan_md, str) and isinstance(plan_json, dict):
+                return plan_md, plan_json
+
+    # Try parsing the text output from result.output as JSON
+    # (--json-schema output may arrive as the text result field)
+    if result.output and result.output.strip():
+        try:
+            parsed = json.loads(result.output)
+            if isinstance(parsed, dict) and "plan_md" in parsed and "plan_json" in parsed:
+                return parsed["plan_md"], parsed["plan_json"]
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Fall back to text delimiter parsing
+    return _parse_plan_output(result.output)
+
+
+# ---------------------------------------------------------------------------
 # Plan regeneration helpers
 # ---------------------------------------------------------------------------
 
@@ -671,13 +729,13 @@ def _regenerate_plan_with_errors(
 
     Builds a revision prompt containing the original planning prompt plus
     the specific validation errors, then dispatches the planner again.
-    The planner rewrites both PLAN.md and plan.json.
+    Uses --json-schema to force structured output with plan_md and plan_json
+    fields, avoiding fragile text delimiter parsing.
     """
     from scripts.plan_generator import (
         _build_planner_prompt,
         _format_decisions,
         _load_plan_schema,
-        _parse_plan_output,
         build_revision_prompt,
     )
 
@@ -696,6 +754,9 @@ def _regenerate_plan_with_errors(
     # Build revision prompt with errors
     revision_prompt = build_revision_prompt(original_prompt, validation_errors)
 
+    # Build wrapper schema for structured output
+    output_schema = build_planner_output_schema(plan_schema)
+
     logger.info("Dispatching planner revision (Phase A errors, %d chars)", len(revision_prompt))
 
     planning_budget = BUDGET_DEFAULTS["planning"]
@@ -707,6 +768,7 @@ def _regenerate_plan_with_errors(
         skills=["gts-architecture", "gts-backend-dev", "gts-frontend-dev"],
         max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
+        json_schema=output_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -716,15 +778,8 @@ def _regenerate_plan_with_errors(
             f"Output: {result.output[:500]}"
         )
 
-    # Extract output text
-    output = result.output
-    if result.structured_output and isinstance(result.structured_output, dict):
-        text_output = result.structured_output.get("result", "")
-        if text_output:
-            output = text_output
-
-    # Parse and write revised plan
-    plan_md_content, plan_json_dict = _parse_plan_output(output)
+    # Extract plan_md and plan_json from structured output
+    plan_md_content, plan_json_dict = _extract_structured_plan(result)
 
     (epic_dir / "PLAN.md").write_text(plan_md_content, encoding="utf-8")
     (epic_dir / "plan.json").write_text(
@@ -744,12 +799,13 @@ def _regenerate_plan_with_verifier_feedback(
 
     Builds a revision prompt containing the original planning prompt plus
     the structured verifier output, then dispatches the planner again.
+    Uses --json-schema to force structured output with plan_md and plan_json
+    fields, avoiding fragile text delimiter parsing.
     """
     from scripts.plan_generator import (
         _build_planner_prompt,
         _format_decisions,
         _load_plan_schema,
-        _parse_plan_output,
     )
 
     context, epic_number = _read_original_prompt_context(epic_dir)
@@ -767,6 +823,9 @@ def _regenerate_plan_with_verifier_feedback(
     # Build revision prompt with verifier feedback
     revision_prompt = build_verifier_revision_prompt(original_prompt, verifier_result)
 
+    # Build wrapper schema for structured output
+    output_schema = build_planner_output_schema(plan_schema)
+
     logger.info("Dispatching planner revision (verifier feedback, %d chars)", len(revision_prompt))
 
     planning_budget = BUDGET_DEFAULTS["planning"]
@@ -778,6 +837,7 @@ def _regenerate_plan_with_verifier_feedback(
         skills=["gts-architecture", "gts-backend-dev", "gts-frontend-dev"],
         max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
+        json_schema=output_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -787,15 +847,8 @@ def _regenerate_plan_with_verifier_feedback(
             f"(exit_code={result.exit_code}). Output: {result.output[:500]}"
         )
 
-    # Extract output text
-    output = result.output
-    if result.structured_output and isinstance(result.structured_output, dict):
-        text_output = result.structured_output.get("result", "")
-        if text_output:
-            output = text_output
-
-    # Parse and write revised plan
-    plan_md_content, plan_json_dict = _parse_plan_output(output)
+    # Extract plan_md and plan_json from structured output
+    plan_md_content, plan_json_dict = _extract_structured_plan(result)
 
     (epic_dir / "PLAN.md").write_text(plan_md_content, encoding="utf-8")
     (epic_dir / "plan.json").write_text(

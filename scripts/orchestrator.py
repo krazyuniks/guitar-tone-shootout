@@ -926,12 +926,34 @@ def _interactive_scope_discussion(epic_dir: Path) -> dict:
     Presents relevant architecture areas and questions from CONTEXT.md,
     then collects answers as locked scope decisions.
 
+    In non-interactive mode (stdin is not a TTY, e.g. when run from
+    `just`), skips the interactive prompt and loads existing decisions
+    from decisions.json if present.
+
     Args:
         epic_dir: Path to the epic directory.
 
     Returns:
         Dict of question -> answer pairs (locked decisions).
     """
+    decisions_path = epic_dir / "decisions.json"
+
+    # Non-interactive mode: skip prompt, load existing decisions if any
+    if not sys.stdin.isatty():
+        if decisions_path.is_file():
+            try:
+                decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
+                logger.info(
+                    "Non-interactive mode: loaded %d decisions from %s",
+                    len(decisions),
+                    decisions_path,
+                )
+                return decisions
+            except json.JSONDecodeError as exc:
+                logger.warning("Failed to parse %s: %s", decisions_path, exc)
+        logger.info("Non-interactive mode: skipping scope discussion (no decisions.json)")
+        return {}
+
     print("\n" + "=" * 70)
     print("SCOPE DISCUSSION")
     print("=" * 70)
@@ -966,7 +988,6 @@ def _interactive_scope_discussion(epic_dir: Path) -> dict:
 
     if decisions:
         # Save decisions to a file for reference
-        decisions_path = epic_dir / "decisions.json"
         decisions_path.write_text(
             json.dumps(decisions, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
