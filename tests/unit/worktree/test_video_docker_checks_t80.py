@@ -206,9 +206,9 @@ class TestVideoHealthCheckEndpoint:
         from worktree import docker
 
         # Should have check_video_health function
-        assert hasattr(
-            docker, "check_video_health"
-        ), "check_video_health function missing from docker module"
+        assert hasattr(docker, "check_video_health"), (
+            "check_video_health function missing from docker module"
+        )
 
     @patch("httpx.get")
     def test_check_video_health_returns_true_when_responding(self, mock_get):

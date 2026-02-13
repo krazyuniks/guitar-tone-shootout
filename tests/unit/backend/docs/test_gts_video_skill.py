@@ -28,9 +28,9 @@ class TestGtsVideoSkillDocumentation:
                 frontmatter_end = i
                 break
 
-        assert (
-            frontmatter_end is not None
-        ), "Skill file must have closing YAML frontmatter delimiter"
+        assert frontmatter_end is not None, (
+            "Skill file must have closing YAML frontmatter delimiter"
+        )
 
         frontmatter = "\n".join(lines[1:frontmatter_end])
         assert "name: gts-video" in frontmatter, "Skill frontmatter must include 'name: gts-video'"
@@ -98,9 +98,9 @@ class TestGtsVideoSkillDocumentation:
     def test_skill_covers_rendering_workflow(self, skill_file: Path) -> None:
         """Verify skill documents end-to-end rendering workflow."""
         content = skill_file.read_text()
-        assert any(
-            keyword in content for keyword in ["rendering", "workflow", "job", "status"]
-        ), "Skill must document rendering workflow (job submission, status polling)"
+        assert any(keyword in content for keyword in ["rendering", "workflow", "job", "status"]), (
+            "Skill must document rendering workflow (job submission, status polling)"
+        )
 
     def test_skill_covers_remotion_commands(self, skill_file: Path) -> None:
         """Verify skill documents Remotion CLI commands."""

@@ -41,17 +41,17 @@ class TestShootoutWizardE2E:
         page = await auth_context.new_page()
         try:
             response = await page.goto(f"{frontend_url}/shootout/create")
-            assert (
-                response is not None and response.status == 200
-            ), f"Shootout create page returned {response.status if response else 'None'}"
+            assert response is not None and response.status == 200, (
+                f"Shootout create page returned {response.status if response else 'None'}"
+            )
 
             # Should show step 1 — chain selection
             body_text = await page.locator("body").text_content()
             assert body_text is not None
             body_lower = body_text.lower()
-            assert (
-                "chain" in body_lower or "step" in body_lower or "select" in body_lower
-            ), f"Shootout create page should show chain selection, got: {body_text[:500]}"
+            assert "chain" in body_lower or "step" in body_lower or "select" in body_lower, (
+                f"Shootout create page should show chain selection, got: {body_text[:500]}"
+            )
         finally:
             await page.close()
 
@@ -285,8 +285,8 @@ class TestIRUploadEndpoint:
             # Should process the request (200, 201, 400, 422 for bad file) — NOT 404
             assert response.status != 404, f"IR upload endpoint not mounted (got {response.status})"
             # Should not be a server error from missing route
-            assert (
-                response.status != 502
-            ), f"IR upload endpoint not responding (got {response.status})"
+            assert response.status != 502, (
+                f"IR upload endpoint not responding (got {response.status})"
+            )
         finally:
             await page.close()

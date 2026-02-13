@@ -69,9 +69,9 @@ class TestGearSourceModule:
 
         model_fields = set(GearSource.__annotations__.keys())
 
-        assert required_fields.issubset(
-            model_fields
-        ), f"Missing required fields. Expected at least {required_fields}, got {model_fields}"
+        assert required_fields.issubset(model_fields), (
+            f"Missing required fields. Expected at least {required_fields}, got {model_fields}"
+        )
 
     def test_gear_source_uses_mixins(self) -> None:
         """Test that GearSource uses UUIDMixin and TimestampMixin."""

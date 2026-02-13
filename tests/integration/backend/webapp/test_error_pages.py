@@ -52,9 +52,9 @@ class TestAstroErrorPages:
         content = dist_path.read_text()
 
         # Should have testid for the 404 error code
-        assert (
-            'data-testid="error-code-404"' in content
-        ), "404 page should have data-testid='error-code-404' on error code element"
+        assert 'data-testid="error-code-404"' in content, (
+            "404 page should have data-testid='error-code-404' on error code element"
+        )
 
     async def test_404_page_has_testid_for_error_message(self):
         """Verify 404 page has data-testid for error message heading."""
@@ -64,9 +64,9 @@ class TestAstroErrorPages:
         content = dist_path.read_text()
 
         # Should have testid for the error message heading
-        assert (
-            'data-testid="error-message"' in content
-        ), "404 page should have data-testid='error-message' on message heading"
+        assert 'data-testid="error-message"' in content, (
+            "404 page should have data-testid='error-message' on message heading"
+        )
 
     async def test_404_page_has_testid_for_home_link(self):
         """Verify 404 page has data-testid for home link."""
@@ -76,9 +76,9 @@ class TestAstroErrorPages:
         content = dist_path.read_text()
 
         # Should have testid for the home link
-        assert (
-            'data-testid="error-home-link"' in content
-        ), "404 page should have data-testid='error-home-link' on home link"
+        assert 'data-testid="error-home-link"' in content, (
+            "404 page should have data-testid='error-home-link' on home link"
+        )
 
     async def test_500_page_has_testid_for_error_code(self):
         """Verify 500 page has data-testid for error code display."""
@@ -88,9 +88,9 @@ class TestAstroErrorPages:
         content = dist_path.read_text()
 
         # Should have testid for the 500 error code
-        assert (
-            'data-testid="error-code-500"' in content
-        ), "500 page should have data-testid='error-code-500' on error code element"
+        assert 'data-testid="error-code-500"' in content, (
+            "500 page should have data-testid='error-code-500' on error code element"
+        )
 
     async def test_500_page_has_testid_for_error_message(self):
         """Verify 500 page has data-testid for error message heading."""
@@ -100,9 +100,9 @@ class TestAstroErrorPages:
         content = dist_path.read_text()
 
         # Should have testid for the error message heading
-        assert (
-            'data-testid="error-message"' in content
-        ), "500 page should have data-testid='error-message' on message heading"
+        assert 'data-testid="error-message"' in content, (
+            "500 page should have data-testid='error-message' on message heading"
+        )
 
     async def test_500_page_has_testid_for_try_again_button(self):
         """Verify 500 page has data-testid for try again button."""
@@ -112,9 +112,9 @@ class TestAstroErrorPages:
         content = dist_path.read_text()
 
         # Should have testid for the try again button
-        assert (
-            'data-testid="error-try-again"' in content
-        ), "500 page should have data-testid='error-try-again' on try again button"
+        assert 'data-testid="error-try-again"' in content, (
+            "500 page should have data-testid='error-try-again' on try again button"
+        )
 
     async def test_404_page_contains_page_not_found_message(self):
         """Verify 404 page contains 'Page Not Found' message."""
@@ -132,9 +132,9 @@ class TestAstroErrorPages:
         dist_path = pathlib.Path("frontend/astro/dist/500.html")
         content = dist_path.read_text()
 
-        assert (
-            "Something Went Wrong" in content
-        ), "500 page should contain 'Something Went Wrong' message"
+        assert "Something Went Wrong" in content, (
+            "500 page should contain 'Something Went Wrong' message"
+        )
 
 
 @pytest.mark.integration
@@ -153,18 +153,18 @@ class TestNginxErrorPages:
         import pathlib
 
         error_page_path = pathlib.Path("infrastructure/nginx/error-pages/503.html")
-        assert (
-            error_page_path.exists()
-        ), "nginx should have static 503.html for Service Unavailable errors"
+        assert error_page_path.exists(), (
+            "nginx should have static 503.html for Service Unavailable errors"
+        )
 
     async def test_nginx_504_error_page_exists(self):
         """Verify 504.html exists for nginx to serve when gateway timeout."""
         import pathlib
 
         error_page_path = pathlib.Path("infrastructure/nginx/error-pages/504.html")
-        assert (
-            error_page_path.exists()
-        ), "nginx should have static 504.html for Gateway Timeout errors"
+        assert error_page_path.exists(), (
+            "nginx should have static 504.html for Gateway Timeout errors"
+        )
 
     async def test_nginx_502_page_has_testid_for_error_code(self):
         """Verify 502 page has data-testid for error code."""
@@ -173,9 +173,9 @@ class TestNginxErrorPages:
         error_page_path = pathlib.Path("infrastructure/nginx/error-pages/502.html")
         content = error_page_path.read_text()
 
-        assert (
-            'data-testid="error-code-502"' in content
-        ), "502 page should have data-testid='error-code-502'"
+        assert 'data-testid="error-code-502"' in content, (
+            "502 page should have data-testid='error-code-502'"
+        )
 
     async def test_nginx_503_page_has_testid_for_error_code(self):
         """Verify 503 page has data-testid for error code."""
@@ -184,9 +184,9 @@ class TestNginxErrorPages:
         error_page_path = pathlib.Path("infrastructure/nginx/error-pages/503.html")
         content = error_page_path.read_text()
 
-        assert (
-            'data-testid="error-code-503"' in content
-        ), "503 page should have data-testid='error-code-503'"
+        assert 'data-testid="error-code-503"' in content, (
+            "503 page should have data-testid='error-code-503'"
+        )
 
     async def test_nginx_504_page_has_testid_for_error_code(self):
         """Verify 504 page has data-testid for error code."""
@@ -195,9 +195,9 @@ class TestNginxErrorPages:
         error_page_path = pathlib.Path("infrastructure/nginx/error-pages/504.html")
         content = error_page_path.read_text()
 
-        assert (
-            'data-testid="error-code-504"' in content
-        ), "504 page should have data-testid='error-code-504'"
+        assert 'data-testid="error-code-504"' in content, (
+            "504 page should have data-testid='error-code-504'"
+        )
 
     async def test_nginx_502_page_contains_bad_gateway_message(self):
         """Verify 502 page contains appropriate message."""

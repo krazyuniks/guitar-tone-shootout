@@ -122,14 +122,14 @@ class TestGearDetailPageRendering:
         html = response.text
 
         # Verify checkboxes are present
-        assert (
-            'data-testid="model-save-checkbox"' in html
-        ), "Checkboxes should be present for authenticated users"
+        assert 'data-testid="model-save-checkbox"' in html, (
+            "Checkboxes should be present for authenticated users"
+        )
 
         # Verify login prompt is NOT present
-        assert (
-            'data-testid="login-to-save-prompt"' not in html
-        ), "Login prompt should not be visible for authenticated users"
+        assert 'data-testid="login-to-save-prompt"' not in html, (
+            "Login prompt should not be visible for authenticated users"
+        )
 
     async def test_gear_detail_page_no_checkboxes_for_unauthenticated(
         self,
@@ -156,14 +156,14 @@ class TestGearDetailPageRendering:
         html = response.text
 
         # Verify checkboxes are NOT present
-        assert (
-            'data-testid="model-save-checkbox"' not in html
-        ), "Checkboxes should not be present for unauthenticated users"
+        assert 'data-testid="model-save-checkbox"' not in html, (
+            "Checkboxes should not be present for unauthenticated users"
+        )
 
         # Verify login prompt IS present
-        assert (
-            'data-testid="login-to-save-prompt"' in html
-        ), "Login prompt should be visible for unauthenticated users"
+        assert 'data-testid="login-to-save-prompt"' in html, (
+            "Login prompt should be visible for unauthenticated users"
+        )
 
     async def test_gear_detail_page_shows_model_platform_and_size(
         self,
@@ -236,9 +236,9 @@ class TestGearDetailPageRendering:
         html = response.text
 
         # Verify 'Saved' badge is present
-        assert (
-            'data-testid="saved-badge"' in html
-        ), "Saved badge should be present for models in library"
+        assert 'data-testid="saved-badge"' in html, (
+            "Saved badge should be present for models in library"
+        )
 
     async def test_gear_detail_page_checkbox_state_matches_library(
         self,
@@ -290,9 +290,9 @@ class TestGearDetailPageRendering:
         if len(models) >= 2:
             # The first model should have checked="checked" or similar
             # The exact HTML structure will be implementation-specific
-            assert (
-                'data-model-id="' + str(models[0].id) + '"' in html
-            ), "Model in library should be present in HTML"
+            assert 'data-model-id="' + str(models[0].id) + '"' in html, (
+                "Model in library should be present in HTML"
+            )
 
     async def test_gear_detail_page_returns_404_for_nonpublic_gear(
         self,
@@ -310,9 +310,9 @@ class TestGearDetailPageRendering:
             response = await client.get(f"/gear/{fake_slug}")
 
         # Verify 404 response
-        assert (
-            response.status_code == 404
-        ), f"Expected 404 for nonexistent gear, got {response.status_code}"
+        assert response.status_code == 404, (
+            f"Expected 404 for nonexistent gear, got {response.status_code}"
+        )
 
     async def test_all_model_rows_have_testid_attributes(
         self,

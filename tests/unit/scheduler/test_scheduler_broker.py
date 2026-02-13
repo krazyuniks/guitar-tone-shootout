@@ -14,9 +14,9 @@ class TestSchedulerBrokerConfiguration:
 
         from scheduler.main import broker
 
-        assert not isinstance(
-            broker, InMemoryBroker
-        ), "Scheduler should use Redis ListQueueBroker, not InMemoryBroker"
+        assert not isinstance(broker, InMemoryBroker), (
+            "Scheduler should use Redis ListQueueBroker, not InMemoryBroker"
+        )
 
     def test_broker_uses_redis_list_queue_broker(self) -> None:
         """broker is a ListQueueBroker instance from taskiq-redis."""
@@ -24,9 +24,9 @@ class TestSchedulerBrokerConfiguration:
 
         from scheduler.main import broker
 
-        assert isinstance(
-            broker, ListQueueBroker
-        ), "Scheduler broker must be ListQueueBroker from taskiq-redis"
+        assert isinstance(broker, ListQueueBroker), (
+            "Scheduler broker must be ListQueueBroker from taskiq-redis"
+        )
 
     def test_broker_connects_to_redis_from_settings(self) -> None:
         """broker connects to Redis using URL from SchedulerSettings."""
@@ -51,9 +51,9 @@ class TestSchedulerBrokerConfiguration:
 
         # The URL should be redis://redis:6379 in production (from docker-compose.yml)
         # In tests it may differ, but must be a valid redis:// URL
-        assert scheduler_redis_url.startswith(
-            "redis://"
-        ), "Scheduler broker must use Redis protocol"
+        assert scheduler_redis_url.startswith("redis://"), (
+            "Scheduler broker must use Redis protocol"
+        )
 
 
 class TestSchedulerConfiguration:

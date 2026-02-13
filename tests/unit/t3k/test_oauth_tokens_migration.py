@@ -31,9 +31,9 @@ class TestOAuthTokensMigrationExists:
 
     def test_migration_file_exists(self) -> None:
         """0002_oauth_tokens.py must exist in versions directory."""
-        assert (
-            _migration_path().exists()
-        ), "sources/t3k/alembic/versions/0002_oauth_tokens.py must exist"
+        assert _migration_path().exists(), (
+            "sources/t3k/alembic/versions/0002_oauth_tokens.py must exist"
+        )
 
     def test_migration_revision_is_0002(self) -> None:
         """Migration revision identifier must be '0002'."""
@@ -65,9 +65,9 @@ class TestOAuthTokensMigrationExists:
             ):
                 down_revision_value = node.value.value
 
-        assert (
-            down_revision_value == "0001"
-        ), f"down_revision must be '0001', got {down_revision_value!r}"
+        assert down_revision_value == "0001", (
+            f"down_revision must be '0001', got {down_revision_value!r}"
+        )
 
 
 class TestOAuthTokensMigrationSchema:

@@ -68,9 +68,9 @@ class TestAstroReactIntegration:
             config_content = f.read()
 
         # Check for React integration
-        assert (
-            "@astrojs/react" in config_content
-        ), "React integration not configured in astro.config.mjs"
+        assert "@astrojs/react" in config_content, (
+            "React integration not configured in astro.config.mjs"
+        )
         assert "react()" in config_content, "React integration not added to integrations array"
 
     def test_package_json_has_react_dependencies(self) -> None:
@@ -211,9 +211,9 @@ class TestComponentFeatures:
         has_signal_chain_api = "/api/v1/signal-chains" in component_content
         has_library_api = "/api/v1/library" in component_content
 
-        assert (
-            has_signal_chain_api or has_library_api
-        ), "Component does not reference signal chain or library API endpoints"
+        assert has_signal_chain_api or has_library_api, (
+            "Component does not reference signal chain or library API endpoints"
+        )
 
 
 @pytest.mark.xfail(reason="Pre-existing: component not yet implemented")

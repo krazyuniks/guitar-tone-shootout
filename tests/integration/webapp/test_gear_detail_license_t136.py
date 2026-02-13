@@ -44,9 +44,9 @@ class TestGearDetailLicenseSection:
         assert response.status_code == 200
 
         # The license section must have a data-testid attribute for Playwright
-        assert (
-            'data-testid="license-section"' in html
-        ), "License section must have data-testid='license-section'"
+        assert 'data-testid="license-section"' in html, (
+            "License section must have data-testid='license-section'"
+        )
 
     async def test_license_section_is_collapsible_details_element(
         self,
@@ -107,13 +107,13 @@ class TestGearDetailLicenseSection:
 
         # The default community text should be inside a <details> with the testid
         # We check for both the testid AND that default license text is present
-        assert (
-            'data-testid="license-section"' in html
-        ), "License section with data-testid must exist for community gear"
+        assert 'data-testid="license-section"' in html, (
+            "License section with data-testid must exist for community gear"
+        )
         # The default text mentions downloading and using data files
-        assert (
-            "download and use" in html.lower()
-        ), "Default community license text should mention download and use rights"
+        assert "download and use" in html.lower(), (
+            "Default community license text should mention download and use rights"
+        )
 
     async def test_pack_dict_includes_license_text_field(
         self,
@@ -136,9 +136,9 @@ class TestGearDetailLicenseSection:
         pack = _gear_to_detail_pack(gear)
 
         # The pack dict must include a license_text key
-        assert (
-            "license_text" in pack
-        ), "_gear_to_detail_pack must include 'license_text' in the returned dict"
+        assert "license_text" in pack, (
+            "_gear_to_detail_pack must include 'license_text' in the returned dict"
+        )
 
     async def test_gear_specific_license_text_rendered_when_available(
         self,
@@ -174,9 +174,9 @@ class TestGearDetailLicenseSection:
         assert response.status_code == 200
 
         # The specific license text should appear in the rendered page
-        assert (
-            specific_license in html
-        ), "Gear-specific license text should be rendered on the detail page"
+        assert specific_license in html, (
+            "Gear-specific license text should be rendered on the detail page"
+        )
 
     async def test_no_license_section_when_no_license_exists(
         self,
@@ -225,6 +225,6 @@ class TestGearDetailLicenseSection:
         assert response.status_code == 200
 
         # When no license exists, the license section should NOT appear
-        assert (
-            'data-testid="license-section"' not in html
-        ), "License section should not appear when gear has no license text and no source"
+        assert 'data-testid="license-section"' not in html, (
+            "License section should not appear when gear has no license text and no source"
+        )

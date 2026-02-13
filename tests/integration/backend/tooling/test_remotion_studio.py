@@ -50,13 +50,13 @@ class TestRemotionStudio:
         studio_section = content[studio_start : studio_start + 500]
 
         # Should mention remotion or studio
-        assert (
-            "remotion" in studio_section.lower() or "studio" in studio_section.lower()
-        ), "video-studio command does not reference Remotion"
+        assert "remotion" in studio_section.lower() or "studio" in studio_section.lower(), (
+            "video-studio command does not reference Remotion"
+        )
 
     def test_video_package_has_remotion_entry_point(self) -> None:
         """Verify libs/video has Remotion entry point (index.ts)."""
         entry_point = Path("/app/libs/video/src/video/remotion/index.ts")
-        assert (
-            entry_point.exists()
-        ), "libs/video/src/video/remotion/index.ts not found - Remotion needs an entry point"
+        assert entry_point.exists(), (
+            "libs/video/src/video/remotion/index.ts not found - Remotion needs an entry point"
+        )

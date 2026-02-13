@@ -143,9 +143,9 @@ class TestWorkerBrokerConfiguration:
 
         from worker.main import broker
 
-        assert not isinstance(
-            broker, InMemoryBroker
-        ), "Worker should use Redis ListQueueBroker, not InMemoryBroker"
+        assert not isinstance(broker, InMemoryBroker), (
+            "Worker should use Redis ListQueueBroker, not InMemoryBroker"
+        )
 
     @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
     def test_broker_uses_redis_list_queue_broker(self) -> None:
@@ -154,9 +154,9 @@ class TestWorkerBrokerConfiguration:
 
         from worker.main import broker
 
-        assert isinstance(
-            broker, ListQueueBroker
-        ), "Worker broker must be ListQueueBroker from taskiq-redis"
+        assert isinstance(broker, ListQueueBroker), (
+            "Worker broker must be ListQueueBroker from taskiq-redis"
+        )
 
     @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
     def test_broker_connects_to_redis_from_settings(self) -> None:

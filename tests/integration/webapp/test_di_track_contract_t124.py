@@ -77,9 +77,9 @@ class TestDITrackTuningField:
         from webapp.api.v1.schemas.di_track import DITrackResponse
 
         field_names = set(DITrackResponse.model_fields.keys())
-        assert (
-            "tuning" in field_names
-        ), "DITrackResponse must include 'tuning' field to match frontend form"
+        assert "tuning" in field_names, (
+            "DITrackResponse must include 'tuning' field to match frontend form"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: Upload directory permissions in Docker (T124)", strict=False
@@ -122,9 +122,9 @@ class TestDITrackTuningField:
             )
 
         # Should succeed and include tuning in response
-        assert (
-            response.status_code == 201
-        ), f"Expected 201, got {response.status_code}: {response.text}"
+        assert response.status_code == 201, (
+            f"Expected 201, got {response.status_code}: {response.text}"
+        )
         json_data = response.json()
         assert json_data["tuning"] == "Drop D", "Upload response must include the tuning value"
 

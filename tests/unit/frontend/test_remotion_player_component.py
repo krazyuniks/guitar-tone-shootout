@@ -43,9 +43,9 @@ class TestRemotionPlayerStructure:
             "RemotionPlayer",
             "HeroAnimation.tsx",
         )
-        assert os.path.isfile(
-            component_file
-        ), f"HeroAnimation component file not found at {component_file}"
+        assert os.path.isfile(component_file), (
+            f"HeroAnimation component file not found at {component_file}"
+        )
 
     def test_how_to_video_component_exists(self) -> None:
         """HowToVideo component file should exist."""
@@ -59,9 +59,9 @@ class TestRemotionPlayerStructure:
             "RemotionPlayer",
             "HowToVideo.tsx",
         )
-        assert os.path.isfile(
-            component_file
-        ), f"HowToVideo component file not found at {component_file}"
+        assert os.path.isfile(component_file), (
+            f"HowToVideo component file not found at {component_file}"
+        )
 
 
 class TestRemotionPlayerDependencies:

@@ -70,9 +70,9 @@ class TestGearModelModule:
 
         model_fields = set(GearModel.__annotations__.keys())
 
-        assert required_fields.issubset(
-            model_fields
-        ), f"Missing required fields. Expected at least {required_fields}, got {model_fields}"
+        assert required_fields.issubset(model_fields), (
+            f"Missing required fields. Expected at least {required_fields}, got {model_fields}"
+        )
 
     async def test_gear_model_creation(self, session: AsyncSession) -> None:
         """Test creating a GearModel instance."""

@@ -47,9 +47,9 @@ class TestDevelopmentMdVideoIntegration:
 
         # Look for video-related row in the stack table
         # The video BC is part of the backend processing stack
-        assert (
-            "video" in content.lower() or "Video" in content
-        ), "Stack table must mention video processing/composition"
+        assert "video" in content.lower() or "Video" in content, (
+            "Stack table must mention video processing/composition"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -62,14 +62,14 @@ class TestDevelopmentMdVideoIntegration:
         assert "## Project Structure" in content, "Project Structure section not found"
 
         # Verify libs/video/ is present (not contexts/video/)
-        assert (
-            "libs/video/" in content or "│   └── video/" in content
-        ), "Project structure must show libs/video/ directory"
+        assert "libs/video/" in content or "│   └── video/" in content, (
+            "Project structure must show libs/video/ directory"
+        )
 
         # Ensure no stale references to contexts/video/
-        assert (
-            "contexts/video/" not in content
-        ), "Stale reference to contexts/video/ found - must be libs/video/"
+        assert "contexts/video/" not in content, (
+            "Stale reference to contexts/video/ found - must be libs/video/"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -80,9 +80,9 @@ class TestDevelopmentMdVideoIntegration:
 
         # The video BC should have src/video/ with subdirectories
         # Based on the epic context, it should show composition, rendering, etc.
-        assert (
-            "src/video/" in content or "└── video/" in content
-        ), "Project structure must show src/video/ subdirectory"
+        assert "src/video/" in content or "└── video/" in content, (
+            "Project structure must show src/video/ subdirectory"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -111,9 +111,9 @@ class TestDevelopmentMdVideoIntegration:
         content = self._read_development_md()
 
         # Cloudflare is explicitly out of scope for E70
-        assert (
-            "Cloudflare" not in content and "cloudflare" not in content
-        ), "DEVELOPMENT.md must not reference Cloudflare (out of scope)"
+        assert "Cloudflare" not in content and "cloudflare" not in content, (
+            "DEVELOPMENT.md must not reference Cloudflare (out of scope)"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -123,6 +123,6 @@ class TestDevelopmentMdVideoIntegration:
         content = self._read_development_md()
 
         # All references must be to libs/video/, not contexts/video/
-        assert (
-            "contexts/video" not in content
-        ), "Stale reference to contexts/video found - must be libs/video/"
+        assert "contexts/video" not in content, (
+            "Stale reference to contexts/video found - must be libs/video/"
+        )

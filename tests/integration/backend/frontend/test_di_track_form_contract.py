@@ -20,9 +20,9 @@ _TEMPLATE_PATH = Path("/app/frontend/astro/dist/pages/library/di-tracks.html")
 @pytest.fixture
 def template_content() -> str:
     """Read the built DI tracks library template."""
-    assert (
-        _TEMPLATE_PATH.exists()
-    ), f"DI tracks template not found at {_TEMPLATE_PATH}. Run 'just build-astro'."
+    assert _TEMPLATE_PATH.exists(), (
+        f"DI tracks template not found at {_TEMPLATE_PATH}. Run 'just build-astro'."
+    )
     return _TEMPLATE_PATH.read_text()
 
 
@@ -37,9 +37,9 @@ class TestUploadFormURL:
         The frontend currently has hx-post="/api/v1/di-tracks/upload" which 404s.
         """
         # The correct URL must be present
-        assert (
-            'hx-post="/api/v1/di-tracks"' in template_content
-        ), "Upload form hx-post must be '/api/v1/di-tracks', not '/api/v1/di-tracks/upload'"
+        assert 'hx-post="/api/v1/di-tracks"' in template_content, (
+            "Upload form hx-post must be '/api/v1/di-tracks', not '/api/v1/di-tracks/upload'"
+        )
 
     def test_form_does_not_use_upload_suffix(self, template_content: str) -> None:
         """Verify the /upload suffix is NOT present in the form action.
@@ -122,9 +122,9 @@ class TestUploadFormCompleteness:
 
     def test_form_has_name_input(self, template_content: str) -> None:
         """Form must have text input with name="name" for track name."""
-        assert (
-            'name="name"' in template_content
-        ), "Upload form missing name='name' input for track title"
+        assert 'name="name"' in template_content, (
+            "Upload form missing name='name' input for track title"
+        )
 
     def test_form_has_description_field(self, template_content: str) -> None:
         """Form must have description field with name="description"."""
@@ -144,6 +144,6 @@ class TestUploadFormCompleteness:
 
     def test_form_has_multipart_encoding(self, template_content: str) -> None:
         """Form must use multipart/form-data encoding for file uploads."""
-        assert (
-            'hx-encoding="multipart/form-data"' in template_content
-        ), "Upload form must use multipart/form-data encoding"
+        assert 'hx-encoding="multipart/form-data"' in template_content, (
+            "Upload form must use multipart/form-data encoding"
+        )

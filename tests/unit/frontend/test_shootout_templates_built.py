@@ -25,13 +25,13 @@ class TestShootoutTemplatesBuilt:
     def test_library_shootouts_page_source_exists(self) -> None:
         """Test that pages/library/shootouts.html.ts source file exists."""
         source_path = Path("frontend/astro/src/pages/pages/library/shootouts.html.ts")
-        assert (
-            source_path.exists()
-        ), f"Source template {source_path} not found. Create the Astro page template source file."
+        assert source_path.exists(), (
+            f"Source template {source_path} not found. Create the Astro page template source file."
+        )
 
     def test_shootout_detail_page_source_exists(self) -> None:
         """Test that pages/shootout_detail.html.ts source file exists."""
         source_path = Path("frontend/astro/src/pages/pages/shootout_detail.html.ts")
-        assert (
-            source_path.exists()
-        ), f"Source template {source_path} not found. Create the Astro page template source file."
+        assert source_path.exists(), (
+            f"Source template {source_path} not found. Create the Astro page template source file."
+        )

@@ -20,9 +20,9 @@ class TestVideoDockerfile:
         content = dockerfile.read_text()
 
         # Check for Node.js 20 in FROM statement or installation
-        assert "node:20" in content.lower() or (
-            "nodejs" in content.lower() and "20" in content
-        ), "Dockerfile must include Node.js 20"
+        assert "node:20" in content.lower() or ("nodejs" in content.lower() and "20" in content), (
+            "Dockerfile must include Node.js 20"
+        )
 
     def test_dockerfile_has_chromium(self):
         """Dockerfile must install Chromium for Remotion rendering."""
@@ -88,9 +88,9 @@ class TestVideoDockerComposeService:
         build_config = video_service["build"]
 
         assert "dockerfile" in build_config, "video service must specify dockerfile"
-        assert (
-            "Dockerfile.video" in build_config["dockerfile"]
-        ), "video service must use Dockerfile.video"
+        assert "Dockerfile.video" in build_config["dockerfile"], (
+            "video service must use Dockerfile.video"
+        )
 
     def test_video_service_mounts_libs_video(self, compose_config: dict):
         """Video service must mount libs/video/ source directory."""
@@ -152,9 +152,9 @@ class TestVideoDockerComposeService:
 
         # Video BC is a standalone service that worker calls via HTTP
         # It should NOT depend on db, redis, etc.
-        assert (
-            "depends_on" not in video_service or len(video_service.get("depends_on", {})) == 0
-        ), "video service should not depend on other services (standalone BC)"
+        assert "depends_on" not in video_service or len(video_service.get("depends_on", {})) == 0, (
+            "video service should not depend on other services (standalone BC)"
+        )
 
 
 class TestVideoServiceStartup:

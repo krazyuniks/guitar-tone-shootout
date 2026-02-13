@@ -34,6 +34,6 @@ class TestAudioCleanup:
         content = pyproject.read_text()
 
         # Check that moviepy is NOT in dependencies
-        assert (
-            "moviepy" not in content.lower()
-        ), "moviepy must be removed from libs/audio/pyproject.toml dependencies"
+        assert "moviepy" not in content.lower(), (
+            "moviepy must be removed from libs/audio/pyproject.toml dependencies"
+        )

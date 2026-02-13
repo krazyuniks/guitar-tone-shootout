@@ -31,9 +31,9 @@ class TestSettingsPage:
         """Settings page redirects unauthenticated users to login."""
         await guest_page.goto(f"{frontend_url}/settings/account")
         # Should redirect to login
-        assert (
-            "/login" in guest_page.url
-        ), f"Settings page should redirect to login, got {guest_page.url}"
+        assert "/login" in guest_page.url, (
+            f"Settings page should redirect to login, got {guest_page.url}"
+        )
 
     async def test_settings_page_loads_for_auth_user(
         self, auth_context: BrowserContext, frontend_url: str
@@ -42,18 +42,18 @@ class TestSettingsPage:
         page = await auth_context.new_page()
         try:
             response = await page.goto(f"{frontend_url}/settings/account")
-            assert (
-                response is not None and response.status == 200
-            ), f"Settings page returned {response.status if response else 'None'}"
+            assert response is not None and response.status == 200, (
+                f"Settings page returned {response.status if response else 'None'}"
+            )
 
             # Page should contain provider information
             body_text = await page.locator("body").text_content()
             assert body_text is not None
             # Should show at least the T3K provider (the only OAuth provider)
             body_lower = body_text.lower()
-            assert (
-                "tone3000" in body_lower or "t3k" in body_lower
-            ), f"Settings page should show Tone3000 provider, got: {body_text[:500]}"
+            assert "tone3000" in body_lower or "t3k" in body_lower, (
+                f"Settings page should show Tone3000 provider, got: {body_text[:500]}"
+            )
         finally:
             await page.close()
 
@@ -70,9 +70,9 @@ class TestSettingsPage:
             assert body_text is not None
             body_lower = body_text.lower()
             # Should show "linked" or "connected" for the active T3K provider
-            assert (
-                "linked" in body_lower or "connected" in body_lower or "active" in body_lower
-            ), f"Settings page should show provider connection status, got: {body_text[:500]}"
+            assert "linked" in body_lower or "connected" in body_lower or "active" in body_lower, (
+                f"Settings page should show provider connection status, got: {body_text[:500]}"
+            )
         finally:
             await page.close()
 

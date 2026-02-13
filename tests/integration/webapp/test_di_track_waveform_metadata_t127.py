@@ -181,15 +181,15 @@ class TestDITrackResponseIncludesMetadata:
         from webapp.api.v1.schemas.di_track import DITrackResponse
 
         fields = DITrackResponse.model_fields
-        assert (
-            "channels" in fields
-        ), "DITrackResponse must include 'channels' field for audio metadata"
+        assert "channels" in fields, (
+            "DITrackResponse must include 'channels' field for audio metadata"
+        )
 
     async def test_response_schema_includes_waveform(self) -> None:
         """DITrackResponse schema should include waveform field."""
         from webapp.api.v1.schemas.di_track import DITrackResponse
 
         fields = DITrackResponse.model_fields
-        assert (
-            "waveform" in fields
-        ), "DITrackResponse must include 'waveform' field for visualisation data"
+        assert "waveform" in fields, (
+            "DITrackResponse must include 'waveform' field for visualisation data"
+        )

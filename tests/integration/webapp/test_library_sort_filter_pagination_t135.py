@@ -314,9 +314,9 @@ class TestLibraryChainsSortFilter:
             # Page 2 should have fewer chain items than page 1
             page1_chain_count = resp_page1.text.count("chain-item")
             page2_chain_count = resp_page2.text.count("chain-item")
-            assert (
-                page2_chain_count < page1_chain_count
-            ), f"Page 2 should have fewer items ({page2_chain_count}) than page 1 ({page1_chain_count})"
+            assert page2_chain_count < page1_chain_count, (
+                f"Page 2 should have fewer items ({page2_chain_count}) than page 1 ({page1_chain_count})"
+            )
 
 
 # --- Library Tracks Sorting and Filtering Tests ---
@@ -781,9 +781,9 @@ class TestConsistentAcrossTabs:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             for endpoint in endpoints:
                 response = await client.get(endpoint, params=params)
-                assert (
-                    response.status_code == 200
-                ), f"{endpoint} should accept sort params but got {response.status_code}"
+                assert response.status_code == 200, (
+                    f"{endpoint} should accept sort params but got {response.status_code}"
+                )
 
     async def test_all_library_endpoints_accept_pagination_params(
         self,
@@ -807,9 +807,9 @@ class TestConsistentAcrossTabs:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             for endpoint in endpoints:
                 response = await client.get(endpoint, params=params)
-                assert (
-                    response.status_code == 200
-                ), f"{endpoint} should accept pagination params but got {response.status_code}"
+                assert response.status_code == 200, (
+                    f"{endpoint} should accept pagination params but got {response.status_code}"
+                )
 
     async def test_all_library_endpoints_have_pagination_controls(
         self,
@@ -838,9 +838,9 @@ class TestConsistentAcrossTabs:
                 assert response.status_code == 200
                 html = response.text
                 # All endpoints should render pagination when items > page_size
-                assert (
-                    'data-testid="pagination' in html
-                ), f"{endpoint} should have pagination controls with data-testid"
+                assert 'data-testid="pagination' in html, (
+                    f"{endpoint} should have pagination controls with data-testid"
+                )
 
 
 # --- Filter by Gear Type Tests ---

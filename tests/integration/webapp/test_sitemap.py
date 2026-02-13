@@ -125,9 +125,9 @@ class TestSitemapEndpoint:
         response = await client.get("/sitemap.xml")
 
         assert response.status_code == 200
-        assert (
-            "application/xml" in response.headers["content-type"]
-        ), "sitemap.xml should return application/xml content type"
+        assert "application/xml" in response.headers["content-type"], (
+            "sitemap.xml should return application/xml content type"
+        )
 
     async def test_sitemap_returns_valid_xml(self, client: AsyncClient):
         """Verify response is valid XML that can be parsed."""
@@ -152,9 +152,9 @@ class TestSitemapEndpoint:
         root = ET.fromstring(response.text)
 
         # Should use sitemap protocol namespace
-        assert (
-            "http://www.sitemaps.org/schemas/sitemap/0.9" in root.tag
-        ), "sitemap.xml should use http://www.sitemaps.org/schemas/sitemap/0.9 namespace"
+        assert "http://www.sitemaps.org/schemas/sitemap/0.9" in root.tag, (
+            "sitemap.xml should use http://www.sitemaps.org/schemas/sitemap/0.9 namespace"
+        )
 
     async def test_sitemap_requires_no_authentication(self, client: AsyncClient):
         """Verify sitemap.xml does not require authentication."""
@@ -177,9 +177,9 @@ class TestSitemapStaticPages:
         public_url = os.getenv("PUBLIC_URL", "http://testserver")
         expected_url = f"{public_url}/"
 
-        assert (
-            expected_url in response.text
-        ), f"sitemap.xml should include homepage URL: {expected_url}"
+        assert expected_url in response.text, (
+            f"sitemap.xml should include homepage URL: {expected_url}"
+        )
 
     async def test_sitemap_includes_about_page(self, client: AsyncClient):
         """Verify sitemap includes /about page."""
@@ -190,9 +190,9 @@ class TestSitemapStaticPages:
         public_url = os.getenv("PUBLIC_URL", "http://testserver")
         expected_url = f"{public_url}/about"
 
-        assert (
-            expected_url in response.text
-        ), f"sitemap.xml should include about page URL: {expected_url}"
+        assert expected_url in response.text, (
+            f"sitemap.xml should include about page URL: {expected_url}"
+        )
 
     async def test_sitemap_includes_gear_browse_page(self, client: AsyncClient):
         """Verify sitemap includes /gear browse page."""
@@ -203,9 +203,9 @@ class TestSitemapStaticPages:
         public_url = os.getenv("PUBLIC_URL", "http://testserver")
         expected_url = f"{public_url}/gear"
 
-        assert (
-            expected_url in response.text
-        ), f"sitemap.xml should include gear browse page URL: {expected_url}"
+        assert expected_url in response.text, (
+            f"sitemap.xml should include gear browse page URL: {expected_url}"
+        )
 
     async def test_sitemap_includes_shootouts_page(self, client: AsyncClient):
         """Verify sitemap includes /shootouts page."""
@@ -216,9 +216,9 @@ class TestSitemapStaticPages:
         public_url = os.getenv("PUBLIC_URL", "http://testserver")
         expected_url = f"{public_url}/shootouts"
 
-        assert (
-            expected_url in response.text
-        ), f"sitemap.xml should include shootouts page URL: {expected_url}"
+        assert expected_url in response.text, (
+            f"sitemap.xml should include shootouts page URL: {expected_url}"
+        )
 
 
 @pytest.mark.integration
@@ -236,9 +236,9 @@ class TestSitemapDynamicContent:
         public_url = os.getenv("PUBLIC_URL", "http://testserver")
         expected_url = f"{public_url}/gear/{public_gear.slug}"
 
-        assert (
-            expected_url in response.text
-        ), f"sitemap.xml should include public gear detail URL: {expected_url}"
+        assert expected_url in response.text, (
+            f"sitemap.xml should include public gear detail URL: {expected_url}"
+        )
 
     async def test_sitemap_excludes_private_gear(
         self, client: AsyncClient, public_gear: Gear, private_gear: Gear
@@ -269,9 +269,9 @@ class TestSitemapDynamicContent:
         public_url = os.getenv("PUBLIC_URL", "http://testserver")
         expected_url = f"{public_url}/shootouts/{completed_shootout.id}"
 
-        assert (
-            expected_url in response.text
-        ), f"sitemap.xml should include completed shootout URL: {expected_url}"
+        assert expected_url in response.text, (
+            f"sitemap.xml should include completed shootout URL: {expected_url}"
+        )
 
     async def test_sitemap_excludes_draft_shootout(
         self, client: AsyncClient, completed_shootout: Shootout, draft_shootout: Shootout
@@ -380,9 +380,9 @@ class TestSitemapAttributes:
         valid_values = {"always", "hourly", "daily", "weekly", "monthly", "yearly", "never"}
 
         for elem in changefreq_elements:
-            assert (
-                elem.text in valid_values
-            ), f"<changefreq> should use valid value, got: {elem.text}"
+            assert elem.text in valid_values, (
+                f"<changefreq> should use valid value, got: {elem.text}"
+            )
 
     async def test_sitemap_priority_uses_valid_range(self, client: AsyncClient):
         """Verify <priority> uses value between 0.0 and 1.0."""
@@ -398,9 +398,9 @@ class TestSitemapAttributes:
 
         for elem in priority_elements:
             priority = float(elem.text)
-            assert (
-                0.0 <= priority <= 1.0
-            ), f"<priority> should be between 0.0 and 1.0, got: {priority}"
+            assert 0.0 <= priority <= 1.0, (
+                f"<priority> should be between 0.0 and 1.0, got: {priority}"
+            )
 
 
 @pytest.mark.integration
@@ -440,6 +440,6 @@ class TestSitemapPublicUrl:
 
         for elem in loc_elements:
             url = elem.text
-            assert url.startswith("http://") or url.startswith(
-                "https://"
-            ), f"sitemap URLs should be absolute, got: {url}"
+            assert url.startswith("http://") or url.startswith("https://"), (
+                f"sitemap URLs should be absolute, got: {url}"
+            )

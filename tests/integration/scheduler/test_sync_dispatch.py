@@ -172,9 +172,9 @@ class TestEnsureSourceSyncRunningDispatches:
         await ensure_source_sync_running()
 
         # Verify dispatch happened
-        assert (
-            len(dispatched_job_ids) == 1
-        ), "ensure_source_sync_running must dispatch exactly one job"
+        assert len(dispatched_job_ids) == 1, (
+            "ensure_source_sync_running must dispatch exactly one job"
+        )
         # The dispatched job_id should be a valid UUID
         assert dispatched_job_ids[0] is not None
 
@@ -213,9 +213,9 @@ class TestEnsureSourceSyncRunningDispatches:
 
         await ensure_source_sync_running()
 
-        assert (
-            len(dispatched) == 0
-        ), "ensure_source_sync_running must NOT dispatch when Redis lock exists"
+        assert len(dispatched) == 0, (
+            "ensure_source_sync_running must NOT dispatch when Redis lock exists"
+        )
 
     async def test_does_not_dispatch_when_sync_disabled(
         self,
@@ -251,9 +251,9 @@ class TestEnsureSourceSyncRunningDispatches:
 
         await ensure_source_sync_running()
 
-        assert (
-            len(dispatched) == 0
-        ), "ensure_source_sync_running must NOT dispatch when T3K_SYNC_ENABLED=false"
+        assert len(dispatched) == 0, (
+            "ensure_source_sync_running must NOT dispatch when T3K_SYNC_ENABLED=false"
+        )
 
     async def test_dispatch_creates_job_record_in_database(
         self,
@@ -340,9 +340,9 @@ class TestEnsureSourceSyncRunningDispatches:
         await ensure_source_sync_running()
 
         # If kiq() was not awaited, the async function body never runs
-        assert (
-            len(kiq_was_awaited) == 1
-        ), "kiq() must be awaited — currently the coroutine is created but never executed"
+        assert len(kiq_was_awaited) == 1, (
+            "kiq() must be awaited — currently the coroutine is created but never executed"
+        )
 
 
 # ---------------------------------------------------------------------------

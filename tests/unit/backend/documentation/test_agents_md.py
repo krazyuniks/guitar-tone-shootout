@@ -45,9 +45,9 @@ class TestAgentsMdVideoIntegration:
         assert "## Stack" in content, "Stack section not found in AGENTS.md"
 
         # Look for video-related row in the stack table
-        assert (
-            "video" in content.lower() or "Video" in content
-        ), "Stack table must mention video processing/composition"
+        assert "video" in content.lower() or "Video" in content, (
+            "Stack table must mention video processing/composition"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -60,14 +60,14 @@ class TestAgentsMdVideoIntegration:
         assert "## Project Structure" in content, "Project Structure section not found"
 
         # Verify libs/video/ is present (not contexts/video/)
-        assert (
-            "libs/video/" in content or "│   └── video/" in content
-        ), "Project structure must show libs/video/ directory"
+        assert "libs/video/" in content or "│   └── video/" in content, (
+            "Project structure must show libs/video/ directory"
+        )
 
         # Ensure no stale references to contexts/video/
-        assert (
-            "contexts/video/" not in content
-        ), "Stale reference to contexts/video/ found - must be libs/video/"
+        assert "contexts/video/" not in content, (
+            "Stale reference to contexts/video/ found - must be libs/video/"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -91,9 +91,9 @@ class TestAgentsMdVideoIntegration:
         content = self._read_agents_md()
 
         # Cloudflare is explicitly out of scope for E70
-        assert (
-            "Cloudflare" not in content and "cloudflare" not in content
-        ), "AGENTS.md must not reference Cloudflare (out of scope)"
+        assert "Cloudflare" not in content and "cloudflare" not in content, (
+            "AGENTS.md must not reference Cloudflare (out of scope)"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -103,9 +103,9 @@ class TestAgentsMdVideoIntegration:
         content = self._read_agents_md()
 
         # All references must be to libs/video/, not contexts/video/
-        assert (
-            "contexts/video" not in content
-        ), "Stale reference to contexts/video found - must be libs/video/"
+        assert "contexts/video" not in content, (
+            "Stale reference to contexts/video found - must be libs/video/"
+        )
 
     @pytest.mark.xfail(
         reason="Pre-existing: video integration documentation not yet updated", strict=False
@@ -123,6 +123,6 @@ class TestAgentsMdVideoIntegration:
         agents_has_video = "libs/video/" in agents_content or "│   └── video/" in agents_content
         dev_has_video = "libs/video/" in dev_content or "│   └── video/" in dev_content
 
-        assert (
-            agents_has_video == dev_has_video
-        ), "AGENTS.md and DEVELOPMENT.md must consistently show libs/video/ in structure trees"
+        assert agents_has_video == dev_has_video, (
+            "AGENTS.md and DEVELOPMENT.md must consistently show libs/video/ in structure trees"
+        )

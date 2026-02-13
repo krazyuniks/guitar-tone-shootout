@@ -131,9 +131,9 @@ class TestCustomErrorPages:
         assert body_text is not None
         # Custom error page should have "404" or "not found" text
         body_lower = body_text.lower()
-        assert (
-            "404" in body_lower or "not found" in body_lower
-        ), f"404 page should show error information, got: {body_text[:200]}"
+        assert "404" in body_lower or "not found" in body_lower, (
+            f"404 page should show error information, got: {body_text[:200]}"
+        )
 
     async def test_404_page_has_home_link(self, guest_page: Page, frontend_url: str) -> None:
         """404 page includes a link back to home."""

@@ -59,17 +59,17 @@ class TestSyncModelsCallsDownloader:
     def test_sync_models_contains_download_call(self) -> None:
         """sync_models() source must contain a call to download_models_for_pack."""
         source = inspect.getsource(T3KSyncService.sync_models)
-        assert (
-            "download_models_for_pack" in source
-        ), "sync_models() must call download_models_for_pack() after staging models"
+        assert "download_models_for_pack" in source, (
+            "sync_models() must call download_models_for_pack() after staging models"
+        )
 
     def test_sync_models_passes_pack_id_to_downloader(self) -> None:
         """sync_models() must pass pack_id to download_models_for_pack."""
         source = inspect.getsource(T3KSyncService.sync_models)
         # The call should include pack_id as argument
-        assert (
-            "pack_id" in source and "download_models_for_pack" in source
-        ), "sync_models() must pass pack_id to download_models_for_pack()"
+        assert "pack_id" in source and "download_models_for_pack" in source, (
+            "sync_models() must pass pack_id to download_models_for_pack()"
+        )
 
     def test_download_call_appears_after_model_staging(self) -> None:
         """download_models_for_pack call must appear after model staging loop."""

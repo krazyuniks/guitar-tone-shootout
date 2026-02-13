@@ -238,6 +238,6 @@ class TestShootoutCommentsRelationship:
         mapper = inspect(Shootout)
         comments_prop = mapper.relationships.get("comments")
         assert comments_prop is not None, "Shootout model has no 'comments' relationship"
-        assert (
-            comments_prop.lazy == "raise"
-        ), f"Expected lazy='raise', got lazy='{comments_prop.lazy}'"
+        assert comments_prop.lazy == "raise", (
+            f"Expected lazy='raise', got lazy='{comments_prop.lazy}'"
+        )

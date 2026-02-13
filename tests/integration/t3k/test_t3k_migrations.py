@@ -78,9 +78,9 @@ class TestT3KAlembicConfiguration:
 
         content = t3k_alembic_ini.read_text()
         # Check that comments or docs mention T3K_DATABASE_URL
-        assert (
-            "T3K_DATABASE_URL" in content or "gts_t3k_source" in content
-        ), "alembic.ini must reference T3K_DATABASE_URL or gts_t3k_source"
+        assert "T3K_DATABASE_URL" in content or "gts_t3k_source" in content, (
+            "alembic.ini must reference T3K_DATABASE_URL or gts_t3k_source"
+        )
 
 
 class TestT3KMigrationExecution:
@@ -220,14 +220,14 @@ class TestT3KDatabaseSeparation:
         content = t3k_env_py.read_text()
 
         # Should reference T3K_DATABASE_URL (or similar T3K-specific var)
-        assert (
-            "T3K_DATABASE_URL" in content or "gts_t3k_source" in content
-        ), "env.py must use T3K-specific database URL"
+        assert "T3K_DATABASE_URL" in content or "gts_t3k_source" in content, (
+            "env.py must use T3K-specific database URL"
+        )
 
         # Should NOT import from webapp.adapters.persistence.models
-        assert (
-            "webapp.adapters.persistence.models" not in content
-        ), "T3K migrations must not import webapp models"
+        assert "webapp.adapters.persistence.models" not in content, (
+            "T3K migrations must not import webapp models"
+        )
 
     def test_t3k_models_use_separate_base(self) -> None:
         """Test that T3K models use their own Base, not webapp Base."""

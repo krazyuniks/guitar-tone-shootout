@@ -61,16 +61,16 @@ class TestAllRoutersMounted:
         """Signal chain groups router is mounted at /api/v1/signal-chain-groups/."""
         response = await client.get("/api/v1/signal-chain-groups/")
         # Auth required -> 401; anything but 404 proves mounting
-        assert (
-            response.status_code != 404
-        ), f"signal-chain-groups router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"signal-chain-groups router not mounted (got {response.status_code})"
+        )
 
     async def test_notifications_router(self, client: AsyncClient) -> None:
         """Notifications router is mounted at /api/v1/notifications/."""
         response = await client.get("/api/v1/notifications/")
-        assert (
-            response.status_code != 404
-        ), f"notifications router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"notifications router not mounted (got {response.status_code})"
+        )
 
     async def test_tags_router(self, client: AsyncClient) -> None:
         """Tags router is mounted at /api/v1/tags/."""
@@ -80,9 +80,9 @@ class TestAllRoutersMounted:
     async def test_presets_router(self, client: AsyncClient) -> None:
         """Presets router is mounted at /api/v1/presets/."""
         response = await client.get("/api/v1/presets/")
-        assert (
-            response.status_code != 404
-        ), f"presets router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"presets router not mounted (got {response.status_code})"
+        )
 
     async def test_block_types_router(self, client: AsyncClient) -> None:
         """Block types router is mounted at /api/v1/block-types/."""
@@ -110,30 +110,30 @@ class TestAllRoutersMounted:
     async def test_di_tracks_router(self, client: AsyncClient) -> None:
         """DI tracks router is mounted at /api/v1/di-tracks/."""
         response = await client.get("/api/v1/di-tracks/")
-        assert (
-            response.status_code != 404
-        ), f"di-tracks router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"di-tracks router not mounted (got {response.status_code})"
+        )
 
     async def test_signal_chains_router(self, client: AsyncClient) -> None:
         """Signal chains router is mounted at /api/v1/signal-chains/."""
         response = await client.get("/api/v1/signal-chains/")
-        assert (
-            response.status_code != 404
-        ), f"signal-chains router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"signal-chains router not mounted (got {response.status_code})"
+        )
 
     async def test_library_router(self, client: AsyncClient) -> None:
         """Library router is mounted at /api/v1/library/."""
         response = await client.get("/api/v1/library/my-gear")
-        assert (
-            response.status_code != 404
-        ), f"library router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"library router not mounted (got {response.status_code})"
+        )
 
     async def test_shootouts_router(self, client: AsyncClient) -> None:
         """Shootouts router is mounted at /api/v1/shootouts/."""
         response = await client.get("/api/v1/shootouts/")
-        assert (
-            response.status_code != 404
-        ), f"shootouts router not mounted (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"shootouts router not mounted (got {response.status_code})"
+        )
 
     async def test_gear_router(self, client: AsyncClient) -> None:
         """Gear router is mounted at /api/v1/gear/."""
@@ -170,13 +170,13 @@ class TestDevOnlyTestRouter:
         """Test router is available when ENV=development."""
         response = await dev_client.get("/api/v1/test/error")
         # Should trigger the test error endpoint (500), not 404
-        assert (
-            response.status_code != 404
-        ), f"test router not mounted in development (got {response.status_code})"
+        assert response.status_code != 404, (
+            f"test router not mounted in development (got {response.status_code})"
+        )
 
     async def test_test_router_not_mounted_in_production(self, client: AsyncClient) -> None:
         """Test router is NOT available in production mode."""
         response = await client.get("/api/v1/test/error")
-        assert (
-            response.status_code == 404
-        ), f"test router should NOT be mounted in production (got {response.status_code})"
+        assert response.status_code == 404, (
+            f"test router should NOT be mounted in production (got {response.status_code})"
+        )

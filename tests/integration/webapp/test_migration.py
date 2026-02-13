@@ -33,9 +33,9 @@ def test_migration_creates_all_tables() -> None:
     ]
 
     for table in expected_new_tables:
-        assert (
-            f"op.create_table('{table}'" in migration_content
-        ), f"Migration should create {table} table"
+        assert f"op.create_table('{table}'" in migration_content, (
+            f"Migration should create {table} table"
+        )
 
     # Expected tables being modified
     expected_modified_tables = [
