@@ -92,7 +92,7 @@ class ShutdownManager:
             )
         except TimeoutError:
             logger.warning(
-                f"Drain timeout exceeded with {self.in_flight_requests} " "requests still in flight"
+                f"Drain timeout exceeded with {self.in_flight_requests} requests still in flight"
             )
             raise
 

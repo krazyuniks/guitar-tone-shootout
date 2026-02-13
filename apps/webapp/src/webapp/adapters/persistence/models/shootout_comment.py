@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import uuid  # noqa: TC003 — needed at runtime by SQLAlchemy Mapped[]
+import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Index, Text

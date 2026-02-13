@@ -80,10 +80,10 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestIDMiddleware)
 
     # Mount exception handlers
-    app.add_exception_handler(AppException, app_exception_handler)
-    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
-    app.add_exception_handler(RequestValidationError, request_validation_error_handler)
-    app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
+    app.add_exception_handler(AppException, app_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(RequestValidationError, request_validation_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)  # type: ignore[arg-type]
     # Register RuntimeError explicitly so it's handled by ExceptionMiddleware
     # (which does NOT re-raise). FastAPI routes the generic Exception handler to
     # ServerErrorMiddleware, which always re-raises after responding — this

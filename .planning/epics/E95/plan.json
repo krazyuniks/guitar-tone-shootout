@@ -1,0 +1,473 @@
+{
+  "schema_v": 1,
+  "epic_number": 95,
+  "goal": "All Phase 4 web application features work end-to-end: DI track upload/browse/playback, signal chain group CRUD with permutation generation, shootout wizard creating shootouts, comments on shootouts, tag/preset/block-type APIs responding, custom error pages rendering, settings page showing providers, notification API functional, and all quality gates passing.",
+  "observable_truths": [
+    {
+      "id": 1,
+      "statement": "A user can upload a DI track with metadata (name, guitar, pickup) and see it listed in their library"
+    },
+    {
+      "id": 2,
+      "statement": "A user can browse public DI tracks with pagination and see track details including waveform"
+    },
+    {
+      "id": 3,
+      "statement": "A user can upload a community IR file and see it appear as gear in their library"
+    },
+    {
+      "id": 4,
+      "statement": "A user can create, list, update, and delete signal chain groups via the API"
+    },
+    {
+      "id": 5,
+      "statement": "A user can generate permutations from a signal chain group and receive chain IDs"
+    },
+    {
+      "id": 6,
+      "statement": "A user can navigate the shootout creation wizard: select chains (step 1), select DI track (step 2), review and submit (step 3)"
+    },
+    {
+      "id": 7,
+      "statement": "A user can view a shootout detail page showing chains, DI track info, and processing status"
+    },
+    {
+      "id": 8,
+      "statement": "A user can post, view, and delete comments on a shootout"
+    },
+    {
+      "id": 9,
+      "statement": "A user can create, list, and delete tags via the API with lowercase normalisation"
+    },
+    {
+      "id": 10,
+      "statement": "A user can create, list, update, and delete presets via the API with parameter validation"
+    },
+    {
+      "id": 11,
+      "statement": "A guest can list block types via the API (public, cached endpoint)"
+    },
+    {
+      "id": 12,
+      "statement": "Visiting a non-existent page shows a styled 404 error page (not a raw JSON error)"
+    },
+    {
+      "id": 13,
+      "statement": "A server error shows a styled 500 error page for page routes and JSON for API routes"
+    },
+    {
+      "id": 14,
+      "statement": "A user can visit /settings/account and see their connected OAuth providers"
+    },
+    {
+      "id": 15,
+      "statement": "A user can list, mark-read, and mark-all-read notifications via the API"
+    },
+    {
+      "id": 16,
+      "statement": "The file serving endpoint streams files via HMAC-signed URLs with range support"
+    },
+    {
+      "id": 17,
+      "statement": "All quality gates pass: just check, just test-regression, just test-golden-path"
+    }
+  ],
+  "user_journeys": [
+    {
+      "journey_id": "J1",
+      "persona": "authenticated user",
+      "narrative": "An authenticated user navigates to their DI tracks library page at /library/di-tracks. The page loads and displays any existing tracks via HTMX fragment. The user clicks upload, fills in the metadata form (name, guitar, pickup), selects a WAV file, and submits. The track appears in the list with duration and waveform data. The user navigates to /di-tracks to see the public browse view. They click a track to view the detail page showing metadata and waveform visualisation.",
+      "truths_covered": [
+        1,
+        2
+      ],
+      "entry_point": "/library/di-tracks",
+      "critical_transitions": [
+        {
+          "from": "/library/di-tracks",
+          "to": "upload form",
+          "mechanism": "button click"
+        },
+        {
+          "from": "upload form",
+          "to": "/library/di-tracks",
+          "mechanism": "form submit with HTMX refresh"
+        },
+        {
+          "from": "/library/di-tracks",
+          "to": "/di-tracks",
+          "mechanism": "nav link click"
+        },
+        {
+          "from": "/di-tracks",
+          "to": "/di-tracks/{id}",
+          "mechanism": "list item click"
+        }
+      ]
+    },
+    {
+      "journey_id": "J2",
+      "persona": "authenticated user",
+      "narrative": "An authenticated user navigates to /shootout/create. Step 1 presents chain selection \u2014 the user selects chains from their library. The user proceeds to step 2 where they select a DI track from their library via a search/filter modal. Step 3 shows a review of selected chains and DI track. The user submits and is redirected to the shootout detail page showing the chains, DI track, and processing status. The user adds a comment on the shootout.",
+      "truths_covered": [
+        6,
+        7,
+        8
+      ],
+      "entry_point": "/shootout/create",
+      "critical_transitions": [
+        {
+          "from": "/shootout/create step 1",
+          "to": "step 2",
+          "mechanism": "chain selection complete"
+        },
+        {
+          "from": "step 2",
+          "to": "step 3",
+          "mechanism": "DI track selected"
+        },
+        {
+          "from": "step 3",
+          "to": "/shootout/{id}",
+          "mechanism": "form submit and redirect"
+        },
+        {
+          "from": "/shootout/{id}",
+          "to": "comment added",
+          "mechanism": "HTMX POST comment"
+        }
+      ]
+    },
+    {
+      "journey_id": "J3",
+      "persona": "authenticated user",
+      "narrative": "An authenticated user interacts with the content APIs. They create a tag via POST /api/v1/tags and see it normalised to lowercase. They list their tags. They create a preset for a signal chain block with parameter validation. They list and update the preset. They fetch block types from GET /api/v1/block-types and see the built-in processor definitions with parameter schemas.",
+      "truths_covered": [
+        9,
+        10,
+        11
+      ],
+      "entry_point": "/api/v1/tags",
+      "critical_transitions": [
+        {
+          "from": "POST /api/v1/tags",
+          "to": "tag created",
+          "mechanism": "201 response"
+        },
+        {
+          "from": "GET /api/v1/tags",
+          "to": "tag list",
+          "mechanism": "200 response"
+        },
+        {
+          "from": "POST /api/v1/presets",
+          "to": "preset created",
+          "mechanism": "201 response"
+        },
+        {
+          "from": "GET /api/v1/block-types",
+          "to": "block type list",
+          "mechanism": "200 cached response"
+        }
+      ]
+    },
+    {
+      "journey_id": "J4",
+      "persona": "guest and authenticated user",
+      "narrative": "A guest visits a non-existent URL like /nonexistent and sees a styled 404 page with navigation back to home. An API client hits /api/v1/test/error/404 (dev mode) and receives a JSON error response. An authenticated user visits /settings/account and sees their T3K provider linked with Google/GitHub/Facebook shown as coming soon. The user checks their notifications via GET /api/v1/notifications and marks one as read. Finally, all quality gates (just check, just test-regression, just test-golden-path) pass clean.",
+      "truths_covered": [
+        12,
+        13,
+        14,
+        15,
+        17
+      ],
+      "entry_point": "/nonexistent",
+      "critical_transitions": [
+        {
+          "from": "/nonexistent",
+          "to": "404 page",
+          "mechanism": "nginx error_page directive"
+        },
+        {
+          "from": "/api/v1/test/error/500",
+          "to": "JSON 500 response",
+          "mechanism": "exception handler"
+        },
+        {
+          "from": "/",
+          "to": "/settings/account",
+          "mechanism": "nav link click"
+        },
+        {
+          "from": "GET /api/v1/notifications",
+          "to": "notification list",
+          "mechanism": "200 response"
+        },
+        {
+          "from": "just check",
+          "to": "all quality gates pass",
+          "mechanism": "CI-equivalent quality gate commands"
+        }
+      ]
+    },
+    {
+      "journey_id": "J5",
+      "persona": "authenticated user",
+      "narrative": "An authenticated user creates a signal chain group via POST /api/v1/signal-chain-groups. They update the group to add gear options. They trigger permutation generation and receive created chain IDs. They upload a community IR via POST /api/v1/irs/upload and see a Gear entity created. They access a file via a signed URL at /api/v1/files/{signature} with range header support for audio streaming.",
+      "truths_covered": [
+        3,
+        4,
+        5,
+        16
+      ],
+      "entry_point": "/api/v1/signal-chain-groups",
+      "critical_transitions": [
+        {
+          "from": "POST /api/v1/signal-chain-groups",
+          "to": "group created",
+          "mechanism": "201 response"
+        },
+        {
+          "from": "POST /api/v1/signal-chain-groups/{id}/generate",
+          "to": "chain IDs",
+          "mechanism": "200 response"
+        },
+        {
+          "from": "POST /api/v1/irs/upload",
+          "to": "Gear + GearModel created",
+          "mechanism": "201 response"
+        },
+        {
+          "from": "GET /api/v1/files/{sig}",
+          "to": "file streamed",
+          "mechanism": "200 or 206 response"
+        }
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "story_id": "01-verification-wiring",
+      "name": "Verification and Integration Wiring",
+      "purpose": "Verify all existing Phase 4 code compiles, imports correctly, and quality gates pass. Fix any import errors, missing dependencies, or broken wiring between services, repositories, and API routes.",
+      "agent": {
+        "model": "sonnet",
+        "skills": [
+          "gts-backend-dev",
+          "gts-architecture",
+          "error-handling"
+        ],
+        "tools": [
+          "Read",
+          "Edit",
+          "Write",
+          "Bash",
+          "Glob",
+          "Grep"
+        ],
+        "mcp": [],
+        "max_turns": 40,
+        "max_budget_usd": 4.0
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "apps/webapp/src/webapp/main.py",
+          "apps/webapp/src/webapp/api/v1/html.py",
+          "apps/webapp/src/webapp/api/pages.py"
+        ]
+      },
+      "implementation_notes": [
+        "Run `just check` (lint + types + import contracts) and fix all errors",
+        "Run `just test-regression` and fix any failures",
+        "Verify all routers are mounted in main.py and respond to requests",
+        "Check that all services, repositories, and models import correctly",
+        "Fix any circular import issues or missing schema definitions",
+        "Do NOT add new features \u2014 only fix broken wiring in existing code"
+      ],
+      "truths_addressed": [
+        17
+      ]
+    },
+    {
+      "story_id": "02-endpoint-smoke-tests",
+      "name": "API Endpoint Smoke Tests",
+      "purpose": "Verify all Phase 4 API endpoints respond correctly by running the E2E test suite. Fix any endpoint-level issues (wrong status codes, missing validations, broken template rendering).",
+      "agent": {
+        "model": "sonnet",
+        "skills": [
+          "gts-backend-dev",
+          "gts-testing",
+          "web-handlers"
+        ],
+        "tools": [
+          "Read",
+          "Edit",
+          "Write",
+          "Bash",
+          "Glob",
+          "Grep"
+        ],
+        "mcp": [],
+        "max_turns": 40,
+        "max_budget_usd": 4.0
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "apps/webapp/src/webapp/api/v1/shootouts.py",
+          "apps/webapp/src/webapp/api/v1/di_tracks.py",
+          "apps/webapp/src/webapp/api/v1/signal_chain_groups.py",
+          "apps/webapp/src/webapp/api/v1/html.py",
+          "apps/webapp/src/webapp/api/pages.py"
+        ]
+      },
+      "implementation_notes": [
+        "Run `just test-golden-path` and analyse failures",
+        "Fix endpoint-level bugs: wrong status codes, missing template variables, broken HTMX fragment responses",
+        "Verify shootout create wizard steps work end-to-end",
+        "Verify comments HTMX fragment loads on shootout detail page",
+        "Verify settings/account page renders with provider status",
+        "Verify 404/500 error pages render via nginx and FastAPI",
+        "Do NOT refactor \u2014 fix only what is broken"
+      ],
+      "truths_addressed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ]
+    },
+    {
+      "story_id": "03-regression-tests",
+      "name": "Regression Test Coverage",
+      "purpose": "Write regression tests that verify the key Phase 4 features work as ORM round-trips, serving as a safety net against future regressions.",
+      "agent": {
+        "model": "sonnet",
+        "skills": [
+          "gts-testing",
+          "gts-backend-dev"
+        ],
+        "tools": [
+          "Read",
+          "Edit",
+          "Write",
+          "Bash",
+          "Glob",
+          "Grep"
+        ],
+        "mcp": [],
+        "max_turns": 35,
+        "max_budget_usd": 3.5
+      },
+      "scope": {
+        "create": [
+          "tests/regression/test_phase4_completion.py"
+        ],
+        "modify": [
+          "tests/regression/conftest.py"
+        ]
+      },
+      "implementation_notes": [
+        "Add regression tests for Phase 4 entities: ShootoutComment, Tag, Preset, UserNotification, AuditLog",
+        "Test ORM model round-trips (create, save, retrieve) for each entity",
+        "Test repository operations where repositories exist",
+        "Use in-memory SQLite like existing regression tests in test_stack.py",
+        "Follow patterns in existing test_stack.py",
+        "Run `just test-regression` to verify all pass"
+      ],
+      "truths_addressed": [
+        8,
+        9,
+        10,
+        15,
+        17
+      ]
+    }
+  ],
+  "validation_checkpoints": [
+    {
+      "after_story": "01-verification-wiring",
+      "check_type": "quality",
+      "checks": [
+        {
+          "criterion": "just check passes with zero errors (lint, types, import contracts)",
+          "evidence_fields": [
+            "commands_run",
+            "exit_code",
+            "error_count"
+          ]
+        },
+        {
+          "criterion": "just test-regression passes with all tests green",
+          "evidence_fields": [
+            "test_command",
+            "exit_code",
+            "test_count",
+            "failure_count"
+          ]
+        }
+      ]
+    },
+    {
+      "after_story": "02-endpoint-smoke-tests",
+      "check_type": "regression",
+      "checks": [
+        {
+          "criterion": "just test-golden-path passes with all E2E tests green",
+          "evidence_fields": [
+            "test_command",
+            "exit_code",
+            "test_count",
+            "failure_count"
+          ]
+        },
+        {
+          "criterion": "just test-regression still passes after endpoint fixes",
+          "evidence_fields": [
+            "test_command",
+            "exit_code",
+            "test_count",
+            "failure_count"
+          ]
+        }
+      ]
+    },
+    {
+      "after_story": "03-regression-tests",
+      "check_type": "regression",
+      "checks": [
+        {
+          "criterion": "just test-regression passes including new Phase 4 entity round-trip tests",
+          "evidence_fields": [
+            "test_command",
+            "exit_code",
+            "test_count",
+            "failure_count"
+          ]
+        },
+        {
+          "criterion": "just check still passes after adding new test file",
+          "evidence_fields": [
+            "commands_run",
+            "exit_code",
+            "error_count"
+          ]
+        }
+      ]
+    }
+  ]
+}

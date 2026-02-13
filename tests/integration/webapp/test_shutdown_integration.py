@@ -66,7 +66,7 @@ class TestShutdownWithFastAPI:
         self, app_with_shutdown: tuple[FastAPI, ShutdownManager]
     ) -> None:
         """Health endpoint returns 200 ready before shutdown."""
-        app, manager = app_with_shutdown
+        app, _manager = app_with_shutdown
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/health/ready")
@@ -145,7 +145,7 @@ class TestShutdownMiddleware:
         self, app_with_middleware: tuple[FastAPI, ShutdownManager]
     ) -> None:
         """Middleware allows requests before shutdown starts."""
-        app, manager = app_with_middleware
+        app, _manager = app_with_middleware
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/test")

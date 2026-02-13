@@ -1,0 +1,3 @@
+{"schema_v": 1, "run_id": "db79c91e-6731-4335-9ee7-1457c4bf77fc", "ts": "2026-02-13T21:44:12.521940+00:00", "event": "story_started", "story_id": "01-verification-wiring", "attempt": 1, "index": 0}
+{"schema_v": 1, "run_id": "db79c91e-6731-4335-9ee7-1457c4bf77fc", "ts": "2026-02-13T21:44:12.522003+00:00", "event": "preflight_pass", "story_id": "01-verification-wiring", "attempt": 1}
+{"schema_v": 1, "run_id": "db79c91e-6731-4335-9ee7-1457c4bf77fc", "ts": "2026-02-13T21:44:12.522131+00:00", "event": "agent_dispatched", "story_id": "01-verification-wiring", "attempt": 1, "model": "sonnet", "prompt_hash": "537ebb7f0597", "prompt_tokens": 951, "skill_tokens": 0}
