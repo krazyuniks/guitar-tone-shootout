@@ -702,12 +702,16 @@ def _extract_structured_plan(result) -> tuple[str, dict]:
             except (json.JSONDecodeError, ValueError):
                 pass
 
-    logger.debug(
-        "Structured output extraction failed. structured_output type=%s, "
-        "output length=%d, output[:200]=%s",
-        type(so).__name__ if so else "None",
+    # Log diagnostic info at WARNING level to help debug extraction failures
+    so_keys = sorted(so.keys()) if so and isinstance(so, dict) else None
+    result_type = type(so.get("result")).__name__ if so and isinstance(so, dict) else None
+    logger.warning(
+        "Structured output extraction: envelope keys=%s, result_type=%s, "
+        "output_len=%d, output[:300]=%s",
+        so_keys,
+        result_type,
         len(result.output) if result.output else 0,
-        (result.output or "")[:200],
+        repr((result.output or "")[:300]),
     )
 
     # Try parsing the text output from result.output as JSON
@@ -791,7 +795,7 @@ def _regenerate_plan_with_errors(
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
         tools=[],
-        max_turns=2,
+        max_turns=5,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
         json_schema=output_schema,
         cwd=PROJECT_ROOT,
@@ -861,7 +865,7 @@ def _regenerate_plan_with_verifier_feedback(
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
         tools=[],
-        max_turns=2,
+        max_turns=5,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
         json_schema=output_schema,
         cwd=PROJECT_ROOT,
