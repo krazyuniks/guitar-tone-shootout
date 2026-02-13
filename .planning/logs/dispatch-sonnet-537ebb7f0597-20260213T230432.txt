@@ -66,24 +66,6 @@ After completing your work, verify:
 
 ---
 
-# Previous Attempt Failed
-
-## Error
-One or more checks failed
-
-## Files Modified
-- `apps/webapp/src/webapp/main.py`
-- `apps/webapp/src/webapp/api/v1/html.py`
-- `apps/webapp/src/webapp/api/pages.py`
-
-## JSONL Entry
-{"event": "validation_fail", "story_id": "01-verification-wiring", "attempt": 1, "check_type": "quality", "failure_category": "implementation", "failure_reason": "One or more checks failed", "evidence": "One or more checks failed"}
-
-## What to Do
-Fix the error. The files listed above already exist from the previous attempt. Read them, understand the error, and correct it.
-
----
-
 # Constraints
 
 - Do NOT create test files. Tests are a separate story.
