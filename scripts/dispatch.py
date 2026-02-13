@@ -127,7 +127,7 @@ class ClaudeAdapter:
         if json_schema:
             args.extend(["--json-schema", json.dumps(json_schema)])
 
-        if fallback_model:
+        if fallback_model and fallback_model != model:
             args.extend(["--fallback-model", fallback_model])
 
         return args
