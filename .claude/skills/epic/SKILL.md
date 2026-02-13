@@ -8,7 +8,7 @@ context: fork
 
 **Activation:** `/epic` command — unified lifecycle management for epics.
 
-**Command:** `/epic` — See `.claude/commands/epic.md`
+**Note:** This skill is being updated for V2. See Step 12 of the V2 implementation plan.
 
 ---
 
