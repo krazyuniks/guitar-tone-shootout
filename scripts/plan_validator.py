@@ -17,7 +17,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import jsonschema
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None  # type: ignore[assignment]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -78,20 +81,35 @@ def _load_plan_schema() -> dict:
 def _check_schema_conformance(plan: dict) -> list[ValidationError]:
     """Check 1: plan.json validates against plan.schema.json.
 
-    Uses the jsonschema library for full Draft 2020-12 validation,
-    replacing ~400 lines of hand-rolled type/constraint checking.
+    Uses the jsonschema library for full Draft 2020-12 validation when
+    available. Falls back to checking only required top-level fields
+    when jsonschema is not installed.
     """
     schema = _load_plan_schema()
-    validator = jsonschema.Draft202012Validator(schema)
-    errors: list[ValidationError] = []
-    for error in sorted(validator.iter_errors(plan), key=lambda e: list(e.absolute_path)):
-        path = ".".join(str(p) for p in error.absolute_path) or "(root)"
-        errors.append(
-            ValidationError(
-                check="schema_conformance",
-                message=f"{path}: {error.message}",
+
+    if jsonschema is not None:
+        validator = jsonschema.Draft202012Validator(schema)
+        errors: list[ValidationError] = []
+        for error in sorted(validator.iter_errors(plan), key=lambda e: list(e.absolute_path)):
+            path = ".".join(str(p) for p in error.absolute_path) or "(root)"
+            errors.append(
+                ValidationError(
+                    check="schema_conformance",
+                    message=f"{path}: {error.message}",
+                )
             )
-        )
+        return errors
+
+    # Fallback: check required top-level fields only
+    errors = []
+    for req_field in schema.get("required", []):
+        if req_field not in plan:
+            errors.append(
+                ValidationError(
+                    check="schema_conformance",
+                    message=f"Missing required top-level field: '{req_field}'",
+                )
+            )
     return errors
 
 
