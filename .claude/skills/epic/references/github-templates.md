@@ -188,19 +188,6 @@ gh issue edit {epic_number} \
 
 ---
 
-## Validation
-
-After materialising tasks, validate structure:
-
-```bash
-# Validate task files
-just epic-validate {epic_number}
-```
-
-**Note:** Always use `just` commands, never direct `python scripts/...` calls.
-
----
-
 ## Example: Complete Task Issue
 
 ```markdown
