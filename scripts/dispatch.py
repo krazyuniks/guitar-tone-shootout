@@ -474,12 +474,13 @@ def dispatch_agent(
 
     logger.info(
         "Dispatching agent: model=%s, tools=%s, skills=%s, max_turns=%d, "
-        "max_budget=$%.2f, prompt_hash=%s, prompt_tokens=%d",
+        "max_budget=$%.2f, json_schema=%s, prompt_hash=%s, prompt_tokens=%d",
         model,
         tools,
         skills,
         max_turns,
         max_budget_usd,
+        bool(json_schema),
         prompt_hash,
         prompt_tokens,
     )

@@ -686,7 +686,29 @@ def _extract_structured_plan(result) -> tuple[str, dict]:
             plan_md = candidate["plan_md"]
             plan_json = candidate["plan_json"]
             if isinstance(plan_md, str) and isinstance(plan_json, dict):
+                logger.info(
+                    "Extracted plan from structured_output (plan_md=%d chars)", len(plan_md)
+                )
                 return plan_md, plan_json
+
+        # The result field may be a JSON string (envelope serialises as string)
+        result_str = so.get("result", "")
+        if isinstance(result_str, str) and result_str.strip().startswith("{"):
+            try:
+                parsed = json.loads(result_str)
+                if isinstance(parsed, dict) and "plan_md" in parsed and "plan_json" in parsed:
+                    logger.info("Extracted plan from envelope result string")
+                    return parsed["plan_md"], parsed["plan_json"]
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    logger.debug(
+        "Structured output extraction failed. structured_output type=%s, "
+        "output length=%d, output[:200]=%s",
+        type(so).__name__ if so else "None",
+        len(result.output) if result.output else 0,
+        (result.output or "")[:200],
+    )
 
     # Try parsing the text output from result.output as JSON
     # (--json-schema output may arrive as the text result field)
@@ -694,11 +716,13 @@ def _extract_structured_plan(result) -> tuple[str, dict]:
         try:
             parsed = json.loads(result.output)
             if isinstance(parsed, dict) and "plan_md" in parsed and "plan_json" in parsed:
+                logger.info("Extracted plan from output text JSON")
                 return parsed["plan_md"], parsed["plan_json"]
         except (json.JSONDecodeError, ValueError):
             pass
 
     # Fall back to text delimiter parsing
+    logger.info("Falling back to text delimiter parsing")
     return _parse_plan_output(result.output)
 
 
@@ -759,14 +783,15 @@ def _regenerate_plan_with_errors(
 
     logger.info("Dispatching planner revision (Phase A errors, %d chars)", len(revision_prompt))
 
+    # Revision agents get no tools — all context is in the prompt, they
+    # only need to produce structured JSON output.
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
-        tools=get_tools_for_role("planning"),
-        skills=["gts-architecture", "gts-backend-dev", "gts-frontend-dev"],
-        max_turns=int(planning_budget["max_turns"]),
+        tools=[],
+        max_turns=2,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
         json_schema=output_schema,
         cwd=PROJECT_ROOT,
@@ -828,14 +853,15 @@ def _regenerate_plan_with_verifier_feedback(
 
     logger.info("Dispatching planner revision (verifier feedback, %d chars)", len(revision_prompt))
 
+    # Revision agents get no tools — all context is in the prompt, they
+    # only need to produce structured JSON output.
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
-        tools=get_tools_for_role("planning"),
-        skills=["gts-architecture", "gts-backend-dev", "gts-frontend-dev"],
-        max_turns=int(planning_budget["max_turns"]),
+        tools=[],
+        max_turns=2,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
         json_schema=output_schema,
         cwd=PROJECT_ROOT,
