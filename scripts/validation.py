@@ -459,11 +459,34 @@ def _process_agent_result(
     #   {"type":"result","result":"<agent text>","num_turns":N,...}
     # The validation JSON is inside the "result" field as a string.
     structured = agent_result.structured_output
+    # Debug: dump full agent output
+    _dbg_path = Path("/tmp/validation-debug.json")
+    _dbg_path.write_text(
+        json.dumps(
+            {
+                "output": agent_result.output[:2000] if agent_result.output else None,
+                "structured_output": agent_result.structured_output,
+                "exit_code": agent_result.exit_code,
+                "success": agent_result.success,
+            },
+            indent=2,
+            default=str,
+        ),
+        encoding="utf-8",
+    )
+    logger.info("Validation debug dumped to %s", _dbg_path)
     if isinstance(structured, dict) and "result" in structured:
         result_text = structured["result"]
         if isinstance(result_text, str):
+            # Try to extract JSON from markdown code blocks
+            import re
+
+            # Look for ```json ... ``` blocks
+            json_match = re.search(r"```json\s*\n(.*?)\n```", result_text, re.DOTALL)
+            json_text = json_match.group(1) if json_match else result_text
+
             try:
-                structured = json.loads(result_text)
+                structured = json.loads(json_text)
             except json.JSONDecodeError:
                 logger.debug(
                     "Could not parse 'result' field as JSON for story '%s'",
@@ -486,8 +509,15 @@ def _process_agent_result(
         return result
 
     # Extract results array
-    agent_status = structured.get("status", "fail")
-    per_criterion_results = structured.get("results", [])
+    # Handle both old schema (status, results) and new schema (summary.overall_status, criteria)
+    if "summary" in structured and "overall_status" in structured["summary"]:
+        # New schema from validation agent
+        agent_status = structured["summary"]["overall_status"].lower()
+        per_criterion_results = structured.get("criteria", [])
+    else:
+        # Old schema
+        agent_status = structured.get("status", "fail")
+        per_criterion_results = structured.get("results", [])
 
     if not isinstance(per_criterion_results, list):
         result = ValidationResult(
@@ -524,15 +554,15 @@ def _process_agent_result(
         return result
 
     # Check agent's own status assessment
-    all_criteria_pass = all(r.get("status") == "pass" for r in per_criterion_results)
-    overall_pass = agent_status == "pass" and all_criteria_pass
+    all_criteria_pass = all(r.get("status", "").upper() == "PASS" for r in per_criterion_results)
+    overall_pass = agent_status.upper() == "PASS" and all_criteria_pass
 
     if not overall_pass:
         # Collect failing criteria for the failure reason
         failing = [
             r.get("criterion", "unknown")
             for r in per_criterion_results
-            if r.get("status") != "pass"
+            if r.get("status", "").upper() != "PASS"
         ]
         failure_reason = (
             f"Validation failed for criteria: {', '.join(failing)}"

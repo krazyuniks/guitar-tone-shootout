@@ -66,24 +66,6 @@ After completing your work, verify:
 
 ---
 
-# Previous Attempt Failed
-
-## Error
-**Both criteria PASS with concrete evidence.**
-
-## Files Modified
-- `apps/webapp/src/webapp/main.py`
-- `apps/webapp/src/webapp/api/v1/html.py`
-- `apps/webapp/src/webapp/api/pages.py`
-
-## JSONL Entry
-{"event": "validation_fail", "story_id": "01-verification-wiring", "attempt": 2, "check_type": "quality", "failure_category": "implementation", "failure_reason": "Agent reported overall status as fail", "evidence": "Agent reported overall status as fail\nExcellent. Both quality gates passed. Let me compile the structured validation report.\n\n---\n\n## Validation Report\n\n```json\n{\n  \"check_type\": \"quality\",\n  \"timestamp\": \"2026-02-13T22:44:35Z\",\n  \"branch\": \"95/phase-4-completion-di-tracks-groups-shoo\",\n  \"criteria\""}
-
-## What to Do
-Fix the error. The files listed above already exist from the previous attempt. Read them, understand the error, and correct it.
-
----
-
 # Constraints
 
 - Do NOT create test files. Tests are a separate story.
