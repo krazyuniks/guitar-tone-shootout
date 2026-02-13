@@ -10,14 +10,12 @@ No dependency on run_epic.py or any V1 code.
 """
 
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from scripts.dispatch import estimate_tokens
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SKILLS_DIR = PROJECT_ROOT / ".claude" / "skills"
 
 logger = logging.getLogger(__name__)
 
@@ -548,87 +546,6 @@ def log_prompt(
     )
 
     return prompt_path
-
-
-# ---------------------------------------------------------------------------
-# Skill file assembly (Section 8.5 Decision 3)
-# ---------------------------------------------------------------------------
-
-
-def _strip_yaml_frontmatter(content: str) -> str:
-    """Remove YAML frontmatter from a markdown document.
-
-    Frontmatter is a block delimited by --- at the start of the file.
-    It contains metadata (name, description, context) that is not
-    needed at runtime by the agent.
-
-    Args:
-        content: Raw markdown content, possibly with frontmatter.
-
-    Returns:
-        Content with frontmatter stripped.
-    """
-    if not content.startswith("---"):
-        return content
-
-    # Find the closing --- delimiter
-    match = re.match(r"^---\n.*?\n---\n?", content, re.DOTALL)
-    if match:
-        return content[match.end() :].strip()
-
-    # Malformed frontmatter -- return as-is
-    return content
-
-
-def write_skill_file(story: StorySpec, tmp_dir: Path) -> Path:
-    """Assemble skill content into a temp file for system prompt injection.
-
-    Reads SKILL.md files for each skill in the story's skills list,
-    strips YAML frontmatter (not needed at runtime), and concatenates
-    with separators.
-
-    Skills are loaded from project config by Claude Code at runtime.
-    This assembles skill content for injection via --append-system-prompt-file.
-
-    Args:
-        story: Story specification with a skills list.
-        tmp_dir: Temporary directory to write the assembled file.
-
-    Returns:
-        Path to the assembled skill file.
-    """
-    skills_content: list[str] = []
-
-    for skill_name in story.skills:
-        skill_path = SKILLS_DIR / skill_name / "SKILL.md"
-        if skill_path.exists():
-            raw = skill_path.read_text(encoding="utf-8")
-            content = _strip_yaml_frontmatter(raw)
-            if content:
-                skills_content.append(content)
-        else:
-            logger.warning(
-                "Skill '%s' not found at %s -- skipping",
-                skill_name,
-                skill_path,
-            )
-
-    assembled = "\n\n---\n\n".join(skills_content)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use a sanitised story name for the filename
-    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", story.story_id)
-    path = tmp_dir / f"skills-{safe_name}.md"
-    path.write_text(assembled, encoding="utf-8")
-
-    logger.info(
-        "Skill file assembled: %s (%d tokens from %d skills)",
-        path,
-        estimate_tokens(assembled),
-        len(skills_content),
-    )
-
-    return path
 
 
 # ---------------------------------------------------------------------------

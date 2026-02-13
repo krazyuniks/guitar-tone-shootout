@@ -1,9 +1,8 @@
 """V2 agent dispatch module.
 
 Dispatches prompts to Claude Code agents with the correct model, tools,
-skills, MCP, and budget controls. Implements the ProviderAdapter protocol
-for future multi-provider support (V2.1), with ClaudeAdapter as the
-only concrete implementation in V2.
+skills, MCP, and budget controls. ClaudeAdapter is the only concrete
+implementation.
 
 No dependency on run_epic.py or any V1 code.
 """
@@ -16,7 +15,6 @@ import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, runtime_checkable
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -68,47 +66,6 @@ class AgentResult:
     cost_usd: float | None = None
     turns: int | None = None
     is_overload_or_transient: bool = False
-
-
-# ---------------------------------------------------------------------------
-# ProviderAdapter protocol (V2.1 extensibility)
-# ---------------------------------------------------------------------------
-
-
-@runtime_checkable
-class ProviderAdapter(Protocol):
-    """Interface for dispatching agents to any provider.
-
-    V2 ships Claude-only. The protocol exists so that V2.1 can add
-    CodexAdapter and GeminiAdapter without changing dispatch_agent().
-    """
-
-    def build_args(
-        self,
-        prompt: str,
-        model: str,
-        tools: list[str],
-        skills: list[str],
-        mcp_config: dict | None,
-        max_turns: int,
-        max_budget_usd: float,
-        json_schema: dict | None,
-        fallback_model: str | None,
-    ) -> list[str]:
-        """Build CLI arguments for this provider."""
-        ...
-
-    def parse_result(
-        self,
-        completed: subprocess.CompletedProcess,
-    ) -> AgentResult:
-        """Parse provider-specific output into common AgentResult."""
-        ...
-
-    @property
-    def name(self) -> str:
-        """Provider name identifier."""
-        ...
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +409,7 @@ def dispatch_agent(
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
     fallback_model: str | None = None,
-    adapter: ProviderAdapter | None = None,
+    adapter: ClaudeAdapter | None = None,
 ) -> AgentResult:
     """Dispatch a prompt to an agent and return the structured result.
 
@@ -571,7 +528,7 @@ def dispatch_with_fallback(
     max_budget_usd: float = 3.0,
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
-    adapter: ProviderAdapter | None = None,
+    adapter: ClaudeAdapter | None = None,
 ) -> AgentResult:
     """Dispatch with orchestrator-level retry for transient provider failures.
 
