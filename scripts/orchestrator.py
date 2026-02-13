@@ -938,7 +938,7 @@ def _interactive_scope_discussion(epic_dir: Path) -> dict:
     """
     decisions_path = epic_dir / "decisions.json"
 
-    # Non-interactive mode: skip prompt, load existing decisions if any
+    # Non-interactive mode: require decisions.json
     if not sys.stdin.isatty():
         if decisions_path.is_file():
             try:
@@ -950,9 +950,13 @@ def _interactive_scope_discussion(epic_dir: Path) -> dict:
                 )
                 return decisions
             except json.JSONDecodeError as exc:
-                logger.warning("Failed to parse %s: %s", decisions_path, exc)
-        logger.info("Non-interactive mode: skipping scope discussion (no decisions.json)")
-        return {}
+                logger.error("Failed to parse %s: %s", decisions_path, exc)
+                sys.exit(1)
+        logger.error(
+            "Non-interactive mode requires %s. " "Create it with scope decisions before running.",
+            decisions_path,
+        )
+        sys.exit(1)
 
     print("\n" + "=" * 70)
     print("SCOPE DISCUSSION")
