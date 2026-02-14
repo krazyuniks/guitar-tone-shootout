@@ -1,0 +1,2 @@
+# Frontend-Architecture.md
+frontend-architecture:L1-L6:~34tok|overview:L7-L23:~150tok|build-system:L24-L135:~800tok|template-architecture:L136-L328:~1550tok|serving-architecture:L329-L432:~650tok|design-system:L433-L517:~600tok|htmx-integration:L518-L602:~450tok|alpine-js-integration:L603-L646:~300tok|react-island-signalchainbuilder:L647-L699:~300tok|navigation-between-static-and-ssr:L700-L734:~200tok|testability-requirements:L735-L772:~250tok|development-workflow:L773-L807:~200tok|references:L808-L812:~41tok

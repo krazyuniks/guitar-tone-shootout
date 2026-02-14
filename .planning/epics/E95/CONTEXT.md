@@ -1,8 +1,9 @@
 # Epic Context
 
-**Assembled:** 2026-02-13T17:08:31Z
+**Assembled:** 2026-02-14T14:35:08Z
+**Detected Areas:** api_contract, audio_processing, data_model, dual_database, frontend_layers, gear_model, job_processing, security, signal_chain
 
-This document is an intermediate artefact for the plan generator. It combines the epic description, codebase context, architecture documentation, and detected architecture areas into a single reference. Zero AI tokens were spent producing this file.
+This document is an intermediate artefact for the plan generator. It combines the epic description, selectively loaded architecture documentation, and codebase context based on detected areas. Zero AI tokens were spent producing this file.
 
 ---
 
@@ -184,2166 +185,12 @@ Wave 2:  4A──→4C  (DI tracks needed for shootout wizard)
 
 ---
 
-## Detected Architecture Areas
+## Architecture (from wiki)
 
-Based on keyword analysis of the epic body, the following architecture areas are relevant:
+The following sections were selectively loaded based on detected areas (api_contract, audio_processing, data_model, dual_database, frontend_layers, gear_model, job_processing, security, signal_chain):
 
-### API Contract (`api_contract`)
 
-**Description:** Endpoints, Pydantic schemas, errors
-
-**Key questions:** REST vs HTML endpoints, validation, pagination
-
-**Scope discussion questions:**
-
-- REST endpoint path? (/api/v1/...)
-- HTML endpoint path? (/api/v1/html/...)
-- Pydantic request/response schemas?
-- Validation error format?
-- Pagination approach (offset or cursor)?
-
-### Audio Processing (`audio_processing`)
-
-**Description:** NAM, IR, loudness normalization
-
-**Key questions:** libs/audio vs apps/worker, processing pipeline
-
-**Scope discussion questions:**
-
-- Does this involve audio processing?
-- NAM model loading?
-- IR convolution?
-- Loudness normalization?
-- libs/audio or apps/worker?
-
-### Data Model (`data_model`)
-
-**Description:** Tables, columns, relations (SQLAlchemy ORM)
-
-**Key questions:** Primary entity, lifecycle, indexes
-
-**Scope discussion questions:**
-
-- What's the primary entity?
-- What fields are required vs optional?
-- What's the status/lifecycle?
-- Relations to existing tables in gts_core?
-- Indexes or constraints needed?
-- Soft delete or hard delete?
-
-### Dual Database (`dual_database`)
-
-**Description:** gts_core vs gts_t3k_source boundaries
-
-**Key questions:** Which database, worker access, pgmq messages
-
-**Scope discussion questions:**
-
-- Which database is this for? (gts_core or gts_t3k_source)
-- If source data, is worker the access point?
-- pgmq messages involved?
-- Sync records needed?
-- Cross-database implications?
-
-### Frontend Layers (`frontend_layers`)
-
-**Description:** Astro SSG vs Jinja2 SSR vs HTMX fragments
-
-**Key questions:** Page type, React island, navigation patterns
-
-**Scope discussion questions:**
-
-- Is this a static page (Astro SSG)?
-- Is this a dynamic page (Jinja2 SSR)?
-- Does it need HTMX fragments?
-- Is it the SignalChainBuilder (React)?
-- Design tokens from Astro CSS?
-
-### Gear Model (`gear_model`)
-
-**Description:** Unified gear, sources, sync records
-
-**Key questions:** Source attribution, GearModel files, UserGear
-
-**Scope discussion questions:**
-
-- Does this feature involve gear?
-- Unified Gear model or source-specific?
-- GearModel files involved? (NAM, IR)
-- Source attribution needed?
-- User-uploaded (community) or synced from source?
-- UserGear library implications?
-
-### Jobs/Queues (`job_processing`)
-
-**Description:** TaskIQ jobs, pgmq consumers, parent/child
-
-**Key questions:** Retry strategy, progress reporting, Redis locks
-
-**Scope discussion questions:**
-
-- Does this trigger background jobs?
-- TaskIQ job or pgmq consumer?
-- Parent/child job hierarchy? (like SHOOTOUT)
-- Retry strategy and max attempts?
-- Progress reporting (WebSocket for user jobs)?
-- Redis locks needed?
-
-### Security (`security`)
-
-**Description:** Auth, session cookies, ownership checks
-
-**Key questions:** Authentication required, CurrentUser, rate limiting
-
-**Scope discussion questions:**
-
-- Does endpoint require authentication?
-- CurrentUser dependency?
-- Ownership check (user_id match)?
-- Return 404 for unauthorised (not 403)?
-- Rate limiting?
-
-### Signal Chain (`signal_chain`)
-
-**Description:** Block types, ordering, validation rules
-
-**Key questions:** HEAD vs FULL_RIG, IR requirements, loop effects
-
-**Scope discussion questions:**
-
-- Does this feature involve signal chains?
-- Which block types are affected? (amp, IR, pedal, built-in)
-- HEAD vs FULL_RIG considerations? (IR required vs forbidden)
-- Loop effects allowed? (not with FULL_RIG)
-- Block ordering constraints?
-- Permutation support needed? (SignalChainGroup)
-
-
----
-
-## Codebase Context
-
-The following sections are from `.planning/codebase/` analysis files:
-
-
-### STRUCTURE
-
-# Codebase Structure
-
-**Analysis Date:** 2026-02-05
-
-## Directory Layout
-
-```
-gts/
-├── .planning/                  # GSD planning documents (not git tracked)
-│   └── codebase/               # Architecture analysis (STACK.md, ARCHITECTURE.md, etc.)
-├── .claude/                    # Claude agent configuration
-│   ├── agents/                 # Agent skill definitions
-│   ├── commands/               # Custom commands
-│   ├── skills/                 # Reusable skills for agents
-│   └── rules/                  # Policies (authentication, infrastructure, security)
-├── pyproject.toml              # uv workspace root (dependency groups, import-linter)
-├── justfile                    # Task runner (just --list for discovery)
-├── docker-compose.yml          # Base Docker config (no ports, no container names)
-├── docker-compose.override.yml # Worktree-specific (auto-generated, gitignored)
-│
-├── libs/                       # Shared domain and utility libraries
-│   ├── core/                   # Domain logic (zero framework dependencies)
-│   │   └── src/core/
-│   │       ├── domain/
-│   │       │   ├── entities/   # User, Gear, SignalChain, Shootout, Job, DITrack
-│   │       │   └── value_objects/  # Enums, frozen dataclasses, IDs, results
-│   │       ├── ports/          # Repository protocols, AudioProcessor, VideoComposer
-│   │       ├── records/        # Sync record schemas (GearSyncRecord)
-│   │       └── services/       # Domain services (validation, calculation)
-│   │
-│   └── audio/                  # Audio processing (depends on core only)
-│       └── src/audio/
-│           ├── processing/     # NAM, IR, pedalboard, loudness, permutation
-│           ├── video/          # Video composition
-│           └── analysis/       # Audio analysis (waveform, loudness)
-│
-├── sources/                    # External data source adapters (depend on core only)
-│   └── t3k/                    # Tone3000 integration
-│       └── src/source_t3k/
-│           ├── domain/         # T3K-specific entities (Pack, Model)
-│           ├── adapters/
-│           │   ├── inbound/    # T3K API client, OAuth
-│           │   └── outbound/   # pgmq publisher
-│           └── services/       # Sync service, catalog download
-│
-├── apps/                       # Applications
-│   ├── webapp/                 # FastAPI web application
-│   │   └── src/webapp/
-│   │       ├── main.py         # FastAPI app factory
-│   │       ├── api/            # REST endpoints, page routes
-│   │       ├── auth/           # Session management, OAuth flow
-│   │       ├── services/       # Application services (higher-level logic)
-│   │       └── adapters/       # Framework-specific implementations
-│   │           └── persistence/
-│   │               ├── models/     # SQLAlchemy ORM models
-│   │               └── repositories/  # Repository implementations
-│   │
-│   ├── worker/                 # TaskIQ background job worker
-│   │   └── src/worker/
-│   │       ├── main.py         # TaskIQ broker and example task
-│   │       ├── consumers/      # pgmq message handlers
-│   │       └── jobs/           # Job definitions (tone processing, sync)
-│   │
-│   └── scheduler/              # TaskIQ scheduler (cron jobs)
-│       └── src/scheduler/
-│           ├── main.py         # TaskIQ scheduler config
-│           └── schedules/      # Cron definitions (T3K sync, cleanup)
-│
-├── frontend/                   # Frontend build system (not runtime)
-│   └── astro/
-│       ├── src/
-│       │   ├── pages/          # Template sources (.html.ts, .astro files)
-│       │   │   ├── layouts/    # Base layout wrapper
-│       │   │   ├── pages/      # Full page templates (gear, shootouts, library)
-│       │   │   ├── fragments/  # HTMX response templates
-│       │   │   └── partials/   # Reusable components
-│       │   ├── components/     # React islands (SignalChainBuilder only)
-│       │   ├── styles/         # Tailwind CSS, design tokens
-│       │   └── lib/            # Build-time utilities
-│       │
-│       ├── dist/               # Build output (COMMITTED TO GIT)
-│       │   ├── layouts/        # Built Jinja2 wrappers
-│       │   ├── pages/          # Built page templates
-│       │   ├── fragments/      # Built HTMX fragments
-│       │   ├── _astro/         # Compiled Tailwind CSS
-│       │   └── *.html          # Static pages (index, about, login, 404, 500)
-│       │
-│       └── astro.config.mjs    # Build configuration
-│
-├── infrastructure/
-│   ├── docker/                 # Container images
-│   │   ├── Dockerfile.dev      # Development image (uv installed)
-│   │   ├── Dockerfile.webapp   # Production webapp image
-│   │   ├── Dockerfile.worker   # Production worker image
-│   │   ├── init-db.sql         # PostgreSQL initialization
-│   │   └── init-pgmq.sql       # pgmq extension setup
-│   │
-│   ├── migrations/             # Alembic schema migrations
-│   │   ├── versions/           # Individual migration files
-│   │   ├── env.py              # Alembic environment
-│   │   └── script.py.mako      # Migration template
-│   │
-│   └── nginx/                  # Reverse proxy configuration
-│       └── nginx.conf.template # Template processed at runtime via envsubst
-│
-├── tests/
-│   ├── regression/             # Stack connectivity tests (SQLite in-memory)
-│   │   └── conftest.py         # Pytest fixtures (test_db session)
-│   │
-│   ├── unit/                   # Isolated unit tests
-│   │   ├── core/               # Domain logic tests
-│   │   ├── audio/              # Audio processing tests
-│   │   └── webapp/             # ORM and service tests
-│   │
-│   ├── integration/            # Real database/service tests
-│   │   ├── webapp/             # Repository integration tests
-│   │   ├── audio/              # Audio processing with real files
-│   │   └── worker/             # Worker consumer tests
-│   │
-│   ├── e2e/
-│   │   ├── python/             # Playwright pytest tests (isolated uv env)
-│   │   │   ├── tests/          # Test files (browser automation)
-│   │   │   ├── conftest.py     # Playwright fixtures
-│   │   │   └── pyproject.toml  # Isolated from workspace
-│   │   │
-│   │   └── smoke/              # Smoke tests (simple health checks)
-│   │
-│   ├── fixtures/               # Shared test fixtures
-│   │   └── factories.py        # Entity factories for tests
-│   │
-│   └── data/                   # Test data files (audio samples, fixtures)
-│
-├── worktree/                   # Worktree lifecycle management
-│   ├── auth.py                 # OAuth flow, .gts-auth.json management
-│   ├── setup.py                # Idempotent worktree setup
-│   └── cleanup.py              # Teardown and orphan cleanup
-│
-├── scripts/                    # Standalone scripts
-│   └── gts-admin               # Admin CLI tool (job management, sync status)
-│
-├── src/                        # Root-level utilities
-│   └── gts/                    # Shared utilities (if any)
-│
-└── README.md                   # Project overview
-```
-
-## Directory Purposes
-
-**libs/core (`libs/core/src/core/`):**
-- Purpose: Framework-agnostic domain logic shared by all modules
-- Contains: Domain entities, value objects, business rules, ports (protocols)
-- Key files:
-  - `domain/entities/{user.py, gear.py, shootout.py, signal_chain.py, job.py, di_track.py}`
-  - `domain/value_objects/{job_status.py, audio_result.py, signal_chain_enums.py}`
-  - `ports/repositories.py` - UserRepository, GearRepository, JobRepository protocols
-  - `ports/audio_processor.py` - AudioProcessor protocol
-  - `services/{signal_chain_validator.py, permutation_calculator.py}` - Business rules
-
-**libs/audio (`libs/audio/src/audio/`):**
-- Purpose: Audio effects processing, loudness measurement, visualization
-- Contains: Pedalboard integration, NAM models, IR loading, waveform extraction
-- Key files:
-  - `processing/processor.py` - PedalboardAudioProcessor (implements AudioProcessor protocol)
-  - `processing/nam_loader.py` - Load NAM neural amp models
-  - `processing/ir_loader.py` - Load impulse response files
-  - `processing/loudness.py` - PyLoudnorm loudness measurement
-  - `analysis/waveform.py` - Extract waveform peaks for visualization
-
-**sources/t3k (`sources/t3k/src/source_t3k/`):**
-- Purpose: Tone3000 catalog integration and sync
-- Contains: API client, OAuth, sync service, database bridge
-- Key files:
-  - `adapters/inbound/` - T3K API client, OAuth endpoints
-  - `adapters/outbound/` - pgmq queue publisher
-  - `services/` - Sync orchestration, catalog download
-
-**apps/webapp (`apps/webapp/src/webapp/`):**
-- Purpose: Web application (HTTP server for pages and API)
-- Contains: FastAPI routes, ORM models, repositories, session management
-- Key files:
-  - `main.py` - FastAPI app factory
-  - `api/` - REST endpoints and Jinja2 page routes
-  - `auth/` - Session middleware, OAuth callback handler
-  - `adapters/persistence/models/` - SQLAlchemy ORM (User, Gear, Shootout, Job, SignalChain)
-  - `adapters/persistence/repositories/` - SQLAlchemy implementations of core protocols
-  - `adapters/persistence/unit_of_work.py` - Transaction management
-
-**apps/worker (`apps/worker/src/worker/`):**
-- Purpose: Background job processing and T3K sync
-- Contains: TaskIQ broker, job handlers, pgmq consumers
-- Key files:
-  - `main.py` - TaskIQ broker initialization
-  - `consumers/` - pgmq message handlers (receives jobs from webapp)
-  - `jobs/` - Job definitions (tone processing, sync tasks)
-
-**apps/scheduler (`apps/scheduler/src/scheduler/`):**
-- Purpose: Cron job scheduling
-- Contains: TaskIQ scheduler, schedule definitions
-- Key files:
-  - `main.py` - TaskIQ scheduler initialization
-  - `schedules/` - Cron job definitions (T3K sync, cleanup)
-
-**frontend/astro/src/ (`frontend/astro/src/`):**
-- Purpose: Static site source (pre-built to dist/ and committed)
-- Contains: Astro templates, React islands, Tailwind styles
-- Key locations:
-  - `pages/` - Astro page templates (.astro, .html.ts files)
-  - `fragments/` - HTMX response templates (built to dist/fragments/)
-  - `partials/` - Reusable components (Header, Footer)
-  - `styles/global.css` - Tailwind configuration, design tokens
-
-**frontend/astro/dist/ (`frontend/astro/dist/`):**
-- Purpose: Build output (COMMITTED TO GIT - this is deployed)
-- Contains: Pre-built HTML, CSS, JavaScript
-- Served by: nginx directly (not FastAPI)
-- Update: `just build-astro` compiles src/ to dist/
-
-**infrastructure/ (`infrastructure/`):**
-- Purpose: Deployment configuration
-- Contains: Dockerfiles, migrations, nginx config
-- Key files:
-  - `docker/Dockerfile.dev` - Development image with uv
-  - `docker/Dockerfile.webapp` - Production webapp image
-  - `docker/init-db.sql` - Create gts_core and gts_t3k_source databases
-  - `migrations/versions/*.py` - Alembic schema migrations
-  - `nginx/nginx.conf.template` - Reverse proxy routing
-
-**tests/ (`tests/`):**
-- Purpose: Test suites for all test types
-- Contains: Unit, integration, E2E, regression tests
-- Substructure:
-  - `regression/` - Stack connectivity (minimal, fast)
-  - `unit/` - Isolated unit tests
-  - `integration/` - Real database/service tests
-  - `e2e/python/` - Playwright browser tests (isolated venv)
-  - `fixtures/` - Shared test utilities
-  - `data/` - Test data files (audio samples)
-
-## Key File Locations
-
-**Entry Points:**
-
-- `apps/webapp/src/webapp/main.py` - FastAPI app creation
-- `apps/worker/src/worker/main.py` - TaskIQ broker initialization
-- `apps/scheduler/src/scheduler/main.py` - TaskIQ scheduler setup
-- `infrastructure/nginx/nginx.conf.template` - Reverse proxy configuration
-- `frontend/astro/src/pages/` - Frontend template sources
-
-**Configuration:**
-
-- `pyproject.toml` - Root workspace config, import-linter rules, tool config
-- `docker-compose.yml` - Base Docker services (no worktree-specific values)
-- `docker-compose.override.yml` - Worktree ports/names (auto-generated)
-- `infrastructure/docker/init-db.sql` - Database initialization
-- `infrastructure/migrations/env.py` - Alembic configuration
-
-**Core Logic:**
-
-- `libs/core/src/core/domain/entities/` - Domain entities (User, Gear, Shootout, SignalChain, Job)
-- `libs/core/src/core/ports/` - Repository and service protocols
-- `libs/core/src/core/services/` - Business rule validation and calculation
-- `libs/audio/src/audio/processing/` - Audio effect processing (Pedalboard)
-- `sources/t3k/src/source_t3k/services/` - T3K sync orchestration
-
-**Testing:**
-
-- `tests/regression/conftest.py` - Regression test fixtures
-- `tests/integration/webapp/conftest.py` - Integration test fixtures
-- `tests/e2e/python/conftest.py` - Playwright E2E fixtures
-- `tests/fixtures/factories.py` - Entity factory builders
-
-## Naming Conventions
-
-**Files:**
-
-- Domain entities: `{entity_name}.py` (lowercase, singular)
-  - Example: `user.py`, `signal_chain.py`, `shootout.py`
-- Test files: `test_{module}.py` or `test_{feature}.py`
-  - Example: `test_user_repository.py`, `test_signal_chain_validation.py`
-- ORM models: Same name as domain entity (different namespace)
-  - Example: `models/user.py` vs `domain/entities/user.py`
-- Repositories: `{entity_name}_repository.py`
-  - Example: `user_repository.py`, `job_repository.py`
-
-**Directories:**
-
-- Package directories: lowercase with underscores
-  - Example: `signal_chain`, `user_identity`, `audio_processor`
-- Test categories: `{test_type}` (unit, integration, e2e, regression)
-- Module groups: Pluralized for collections
-  - Example: `entities/`, `repositories/`, `services/`, `adapters/`
-
-**Types and Classes:**
-
-- Domain entities: PascalCase
-  - Example: `User`, `SignalChain`, `DITrack`
-- Value objects: PascalCase
-  - Example: `JobStatus`, `AudioResult`, `ToneConfig`
-- Exceptions: PascalCase with "Error" suffix
-  - Example: `JobError`, `InvalidStateTransitionError`, `ProcessingError`
-- Protocols: PascalCase
-  - Example: `UserRepository`, `AudioProcessor`, `VideoComposer`
-
-**Functions and Methods:**
-
-- Functions/methods: snake_case
-  - Example: `get_by_id()`, `create_job()`, `process_di_track()`
-- Async methods: Same snake_case convention
-  - Example: `async def get_by_id()`, `async def process_di_track()`
-
-## Where to Add New Code
-
-**New Feature (domain + API):**
-
-1. Domain entity: `libs/core/src/core/domain/entities/{entity}.py`
-2. Value objects: `libs/core/src/core/domain/value_objects/{vo}.py` (if needed)
-3. Repository protocol: Add to `libs/core/src/core/ports/repositories.py`
-4. ORM model: `apps/webapp/src/webapp/adapters/persistence/models/{entity}.py`
-5. Repository implementation: `apps/webapp/src/webapp/adapters/persistence/repositories/{entity}_repository.py`
-6. API routes: `apps/webapp/src/webapp/api/v1/{domain}.py`
-7. Tests:
-   - Unit: `tests/unit/core/test_{entity}.py`
-   - Integration: `tests/integration/webapp/test_{entity}_repository.py`
-   - E2E: `tests/e2e/python/tests/test_{feature}.py`
-
-**New Component/Module:**
-
-1. Assess dependencies: Does it depend on core only? Can it depend on audio?
-2. Create directory: `libs/{name}/src/{name}/`
-3. Add to `pyproject.toml` workspace members
-4. Add import-linter contracts in root `pyproject.toml` if isolation needed
-5. Implement ports and adapters within the module
-
-**New Worker Job:**
-
-1. Job definition: `apps/worker/src/worker/jobs/{job_type}.py`
-2. Job handler/consumer: `apps/worker/src/worker/consumers/{job_type}.py`
-3. Trigger from webapp: Publish message to pgmq
-4. Tests: `tests/integration/worker/test_{job_type}.py`
-
-**New HTMX Fragment:**
-
-1. Template: `frontend/astro/src/pages/fragments/{domain}/{action}.html.ts`
-2. Build: `just build-astro` generates `frontend/astro/dist/fragments/{domain}/{action}.html`
-3. API endpoint: `apps/webapp/src/webapp/api/v1/html.py` route returns fragment
-4. Tests: `tests/e2e/python/tests/test_{feature}.py` with Playwright
-
-**New Static Page:**
-
-1. Source: `frontend/astro/src/pages/{page}.astro`
-2. Build: `just build-astro` generates `frontend/astro/dist/{page}.html`
-3. Serve: nginx serves directly from `/static/`
-4. No backend code needed (unless page has dynamic content)
-
-**Utilities:**
-
-- Shared helpers: `libs/{domain}/src/{domain}/lib/` or create new `libs/utils/`
-- Standalone scripts: `scripts/{name}` or `worktree/{name}.py`
-
-## Special Directories
-
-**infrastructure/migrations/ (Alembic):**
-- Purpose: Database schema versioning
-- Generated: Yes (via `alembic revision -m "message"`)
-- Committed: Yes
-- Target database: gts_core only (T3K database not migrated via alembic)
-- Run: Automatically at container startup
-- Key files:
-  - `versions/*.py` - Individual migration files (never edit by hand)
-  - `env.py` - Migration runner configuration
-  - `script.py.mako` - Template for new migrations
-
-**.planning/codebase/ (GSD analysis):**
-- Purpose: Architecture and codebase documentation for GSD tools
-- Generated: Yes (via GSD map-codebase command)
-- Committed: No (gitignored)
-- Contents: ARCHITECTURE.md, STRUCTURE.md, CONVENTIONS.md, TESTING.md, CONCERNS.md
-
-**frontend/astro/dist/ (Pre-built frontend):**
-- Purpose: Build output (runtime artifact)
-- Generated: Yes (via `just build-astro`)
-- Committed: Yes (critical for CI/production - no build step at runtime)
-- Served by: nginx directly
-- Must update when: `frontend/astro/src/` changes
-
-**tests/e2e/python/ (Isolated E2E environment):**
-- Purpose: End-to-end tests with Playwright
-- Isolation: Own `pyproject.toml`, separate uv environment
-- Depends on: No project dependencies (only pytest, playwright, httpx)
-- Run: `just test-golden-path` (runs on host, hits Docker containers)
-- Not tracked: `.venv/` directory in this folder
-
-**.env.local (Development secrets):**
-- Purpose: Local development secrets (gitignored)
-- Contents: DB_PASSWORD, SECRET_KEY, OAUTH_ENCRYPTION_KEY, etc.
-- Auto-generated: Yes (by `worktree.py setup`)
-- Do NOT commit: Contains real secrets for worktree
-
----
-
-*Structure analysis: 2026-02-05*
-
-
-### ARCHITECTURE
-
-# Architecture
-
-**Analysis Date:** 2026-02-05
-
-## Pattern Overview
-
-**Overall:** Layered hexagonal architecture (ports and adapters) with strict dependency boundaries enforced by import-linter. The system separates domain logic from framework concerns through well-defined protocols.
-
-**Key Characteristics:**
-- Domain-driven design with zero-dependency core library
-- Hexagonal architecture with ports (interfaces) and adapters (implementations)
-- Strict module isolation via import-linter contracts in root `pyproject.toml`
-- Dual database architecture: application database (gts_core) and source database (gts_t3k_source)
-- Worker process acts as bridge between databases via pgmq message queues
-- Event-driven background job processing using TaskIQ
-
-## Layers
-
-**Core Domain Library (`libs/core`):**
-- Purpose: Framework-agnostic business logic and domain entities
-- Location: `libs/core/src/core/`
-- Contains: Domain entities, value objects, business rules, repository protocols
-- Depends on: Nothing (pure Python)
-- Used by: All other modules (audio, sources, apps)
-
-**Audio Processing (`libs/audio`):**
-- Purpose: Audio effect processing, loudness measurement, waveform extraction, video composition
-- Location: `libs/audio/src/audio/`
-- Contains: Pedalboard integration, PyLoudnorm loudness, NAM model loading, IR processing
-- Depends on: core only
-- Used by: worker (background job processing)
-
-**Source Adapter - T3K (`sources/t3k`):**
-- Purpose: Integration with Tone3000 source data (packs, models, presets)
-- Location: `sources/t3k/src/source_t3k/`
-- Contains: T3K API client, OAuth authentication, sync service, pgmq publisher
-- Depends on: core only
-- Used by: worker (via pgmq message routing)
-- Critical Rule: webapp has NO dependency on sources; worker is the bridge
-
-**Webapp - FastAPI (`apps/webapp`):**
-- Purpose: Web application serving pages (Jinja2 SSR), REST API, session management
-- Location: `apps/webapp/src/webapp/`
-- Contains: HTTP handlers, ORM models, repository implementations, services, auth
-- Depends on: core, audio
-- Cannot depend on: sources (worker is the bridge)
-- Serves: User pages and API routes on port 8000
-
-**Worker - TaskIQ (`apps/worker`):**
-- Purpose: Background job processing, pgmq consumer, T3K sync orchestration
-- Location: `apps/worker/src/worker/`
-- Contains: Job definitions, pgmq message consumers, tone processing pipeline
-- Depends on: core, audio, sources
-- Database access: Connects to both gts_core and gts_t3k_source
-- Communication: Receives messages from webapp via pgmq queues
-
-**Scheduler - TaskIQ (`apps/scheduler`):**
-- Purpose: Cron job scheduling (T3K sync, cleanup tasks)
-- Location: `apps/scheduler/src/scheduler/`
-- Contains: Schedule definitions, broker configuration
-- Depends on: core only
-- Used by: worker (via TaskIQ broker)
-
-**Frontend (`frontend/astro`):**
-- Purpose: Static site generation with Astro, Tailwind styling
-- Location: `frontend/astro/src/`
-- Output: Pre-built HTML/CSS in `frontend/astro/dist/` (committed to git)
-- Served by: nginx static file server (not FastAPI)
-- No runtime dependency on backend
-
-## Data Flow
-
-**User HTTP Request → Response:**
-
-1. HTTP request arrives at nginx (port 9000)
-2. nginx routes to:
-   - Static files from `/static` (bind-mounted `frontend/astro/dist/`) - served directly
-   - SSR pages (Jinja2) to FastAPI webapp container (port 8000)
-   - API routes to FastAPI webapp container
-3. FastAPI handler executes:
-   - Session auth validation (cookies)
-   - Domain service logic (uses injected repositories)
-   - Repository reads/writes to PostgreSQL gts_core database
-   - HTML/JSON response back through nginx
-
-**Background Job Processing:**
-
-1. Webapp creates Job entity, saves to gts_core
-2. Webapp publishes message to pgmq queue
-3. Worker consumer polls pgmq, receives message
-4. Worker creates JobProcessor, executes job:
-   - Reads Job entity from gts_core
-   - May read/write to gts_t3k_source (T3K sync)
-   - Uses audio processor (Pedalboard) for tone processing
-   - Updates Job status in gts_core
-5. Job lifecycle: PENDING → RUNNING → COMPLETED/FAILED
-
-**T3K Catalog Sync:**
-
-1. Scheduler triggers sync cron job
-2. Worker receives sync message from pgmq
-3. Worker's T3K sync service:
-   - Authenticates with T3K API (OAuth tokens)
-   - Downloads packs/models/presets to gts_t3k_source
-   - Publishes notifications back to gts_core via pgmq
-   - Updates gts_core gear references if needed
-
-**State Management:**
-
-- **Domain state:** Aggregate roots (User, SignalChain, Shootout) managed by repositories
-- **Job state:** State machine with validated transitions (PENDING → RUNNING → COMPLETED/FAILED)
-- **Session state:** HTTP-only cookies (Starlette default)
-- **Transaction boundaries:** Services own transactions using UnitOfWork pattern
-  ```python
-  async with UnitOfWork(session_factory) as uow:
-      # Read/write to repositories via uow.session
-      await uow.commit()  # Explicit commit
-  ```
-- **Database consistency:** SQLAlchemy ORM enforces constraints, migrations in `infrastructure/migrations/`
-
-## Key Abstractions
-
-**Domain Entities:**
-- Purpose: Core business objects with identity and lifecycle
-- Examples: `libs/core/src/core/domain/entities/{user.py, gear.py, shootout.py, signal_chain.py, job.py}`
-- Pattern: Dataclasses with frozen value objects, explicit state transitions
-
-**Value Objects:**
-- Purpose: Immutable domain values (enums, IDs, results)
-- Examples: `libs/core/src/core/domain/value_objects/{job_status.py, audio_result.py, signal_chain_enums.py}`
-- Pattern: Frozen dataclasses, no mutable state
-
-**Repository Protocols:**
-- Purpose: Define persistence interface for domain layer
-- Examples: `libs/core/src/core/ports/repositories.py` (UserRepository, JobRepository, GearRepository)
-- Pattern: Python typing.Protocol - domain doesn't know about SQLAlchemy
-- Implementation: `apps/webapp/src/webapp/adapters/persistence/repositories/{user_repository.py, job_repository.py, ...}`
-
-**Audio Processor Protocol:**
-- Purpose: Define audio effects interface for domain layer
-- Location: `libs/core/src/core/ports/audio_processor.py`
-- Methods: process_di_track(), extract_waveform(), measure_loudness(), normalize_loudness()
-- Implementation: `libs/audio/src/audio/processing/processor.py` (PedalboardAudioProcessor)
-
-**Video Composer Protocol:**
-- Purpose: Define video generation interface
-- Location: `libs/core/src/core/ports/video_composer.py`
-- Used by: Job processing (tone comparison videos)
-
-**Job and Signal Chain Grammar:**
-- Purpose: Domain business rules encoded in entities
-- SignalChain grammar: `[PrePedals*] -> AmpBlock -> [IRBlock?] -> [PostEffects*]`
-- Validation: `libs/core/src/core/services/{signal_chain_validator.py, permutation_calculator.py}`
-- Enforced at: Entity creation time, not in database constraints
-
-## Entry Points
-
-**FastAPI Application:**
-- Location: `apps/webapp/src/webapp/main.py`
-- Triggers: uvicorn container startup
-- Responsibilities:
-  - Creates FastAPI app instance
-  - Registers middleware (CORS, auth, error handling)
-  - Mounts routers (api/v1/*, pages/*)
-  - Configures session store (Redis or in-memory)
-
-**Worker Task Broker:**
-- Location: `apps/worker/src/worker/main.py`
-- Triggers: TaskIQ worker container startup
-- Responsibilities:
-  - Creates TaskIQ broker (Redis in production, in-memory in dev)
-  - Registers job handlers and consumers
-  - Polls pgmq queues for messages
-
-**Scheduler:**
-- Location: `apps/scheduler/src/scheduler/main.py`
-- Triggers: TaskIQ scheduler container startup
-- Responsibilities:
-  - Creates TaskIQ scheduler instance
-  - Registers cron schedule sources
-  - Triggers periodic jobs (T3K sync, cleanup)
-
-**nginx:**
-- Location: `infrastructure/nginx/nginx.conf.template`
-- Triggers: Container startup
-- Responsibilities:
-  - Serves static files from `/static` (Astro dist/)
-  - Proxies SSR/API routes to webapp:8000
-  - Sets security headers (CSP, X-Frame-Options, etc.)
-
-**Frontend Build:**
-- Location: `frontend/astro/` (TypeScript/Astro)
-- Triggers: `just build-astro` command
-- Output: `frontend/astro/dist/` (HTML, CSS, JS - committed to git)
-- Served by: nginx (no build step at runtime)
-
-## Error Handling
-
-**Strategy:** Explicit error handling with domain-specific exceptions and HTTP status code mapping
-
-**Patterns:**
-
-- **Domain Errors:** Custom exceptions in entities/services
-  ```python
-  # libs/core/src/core/domain/entities/job.py
-  class InvalidStateTransitionError(JobError):
-      """Raised when an invalid state transition is attempted."""
-  ```
-
-- **Processing Errors:** Caught during job execution, status updated to FAILED
-  ```python
-  # Process DI track, catch ProcessingError, set job.status = FAILED
-  ```
-
-- **Validation Errors:** Pydantic raises ValidationError on input
-  ```python
-  # FastAPI catches Pydantic ValidationError → 422 Unprocessable Entity
-  ```
-
-- **Auth Errors:** Session validation, OAuth token refresh
-  ```python
-  # 401 Unauthorized if session invalid
-  # 403 Forbidden if user doesn't own resource
-  ```
-
-- **HTTP Response Mapping:**
-  - 200: Success
-  - 302: Redirect (auth flow)
-  - 400: Bad request (validation error)
-  - 401: Unauthorized (missing/invalid session)
-  - 403: Forbidden (user doesn't own resource)
-  - 404: Not found (resource doesn't exist - 404 not 403 to avoid leaking existence)
-  - 500: Server error (unhandled exception, logged)
-
-## Cross-Cutting Concerns
-
-**Logging:**
-
-- Framework: Python standard library logging (if used) or stdout/stderr
-- Patterns: Structured logs in JSON if applicable
-- Error logging: Unhandled exceptions logged with traceback
-- Authentication logging: Login/logout, token refresh events
-
-**Validation:**
-
-- Input validation: Pydantic schemas for all API endpoints
-  ```python
-  # apps/webapp/src/webapp/api/schemas.py
-  class CreateShootoutRequest(BaseModel):
-      title: str = Field(max_length=200)
-      description: str | None = None
-  ```
-- Domain validation: Business rules enforced in entities/services
-  ```python
-  # Signal chain grammar validation in SignalChainValidator
-  ```
-- Database constraints: SQLAlchemy column constraints, foreign keys
-
-**Authentication:**
-
-- Method: Session cookies with HTTP-only flag
-- Provider: T3K OAuth (passwordless email magic links)
-- Storage: .gts-auth.json file shared across worktrees (600 permissions)
-- Session duration: 7 days (extended from 30 min for worktree sharing)
-- Refresh: Auto-refresh tokens at 24 hours remaining
-- Endpoints: `/api/v1/auth/*` routes handle OAuth callback, session restore
-
-**Authorization:**
-
-- Pattern: CurrentUser dependency in FastAPI routes
-- Check: Verify user owns resource before returning (404 not 403)
-  ```python
-  if shootout.user_id != current_user.id:
-      raise HTTPException(status_code=404)  # Hide existence
-  ```
-- Admin routes: Separate admin API on worker (port 8001, no public exposure)
-
-**Database Transactions:**
-
-- Pattern: Services own transactions using UnitOfWork
-  ```python
-  async with UnitOfWork(session_factory) as uow:
-      user = await user_repo.get_by_id(user_id)
-      # Modifications
-      await uow.commit()  # Explicit
-  ```
-- Rollback: Automatic if exception during context (ContextManager protocol)
-- Isolation: SQLAlchemy default isolation level (READ COMMITTED)
-
----
-
-*Architecture analysis: 2026-02-05*
-
-
-### STACK
-
-# Technology Stack
-
-**Analysis Date:** 2026-02-05
-
-## Languages
-
-**Primary:**
-- Python 3.12+ - Backend services (webapp, worker, scheduler), audio processing, testing
-- TypeScript/Node.js - Frontend build system (Astro)
-- SQL - Database schema and migrations
-
-**Secondary:**
-- Jinja2 - Server-side template rendering
-- HTML/CSS - Frontend templates and styling
-- Bash - Container initialization, scripts
-
-## Runtime
-
-**Environment:**
-- Python 3.12+ (defined in root `pyproject.toml`)
-- Node.js (via Astro/pnpm for frontend builds)
-
-**Package Manager:**
-- uv (Python workspace monorepo)
-  - Lockfile: `uv.lock` (implied in workspace structure)
-  - Workspace members: `libs/*`, `sources/*`, `apps/*`
-- pnpm (Node.js frontend dependencies)
-  - Package file: `frontend/astro/package.json`
-
-## Frameworks
-
-**Core:**
-- FastAPI 0.115.0+ - Web framework, REST API, SSR page routing
-  - Entry point: `apps/webapp/src/webapp/main.py`
-  - Serves both API (`/api/v1`) and SSR pages (`/gear`, `/shootouts`, `/library/*`)
-
-**Database & ORM:**
-- SQLAlchemy 2.0.36+ (asyncio) - ORM for `gts_core` and `gts_t3k_source` databases
-  - Async driver: asyncpg 0.30.0+
-  - Migrations: Alembic 1.14.0+
-  - Location: `infrastructure/migrations/`
-
-**Background Jobs:**
-- TaskIQ 0.11.0+ - Background job broker
-  - Redis backend: taskiq-redis 1.0.0+
-  - Worker container: processes async jobs and pgmq messages
-  - Scheduler container: runs cron-based tasks
-
-**Frontend Build:**
-- Astro 5.1.6+ - Static site generator, builds to pre-compiled output
-  - Styling: Tailwind CSS 3.4.1+
-  - Type checking: Astro check (via @astrojs/check)
-  - Output: `frontend/astro/dist/` (committed to git, served by nginx)
-
-**Testing:**
-- pytest 8.3.0+ - Test runner
-  - Async support: pytest-asyncio 0.24.0+
-  - Coverage: pytest-cov 6.0.0+
-- Playwright (E2E tests, location: `tests/e2e/python/`)
-
-**Build/Dev:**
-- Hatchling - Python build backend
-- Ruff 0.9.0+ - Linter and formatter
-- mypy 1.14.0+ - Static type checker (strict mode)
-- import-linter 2.1+ - Enforce dependency contracts (location: `pyproject.toml` root)
-
-## Key Dependencies
-
-**Critical:**
-- uvicorn 0.34.0+ - ASGI application server for FastAPI
-- Pydantic 2.10.0+ - Request/response validation
-- SQLAlchemy + asyncpg - Async database access
-- cryptography 44.0.0+ - Session encryption, OAuth token encryption
-- httpx 0.28.0+ - Async HTTP client (T3K API, external integrations)
-
-**Audio Processing:**
-- pedalboard 0.9.0+ - Guitar signal processing (amp models, effects)
-- torch 2.5.0+ - PyTorch for NAM (Neural Amp Modeling) inference
-- torchaudio 2.5.0+ - Audio utilities
-- scipy 1.14.0+ - Scientific computing
-- numpy 2.0.0+ - Numerical arrays
-- soundfile 0.12.0+ - Audio file I/O
-- pyloudnorm 0.1.1+ - Loudness analysis and normalization
-- moviepy 2.0.0+ - Video composition and rendering
-
-**Message Queue:**
-- pgmq-sqlalchemy 0.1.0+ - PostgreSQL message queue client
-  - Message queues:
-    - `gear_pack_sync`, `gear_model_sync`, `preset_sync` (T3K → gts_core via worker)
-    - `audio_processing`, `video_composition`, `notifications` (internal jobs)
-    - `sync_dead_letter`, `jobs_dead_letter` (failed message handling)
-
-**Caching & Sessions:**
-- Redis 7-alpine (Docker container) - Job broker, session storage
-  - Accessed by worker and scheduler
-  - NOT accessed by webapp (worker is the bridge)
-
-**Session & Auth:**
-- itsdangerous 2.2.0+ - Session token signing
-- pydantic-settings 2.7.0+ - Environment configuration
-
-**Request Handling:**
-- python-multipart 0.0.18 - Form data parsing
-- Jinja2 3.1.0+ - Template rendering for SSR pages
-
-**Database Connectivity:**
-- psycopg2-binary 2.9.0+ - PostgreSQL adapter
-- redis 5.2.0+ - Redis client
-
-## Configuration
-
-**Environment:**
-- `.env` (development) and `.env.example` (template) at project root
-- `.env.local` (auto-generated per worktree, git-ignored)
-- Environment variables manage:
-  - Database credentials (`DB_PASSWORD`, `DATABASE_URL`, `T3K_DATABASE_URL`)
-  - Security keys (`SECRET_KEY`, `OAUTH_ENCRYPTION_KEY`)
-  - Service URLs (`NGINX_PORT`, `BACKEND_PORT`, `DB_PORT`, `REDIS_PORT`)
-  - Storage paths (`UPLOAD_PATH`, `PROCESSED_PATH`, `NAM_MODELS_PATH`, `IR_FILES_PATH`)
-  - T3K OAuth (`T3K_CLIENT_ID`, `T3K_CLIENT_SECRET`, `T3K_API_URL`)
-
-**Build:**
-- `pyproject.toml` (root) - Workspace configuration, linting, type checking, testing
-- `pyproject.toml` (per app/lib) - Dependencies, build targets
-- `.pre-commit-config.yaml` - Pre-commit hooks for git
-
-**Linting & Formatting:**
-- `tool.ruff` in root `pyproject.toml`:
-  - Target: Python 3.12
-  - Line length: 100 characters
-  - Rules: E, W, F, I, B, C4, UP, ARG, SIM, TCH, PTH, RUF
-  - Ignore: E501 (long lines), B008 (FastAPI Depends), B904, ARG001
-
-**Type Checking:**
-- `tool.mypy` in root `pyproject.toml`:
-  - Strict mode enabled
-  - Python version: 3.12
-  - Excludes: `infrastructure/migrations/`
-
-**Testing:**
-- `tool.pytest` in root `pyproject.toml`:
-  - Async mode: auto
-  - Test paths: `tests/`
-  - Markers: slow, integration, e2e, smoke
-
-## Platform Requirements
-
-**Development:**
-- Python 3.12+
-- Docker (dev environment)
-- Docker Compose (orchestration)
-- Node.js/pnpm (frontend builds only)
-- Port availability: 5432 (DB), 6379 (Redis), 8000 (backend), 9000 (nginx)
-
-**Production:**
-- PostgreSQL 16+ (via docker image `postgres:16-alpine`)
-- Redis 7+ (via docker image `redis:7-alpine`)
-- nginx (via docker image `nginx:alpine`)
-- Python 3.12 runtime (in container)
-
-**Testing:**
-- E2E tests run on host with Playwright
-- Integration/Unit tests run in Docker containers
-- Coverage tracking via pytest-cov
-
----
-
-*Stack analysis: 2026-02-05*
-
-
-### CONVENTIONS
-
-# Coding Conventions
-
-**Analysis Date:** 2026-02-05
-
-## Naming Patterns
-
-**Files:**
-- Python modules: `snake_case.py` (e.g., `signal_chain_validator.py`)
-- Test files: `test_{module_name}.py` (e.g., `test_user_model.py`)
-- Config files: lowercase with underscores (e.g., `pyproject.toml`)
-- Classes: `PascalCase` (e.g., `SignalChainValidator`, `UserRepository`)
-- Domain exceptions: `DescriptivePascalCase` (e.g., `InvalidStateTransitionError`, `MaxChainsExceededError`)
-
-**Functions:**
-- All functions: `snake_case` (e.g., `validate`, `get_by_id`, `extract_waveform`)
-- Private methods: `_snake_case` prefix (e.g., `_to_entity`, `_transition_to`)
-- Class methods: `@classmethod def create_with_identity(...)` pattern
-- Async functions: `async def function_name(...)` (no special prefix)
-
-**Variables:**
-- Module-level constants: `UPPER_CASE` (e.g., `_SUPPORTED_FORMATS`)
-- Instance/local variables: `snake_case` (e.g., `user_id`, `db_session`)
-- Loop variables: descriptive `snake_case` (e.g., `for identity in user.identities:`)
-- Private attributes: prefix with underscore only if truly internal (rare)
-
-**Types:**
-- Domain entities: `ClassName` (e.g., `User`, `Job`, `SignalChain`)
-- Value objects: `DescriptiveClassName` (e.g., `UserIdentity`, `ValidationError`, `JobStatus`)
-- ORM models: `ClassName` (matching domain, e.g., `User` for ORM user model)
-- Exception classes: `DescriptiveError` or `DescriptiveException` suffix (e.g., `JobError`, `ProcessingError`)
-- Enums: `CapitalizedEnum` (e.g., `JobStatus`, `GearType`, `ValidationRule`)
-
-## Code Style
-
-**Formatting:**
-- Tool: `ruff` (formatter and linter combined)
-- Line length: 100 characters
-- Quotes: Double quotes `"string"` (ruff default)
-- Indentation: 4 spaces
-- Type hints: Required on all function signatures (enforced by mypy strict mode)
-
-**Linting:**
-- Tool: `ruff` (Python linter)
-- Config: `pyproject.toml` under `[tool.ruff]`
-- Enabled rules: E (errors), W (warnings), F (Pyflakes), I (isort), B (bugbear), C4 (comprehensions), UP (pyupgrade), ARG (unused args), SIM (simplify), TCH (type checking), PTH (pathlib), RUF (ruff-specific)
-- Ignored: E501 (handled by formatter), B008 (FastAPI Depends), B904 (raise from), ARG001 (unused args in protocols)
-
-**Type Checking:**
-- Tool: `mypy`
-- Mode: Strict mode enabled
-- Config: `pyproject.toml` under `[tool.mypy]`
-- All functions must have explicit return types
-- No implicit Optional types
-- Untyped library overrides in `[[tool.mypy.overrides]]` for external packages (pedalboard, nam, torch, etc.)
-
-## Import Organization
-
-**Order:**
-1. `from __future__ import annotations` (always first for forward references)
-2. Standard library (e.g., `from datetime import datetime`, `from pathlib import Path`)
-3. Third-party (e.g., `from sqlalchemy import ...`, `from fastapi import ...`)
-4. Local first-party (e.g., `from core.domain.entities.user import User`)
-5. TYPE_CHECKING block with lazy imports (e.g., `if TYPE_CHECKING: from sqlalchemy.ext.asyncio import AsyncSession`)
-
-**Path Aliases:**
-- First-party packages configured in ruff isort: `["core", "audio", "source_t3k", "webapp", "worker", "scheduler"]`
-- All imports use absolute paths from workspace root (e.g., `from core.domain.entities.user import User`, never relative imports)
-
-**Example pattern:**
-```python
-"""Module docstring."""
-
-from __future__ import annotations
-
-from datetime import datetime
-from typing import TYPE_CHECKING
-from uuid import UUID
-
-import sqlalchemy as sa
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
-from core.domain.entities.user import User as UserEntity
-from core.domain.entities.user import UserIdentity as UserIdentityVO
-from webapp.adapters.persistence.models.user import User, UserIdentity
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-```
-
-## Error Handling
-
-**Patterns:**
-- Domain exceptions are custom classes inheriting from base domain exception (e.g., `JobError`, `ShootoutError`)
-- Custom exceptions include docstring explaining when they're raised
-- Domain layer raises domain-specific exceptions (e.g., `InvalidStateTransitionError`)
-- Repository/adapter layer propagates or wraps domain exceptions
-- FastAPI/webapp layer catches exceptions and converts to HTTP responses
-- All exceptions include descriptive messages with context (e.g., `f"Cannot transition from {self.status.value} to {new_status.value}"`)
-
-**Exception hierarchy example:**
-```python
-class JobError(Exception):
-    """Base exception for Job domain errors."""
-    pass
-
-class InvalidStateTransitionError(JobError):
-    """Raised when an invalid state transition is attempted."""
-    pass
-```
-
-**State validation pattern:**
-```python
-def _transition_to(self, new_status: JobStatus) -> None:
-    """Validate and execute a status transition.
-
-    Args:
-        new_status: The status to transition to
-
-    Raises:
-        InvalidStateTransitionError: If the transition is not valid
-    """
-    if not self.status.can_transition_to(new_status):
-        raise InvalidStateTransitionError(
-            f"Cannot transition from {self.status.value} to {new_status.value}"
-        )
-```
-
-## Logging
-
-**Framework:** Standard library `logging` (not explicitly configured in codebase, uses defaults)
-
-**Patterns:**
-- Logging not heavily used in domain layer (pure functions preferred)
-- Critical errors logged at adapter/application layer
-- Structured logging deferred to future expansion
-- No logging in unit tests unless debugging
-
-## Comments
-
-**When to Comment:**
-- Complex business logic that isn't self-evident
-- Grammar rules and validation constraints (e.g., signal chain grammar in `SignalChainValidator`)
-- Workarounds or non-obvious decisions
-- State machine transitions with validation rules
-- Data transformation logic between domain and ORM models
-
-**JSDoc/TSDoc/Docstrings:**
-- All public classes: `"""Descriptive docstring with Attributes and usage."""`
-- All public functions: `"""What it does. Args: ... Returns: ... Raises: ..."""`
-- All methods: Include purpose, parameters, return type, exceptions
-- Private methods: Docstring if logic is non-obvious
-- Module-level: File-level docstring explaining module purpose
-- No docstrings for trivial getters/setters unless adding significant value
-
-**Example docstring:**
-```python
-class SignalChainValidator:
-    """Service for validating signal chain compositions.
-
-    Signal Chain Grammar:
-        [PrePedals*] -> AmpBlock -> [IRBlock?] -> [PostEffects*]
-
-    Validation rules:
-        - NO_AMP: Chain must have exactly one amp block
-        - MULTIPLE_AMPS: Only one amp allowed
-        - IR_REQUIRED: Head amp requires IR block
-    """
-
-    def validate(self, chain: SignalChain) -> ValidationResult:
-        """Validate a signal chain against grammar rules.
-
-        Args:
-            chain: The signal chain to validate
-
-        Returns:
-            ValidationResult with is_valid and any errors
-        """
-```
-
-## Function Design
-
-**Size:**
-- Prefer functions under 50 lines
-- Complex logic broken into helper functions with clear names
-- Repository methods often longer due to query building (acceptable)
-
-**Parameters:**
-- Prefer explicit parameters over **kwargs
-- Type hints required for all parameters
-- Default arguments only for optional values
-- Use keyword-only arguments for clarity when function has many parameters (`def method(self, required, *, optional=None)`)
-- Async functions use same parameter conventions as sync
-
-**Return Values:**
-- All functions must declare return type (mypy strict)
-- Return `X | None` instead of `Optional[X]`
-- Domain methods return domain objects, repositories return entities
-- Repository queries return `T | None` for single objects, `list[T]` for collections
-
-**Example pattern:**
-```python
-async def get_by_id(self, user_id: UUID) -> UserEntity | None:
-    """Get a user by their ID.
-
-    Args:
-        user_id: The user's UUID
-
-    Returns:
-        The User entity if found, None otherwise
-    """
-    stmt = select(User).where(User.id == user_id)
-    result = await self.session.execute(stmt)
-    user = result.scalar_one_or_none()
-    return self._to_entity(user) if user else None
-```
-
-## Module Design
-
-**Exports:**
-- Modules export public classes and functions in `__init__.py`
-- Private modules (starting with `_`) are implementation details
-- Each layer has clear boundary: domain exports entities/value objects, adapters export implementations
-
-**Barrel Files:**
-- Use `__init__.py` for public API of packages
-- Domain packages export entities: `from core.domain.entities.user import User, UserIdentity`
-- Do not use star imports: always explicit `from X import Y`
-
-**Example structure:**
-```
-libs/core/src/core/
-├── domain/
-│   ├── entities/
-│   │   ├── __init__.py  # exports User, Job, SignalChain, etc.
-│   │   ├── user.py
-│   │   └── job.py
-│   └── value_objects/
-│       ├── __init__.py  # exports JobStatus, JobType, etc.
-│       └── job_status.py
-├── services/
-│   ├── __init__.py  # exports validation/processing services
-│   └── signal_chain_validator.py
-└── ports/
-    └── __init__.py  # exports protocols for dependency injection
-```
-
-## Dataclasses and Frozen Objects
-
-**Patterns:**
-- Domain entities: `@dataclass(eq=False, slots=True)` (identity-based equality, optimized)
-- Value objects: `@dataclass(frozen=True, slots=True)` (immutable, hashable)
-- ORM models: SQLAlchemy declarative, not dataclasses
-- Attributes in dataclasses: declare with type hints and defaults
-
-**Example:**
-```python
-@dataclass(frozen=True, slots=True)
-class UserIdentity:
-    """Value object representing an external identity link."""
-    provider: str
-    external_id: str
-    username: str
-    avatar_url: str | None = None
-```
-
-## Async Conventions
-
-**All async patterns:**
-- Repositories: All methods are `async def` even for simple lookups
-- Type annotations: Use `AsyncSession`, `AsyncEngine` from `sqlalchemy.ext.asyncio`
-- Session management: Use `async with session.begin():` for transactions
-- No blocking I/O in async functions
-- Fixtures marked with `@pytest.fixture` and return type `AsyncGenerator[T, None]`
-
-**Repository transaction pattern:**
-```python
-async with session.begin():
-    # Multiple operations in transaction
-    await repo.save(entity)
-    # Auto-rollback on exception, auto-commit on exit
-```
-
-## Dependency Injection and Protocols
-
-**Ports/Adapters pattern:**
-- Protocols defined in `core.ports` (not yet visible in codebase, follows hexagonal architecture)
-- Implementations in `webapp.adapters` (SQLAlchemy, etc.)
-- Services accept injected adapters via constructor
-- FastAPI uses `Depends()` for injection
-
-**Example (future pattern):**
-```python
-class UserService:
-    def __init__(self, repo: UserRepository):  # Protocol type
-        self.repo = repo
-
-    async def create_user(self, identity: UserIdentity) -> User:
-        user = User.create_with_identity(identity)
-        await self.repo.save(user)
-        return user
-```
-
----
-
-*Convention analysis: 2026-02-05*
-
-
-### INTEGRATIONS
-
-# External Integrations
-
-**Analysis Date:** 2026-02-05
-
-## APIs & External Services
-
-**Tone3000 (T3K) - Gear Catalog:**
-- Service: Tone3000 gear library API
-- What it's used for: Syncing gear packs, models, and presets into GTS
-- SDK/Client: httpx (async HTTP client in `sources/t3k/`)
-- Auth: OAuth 2.0 (email magic link, passwordless)
-  - Env vars: `T3K_CLIENT_ID`, `T3K_CLIENT_SECRET`
-  - Token storage: `.gts-auth.json` (shared across worktrees, encrypted)
-  - Base URL: `T3K_API_URL` (default: `https://api.tone3000.com`)
-
-**Google Fonts - Typography:**
-- Service: Google Fonts CDN
-- What it's used for: Font delivery for web UI
-- URL: `https://fonts.googleapis.com`, `https://fonts.gstatic.com`
-- Loaded via: nginx CSP policy and Jinja2/Astro templates
-
-**UNPKG CDN - JavaScript Libraries:**
-- Service: UNPKG CDN
-- What it's used for: HTMX and Alpine.js delivery
-- URLs: `https://unpkg.com`
-- Loaded via: nginx CSP policy, HTML templates
-
-## Data Storage
-
-**Databases:**
-- PostgreSQL 16 (dual-database architecture)
-  - gts_core: Main application data (users, shootouts, chains, gear selections)
-    - Accessed by: webapp, worker, scheduler
-    - Connection: `postgresql+asyncpg://gts:{password}@db:5432/gts_core`
-  - gts_t3k_source: T3K source data (packs, models, presets)
-    - Accessed by: worker ONLY (webapp has NO direct access)
-    - Connection: `postgresql+asyncpg://gts:{password}@db:5432/gts_t3k_source`
-  - Client: SQLAlchemy 2.0.36+ with asyncpg driver
-  - Migrations: Alembic (`infrastructure/migrations/`)
-
-**Message Queues (PostgreSQL pgmq extension):**
-- pgmq-sqlalchemy 0.1.0+ for async queue operations
-- gts_t3k_source database (T3K sync):
-  - `gear_pack_sync` - Pack catalog updates
-  - `gear_model_sync` - Model updates
-  - `preset_sync` - Preset updates
-  - `sync_dead_letter` - Failed sync messages
-- gts_core database (internal jobs):
-  - `audio_processing` - Audio rendering jobs
-  - `video_composition` - Video composition jobs
-  - `notifications` - User notifications
-  - `jobs_dead_letter` - Failed job messages
-
-**File Storage:**
-- Local filesystem (bind-mounted Docker volumes)
-  - Upload storage: `/app/uploads` (user uploads, DI tracks)
-  - Processed storage: `/app/processed` (rendered audio, videos)
-  - NAM models: `/app/models/nam` (Neural Amp Modeling models)
-  - IR files: `/app/models/ir` (Impulse Response files)
-- Volume names: `gts-uploads-{worktree}`, `gts-processed-{worktree}`
-
-**Caching:**
-- Redis 7-alpine (via docker)
-  - Purpose: TaskIQ job broker (worker/scheduler only)
-  - NOT accessed by webapp
-  - Connection: `redis://redis:6379`
-  - Data: Job queue, background task state
-
-## Authentication & Identity
-
-**Auth Provider:**
-- Custom session-based auth + T3K OAuth integration
-- Implementation: `apps/webapp/src/webapp/auth/` (location: TBD in codebase exploration)
-  - Session cookies: httponly, secure (prod), samesite=lax
-  - Duration: 7 days (extended from 30 min)
-  - T3K OAuth: Passwordless email magic link (no passwords stored)
-
-**Session Storage:**
-- Redis (via TaskIQ) or database (session table in gts_core)
-- Encryption: `OAUTH_ENCRYPTION_KEY` (Fernet 32-byte key)
-
-**Auth File Persistence:**
-- `.gts-auth.json` (shared across worktrees in parent directory)
-  - Contains: T3K user ID, username, OAuth tokens
-  - Permissions: 0600 (owner read/write only)
-  - Location: `guitar-tone-shootout-worktrees/.gts-auth.json`
-  - Auto-refresh: Tokens refreshed on OAuth flow
-
-## Monitoring & Observability
-
-**Error Tracking:**
-- Not detected (no Sentry/Rollbar integration)
-
-**Logs:**
-- Container logs via `docker compose logs`
-- Application logs: stdout/stderr (captured by Docker)
-- Health checks:
-  - Webapp: `GET /health` (FastAPI health endpoint)
-  - Database: pg_isready check
-  - Redis: redis-cli ping
-
-**Admin API (Worker port 8001, not exposed publicly):**
-- Job monitoring: `/admin/jobs/`, `/admin/jobs/{id}`, `/admin/jobs/dead-lettered`
-- Retry endpoint: `/admin/jobs/{id}/retry`
-- T3K sync status: `/admin/t3k/sync/status`, `/admin/t3k/sync`, `/admin/t3k/sync/stats`
-- Auth status: `/admin/t3k/auth/status`
-- Health: `/health` (composite health check)
-
-**CLI Admin Tool:**
-- `gts-admin` command (location: `scripts/gts-admin`)
-  - Commands: `jobs`, `job {id}`, `t3k-status`, `auth-status`
-
-## CI/CD & Deployment
-
-**Hosting:**
-- Docker Compose (development/feature worktrees)
-- Docker containers (webapp, worker, scheduler, db, redis, nginx)
-- Traefik support (via `docker-compose.traefik.yml`) for HTTPS/subdomain routing
-- Kubernetes-ready (Docker images with no host dependencies)
-
-**CI Pipeline:**
-- GitHub Actions (`.github/workflows/`)
-  - TDD enforcement workflow: `tdd-enforcement.yml`
-  - Triggers: Pull requests, commits to main
-
-**Build Pipeline:**
-- Astro frontend builds to `frontend/astro/dist/` (committed to git)
-- Multi-stage Dockerfiles for production builds:
-  - `infrastructure/docker/Dockerfile.dev` (development with bind mounts)
-  - `infrastructure/docker/Dockerfile.webapp` (production webapp)
-  - `infrastructure/docker/Dockerfile.worker` (production worker)
-  - `infrastructure/docker/Dockerfile.scheduler` (production scheduler)
-
-**Deployment Patterns:**
-- Docker Compose overlay pattern:
-  - `docker-compose.yml` (base, committed)
-  - `docker-compose.override.yml` (worktree-specific, auto-generated)
-  - `docker-compose.traefik.yml` (HTTPS, committed)
-  - `docker-compose.ci.yml` (ephemeral for CI, committed)
-
-## Environment Configuration
-
-**Required env vars:**
-- Database: `DB_PASSWORD`, `DATABASE_URL`, `T3K_DATABASE_URL`
-- Security: `SECRET_KEY`, `OAUTH_ENCRYPTION_KEY`
-- Ports: `NGINX_PORT`, `BACKEND_PORT`, `DB_PORT`, `REDIS_PORT`
-- T3K OAuth: `T3K_CLIENT_ID`, `T3K_CLIENT_SECRET`, `T3K_API_URL`
-- Storage: `UPLOAD_PATH`, `PROCESSED_PATH`, `NAM_MODELS_PATH`, `IR_FILES_PATH`
-- Environment: `ENV` (development/staging/production)
-
-**Secrets location:**
-- Development: `.env` and `.env.local` (git-ignored)
-- CI: GitHub Secrets repository settings
-- Production: Platform-specific (Railway, Fly.io, K8s secrets)
-
-**Configuration files:**
-- `.env.example` - Template with no real values
-- `pyproject.toml` - Workspace and app configuration
-- `docker-compose.yml`, `docker-compose.override.yml`, `docker-compose.traefik.yml`
-- `infrastructure/nginx/nginx.conf.template` (processed via envsubst)
-
-## Webhooks & Callbacks
-
-**Incoming:**
-- OAuth callback: T3K → `POST /auth/oauth/callback` (FastAPI route)
-  - Handles token exchange and session creation
-  - Saves tokens to `.gts-auth.json` for worktree sharing
-
-**Outgoing:**
-- None detected (no outbound webhooks)
-
-**Internal Message Queues:**
-- pgmq (PostgreSQL message queues):
-  - T3K adapter publishes sync messages → worker consumes
-  - Worker publishes job messages → TaskIQ processes
-  - Failed messages go to dead-letter queues for manual inspection
-
----
-
-*Integration audit: 2026-02-05*
-
-
-### TESTING
-
-# Testing Patterns
-
-**Analysis Date:** 2026-02-05
-
-## Test Framework
-
-**Runner:**
-- `pytest` 8.3.0+
-- Config: `pyproject.toml` under `[tool.pytest.ini_options]`
-- Async mode: `asyncio_mode = "auto"`
-- Test paths: `tests/` directory
-
-**Assertion Library:**
-- pytest built-in assertions (no external assertion library)
-- Format: `assert retrieved is not None, "Descriptive message"`
-
-**Run Commands:**
-```bash
-just test-regression  # Stack connectivity tests (~0.2s, SQLite in-memory)
-just test             # Unit + Integration tests (~30s)
-just test-unit        # Unit tests only
-just test-integration # Integration tests only
-just test-golden-path         # E2E tests with Playwright (requires running containers)
-just tdd <path>       # Single test during development (Docker, watches)
-```
-
-## Test File Organization
-
-**Location:**
-- Colocated with source code in `tests/` directory, mirroring source structure
-- Pattern: `tests/{type}/{module}/test_{component}.py`
-
-**Naming:**
-- Test files: `test_{component}.py` (e.g., `test_user_model.py`, `test_stack.py`)
-- Test classes: `Test{ComponentName}` (e.g., `TestUserRoundTrip`, `TestStackConnectivity`)
-- Test functions: `test_{specific_behavior}` (e.g., `test_create_and_retrieve`, `test_user_identity_links_to_user`)
-
-**Structure:**
-```
-tests/
-├── regression/
-│   ├── conftest.py          # Shared fixtures (db_engine, db_session)
-│   └── test_stack.py        # Stack connectivity (ORM → Repo → DB)
-├── unit/
-│   ├── core/                # Domain entity tests
-│   ├── audio/               # Audio processing tests
-│   ├── webapp/              # ORM model and basic logic tests
-│   └── worktree/            # Utility tests
-├── integration/
-│   ├── audio/               # Audio processing with real files
-│   ├── webapp/              # Repository integration with real DB
-│   │   └── conftest.py      # Shared fixtures
-│   └── worker/              # Job processing integration
-├── e2e/
-│   └── python/
-│       ├── pyproject.toml   # Standalone package
-│       ├── conftest.py
-│       └── tests/
-├── fixtures/                # Shared test fixtures (empty, future use)
-└── data/                    # Test data files (empty, future use)
-```
-
-## Test Structure
-
-**Suite Organization:**
-```python
-"""Test module docstring explaining purpose."""
-
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-import pytest
-
-# Imports organized: stdlib, third-party, local
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-
-@pytest.fixture
-async def my_fixture() -> AsyncGenerator[T, None]:
-    """Setup for tests."""
-    yield value
-    # Cleanup if needed
-
-
-class TestStackConnectivity:
-    """Group related tests in a class."""
-
-    def test_orm_models_import(self) -> None:
-        """Test something specific."""
-        assert Base is not None
-
-
-class TestUserRoundTrip:
-    """Another test class."""
-
-    @pytest.mark.asyncio
-    async def test_create_and_retrieve(self, db_session: AsyncSession) -> None:
-        """Test async behavior with fixture."""
-        # Setup
-        identity = UserIdentity(...)
-        user = UserEntity.create_with_identity(identity=identity)
-
-        # Act
-        repo = SQLAlchemyUserRepository(db_session)
-        await repo.save(user)
-        await db_session.commit()
-        retrieved = await repo.get_by_id(user.id)
-
-        # Assert
-        assert retrieved is not None
-        assert retrieved.id == user.id
-```
-
-**Patterns:**
-- Setup-Act-Assert pattern (comments optional but helpful)
-- Fixtures injected as parameters
-- `@pytest.mark.asyncio` on all async tests
-- Type hints on all test functions
-- Clear test names describing behavior, not implementation
-
-## Mocking
-
-**Framework:** `unittest.mock` (not currently heavily used)
-
-**Patterns:**
-- Avoid mocking internal services (test against real objects)
-- Mock only external APIs and I/O-heavy operations
-- For audio tests: create minimal test audio files instead of mocking audio libraries
-- For model tests: use in-memory SQLite instead of mocking database
-
-**What to Mock:**
-- External APIs (Tone3000 API, email services, payment systems)
-- File I/O in unit tests (not in integration tests)
-- Time-dependent behavior (mock `datetime.now()` if needed)
-
-**What NOT to Mock:**
-- Domain entities and value objects
-- Repositories (use real DB with SQLite in-memory)
-- SQLAlchemy ORM (test with real models)
-- Core business logic
-
-**Example of correct pattern (test real, not mock):**
-```python
-@pytest.mark.asyncio
-async def test_create_and_retrieve(self, db_session: AsyncSession) -> None:
-    """Create user via repository, retrieve it - validates full stack."""
-    # Real domain entity
-    identity = UserIdentity(
-        provider="t3k", external_id="test-001", username="test_user"
-    )
-    user = UserEntity.create_with_identity(identity=identity, email="test@gts.dev")
-
-    # Real repository
-    repo = SQLAlchemyUserRepository(db_session)
-    await repo.save(user)  # Real database operation
-    await db_session.commit()
-
-    # Real query
-    retrieved = await repo.get_by_id(user.id)
-
-    # Assertion
-    assert retrieved is not None
-```
-
-## Fixtures and Factories
-
-**Test Data:**
-- Fixtures created inline in test functions (small, simple data)
-- Reusable fixtures defined at top of test file or in `conftest.py`
-
-**Fixture pattern:**
-```python
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite engine with all tables."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session for testing."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
-```
-
-**Location:**
-- Shared fixtures: `tests/{type}/conftest.py` (e.g., `tests/regression/conftest.py`)
-- Fixture scope: Function scope (default, isolated tests)
-- No global fixtures unless truly needed
-
-**Naming:**
-- Fixture functions: `fixture_name` (e.g., `db_session`, `test_audio_dir`)
-- Factory functions: `make_user()`, `create_job()` (not currently used, prefer inline)
-
-## Coverage
-
-**Requirements:** Not enforced by default, but configured
-
-**View Coverage:**
-```bash
-# After running tests with pytest-cov
-pytest --cov=libs --cov=sources --cov=apps --cov-report=html
-# Then open htmlcov/index.html
-```
-
-**Configuration:** `pyproject.toml` under `[tool.coverage.run]` and `[tool.coverage.report]`
-- Source: `libs`, `sources`, `apps`
-- Branch coverage: enabled
-- Exclusions: tests, pycache, abstract methods, TYPE_CHECKING blocks
-
-## Test Types
-
-**Unit Tests:**
-- Location: `tests/unit/{module}/test_{component}.py`
-- Scope: Pure logic, no I/O
-- Database: None (test domain entities, value objects, validators)
-- Examples: `tests/unit/core/`, `tests/unit/audio/test_ir_loader.py`
-- Approach: Test domain entities, enums, value objects in isolation
-
-**Regression Tests:**
-- Location: `tests/regression/test_stack.py`
-- Purpose: Verify ORM → Repository → Database stack works end-to-end
-- Database: In-memory SQLite
-- Run before commits to catch fundamental breaks
-- Includes: User entity round-trip, Job state machine, query operations
-- Speed: ~0.2 seconds
-
-**Integration Tests:**
-- Location: `tests/integration/{module}/test_{component}.py`
-- Scope: Real database (in-memory SQLite), real services
-- Database: In-memory SQLite with schema
-- Examples: `tests/integration/webapp/` (repositories), `tests/integration/audio/` (processing)
-- Approach: Test repository implementations, service interactions with real DB
-
-**E2E Tests:**
-- Location: `tests/e2e/python/tests/`
-- Framework: pytest + Playwright
-- Scope: Full user journeys through web UI
-- Database: Docker PostgreSQL (running containers required)
-- Approach: Browser automation, assert DOM state and database persistence
-- Run: `just test-golden-path` (on host, not in Docker)
-- Note: Standalone package (`tests/e2e/python/pyproject.toml`), isolated from main workspace
-
-## Common Patterns
-
-**Async Testing:**
-```python
-@pytest.mark.asyncio
-async def test_async_function(self, db_session: AsyncSession) -> None:
-    """Test async behavior."""
-    result = await some_async_function(db_session)
-    assert result is not None
-```
-
-**Error Testing:**
-```python
-@pytest.mark.asyncio
-async def test_invalid_state_transition(self) -> None:
-    """Test that invalid state transition raises error."""
-    job = JobEntity(job_type=JobType.AUDIO_PROCESSING)
-    job.queue(task_id="test-123")
-
-    # Cannot transition from QUEUED directly to COMPLETED
-    with pytest.raises(InvalidStateTransitionError):
-        job.complete(result_path="/path")
-```
-
-**Fixture Usage:**
-```python
-@pytest.mark.asyncio
-async def test_user_email_index(self, db_session: AsyncSession) -> None:
-    """Test email column has index for performance."""
-    user1 = User(username="user1", email="user1@example.com")
-    user2 = User(username="user2", email="user2@example.com")
-    db_session.add_all([user1, user2])
-    await db_session.commit()
-
-    # Query by email
-    result = await db_session.execute(
-        select(User).where(User.email == "user1@example.com")
-    )
-    found = result.scalar_one()
-
-    assert found.username == "user1"
-```
-
-**Fresh Session per Test:**
-```python
-@pytest.mark.asyncio
-async def test_relationships_fresh_session(self, db_session: AsyncSession) -> None:
-    """Test relationships load correctly with fresh query."""
-    # Create data
-    provider = OAuthProvider(name="t3k", enabled=True)
-    db_session.add(provider)
-    await db_session.commit()
-
-    user = User(username="test_user", email="test@example.com")
-    db_session.add(user)
-    await db_session.commit()
-    user_id = user.id
-
-    # Close session and create new one for fresh query
-    await db_session.close()
-
-    # New session
-    async_session = async_sessionmaker(
-        db_session.bind, class_=AsyncSession, expire_on_commit=False
-    )
-    new_session = async_session()
-
-    # Query and verify
-    result = await new_session.execute(select(User).where(User.id == user_id))
-    loaded_user = result.scalar_one()
-
-    assert loaded_user is not None
-```
-
-## Test Markers
-
-**Available markers:**
-```
-@pytest.mark.slow           # Slow tests
-@pytest.mark.integration    # Integration tests
-@pytest.mark.e2e            # End-to-end tests
-@pytest.mark.smoke          # Smoke tests
-```
-
-**Configuration:** Defined in `pyproject.toml` under `[tool.pytest.ini_options]` markers
-
-## Special Considerations
-
-**SQLite in-memory vs PostgreSQL:**
-- Unit/regression/integration: Use in-memory SQLite for speed (~0.2s for regression, <30s for all)
-- E2E: Uses Docker PostgreSQL (real production database)
-- Rationale: Speed + isolation for most tests, real schema validation for E2E
-
-**Async Fixtures:**
-- All database fixtures are async: `async def fixture(...) -> AsyncGenerator[T, None]:`
-- Marked with `@pytest.fixture` (asyncio_mode="auto" handles async automatically)
-
-**Test Isolation:**
-- Each test gets fresh in-memory SQLite database
-- No test order dependencies
-- No shared state between tests
-
----
-
-*Testing analysis: 2026-02-05*
-
-
-### CONCERNS
-
-# Codebase Concerns
-
-**Analysis Date:** 2026-02-05
-
-## Tech Debt
-
-**Missing Relationship in User Model:**
-- Issue: User model has TODO comment for Gear relationship that hasn't been implemented
-- Files: `apps/webapp/src/webapp/adapters/persistence/models/user.py:103`
-- Impact: Foreign key relationships incomplete; queries for user gear will require joins or separate queries
-- Fix approach: Add relationship definition once Gear model finalized, create migration to add FK if needed
-
-**NAM Model Processing Performance:**
-- Issue: NAM model processing uses sample-by-sample iteration instead of batched processing
-- Files: `libs/audio/src/audio/processing/processor.py:236-271`
-- Impact: Extremely slow for long audio files (real-time or longer); unsuitable for production
-- Current state: Marked as "simplified implementation" with TODO-style comments about buffering
-- Fix approach: Implement proper batch processing with PyTorch tensor operations; benchmark against expected processing times
-
-**Incomplete FastAPI Endpoint Implementation:**
-- Issue: Main application factory only implements health check endpoint; no API routes defined
-- Files: `apps/webapp/src/webapp/main.py` (26 lines total)
-- Impact: No user-facing API endpoints for jobs, shootouts, gear, or authentication exist yet
-- Blocks: All client-side integration; frontend cannot fetch data
-- Fix approach: Wire up API routers in main.py using separate route modules
-
-## Known Gaps
-
-**Missing API Endpoints:**
-- What's not implemented: All `/api/v1/` endpoints for jobs, shootouts, gear, signal chains, user library
-- Files: `apps/webapp/src/webapp/main.py`
-- Impact: Frontend templates exist but cannot be populated with data
-- Workaround: None - endpoints must be implemented for application to function
-- Priority: Critical - blocks feature delivery
-
-**Missing Authentication Endpoints:**
-- What's not implemented: OAuth flow endpoints, session management
-- Expected at: `apps/webapp/src/webapp/auth/` (exists but empty)
-- Impact: Users cannot authenticate; all protected endpoints fail
-- Priority: Critical - required before any authenticated features work
-
-**Incomplete Repository Contract:**
-- What's not implemented: Some repository methods may only have stubs
-- Files: `libs/core/src/core/ports/repositories.py` (593 lines)
-- Impact: Services depending on complete repository interface will fail at runtime
-- Validation: Run all integration tests to find missing implementations
-
-## Performance Bottlenecks
-
-**Audio Processing - Sample-by-Sample NAM:**
-- Problem: NAM model applies to audio one sample at a time with tensor creation overhead
-- Files: `libs/audio/src/audio/processing/processor.py:261-266`
-- Cause: Loop iterates `audio_tensor` with `model(sample.view(1,1))` - creates new tensor per sample
-- Expected impact: 10-100x slower than batched processing depending on file length
-- Improvement path:
-  1. Buffer samples into chunks (e.g., 1024 per batch)
-  2. Create single tensor per batch
-  3. Stack outputs and concatenate results
-  4. Benchmark: target <1s for 30s audio file
-
-**Audio Analysis Waveform Extraction:**
-- Problem: Extracting 200 peak values from full audio may load entire file into memory
-- Files: `libs/audio/src/audio/processing/processor.py:72-88`
-- Cause: Delegates to `_extract_waveform` without streaming mechanism
-- Scaling concern: Large files (100MB+) could exhaust memory on container
-- Improvement path: Implement streaming waveform extraction with fixed memory window
-
-## Fragile Areas
-
-**Dual Database Architecture Bridge (Worker):**
-- Files: Worker container as message consumer
-- Why fragile: Worker is the only connection between `gts_core` and `gts_t3k_source` databases; if worker fails, T3K sync cannot occur
-- Safe modification: Always test pgmq message flow before deploying worker changes; include health checks for both database connections
-- Test coverage: Check `tests/integration/` for worker-specific tests
-- Impact of failure: T3K catalog won't update; users can't browse new models
-
-**Signal Chain Validation:**
-- Files: `libs/core/src/core/services/signal_chain_validator.py` (301 lines)
-- Why fragile: Central point for all signal chain business logic; complex validation with many edge cases
-- Safe modification: Add unit tests for each validation rule before changing logic; ensure test coverage >90%
-- Current coverage: Check test files in `tests/unit/core/`
-
-**Unit of Work Pattern:**
-- Files: `apps/webapp/src/webapp/adapters/persistence/unit_of_work.py`
-- Why fragile: Transaction boundaries must be correctly placed or data can be lost
-- Safe modification: Always test with actual database transactions; use regression tests (`tests/regression/`)
-- Risk: Incorrect transaction placement leaves partial updates committed
-
-## Scaling Limits
-
-**Audio Processing Container Resources:**
-- Current capacity: Assumes files fit in memory after resampling
-- Limit: Large audio files (>500MB uncompressed) may exhaust container memory
-- Container memory: Likely 2-4GB based on standard Docker defaults
-- Scaling path:
-  1. Implement streaming audio processing
-  2. Add memory limit monitoring
-  3. Consider GPU acceleration for NAM inference
-
-**Database Connection Pool:**
-- Current capacity: Not explicitly configured; likely SQLAlchemy defaults
-- Limit: If many concurrent requests hit database, connection pool exhaustion possible
-- Scaling path:
-  1. Configure explicit pool size in connection string
-  2. Monitor active connections with postgres monitoring
-  3. Adjust based on concurrent user count
-
-**Message Queue Capacity (pgmq):**
-- Current capacity: PostgreSQL-backed queue; limited by disk space
-- Limit: If job processing slower than submission, queue backs up indefinitely
-- Scaling path:
-  1. Monitor queue depth with admin endpoint
-  2. Implement backpressure (reject jobs if queue >N)
-  3. Add circuit breaker if workers are down
-
-## Dependencies at Risk
-
-**PyTorch (torch):**
-- Risk: Heavy dependency; large binary size; GPU support optional
-- Impact: If torch incompatibilities arise, NAM processing breaks
-- Current status: Only used in audio processing
-- Migration plan: Could switch to ONNX runtime if performance issues arise
-
-**Pedalboard:**
-- Risk: External audio effects library; may have platform-specific issues
-- Impact: HighpassFilter and other effects won't work if library breaks
-- Current status: Used for highpass filtering only; could be replaced with scipy filters
-- Alternative: `scipy.signal.iirfilter` for highpass implementation
-
-**SQLAlchemy 2.0:**
-- Risk: Major version; some projects report breaking changes
-- Impact: ORM queries and relationship loading could break on upgrade
-- Current status: Actively used throughout persistence layer
-- Mitigation: Pin exact version in requirements; test carefully before upgrading
-
-## Test Coverage Gaps
-
-**API Endpoint Coverage:**
-- What's not tested: No API integration tests exist (endpoints don't exist yet)
-- Files: Covered once endpoints implemented
-- Risk: API bugs won't be caught by tests
-- Priority: High - add API tests before feature release
-
-**Worker Message Processing:**
-- What's not tested: pgmq consumer logic for T3K sync messages
-- Files: `apps/worker/` - check for consumer tests
-- Risk: Message corruption, lost messages, or incorrect processing undetected
-- Priority: High - worker reliability critical for feature
-
-**Authentication Flow:**
-- What's not tested: OAuth flow, token refresh, session management
-- Files: `apps/webapp/src/webapp/auth/` (currently empty)
-- Risk: Auth bugs cause security issues
-- Priority: Critical - must have >95% coverage
-
-**Frontend Navigation (data-testid):**
-- What's not tested: E2E tests for Astro navigation with `data-astro-reload`
-- Files: Template files in `frontend/astro/src/pages/`
-- Risk: Links to SSR pages silently fail in Astro's ClientRouter
-- Priority: Medium - covered by E2E tests once implemented
-
-## Architecture & Design Issues
-
-**API Endpoint Location Not Finalized:**
-- Issue: Unclear where API routers will be defined; no pattern established
-- Files: `apps/webapp/src/webapp/main.py` is minimal stub
-- Impact: Different developers may create endpoints inconsistently
-- Fix approach: Create `apps/webapp/src/webapp/api/v1/` directory structure with route modules
-
-**Missing Application Services Layer:**
-- Issue: Services directory exists but unclear how business logic coordinates between repositories
-- Files: `apps/webapp/src/webapp/services/` (likely empty)
-- Impact: Business logic may end up in repositories or endpoints
-- Fix approach: Define service classes for core workflows (create shootout, process job, etc.)
-
-**Logging Not Configured:**
-- Issue: Only 1 reference to logging in entire webapp codebase
-- Files: Widespread across `apps/webapp/`
-- Impact: Debugging production issues will be difficult; no audit trail
-- Fix approach: Add structured logging with `structlog` or `loguru`; log at service boundaries
-
-## Missing Critical Features
-
-**Admin API Endpoints:**
-- Problem: Admin API should serve jobs, sync status, auth status endpoints from worker
-- Expected location: `apps/worker/src/worker/` (check if present)
-- Blocks: Ability to monitor system health and manage jobs
-- Priority: Medium - needed for operations
-
-**Job Status Webhook Callbacks:**
-- Problem: No mechanism for background jobs to notify external systems of completion
-- Blocks: User notifications, downstream processing
-- Priority: Low - can be added later if needed
-
-**Error Recovery & Retry Logic:**
-- Problem: No clear retry strategy for failed audio processing jobs
-- Blocks: Resilience against transient failures
-- Priority: Medium - should implement before production
-
-## Security Concerns
-
-**OAuth Token Storage Security:**
-- Issue: `.gts-auth.json` permissions checked, but no encryption at rest
-- Files: `worktree/auth.py`
-- Risk: Token file readable by any process on system with user permissions
-- Current mitigation: File permissions (600) prevent other users accessing
-- Recommendation: Consider OS keychain integration for production; document security model
-
-**Missing CORS Configuration:**
-- Issue: FastAPI app created but CORS not explicitly configured
-- Files: `apps/webapp/src/webapp/main.py`
-- Risk: Browser-based clients may be blocked or incorrectly configured
-- Fix approach: Add `fastapi.middleware.cors.CORSMiddleware` with explicit origin list
-
-**No Rate Limiting:**
-- Issue: Audio processing is resource-intensive but no rate limiting implemented
-- Files: `apps/webapp/` (API endpoints not yet built)
-- Risk: Users could submit unlimited processing jobs, exhausting resources
-- Fix approach: Implement rate limiting per user once auth is complete
-
-**Missing Input Validation on File Uploads:**
-- Issue: Audio processor checks format but file size not validated
-- Files: `libs/audio/src/audio/processing/processor.py`
-- Risk: Large files could exhaust container memory before processing
-- Fix approach: Add maximum file size check before loading
-
-## Deployment & Maintenance Concerns
-
-**Astro Build Sync Between Source & Dist:**
-- Issue: `frontend/astro/dist/` must stay in sync with `frontend/astro/src/`
-- Files: Both `src/` and `dist/` directories
-- Risk: Out-of-sync dist/ means production differs from development
-- Mitigation: CI check enforces sync; `just verify-astro-sync` prevents commits
-- Process: Always run `just build-astro` after template changes
-
-**Database Migration Management:**
-- Issue: Only one migration file exists; unclear how future migrations will be organized
-- Files: `infrastructure/migrations/versions/b4a1fd310cb9_initial_schema.py` (932 lines - very large)
-- Risk: Single large migration is difficult to debug if it fails partially
-- Recommendation: Break future migrations into smaller, more focused changes
-
-**Docker Compose Override Files Generated:**
-- Issue: `docker-compose.override.yml` is auto-generated and should not be manually edited
-- Files: Generated by `worktree.py setup`
-- Risk: Manual edits get overwritten on next setup
-- Mitigation: Enforced by infrastructure protection rules
-
-## Recommendations (Priority Order)
-
-| Area | Action | Priority | Effort |
-|------|--------|----------|--------|
-| API Endpoints | Implement missing `/api/v1/*` endpoints | Critical | High |
-| Authentication | Build OAuth flow and session management | Critical | High |
-| NAM Processing | Optimize sample-by-sample to batched processing | High | Medium |
-| Logging | Add structured logging throughout webapp | High | Medium |
-| API Tests | Create comprehensive API integration tests | High | Medium |
-| CORS Configuration | Explicit CORS setup with allowed origins | High | Low |
-| Rate Limiting | Per-user rate limiting on audio processing | High | Medium |
-| Services Layer | Define application service classes | Medium | Medium |
-| File Upload Validation | Add file size and format validation | Medium | Low |
-| Keychain Integration | OS-specific credential storage for production | Medium | High |
-
----
-
-*Concerns audit: 2026-02-05*
-
-
----
-
-## Architecture Documentation
-
-The following sections are from the project wiki:
-
-
-### GTS-Technical-Architecture
-
-# GTS Technical Architecture
-
-Implementation architecture for Guitar Tone Shootout. For the implementation-agnostic reference, see [[REFERENCE-ARCHITECTURE]].
-
-> **Status:** Approved — Audited and updated 2026-02-05.
-
----
+### GTS-Technical-Architecture :: architecture-layers
 
 ## Overview
 
@@ -2584,6 +431,9 @@ Enforced via import-linter in CI.
 
 ---
 
+
+### GTS-Technical-Architecture :: domain-model
+
 ## Domain Model
 
 GTS ubiquitous language - our terminology for the domain.
@@ -2730,6 +580,9 @@ User-uploaded IRs use the **unified Gear model** (same as source IRs):
 | BlockPosition | Enum of positions in signal chain (pre, loop, post) |
 
 ---
+
+
+### GTS-Technical-Architecture :: design-patterns
 
 ## Architecture Layers
 
@@ -3060,6 +913,9 @@ The only `uv run` on host is for E2E tests in `tests/e2e/python/`.
 
 ---
 
+
+### GTS-Technical-Architecture :: data-ingestion
+
 ## Data Ingestion Pipeline
 
 Implements [[REFERENCE-ARCHITECTURE]] patterns. Source adapters are separate workspace members (`sources/*/`), decoupled from webapp.
@@ -3182,6 +1038,9 @@ Source adapters provide recovery jobs to reconcile metadata with stored files an
 
 ---
 
+
+### GTS-Technical-Architecture :: api-design
+
 ## Web Application
 
 The webapp workspace member. Depends on core, NOT on sources.
@@ -3198,6 +1057,9 @@ The webapp workspace member. Depends on core, NOT on sources.
 | Block Type Registry | Built-in processor templates (EQ, compressor, etc.) |
 | IR Upload Service | User IR uploads → unified Gear model |
 | DI Track Service | DI track uploads + validation |
+
+
+### GTS-Technical-Architecture :: auth
 
 ### Authentication
 
@@ -3216,6 +1078,9 @@ OAuth 2.0 with multiple providers.
 - Multi-provider linking per user (Identity Service)
 - Token encryption at rest (Fernet)
 - No provider-specific business logic in domain
+
+
+### GTS-Technical-Architecture :: frontend
 
 ### Frontend
 
@@ -3286,6 +1151,9 @@ Shootouts are optional — users can build chains, process audio, and manage the
 **Note:** Admin APIs (`/admin/*`) are not in webapp. See [[#Admin API Architecture]] for worker (port 8001) and source adapter (port 8002+) admin endpoints.
 
 ---
+
+
+### GTS-Technical-Architecture :: persistence
 
 ## File Storage
 
@@ -3769,6 +1637,9 @@ Worktree offsets apply: main uses 8001, worktree with offset 10 uses 8011.
 
 ---
 
+
+### GTS-Technical-Architecture :: audio
+
 ## Audio Processing
 
 Audio processing transforms DI tracks through signal chains to produce audio segments. Implemented in `libs/audio/`.
@@ -3952,89 +1823,8 @@ Total permutations = product of all block option counts. Validated before proces
 
 ---
 
-## Video Generation
 
-Video composition combines audio segments into comparison videos. Implemented in `libs/video/` as a separate bounded context (see [[GTS-Remotion-Architecture]]).
-
-### Purpose
-
-Videos enable side-by-side tone comparisons:
-- Sequential playback of each tone
-- Visual waveforms for each segment
-- Labels identifying gear used
-- YouTube chapter markers for navigation
-
-### Composition Pipeline
-
-```
-Audio Segments + Metadata
-    ↓
-Generate waveform visualizations (per segment)
-    ↓
-Render title card (gear list, DI track info)
-    ↓
-Compose video frames (waveform + labels)
-    ↓
-Concatenate segments with transitions
-    ↓
-Encode final video (MP4)
-    ↓
-Generate chapter data (for YouTube)
-```
-
-### Remotion
-
-Video composition uses Remotion (React-based) for:
-- Programmable video layout with React components
-- Signal chain segment visualisation with gear images
-- Slide transitions between segments (3-frame / 100ms)
-- Metadata overlays (gear labels, chapter markers)
-
-Server-side rendering via `@remotion/renderer` in a Docker container (Node.js + Chromium). Worker communicates via HTTP (`POST /render` + poll).
-
-**Output format:** MP4 (H.264 video, AAC 256-320kbps) — YouTube optimised, 1920×1080 @ 30fps.
-
-### Segment Metadata
-
-Each audio segment carries metadata for video composition:
-
-| Field | Purpose |
-|-------|---------|
-| `segment_id` | Unique identifier |
-| `label` | Display name (e.g., "Amp₁ + IR₂") |
-| `start_time` | Position in final video |
-| `duration` | Segment length |
-| `gear_info` | Amp, IR, effects used |
-
-### Job Hierarchy
-
-Video generation is a child job of SHOOTOUT:
-
-```
-SHOOTOUT (parent)
-├── SHOOTOUT_AUDIO (tone A)
-├── SHOOTOUT_AUDIO (tone B)
-├── SHOOTOUT_AUDIO (tone C)
-└── VIDEO_COMPOSE (after all audio complete)
-```
-
-VIDEO_COMPOSE waits for all SHOOTOUT_AUDIO jobs to complete before starting.
-
-### Current State
-
-| Feature | Status |
-|---------|--------|
-| Waveform visualization | Exists |
-| Gear labels | Exists |
-| Gear images | Exists |
-| Video layout | Exists (basic) |
-| Chapter markers | Exists |
-
-### Implementation Notes
-
-Layout and visual refinements will be done interactively during implementation. The foundation works — aesthetic improvements are iterative.
-
----
+### GTS-Technical-Architecture :: infrastructure
 
 ## Infrastructure Management & Workflow
 
@@ -4280,674 +2070,437 @@ just migrate  # Run migrations
 
 ---
 
-## Testing Strategy
 
-Testing uses pytest with Playwright for browser automation. The suite is structured in layers, with regression tests providing fast stack validation and E2E tests validating user journeys.
+### Audio-Processing
 
-### Test Levels
+# Audio Processing
 
-| Level | Purpose | Infrastructure | Location |
-|-------|---------|----------------|----------|
-| Regression | Stack connectivity (ORM → Repo → DB) | SQLite in-memory | `tests/regression/` |
-| Unit | Domain logic, validators | None | `tests/unit/` |
-| Integration | Repository operations, services | Real PostgreSQL/Redis | `tests/integration/` |
-| E2E | User journeys, UI flows | Browser + full stack | `tests/e2e/python/` |
+Implementation details for `libs/audio/`. For architectural overview, see [[GTS-Technical-Architecture]].
 
-### Regression Tests
+---
 
-Fast validation that the ORM → Repository → Database stack works correctly:
+## Overview
 
-- **User round-trip** — Create, save, retrieve by ID/email/identity
-- **Job round-trip** — Create, save, state transitions, retrieve
-- Uses SQLite in-memory for speed (~0.2s)
-- Run before commits to catch fundamental breaks
+The audio library processes DI guitar tracks through signal chains to produce audio segments for shootout comparisons.
 
-```bash
-just test-regression  # Stack connectivity (< 1s)
+| Component | Purpose |
+|-----------|---------|
+| `processing/processor.py` | Main AudioProcessor implementation |
+| `processing/nam_loader.py` | NAM model loading with LRU cache |
+| `processing/ir_loader.py` | Impulse response file loading |
+| `processing/loudness.py` | EBU R128 loudness measurement/normalization |
+| `processing/chain_executor.py` | Signal chain block execution |
+| `processing/permutation.py` | Signal chain group expansion |
+| `analysis/waveform.py` | Waveform visualization data |
+
+---
+
+## Directory Structure
+
+```
+libs/audio/
+├── src/audio/
+│   ├── __init__.py
+│   ├── processing/
+│   │   ├── __init__.py
+│   │   ├── processor.py         # PedalboardAudioProcessor
+│   │   ├── nam_loader.py        # load_nam_model()
+│   │   ├── ir_loader.py         # load_ir()
+│   │   ├── loudness.py          # measure_loudness(), normalize_loudness()
+│   │   ├── chain_executor.py    # execute_signal_chain()
+│   │   └── permutation.py       # expand_signal_chain_group()
+│   ├── analysis/
+│   │   ├── __init__.py
+│   │   └── waveform.py          # extract_waveform()
+│   └── video/
+│       └── __init__.py          # Placeholder for video composition
+└── pyproject.toml
 ```
 
-### Three-Layer E2E Validation
+---
 
-E2E tests validate each interaction at three levels:
+## Dependencies
 
-1. **UI Action** — Navigate and interact like a real user
-2. **DOM Update** — Assert visible state changes
-3. **Database State** — Verify data persistence
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `pedalboard` | ^0.9.0 | Effects, IR convolution, audio I/O |
+| `pyloudnorm` | ^0.1.1 | EBU R128 loudness measurement |
+| `torch` | ^2.5.0 | NAM model loading and inference |
+| `scipy` | ^1.14.0 | Audio resampling |
+| `soundfile` | ^0.12.0 | Audio file I/O |
+| `numpy` | - | Array operations |
 
-This pattern catches issues at any layer: frontend rendering, API communication, or data persistence.
+---
 
-### Mocking Policy
+## PedalboardAudioProcessor
 
-**No mocking.** Tests use real services — real databases, real Redis, real T3K API, real pgmq. The `test_quality_check.py` gate bans all `unittest.mock` imports with zero exceptions.
+**File:** `processing/processor.py`
 
-| Category | Approach |
-|----------|----------|
-| PostgreSQL | Real database (SQLite in-memory for unit/regression, PostgreSQL for integration) |
-| Redis | Real Redis instance in Docker |
-| T3K API | Real T3K API with auth tokens |
-| pgmq | Real pgmq extension in PostgreSQL |
+Main audio processor implementing the `AudioProcessor` protocol from `libs/core/ports/`.
 
-**Rationale:** Mocking hides integration bugs. Real services catch schema mismatches, connection problems, auth failures, and timing issues that mocks would mask. All GTS services are available in the Docker test environment.
+### Supported Formats
 
-### Running Tests
+WAV, FLAC, OGG, MP3
 
-```bash
-just test-regression  # Stack connectivity (< 1s) - before commits
-just test             # Unit + Integration (< 30s) - before PRs
-just tdd <path>       # Single test during development
-just test-golden-path         # E2E (when frontend works)
-```
-
-### Contract Tests
-
-Core schemas (`libs/core/records/`) are treated as contracts between bounded contexts:
-
-- All source adapters validate output against current core schemas in CI.
-- Compatibility checks ensure new schema versions meet backward-compatibility requirements.
-- Breaking changes fail source adapter tests immediately, preventing deployment of incompatible adapters.
-
-**Example:** `GearSyncRecord` is the contract between source adapters and core. If a required field is added, source adapter tests break until the adapter populates it.
-
-### Data Quality Tests
-
-Automated data quality validation at the persistence boundary:
-
-| Expectation | What It Checks |
-|-------------|----------------|
-| Schema | Required columns exist, types correct |
-| Completeness | Non-null constraints on mandatory fields |
-| Uniqueness | Composite key uniqueness (`source_name` + `source_record_id`) |
-| Distribution drift | Key field value distributions remain within expected ranges |
-
-Quality test failures increment the `data_quality_quarantine_total` metric and prevent bad data from reaching consumers.
-
-### Replay Tests
-
-Replay and recovery workflows are exercised with realistic data volumes:
-
-- **Reingest workflows** — Bulk reingest exercised with full pack catalogs to verify idempotent upserts produce identical state.
-- **Checkpoint resume** — Simulated failures mid-sync verify that checkpoint recovery resumes from the correct position without data loss or duplication.
-- **DLQ replay** — Partial failure recovery tested: poison messages isolated, remaining messages redriven and processed successfully.
-
-### E2E Canary Tests
-
-Synthetic validation of the complete ingestion pipeline:
-
-- **Canary Source** — Generates predictable data patterns (known pack counts, model names, checksums).
-- **Critical path verification** — Validates fetch → transform → enqueue → consume → persist in staging.
-- **Scheduled verification** — Core database queried on schedule to confirm canary data arrived within SLO freshness target.
-
-Canary test failures trigger P2 alerts (significant degradation).
-
-**Forbidden Patterns (enforced by `.claude/rules/testing-policy.md`):**
+### Public Methods
 
 ```python
-@patch('app.repositories.signal_chain_repo')  # NEVER mock internal services
-mock_service = Mock(spec=SignalChainService)   # NEVER mock internal services
-page.route('**/api/**', ...)                   # NEVER mock API in E2E tests
+class PedalboardAudioProcessor:
+    def get_supported_formats(self) -> list[str]
+    def is_format_supported(self, format_ext: str) -> bool
+    async def extract_waveform(self, audio_path: Path, num_peaks: int = 200) -> WaveformData
+    async def measure_loudness(self, audio_path: Path) -> tuple[float, float]
+    async def normalize_loudness(self, input_path: Path, output_path: Path, target_lufs: float = -14.0) -> AudioResult
+    async def process_di_track(self, input_path: Path, output_path: Path, config: ToneConfig) -> AudioResult
 ```
 
-Mock ONLY external network APIs (Tone3000, email, payment).
+### Processing Pipeline
 
-**Reference:**
-- Markers defined in `tests/conftest.py`
-- Fixtures in `tests/fixtures/`
-- Structure documented in `tests/AGENTS.md`
-- TDD workflow documented in [[TDD-Workflow]] wiki page
-
----
-
-## Observability
-
-### Logging (structlog)
-
-Structured logging via structlog with JSON output:
-- Context binding (`logger.bind(user_id=123)`)
-- OpenTelemetry correlation (trace_id, span_id)
-- Sensitive data filtering (passwords, tokens, credentials redacted)
-
-**Mandatory context:** request_id, user_id, trace_id (where applicable).
-
-structlog bridges to OpenTelemetry via stdlib integration for unified log export.
-
-### Tracing (OpenTelemetry)
-
-Distributed tracing with OTLP export:
-
-| Auto-instrumented | Attributes |
-|-------------------|------------|
-| FastAPI requests | http.method, http.route, http.status_code |
-| SQLAlchemy queries | db.system, db.statement, db.operation |
-| HTTPX outbound | http.url, http.status_code |
-| Redis commands | db.system, db.statement |
-
-Trace context propagation to background workers via inject/extract.
-
-### Metrics (OpenTelemetry → Prometheus)
-
-OpenTelemetry SDK for instrumentation, exported to Prometheus for storage and PromQL querying.
-
-| Category | Examples |
-|----------|----------|
-| **HTTP** | Request count, latency, in-progress by method/route/status |
-| **Business** | Shootouts created/processed, signal chains, gear items |
-| **Jobs** | Queue depth, in-progress count |
-| **External APIs** | T3K request count, latency, error rates |
-| **Infrastructure** | DB connection pool, circuit breaker state |
-
-### Health Checks
-
-| Endpoint | Purpose | Checks |
-|----------|---------|--------|
-| `/health` | Liveness probe | Process alive |
-| `/health/ready` | Readiness probe | Database, external APIs |
-
-**Graceful shutdown:** Returns 503 during shutdown for load balancer draining.
-
-**Status levels:** HEALTHY, DEGRADED, UNHEALTHY.
-
-### SLIs and SLOs
-
-Service Level Indicators and Objectives for the ingestion pipeline. Each aggregate or source declares its freshness and completeness SLO targets.
-
-| Category | SLI | Target | Measurement |
-|----------|-----|--------|-------------|
-| **Freshness** | Time from source change detection to core persistence | 99% of sources within 15 minutes | `data_freshness_seconds` gauge |
-| **Completeness** | Record counts per source/interval against expected bands | Anomaly-based | `ingest_completion_rate` |
-| **Reliability** | Sync attempts that succeed | 99.9% | `sync_records_total{status="success"}` / total |
-| **Quality** | Records passing validation | > 99% | `validation_failure_rate` |
-
-Alerts are based on SLO breach and error budgets.
-
-### Alerting Strategy
-
-- Multi-window burn-rate alerting to prevent fatigue
-- Error budget consumption alerts
-- Stale source detection (no updates in N minutes, configurable per source)
-- Queue depth warnings
-
-### Dashboards
-
-**Pipeline Overview:**
-- Total throughput (records/min)
-- Error rate trend
-- Source status summary (healthy/degraded/stale)
-
-**Source Health:**
-- Per-source latency distribution
-- Per-source error rates
-- Last sync timestamps
-
-**Queue Health:**
-- Queue depth over time
-- Consumer lag trends
-- DLQ accumulation
-
----
-
-## Configuration
-
-Configuration follows 12-Factor methodology. All settings come from environment variables, with Pydantic Settings handling validation and type coercion.
-
-### Environment Variables
-
-| Category | Variables | Required |
-|----------|-----------|----------|
-| **Application** | `DEBUG`, `APP_NAME`, `APP_URL`, `FRONTEND_URL` | No (defaults) |
-| **Database** | `DATABASE_URL` or `DB_PASSWORD` + components | Yes |
-| **Redis** | `REDIS_URL` | No (default: `redis://redis:6379`) |
-| **Security** | `SECRET_KEY`, `OAUTH_ENCRYPTION_KEY` | Production only |
-| **OAuth** | `{PROVIDER}_CLIENT_ID`, `{PROVIDER}_CLIENT_SECRET` | Per-provider |
-| **Storage** | `STORAGE_ROOT`, `MODEL_CACHE_DIR`, `UPLOAD_DIR`, `SEGMENTS_DIR`, `VIDEOS_DIR` | No (defaults) |
-| **Observability** | `OTLP_ENDPOINT`, `LOG_LEVEL`, `LOG_FORMAT`, `METRICS_ENABLED` | No |
-| **Sources** | Per-source API credentials, rate limits, sync schedules | Per-source |
-
-### Secrets Management
-
-| Environment | Mechanism |
-|-------------|-----------|
-| Development | `.env` file (gitignored) |
-| Production | Platform secrets (injected at runtime) |
-| Docker | `{NAME}_FILE` pattern (reads from `/run/secrets/`) |
-
-**Supported Docker secrets:** `SECRET_KEY_FILE`, `DB_PASSWORD_FILE`, `OAUTH_ENCRYPTION_KEY_FILE`
-
-**Token encryption:** Fernet symmetric encryption for OAuth tokens at rest.
-
-### Production Validation
-
-Production mode (`DEBUG=false`) enforces:
-- `SECRET_KEY` must not be default value
-- `OAUTH_ENCRYPTION_KEY` must be set
-- `DATABASE_URL` or `DB_PASSWORD` must be set
-
-Development mode logs warnings but continues with defaults.
-
-### Per-Source Configuration
-
-Each source adapter has independent configuration:
-
-| Setting | Purpose |
-|---------|---------|
-| API endpoint | External API URL |
-| API credentials | Injected via secrets (not in code) |
-| Sync schedule | Cron expression for incremental sync |
-| Batch size | Records per bulk operation |
-| Rate limits | Requests per window |
-| Retry limits | Max attempts before failure |
-| Timeouts | Connection and operation limits |
-
-### Configuration Precedence
-
-1. Environment variable (highest)
-2. Docker secret file (`{NAME}_FILE`)
-3. `.env` file
-4. Default value (lowest)
-
----
-
-## Error Handling & Resilience
-
-### Retry Strategies
-
-External API calls use bounded retries with exponential backoff and full jitter to prevent thundering herd.
-
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Max attempts | 5 | Sufficient for transient failures |
-| Base delay | 60s | Allows temporary issues to resolve |
-| Backoff formula | `base × 2^(attempt-1)` + jitter | Exponential spacing with randomisation |
-| Jitter | Full (0 to delay) | Distributes retry load |
-
-**Retry only transient errors:**
-- Network failures (timeout, connection refused)
-- Rate limits (429)
-- Server errors (5xx)
-
-**Do not retry:**
-- Client errors (4xx except 429)
-- Authentication failures (401 after token refresh attempt)
-- Validation errors
-
-### Circuit Breaker
-
-Circuit breakers protect against cascading failures when external services are unavailable.
-
-| State | Behaviour |
-|-------|-----------|
-| **Closed** | Requests pass through; failures counted |
-| **Open** | Requests rejected immediately; return cached/degraded response |
-| **Half-open** | Single probe request allowed; success closes, failure reopens |
-
-**Configuration:**
-- Failure threshold: 5 consecutive failures to open
-- Recovery timeout: 30 seconds before half-open probe
-- Scope: Per external source (not global)
-
-Circuit breakers wrap retry logic—when open, retries are skipped entirely.
-
-### Rate Limiting
-
-**External APIs:**
-- Respect rate limit headers (`X-RateLimit-*`, `Retry-After`)
-- Adaptive throttling on 429 responses
-- Token bucket algorithm for smooth request distribution
-- Redis-backed for coordination across processes
-
-**Source Ingestion:**
-- Source sync jobs respect configured rate limits per source
-- Adaptive throttling when approaching limits
-- Metrics emitted for rate limit events (`source_rate_limit_total`)
-
-**Internal APIs:**
-- Bulk ingest endpoints rate-limited per source
-- Batch size limits per request
-- Payload size limits enforced
-
-### Backpressure
-
-Backpressure prevents sources from overwhelming the core consumer:
-
-- **Bounded queue size** — pgmq queue depth monitored; sources pause publishing when depth exceeds threshold.
-- **Adaptive batch sizing** — Consumer batch size decreases when processing latency increases.
-- **Metrics emitted** — `queue_backpressure_applied_total` incremented when backpressure engages, enabling alerting and capacity planning.
-
-### Job Failure Handling
-
-Background jobs follow a defined failure lifecycle:
+`process_di_track()` executes the following steps:
 
 ```
-RUNNING → FAILED → [retry if attempts remain] → PENDING
-                → [max attempts reached] → DEAD_LETTERED
+1. Load DI audio file
+   ↓ (stereo converted to mono by averaging)
+2. Resample if needed
+   ↓ (match config sample rate)
+3. Apply highpass filter (optional)
+   ↓ (Pedalboard HighpassFilter)
+4. Apply NAM model
+   ↓ (sample-by-sample PyTorch inference)
+5. Apply IR convolution (optional)
+   ↓ (Pedalboard Convolution)
+6. Normalize loudness
+   ↓ (EBU R128 to target LUFS)
+7. Write output file
 ```
 
-**Retry scheduling:**
-- Jobs marked FAILED with `next_retry_at` timestamp
-- Scheduler polls for jobs ready for retry
-- Exponential backoff between attempts
+### Return Value
 
-**Dead-letter handling:**
-- Jobs exceeding max attempts enter DEAD_LETTERED state
-- Require manual investigation via admin tooling
-- Can be reset for retry after root cause resolution
-
-### Heartbeat Monitoring
-
-Long-running jobs emit heartbeats to detect worker crashes:
-
-| Parameter | Value |
-|-----------|-------|
-| Heartbeat interval | 30 seconds |
-| Stale threshold | 5 minutes |
-| Detection frequency | 2 minutes |
-
-Jobs with stale heartbeats are marked FAILED and scheduled for retry.
-
-### Partial Failure Handling
-
-Batch operations handle partial failures gracefully:
-
-- Per-item errors logged with context (record ID, error type, message)
-- Successful items committed; failed items tracked
-- Configurable: retry failed subset vs full batch retry
-- Alerting when failure rate exceeds threshold
-
-### Graceful Degradation
-
-When external services are unavailable:
-
-| Component | Degradation Strategy |
-|-----------|----------------------|
-| T3K API unavailable | Serve cached gear data; disable sync |
-| Job queue full | Apply backpressure; return 503 to new requests |
-| Database read replica lag | Route to primary for consistency-critical reads |
-
-### Error Classification
-
-Errors are classified for appropriate handling:
-
-| Category | Examples | Action |
-|----------|----------|--------|
-| **Transient** | Network timeout, rate limit | Retry with backoff |
-| **Permanent** | Validation error, not found | Fail immediately |
-| **Auth** | Token expired | Attempt refresh, then fail |
-| **System** | Out of memory, disk full | Alert; manual intervention |
+```python
+AudioResult(
+    duration=float,        # seconds
+    sample_rate=int,       # Hz
+    peak_dbfs=float,       # dBFS
+    integrated_lufs=float, # LUFS
+    processing_time=float, # seconds
+)
+```
 
 ---
 
-## Security
+## NAM Model Loading
 
-Security architecture following OWASP guidelines.
+**File:** `processing/nam_loader.py`
 
-### Authentication
+Loads Neural Amp Modeler models with LRU caching for repeated use.
 
-Delegated to external identity providers via OAuth 2.1:
+### Function
 
-| Aspect | Approach |
-|--------|----------|
-| **Flow** | Authorization code + PKCE (S256) |
-| **Credential storage** | None — IdP manages all credentials |
-| **GTS responsibility** | Validate OAuth callback, issue token |
-| **Providers** | Configurable (T3K, Google, GitHub, etc.) |
+```python
+def load_nam_model(model_path: Path) -> tuple[torch.nn.Module, int]
+```
 
-Token-based authentication (stateless):
+Returns `(model, sample_rate)`. Default sample rate: 48,000 Hz.
 
-| Aspect | Approach |
-|--------|----------|
-| **Token storage** | `.gts-auth.json` file (shared across worktrees) |
-| **Token transfer** | Browser login, token copied to server via scp |
-| **Validation** | Stateless token validation on each request |
-| **No sessions** | No server-side session state, no Redis for webapp |
+### Implementation
 
-GTS stores only the user's identity (ID, email, display name) and encrypted OAuth tokens in the auth file.
+- Checkpoint format: Dictionary with `model` (state dict) and optional `sample_rate`
+- Uses `torch.load(..., weights_only=False)`
+- Model set to evaluation mode after loading
+- Cache key: file path (via `functools.lru_cache`)
 
-### Authorisation
+### Cache Configuration
 
-Write-path protection — users can only modify their own resources:
+| Setting | Value |
+|---------|-------|
+| Cache size | 10 models |
+| Cache key | File path |
 
-| Resource | Read Access | Write Access |
-|----------|-------------|--------------|
-| Shootouts | Public | Owner only |
-| Audio segments | Public | Owner only |
-| Signal chains | Public | Owner only |
-| DI tracks | Public or private (user choice) | Owner only |
+### Error Handling
 
-Implementation:
-- Write operations filter by `user_id`
-- Error responses return 404 for unauthorised writes (no existence leakage)
-- Admin APIs network-isolated (no authentication layer)
-
-### Transport Security
-
-| Layer | Requirement |
-|-------|-------------|
-| TLS | 1.2 minimum, 1.3 preferred |
-| HSTS | Enabled in production |
-| Certificate | Managed by reverse proxy |
-
-### Input Validation
-
-All user input validated at API boundaries:
-
-| Layer | Mechanism |
-|-------|-----------|
-| **API schemas** | Pydantic models with constraints |
-| **Database** | SQLAlchemy ORM (parameterised queries) |
-| **File uploads** | Type validation, size limits, sanitised names |
-
-### Output Encoding
-
-XSS prevention via auto-escaping:
-
-| Template engine | Auto-escaping | Avoid |
-|-----------------|---------------|-------|
-| Jinja2 | Enabled | `| safe` filter |
-| Astro | Enabled | `set:html` |
-| React | Enabled | `dangerouslySetInnerHTML` |
-
-### Security Headers
-
-Configured at reverse proxy:
-
-| Header | Value |
-|--------|-------|
-| `Content-Security-Policy` | Restrictive policy |
-| `X-Frame-Options` | DENY |
-| `X-Content-Type-Options` | nosniff |
-| `Referrer-Policy` | strict-origin-when-cross-origin |
-| `Strict-Transport-Security` | max-age=31536000; includeSubDomains |
-
-### Secret Management
-
-| Category | Storage |
-|----------|---------|
-| Database credentials | Environment variables |
-| Session secret | Environment variables |
-| OAuth client ID/secret | Environment variables |
-
-Rules:
-- No secrets in source control or logs
-- Environment-specific configuration
-
-### Dependency Security
-
-| Tool | Scope | Frequency |
-|------|-------|-----------|
-| `pip-audit` | Python dependencies | CI + weekly |
-| `npm audit` | Node dependencies | CI + weekly |
-| `gitleaks` | Secret detection | Pre-commit + CI |
-
-### Audit Trail
-
-Security events logged:
-
-| Event | Logged Data |
-|-------|-------------|
-| Authentication success/failure | Provider, timestamp |
-| Authorisation failure | User ID, resource, action |
+```python
+class NAMLoadError(Exception):
+    """Raised for missing files, invalid formats, or loading failures."""
+```
 
 ---
 
-## Consistency & Concurrency
+## IR Loading
 
-### Data-Level Concurrency
+**File:** `processing/ir_loader.py`
 
-Idempotent upsert with timestamp handles concurrent writes safely. Last-write-wins by source timestamp. No optimistic locking required for sync records because source timestamps provide natural ordering.
+Loads impulse response files for cabinet convolution.
 
-For user-created entities (signal chains, shootouts), standard database-level isolation (READ COMMITTED) provides sufficient concurrency control.
+### Function
 
-### Job-Level Concurrency
+```python
+def load_ir(path: str | Path) -> Convolution
+```
 
-Single job per source. Scheduler configuration prevents overlapping runs via Redis distributed locks.
+Returns a Pedalboard `Convolution` effect object.
 
-**Future optimisation path:** For high-volume backfills, internal parallelism (concurrent processing within a single job) or source partitioning into multiple jobs can increase throughput without sacrificing ordering guarantees.
+### Supported Formats
 
-### Orchestration Control
+| Format | Magic Bytes |
+|--------|-------------|
+| WAV | RIFF header + WAVE signature |
+| FLAC | fLaC header |
 
-Both sides of ingestion are managed internally. Complex operations (migrations, recovery) follow defined sequences documented in [[#Operations & Runbooks]].
+### Validation Steps
 
----
+1. Check file exists
+2. Validate format via magic bytes
+3. For WAV: additional validation via `wave` module
+4. Check file is non-empty
+5. Load into Pedalboard `Convolution`
 
-## Data Quality & Validation
+### Error Handling
 
-### Source Validation
-
-Source adapters validate required fields before emitting sync records:
-- Required fields present and non-null
-- Field types and ranges correct
-- File integrity verified (checksums match)
-
-Invalid records are rejected or quarantined with reason before reaching the queue.
-
-### Core Validation
-
-Core enforces schema validation on ingest:
-- `GearSyncRecord` validated against Pydantic schema
-- Required fields enforced
-- Referential integrity checked
-
-### Quality Metrics
-
-Data quality metrics tracked per source:
-
-| Metric | Purpose |
-|--------|---------|
-| Null rates on required fields | Detect source data degradation |
-| Range checks on numeric fields | Catch invalid values |
-| Distribution drift detection | Alert on unexpected data patterns |
-| Pass/fail ratios on validation rules | Track overall quality trend |
-
-### Quarantine
-
-Records failing validation are quarantined for investigation:
-- Quarantine includes original payload and failure reason
-- Reprocessing workflow for fixed records
-- Dead-letter queue for messages that fail after max retries (see [[#Message Queue (pgmq)]])
+```python
+class IRLoadError(Exception):
+    """Raised for missing files, invalid formats, or corruption."""
+```
 
 ---
 
-## Retention & Lifecycle
+## Loudness Processing
 
-### Retention Policies
+**File:** `processing/loudness.py`
 
-| Data | Retention | Rationale |
-|------|-----------|-----------|
-| Source staging data | 90 days | Debugging, reingest capability |
-| Core domain data | Indefinite | Primary application data |
-| Sync audit logs | 1 year | Compliance, debugging |
-| Queue messages | Until consumed + 7 days archive | Recovery capability |
-| Checkpoints | 30 days | Sufficient for recovery |
-| DLQ messages | 30 days | Investigation window |
+EBU R128 standard loudness measurement and normalization using PyLoudnorm.
 
-### Archival
+### Functions
 
-- Completed sync records archived to cold storage after retention period
-- Archived data queryable but not in hot path
-- Queue archives retained for bounded period aligned with recovery requirements
+```python
+def measure_loudness(audio_path: Path) -> tuple[float, float]
+    """Returns (integrated_lufs, peak_dbfs)."""
 
-### Deletion Workflows
+def normalize_loudness(
+    input_path: Path,
+    output_path: Path,
+    target_lufs: float = -14.0
+) -> tuple[float, float]
+    """Normalizes to target LUFS. Returns (result_lufs, result_peak_dbfs)."""
+```
 
-- Core records follow lifecycle policies
-- Support deletion workflows where required (e.g., GDPR requests)
-- PII handling follows explicit classification and retention rules
+### Default Target
+
+-14.0 LUFS (broadcast/streaming standard)
+
+### Silent Audio Detection
+
+Audio with peak < 1e-6 is rejected. Silent input indicates a problem (missing model output, corrupt DI track).
+
+### Error Handling
+
+```python
+class LoudnessError(Exception):
+    """Raised for silent audio or measurement failures."""
+```
 
 ---
 
-## Operations & Runbooks
+## Signal Chain Execution
 
-### Graceful Shutdown
+**File:** `processing/chain_executor.py`
 
-**Consumer shutdown sequence:**
-1. **Receive SIGTERM** — Stop accepting new messages
-2. **Drain in-flight** — Complete processing of active messages
-3. **Commit checkpoints** — Persist final offsets before exit
-4. **Close connections** — Release database and queue connections
-5. **Exit cleanly** — Return exit code 0
+Sequential block-by-block signal chain execution with constraint validation.
 
-**Job scheduler shutdown:**
-1. Stop scheduling new jobs
-2. Wait for running jobs to complete (or timeout)
-3. Persist scheduler state
-4. Exit cleanly
+### Function
 
-### Failure Scenarios
+```python
+async def execute_signal_chain(
+    chain: SignalChain,
+    di_audio: np.ndarray,
+    sample_rate: int,
+    gear_path_resolver: Callable[[UUID], Path]
+) -> np.ndarray
+```
 
-| Scenario | Detection | Response |
-|----------|-----------|----------|
-| Consumer crash | Missing heartbeat, lag growth | Auto-restart, verify checkpoint resume |
-| External API down | Circuit breaker open | Wait for recovery, catchup sync |
-| Queue overflow | Depth metric spike | Scale consumers or pause sources |
-| Poison message | Repeated DLQ entries | Isolate message, fix or archive |
-| Schema mismatch | Validation errors spike | Deploy compatible consumers, drain |
-| Database unavailable | Connection errors | Failover or wait for recovery |
+### Processing Logic
 
-### DLQ Processing
+1. Validate chain is not empty
+2. Sort blocks by position (enforces execution order)
+3. Validate chain constraints
+4. Process each block sequentially
 
-1. Monitor DLQ depth (alert if > threshold)
-2. Sample messages, classify failure type
-3. **Transient:** Wait for recovery, then redrive
-4. **Permanent:** Fix data or archive with reason
-5. **System bug:** Deploy fix first, then redrive
-6. Verify DLQ emptying, main processing succeeding
+### Supported Gear Types
 
-### Incident Classification
+| Gear Type | Processing |
+|-----------|------------|
+| `AMP`, `FULL_RIG`, `PEDAL`, `POST_EFFECT` | NAM model |
+| `IR` | Convolution |
 
-| Severity | Impact | Response Time |
-|----------|--------|---------------|
-| P1 | Complete pipeline failure | < 15 minutes |
-| P2 | Significant degradation, SLA breach | < 1 hour |
-| P3 | Minor impact, single consumer issue | < 4 hours |
-| P4 | Low impact, non-critical | Next business day |
+### Chain Constraints
 
-### Disaster Recovery
+| Rule | Constraint |
+|------|------------|
+| FULL_RIG | Cannot combine with IR (cabinet baked in) |
+| HEAD (AMP) | Requires IR block for cabinet simulation |
 
-**Recovery Targets:**
+### Error Handling
 
-| Tier | Data | RTO | RPO |
-|------|------|-----|-----|
-| Critical | Core database (users, shootouts, chains) | < 1 hour | < 15 minutes (checkpoint frequency) |
-| High | Source staging data (T3K packs, models) | < 4 hours | Last successful sync checkpoint |
-| Normal | Queue state, job history | < 8 hours | Replay from source checkpoints |
+```python
+class ChainExecutionError(Exception):
+    """Raised for invalid chains or processing failures."""
+```
 
-**Recovery Strategy:**
-1. Restore core database from latest backup
-2. Restore queue state or replay from source checkpoints
-3. Reingest from source staging data if needed
-4. Verify data consistency post-recovery (canary tests + quality checks)
+---
 
-**Backup Requirements:**
-- Regular database backups with tested restore procedures
-- Checkpoint data retained for the full recovery window
-- Source staging data retained for reingest capability
-- Restore procedures exercised quarterly (at minimum)
+## Permutation Processing
+
+**File:** `processing/permutation.py`
+
+Expands signal chain groups into all valid permutations.
+
+### Functions
+
+```python
+def expand_signal_chain_group(group: SignalChainGroup) -> list[dict[int, UUID | None]]
+    """Returns list of permutations. Each: slot position → gear ID or None."""
+
+def generate_permutation_labels(
+    permutations: list[dict[int, UUID | None]],
+    gear_names: dict[UUID, str],
+    null_label: str = "None"
+) -> list[str]
+    """Creates human-readable labels for each permutation."""
+```
+
+### Permutation Limits
+
+| Constraint | Value |
+|------------|-------|
+| Max permutations | 27 |
+| Max options per block | 3 |
+
+### Null Gear
+
+`None` in a slot means "no gear in this position". Enables A/B comparison with/without an effect.
+
+Amps and IRs cannot be null - they're required chain components.
+
+### Error Handling
+
+```python
+class PermutationError(Exception):
+    """Raised for invalid config or exceeded limits."""
+```
+
+---
+
+## Waveform Extraction
+
+**File:** `analysis/waveform.py`
+
+Extracts waveform visualization data for UI display.
+
+### Function
+
+```python
+def extract_waveform(
+    audio_path: Path,
+    num_peaks: int = 200
+) -> WaveformData
+```
+
+### Return Value
+
+```python
+WaveformData(
+    peaks=tuple[float, ...],  # Peak values, normalized [-1.0, 1.0]
+    sample_rate=int,
+    duration_seconds=float,
+    samples_per_peak=int,
+)
+```
+
+### Algorithm
+
+1. Load audio (stereo → mono by averaging)
+2. Divide into segments (one per peak)
+3. For each segment: find max absolute value, preserve sign
+4. Normalize to [-1.0, 1.0]
+
+---
+
+## Integration
+
+### Port/Adapter Pattern
+
+`PedalboardAudioProcessor` implements `AudioProcessor` protocol defined in `libs/core/ports/audio_processor.py`.
+
+### Domain Types
+
+Imports from `libs/core`:
+- `AudioResult` - Processing result
+- `ToneConfig` - Processing configuration
+- `WaveformData` - Visualization data
+- `SignalChain` - Chain definition
+- `GearType` - Gear type enum
+
+### Usage Example
+
+```python
+from audio.processing.processor import PedalboardAudioProcessor
+from core.domain.value_objects import ToneConfig
+
+processor = PedalboardAudioProcessor()
+
+# Process a DI track
+result = await processor.process_di_track(
+    input_path=Path("/app/storage/uploads/di_tracks/123.wav"),
+    output_path=Path("/app/storage/audio/456.wav"),
+    config=ToneConfig(
+        nam_model_path="/app/storage/models/amp.nam",
+        ir_path="/app/storage/models/cab.wav",
+        sample_rate=48000,
+        highpass_freq=80.0,
+        target_lufs=-14.0,
+    ),
+)
+
+print(f"Duration: {result.duration}s, LUFS: {result.integrated_lufs}")
+```
+
+---
+
+## Error Hierarchy
+
+| Exception | Module | Cause |
+|-----------|--------|-------|
+| `NAMLoadError` | nam_loader | Missing/invalid NAM file |
+| `IRLoadError` | ir_loader | Missing/invalid IR file |
+| `LoudnessError` | loudness | Silent audio or measurement failure |
+| `ChainExecutionError` | chain_executor | Invalid chain or processing failure |
+| `PermutationError` | permutation | Invalid config or exceeded limits |
+| `ProcessingError` | processor | Wrapped exception for any failure |
+
+---
+
+## File Formats
+
+### Input
+
+| Type | Formats | Constraints |
+|------|---------|-------------|
+| DI Track | WAV, FLAC, OGG, MP3 | Any sample rate (resampled) |
+| NAM Model | `.nam` | PyTorch checkpoint |
+| IR | WAV, FLAC | Mono, ≤2 seconds |
+
+### Output
+
+| Type | Format | Settings |
+|------|--------|----------|
+| Audio segment | WAV | 48 kHz, 16-bit PCM |
 
 ---
 
 ## References
 
-- [[REFERENCE-ARCHITECTURE]] - Implementation-agnostic patterns
-- [Archive Wiki](https://github.com/krazyuniks/guitar-tone-shootout-archive/wiki) - Previous implementation
-- Archive codebase: `guitar-tone-worktrees-archive-20260202/main/`
+- [[GTS-Technical-Architecture]] - Architecture overview
+- `libs/core/ports/audio_processor.py` - Protocol definition
+- `libs/core/domain/value_objects/` - Domain types
 
 
 ### Frontend-Architecture
@@ -5766,433 +3319,1605 @@ PRs fail CI if `dist/` is not committed with matching `src/` changes.
 - `.claude/rules/frontend-standards.md` - Development rules
 
 
-### Audio-Processing
+### GTS-Remotion-Architecture
 
-# Audio Processing
+# Remotion Integration — Guitar Tone Shootout (GTS)
 
-Implementation details for `libs/audio/`. For architectural overview, see [[GTS-Technical-Architecture]].
+## Decision Summary
 
----
-
-## Overview
-
-The audio library processes DI guitar tracks through signal chains to produce audio segments for shootout comparisons.
-
-| Component | Purpose |
-|-----------|---------|
-| `processing/processor.py` | Main AudioProcessor implementation |
-| `processing/nam_loader.py` | NAM model loading with LRU cache |
-| `processing/ir_loader.py` | Impulse response file loading |
-| `processing/loudness.py` | EBU R128 loudness measurement/normalization |
-| `processing/chain_executor.py` | Signal chain block execution |
-| `processing/permutation.py` | Signal chain group expansion |
-| `analysis/waveform.py` | Waveform visualization data |
+Replace the existing empty video stub (`libs/audio/src/audio/video/`) with a dedicated video bounded context powered by Remotion. Clean start — the video BC owns all server-side video rendering. Frontend hero animation and how-to videos are separate Astro/Remotion Player concerns.
 
 ---
 
-## Directory Structure
+## Requirements
+
+| Requirement | Detail |
+|-------------|--------|
+| Signal chain images | JPEGs on background. Crop/resize to normalise. Placeholder images for missing gear. |
+| Audio | Per-segment audio files, variable length. Hard cuts at segment boundaries. |
+| Video output | 1920x1080, 30fps, H.264, AAC 256-320kbps (YouTube optimised) |
+| Transitions | 3-frame (100ms) slide transition centred on audio cut point (1.5 frames either side). |
+| Site integration | Remotion Player as async React island in Astro for hero animation + how-to videos (frontend concern, not video BC). |
+| Scope | Clean start. Remove existing video stub from audio BC. |
+
+---
+
+## Bounded Context Architecture
+
+### Video BC — Ownership
+
+The video BC is a **new bounded context** at `libs/video/` and a **uv workspace member** with its own:
+
+- `pyproject.toml` (Python dependencies: FastAPI, Pillow for image processing)
+- `package.json` (Node.js dependencies: Remotion, React, Tailwind CSS)
+- `Dockerfile` (Node.js + Chromium + Python via uv)
+- Docker container on `jobs` profile
+- Remotion compositions for **server-side rendering only** (shootout videos)
 
 ```
-libs/audio/
-├── src/audio/
-│   ├── __init__.py
-│   ├── processing/
-│   │   ├── __init__.py
-│   │   ├── processor.py         # PedalboardAudioProcessor
-│   │   ├── nam_loader.py        # load_nam_model()
-│   │   ├── ir_loader.py         # load_ir()
-│   │   ├── loudness.py          # measure_loudness(), normalize_loudness()
-│   │   ├── chain_executor.py    # execute_signal_chain()
-│   │   └── permutation.py       # expand_signal_chain_group()
-│   ├── analysis/
-│   │   ├── __init__.py
-│   │   └── waveform.py          # extract_waveform()
-│   └── video/
-│       └── __init__.py          # Placeholder for video composition
-└── pyproject.toml
+gts/
+├── pyproject.toml              # uv workspace root
+├── libs/
+│   ├── video/                  # ← new video BC
+│   │   ├── pyproject.toml      # uv workspace member
+│   │   ├── package.json        # npm package
+│   │   ├── Dockerfile
+│   │   ├── src/
+│   │   │   ├── video/          # Python package
+│   │   │   │   ├── api.py      # FastAPI render endpoint
+│   │   │   │   ├── image_prep.py
+│   │   │   │   └── props.py    # JSON props generation
+│   │   │   └── remotion/       # Remotion project
+│   │   │       ├── src/
+│   │   │       │   ├── Root.tsx
+│   │   │       │   ├── ShootoutVideo.tsx
+│   │   │       │   └── components/
+│   │   │       │       ├── SignalChainSegment.tsx
+│   │   │       │       ├── SlideTransition.tsx
+│   │   │       │       ├── MetadataOverlay.tsx
+│   │   │       │       └── GearBlock.tsx
+│   │   │       ├── remotion.config.ts
+│   │   │       └── tsconfig.json
+│   │   └── tests/
+│   ├── core/                   # domain (zero framework deps)
+│   └── audio/                  # audio BC
+├── frontend/
+│   └── astro/                  # Astro site
+│       └── src/
+│           ├── remotion/       # frontend-only compositions (hero, how-to)
+│           │   ├── Root.tsx
+│           │   ├── HeroAnimation.tsx
+│           │   └── HowToVideo.tsx
+│           └── components/
+│               └── HeroVideo.tsx   # Remotion Player island
+└── docker-compose.yml
+```
+
+**Key boundary:** `libs/video/` handles server-side rendering (shootout videos via Docker). `frontend/astro/src/remotion/` handles client-side compositions (hero animation, how-to videos via Remotion Player). No code sharing between them.
+
+### Video BC `package.json`
+
+```json
+{
+  "name": "@gts/video",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx remotion studio src/remotion/src/Root.tsx",
+    "render": "npx remotion render src/remotion/src/Root.tsx",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "remotion": "^4.0",
+    "@remotion/renderer": "^4.0",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}
+```
+
+Note: No `@remotion/player` — that's a frontend dependency only.
+
+### Dependency Rules
+
+| Module | Can depend on | Cannot depend on |
+|--------|---------------|------------------|
+| `video` | core | audio, sources, apps |
+
+Same pattern as `audio`. Enforced via import-linter contract.
+
+---
+
+## Consumer Contracts
+
+### 1. TaskIQ Worker → Video BC (HTTP API)
+
+The video BC container runs a FastAPI service. The TaskIQ worker sends render requests over the Docker network.
+
+```
+POST /render
+Content-Type: application/json
+
+{
+  "composition_id": "GuitarToneShootout",
+  "props": { ... },          // full Remotion input props
+  "output_format": "mp4",
+  "codec": "h264",
+  "audio_bitrate": "320k"
+}
+
+→ 202 Accepted
+{
+  "job_id": "render-xyz",
+  "status": "queued"
+}
+```
+
+```
+GET /render/{job_id}
+
+→ 200 OK
+{
+  "job_id": "render-xyz",
+  "status": "complete",
+  "output_path": "/app/processed/videos/abc-123.mp4",
+  "duration_seconds": 45.2,
+  "render_time_seconds": 12.8
+}
+```
+
+The render endpoint internally calls:
+
+```python
+# video/api.py
+import asyncio, json
+from pathlib import Path
+
+async def render_video(composition_id: str, props: dict, output_path: str) -> str:
+    props_file = Path(f"/tmp/{props.get('title', 'render')}.json")
+    props_file.write_text(json.dumps(props))
+
+    proc = await asyncio.create_subprocess_exec(
+        "npx", "remotion", "render",
+        "src/remotion/src/Root.tsx",
+        composition_id,
+        "--props", str(props_file),
+        "--output", output_path,
+        "--codec", "h264",
+        "--audio-bitrate", "320k",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+
+    if proc.returncode != 0:
+        raise RenderError(stderr.decode())
+
+    return output_path
+```
+
+### 2. Frontend — Remotion Player (Astro Island)
+
+Frontend compositions live in `frontend/astro/src/remotion/` — **not imported from video BC**.
+
+```tsx
+// frontend/astro/src/components/HeroVideo.tsx
+import { Player } from '@remotion/player';
+import { HeroAnimation } from '../remotion/HeroAnimation';
+
+export default function HeroVideo() {
+  return (
+    <Player
+      component={HeroAnimation}
+      durationInFrames={240}  // 8s at 30fps
+      fps={30}
+      compositionWidth={1920}
+      compositionHeight={600}
+      style={{ width: '100%' }}
+      autoPlay
+      loop
+      controls={false}
+    />
+  );
+}
+```
+
+Mounted in Astro pages: `<HeroVideo client:idle />`
+
+### 3. Remotion Studio (Dev Iteration)
+
+**Server-side compositions:**
+```bash
+cd libs/video
+npm run dev    # opens Remotion Studio at localhost:3000
+```
+
+**Frontend compositions:**
+```bash
+cd frontend/astro
+pnpm remotion:dev    # opens Remotion Studio at localhost:3001
+```
+
+Remotion Studio provides:
+- Frame-by-frame scrubbing
+- Hot reload on component changes
+- Mock props for testing without DB/audio
+- Visual timeline of all sequences
+
+---
+
+## Component Design
+
+### Core Components (Server-Side — `libs/video/`)
+
+```tsx
+// GearBlock.tsx — single gear item in the signal chain
+type GearBlockProps = {
+  name: string;
+  imageUrl: string;       // normalised JPEG path
+  type: 'di' | 'pedal' | 'amp' | 'cab' | 'mic';
+  isPlaceholder: boolean;
+  enterAtFrame: number;   // staggered entrance
+};
+
+// SignalChainSegment.tsx — full chain for one segment
+type SignalChainSegmentProps = {
+  blocks: GearBlockProps[];
+  metadata: SegmentMetadata;
+  durationFrames: number;
+};
+
+// SlideTransition.tsx — 3-frame slide between segments
+type SlideTransitionProps = {
+  transitionFrames: number;  // 3 at 30fps = 100ms
+  direction: 'left' | 'right';
+  children: React.ReactNode;
+};
+
+// MetadataOverlay.tsx — segment info text
+type MetadataOverlayProps = {
+  title: string;
+  bpm: number;
+  genre: string;
+  notes?: string;
+};
+```
+
+### Composition: ShootoutVideo
+
+```tsx
+// ShootoutVideo.tsx
+import { Sequence, Audio, useVideoConfig } from 'remotion';
+import { SignalChainSegment } from './components/SignalChainSegment';
+import { SlideTransition } from './components/SlideTransition';
+
+type Segment = {
+  id: string;
+  durationSeconds: number;
+  audioFile: string;
+  metadata: SegmentMetadata;
+  signalChain: GearBlockProps[];
+};
+
+type ShootoutProps = {
+  segments: Segment[];
+  title: string;
+};
+
+const TRANSITION_FRAMES = 3; // 100ms at 30fps
+
+export const ShootoutVideo: React.FC<ShootoutProps> = ({ segments, title }) => {
+  const { fps } = useVideoConfig();
+
+  let currentFrame = 0;
+  return (
+    <>
+      {segments.map((segment, i) => {
+        const segmentFrames = Math.ceil(segment.durationSeconds * fps);
+        const from = i === 0 ? 0 : currentFrame - Math.floor(TRANSITION_FRAMES / 2);
+        const duration = segmentFrames + (i === 0 ? 0 : Math.floor(TRANSITION_FRAMES / 2));
+
+        const el = (
+          <Sequence key={segment.id} from={from} durationInFrames={duration} name={segment.metadata.title}>
+            {i > 0 && <SlideTransition transitionFrames={TRANSITION_FRAMES} direction="left">
+              <SignalChainSegment
+                blocks={segment.signalChain}
+                metadata={segment.metadata}
+                durationFrames={segmentFrames}
+              />
+            </SlideTransition>}
+            {i === 0 && (
+              <SignalChainSegment
+                blocks={segment.signalChain}
+                metadata={segment.metadata}
+                durationFrames={segmentFrames}
+              />
+            )}
+            <Audio src={segment.audioFile} />
+          </Sequence>
+        );
+
+        currentFrame += segmentFrames;
+        return el;
+      })}
+    </>
+  );
+};
+```
+
+### Dynamic Duration via `calculateMetadata`
+
+```tsx
+// Root.tsx
+import { Composition } from 'remotion';
+import { ShootoutVideo } from './ShootoutVideo';
+
+export const RemotionRoot = () => (
+  <Composition
+    id="GuitarToneShootout"
+    component={ShootoutVideo}
+    fps={30}
+    width={1920}
+    height={1080}
+    defaultProps={{ segments: [], title: '' }}
+    calculateMetadata={async ({ props }) => {
+      const totalSeconds = props.segments.reduce(
+        (sum, s) => sum + s.durationSeconds, 0
+      );
+      return {
+        durationInFrames: Math.ceil(totalSeconds * 30),
+        props,
+      };
+    }}
+  />
+);
 ```
 
 ---
+
+## JSON Props Schema (Python → Remotion)
+
+```json
+{
+  "title": "Clean Tone Shootout: Fender vs Marshall",
+  "segments": [
+    {
+      "id": "seg-1",
+      "durationSeconds": 12.5,
+      "audioFile": "static/audio/seg-1.wav",
+      "metadata": {
+        "title": "Fender Twin Reverb - Clean",
+        "bpm": 120,
+        "genre": "Blues",
+        "notes": "Bridge pickup, volume 6"
+      },
+      "signalChain": [
+        {
+          "name": "Strat DI",
+          "imageUrl": "static/gear/strat-di-normalized.jpg",
+          "type": "di",
+          "isPlaceholder": false,
+          "enterAtFrame": 0
+        },
+        {
+          "name": "TS808",
+          "imageUrl": "static/gear/ts808-normalized.jpg",
+          "type": "pedal",
+          "isPlaceholder": false,
+          "enterAtFrame": 15
+        },
+        {
+          "name": "SM57",
+          "imageUrl": "static/gear/placeholder-mic.jpg",
+          "type": "mic",
+          "isPlaceholder": true,
+          "enterAtFrame": 45
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+## Image Preprocessing (Python — Video BC)
+
+```python
+# video/image_prep.py
+from pathlib import Path
+from PIL import Image, ImageDraw
+
+TARGET_SIZE = (240, 240)
+BACKGROUND = (26, 26, 46)
+
+def normalize_gear_image(image_path: str | None, output_path: str) -> str:
+    if image_path is None or not Path(image_path).exists():
+        return _generate_placeholder(output_path)
+
+    img = Image.open(image_path).convert("RGB")
+    img.thumbnail(TARGET_SIZE, Image.LANCZOS)
+
+    canvas = Image.new("RGB", TARGET_SIZE, BACKGROUND)
+    offset = ((TARGET_SIZE[0] - img.width) // 2, (TARGET_SIZE[1] - img.height) // 2)
+    canvas.paste(img, offset)
+    canvas.save(output_path, "JPEG", quality=90)
+    return output_path
+
+def _generate_placeholder(output_path: str) -> str:
+    canvas = Image.new("RGB", TARGET_SIZE, (40, 40, 60))
+    draw = ImageDraw.Draw(canvas)
+    draw.text((60, 110), "No Image", fill=(120, 120, 140))
+    canvas.save(output_path, "JPEG", quality=90)
+    return output_path
+```
+
+---
+
+## Dev Workflow — Iterate Outside the Pipeline
+
+### Component Development (fast loop)
+
+```bash
+cd libs/video
+npm run dev                    # Remotion Studio on :3000
+```
+
+- Edit `SignalChainSegment.tsx` → hot reloads instantly
+- Use mock props in `Root.tsx` `defaultProps` — no DB, no audio needed
+- Scrub timeline, inspect per-frame rendering
+- Test transitions, animations, text overlays visually
+
+### Component Testing (automated)
+
+```bash
+cd libs/video
+npm test                       # vitest
+```
+
+```tsx
+// tests/SignalChainSegment.test.tsx
+import { renderFrames } from '@remotion/renderer';
+
+test('renders correct number of gear blocks', async () => {
+  // Remotion supports rendering individual frames for snapshot testing
+});
+```
+
+### Full Pipeline Test (integration)
+
+```bash
+just up-d  # with jobs profile
+curl -X POST http://localhost:8001/render \
+  -H 'Content-Type: application/json' \
+  -d @test-props.json
+```
+
+---
+
+## Video BC Dockerfile
+
+```dockerfile
+FROM node:20-slim AS node-base
+
+# Install Chromium for Remotion rendering + Python
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-liberation \
+    curl \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for Python
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+
+# Node dependencies (cached layer)
+COPY libs/video/package.json libs/video/package-lock.json ./
+RUN npm ci
+
+# Python dependencies (cached layer)
+COPY pyproject.toml uv.lock ./
+COPY libs/core/pyproject.toml libs/core/
+COPY libs/video/pyproject.toml libs/video/
+RUN mkdir -p libs/core/src/core libs/video/src/video
+RUN uv sync --frozen --package gts-video
+
+# Application code
+COPY libs/core/ libs/core/
+COPY libs/video/ libs/video/
+
+EXPOSE 8001
+
+CMD ["uv", "run", "uvicorn", "video.api:app", "--host", "0.0.0.0", "--port", "8001"]
+```
+
+---
+
+## What Gets Removed (Clean Start)
+
+**Delete from existing codebase:**
+
+1. `libs/audio/src/audio/video/` — empty stub directory
+2. `moviepy` dependency from `libs/audio/pyproject.toml`
+3. `VideoComposer` protocol from `libs/core/src/core/ports/video_composer.py`
+
+**Replace with:**
+
+1. Video BC (`libs/video/`)
+2. Generic `VideoRenderer` port in `libs/core/src/core/ports/`
+3. `CompositionSpec` and `RenderStatus` value objects in core
+4. Image normalisation (`video/image_prep.py`)
+5. Remotion compositions and React components
+6. JSON props generation (`video/props.py`)
+7. FastAPI render endpoint (`video/api.py`)
+
+---
+
+## Implementation Order (GitHub Issues)
+
+| Phase | Issue | Description | Depends on |
+|-------|-------|-------------|------------|
+| 1 | #71 | Core domain — generic `VideoRenderer` port + value objects | — |
+| 2 | #72 | `libs/video/` scaffold + audio cleanup (remove moviepy, video stub) | #71 |
+| 3 | #73 | Docker container for video BC on `jobs` profile | #72 |
+| 4 | #74 | Video BC Python implementation (API + image prep + props) | #73 |
+| 5 | #75 | Remotion components (ShootoutVideo, GearBlock, etc.) | #74 |
+| 6a | #83 | Alembic migration — Shootout video fields | #71 |
+| 6b | #76 | Worker integration — HTTP client + render job | #75, #83 |
+| 7 | #77 | Frontend — Remotion Player for hero animation + how-to (Astro) | #72 |
+| 8 | #78 | Tooling — `just` commands + quality gate updates | #72 |
+| 9 | #80 | worktree.py — video service port allocation + override template | #73 |
+| 10 | #81 | Documentation — DEVELOPMENT.md, AGENTS.md, wiki updates | #74 |
+| 11 | #82 | .claude skills/agents — new `gts-video` skill + updates | #74 |
+| 12 | #84 | Integration test — end-to-end render pipeline | #76 |
+
+---
+
+## Licensing
+
+Remotion free license applies — individual / company ≤3 people. No cost for GTS at current scale.
+
+
+---
+
+## Codebase Structure
+
+The following files were selectively loaded from `.planning/codebase/`:
+
+
+### ENDPOINTS
+
+# API Endpoints
+
+*Auto-generated by `workflow/codebase_mapper.py` -- do not edit.*
+
+**104 endpoints extracted** from `apps/webapp/src/webapp/api`
+
+### `apps/webapp/src/webapp/api/pages.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/gear` | `gear_browse_page` |  |  |
+| GET | `/gear/{slug}` | `gear_detail_page` |  |  |
+| GET | `/fragments/gear/list` | `gear_list_fragment` |  |  |
+| GET | `/shootouts` | `shootouts_page` | None |  |
+| GET | `/di-tracks` | `di_tracks_browse_page` |  |  |
+| GET | `/sitemap.xml` | `sitemap_xml` |  |  |
+| GET | `/library/my-gear` | `library_my_gear_page` |  |  |
+| GET | `/library/chains` | `library_chains_page` |  |  |
+| GET | `/fragments/chains/list` | `chain_list_fragment` |  |  |
+| DELETE | `/fragments/chains/{chain_id}` | `chain_delete_fragment` |  |  |
+| POST | `/fragments/chains/{chain_id}/duplicate` | `chain_duplicate_fragment` |  |  |
+| GET | `/library/chains/build` | `chain_builder_page` |  |  |
+| GET | `/library/shootouts` | `library_shootouts_page` |  |  |
+| GET | `/shootout/create` | `shootout_create_page` |  |  |
+| GET | `/shootout/{shootout_id}` | `shootout_detail_page` |  |  |
+| GET | `/fragments/shootouts/list` | `shootout_list_fragment` |  |  |
+| DELETE | `/fragments/shootouts/{shootout_id}` | `shootout_delete_fragment` |  |  |
+| GET | `/chain/{chain_id}` | `chain_detail_page` |  |  |
+| GET | `/library/di-tracks` | `library_di_tracks_page` |  |  |
+| GET | `/settings/account` | `settings_account_page` |  |  |
+
+### `apps/webapp/src/webapp/api/v1/auth.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/auth/login/t3k` | `login_t3k` |  |  |
+| GET | `/api/v1/auth/login/{provider}` | `login_provider` |  |  |
+| GET | `/api/v1/auth/callback` | `callback` |  |  |
+| GET | `/api/v1/auth/me` | `get_me` |  |  |
+| POST | `/api/v1/auth/logout` | `logout_post` |  |  |
+| GET | `/api/v1/auth/logout` | `logout_get` |  |  |
+| GET | `/api/v1/auth/status` | `auth_status` |  |  |
+| POST | `/api/v1/auth/save-session` | `save_session` |  |  |
+| POST | `/api/v1/auth/restore-session` | `restore_session_post` |  |  |
+| GET | `/api/v1/auth/restore-session` | `restore_session_get` | None |  |
+| DELETE | `/api/v1/auth/unlink/{provider}` | `unlink_provider` |  |  |
+
+### `apps/webapp/src/webapp/api/v1/block_types.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/block-types` | `list_block_types` | list[BlockTypeResponse] |  |
+
+### `apps/webapp/src/webapp/api/v1/di_tracks.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| POST | `/api/v1/di-tracks` | `upload_di_track` | DITrackResponse | status.HTTP_201_CREATED |
+| GET | `/api/v1/di-tracks` | `list_di_tracks` | list[DITrackResponse] |  |
+| GET | `/api/v1/di-tracks/{track_id}` | `get_di_track` | DITrackResponse |  |
+| DELETE | `/api/v1/di-tracks/{track_id}` | `delete_di_track` |  | status.HTTP_204_NO_CONTENT |
+| GET | `/api/v1/di-tracks/{track_id}/stream` | `stream_di_track` |  |  |
+
+### `apps/webapp/src/webapp/api/v1/files.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/files/{signature}` | `serve_file` | None |  |
+
+### `apps/webapp/src/webapp/api/v1/gear.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/gear/` | `list_gear` | GearListResponse |  |
+| GET | `/api/v1/gear/{gear_id}` | `get_gear` | GearResponse |  |
+
+### `apps/webapp/src/webapp/api/v1/health.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/health` | `liveness` |  |  |
+| GET | `/health/ready` | `readiness` |  |  |
+
+### `apps/webapp/src/webapp/api/v1/html.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/html/` | `html_namespace_root` |  |  |
+| GET | `/api/v1/html/gear/list` | `gear_list_fragment` |  |  |
+| GET | `/api/v1/html/library/my-gear/list` | `library_my_gear_list_fragment` |  |  |
+| GET | `/api/v1/html/library/chains/list` | `library_chains_list_fragment` |  |  |
+| GET | `/api/v1/html/library/shootouts/list` | `library_shootouts_list_fragment` |  |  |
+| GET | `/api/v1/html/my-gear/results` | `my_gear_results_fragment` |  |  |
+| GET | `/api/v1/html/di-tracks/results` | `di_tracks_results_fragment` |  |  |
+| GET | `/api/v1/html/library/tracks` | `library_tracks_fragment` |  |  |
+| POST | `/api/v1/html/library/tracks/{track_id}/toggle-public` | `library_track_toggle_public` |  |  |
+| POST | `/api/v1/html/library/tracks/{track_id}/save` | `library_track_save` |  |  |
+| GET | `/api/v1/html/library/chains` | `library_chains_fragment` |  |  |
+| GET | `/api/v1/html/library/shootouts` | `library_shootouts_fragment` |  |  |
+| GET | `/api/v1/html/library/groups` | `library_groups_fragment` |  |  |
+| GET | `/api/v1/html/shootout-create/group-chains/{group_id}` | `shootout_create_group_chains_fragment` |  |  |
+| GET | `/api/v1/html/shootout-create/chains` | `shootout_create_chains_fragment` |  |  |
+| GET | `/api/v1/html/shootout-create/ditracks` | `shootout_create_ditracks_fragment` |  |  |
+| POST | `/api/v1/html/shootout-create` | `shootout_create_submit` |  |  |
+| GET | `/api/v1/html/shootouts/sections` | `shootouts_sections_fragment` |  |  |
+| GET | `/api/v1/html/shootouts/{shootout_id}/comments` | `shootout_comments_fragment` |  |  |
+| POST | `/api/v1/html/gear/model/{model_id}/toggle` | `gear_model_toggle` |  |  |
+| POST | `/api/v1/html/gear/models/bulk-toggle` | `gear_models_bulk_toggle` |  |  |
+
+### `apps/webapp/src/webapp/api/v1/irs.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| POST | `/api/v1/irs/upload` | `upload_ir` | IRUploadResponse | status.HTTP_201_CREATED |
+
+### `apps/webapp/src/webapp/api/v1/jobs.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/jobs/` | `list_jobs` | list[JobResponse] |  |
+| GET | `/api/v1/jobs/{job_id}` | `get_job` | JobResponse |  |
+
+### `apps/webapp/src/webapp/api/v1/library.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/library/gear` | `list_user_gear` | list[UserGearResponse] |  |
+| POST | `/api/v1/library/gear` | `add_gear_to_library` | UserGearResponse | status.HTTP_201_CREATED |
+| DELETE | `/api/v1/library/gear/{user_gear_id}` | `remove_gear_from_library` |  | status.HTTP_204_NO_CONTENT |
+| POST | `/api/v1/library/gear/{gear_model_id}/toggle` | `toggle_gear_in_library` | ToggleGearResponse |  |
+
+### `apps/webapp/src/webapp/api/v1/notifications.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/notifications` | `list_notifications` | list[NotificationResponse] |  |
+| PUT | `/api/v1/notifications/{notification_id}/read` | `mark_notification_read` | MarkReadResponse |  |
+| PUT | `/api/v1/notifications/read-all` | `mark_all_notifications_read` | MarkAllReadResponse |  |
+
+### `apps/webapp/src/webapp/api/v1/presets.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/presets` | `list_presets` | list[PresetResponse] |  |
+| POST | `/api/v1/presets` | `create_preset` | PresetResponse | status.HTTP_201_CREATED |
+| GET | `/api/v1/presets/{preset_id}` | `get_preset` | PresetResponse |  |
+| PUT | `/api/v1/presets/{preset_id}` | `update_preset` | PresetResponse |  |
+| DELETE | `/api/v1/presets/{preset_id}` | `delete_preset` |  | status.HTTP_204_NO_CONTENT |
+
+### `apps/webapp/src/webapp/api/v1/shootouts.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/shootouts/` | `list_shootouts` | list[ShootoutResponse] |  |
+| POST | `/api/v1/shootouts/` | `create_shootout` | ShootoutResponse | status.HTTP_201_CREATED |
+| GET | `/api/v1/shootouts/{shootout_id}` | `get_shootout` | ShootoutResponse |  |
+| DELETE | `/api/v1/shootouts/{shootout_id}` | `delete_shootout` |  | status.HTTP_204_NO_CONTENT |
+| POST | `/api/v1/shootouts/{shootout_id}/process` | `process_shootout` |  | status.HTTP_202_ACCEPTED |
+| POST | `/api/v1/shootouts/{shootout_id}/comments` | `create_comment` | CommentResponse | status.HTTP_201_CREATED |
+| GET | `/api/v1/shootouts/{shootout_id}/comments` | `list_comments` |  |  |
+| DELETE | `/api/v1/shootouts/{shootout_id}/comments/{comment_id}` | `delete_comment` |  | status.HTTP_204_NO_CONTENT |
+
+### `apps/webapp/src/webapp/api/v1/signal_chain_groups.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/signal-chain-groups/` | `list_signal_chain_groups` | list[SignalChainGroupResponse] |  |
+| POST | `/api/v1/signal-chain-groups/` | `create_signal_chain_group` | SignalChainGroupResponse | status.HTTP_201_CREATED |
+| GET | `/api/v1/signal-chain-groups/{group_id}` | `get_signal_chain_group` | SignalChainGroupResponse |  |
+| PUT | `/api/v1/signal-chain-groups/{group_id}` | `update_signal_chain_group` | SignalChainGroupResponse |  |
+| POST | `/api/v1/signal-chain-groups/{group_id}/generate` | `generate_permutations` | list[str] |  |
+| DELETE | `/api/v1/signal-chain-groups/{group_id}` | `delete_signal_chain_group` |  | status.HTTP_204_NO_CONTENT |
+
+### `apps/webapp/src/webapp/api/v1/signal_chains.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/signal-chains/` | `list_signal_chains` | list[SignalChainResponse] |  |
+| POST | `/api/v1/signal-chains/` | `create_signal_chain` | SignalChainResponse | status.HTTP_201_CREATED |
+| PUT | `/api/v1/signal-chains/{chain_id}` | `update_signal_chain` | SignalChainResponse |  |
+| DELETE | `/api/v1/signal-chains/{chain_id}` | `delete_signal_chain` |  | status.HTTP_204_NO_CONTENT |
+
+### `apps/webapp/src/webapp/api/v1/tags.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/tags` | `list_tags` | list[TagResponse] |  |
+| POST | `/api/v1/tags` | `create_tag` | TagResponse | status.HTTP_201_CREATED |
+| DELETE | `/api/v1/tags/{tag_id}` | `delete_tag` |  | status.HTTP_204_NO_CONTENT |
+
+### `apps/webapp/src/webapp/api/v1/test.py`
+
+| Method | Path | Function | Response Model | Status |
+|--------|------|----------|----------------|--------|
+| GET | `/api/v1/test/error/404` | `trigger_404` |  |  |
+| GET | `/api/v1/test/error/400` | `trigger_400` |  |  |
+| GET | `/api/v1/test/error/409` | `trigger_409` |  |  |
+| GET | `/api/v1/test/error/422` | `trigger_422` |  |  |
+| GET | `/api/v1/test/error/500` | `trigger_500` |  |  |
+
+
+### IMPORTS
+
+# Internal Import Graph
+
+*Auto-generated by `workflow/codebase_mapper.py` -- do not edit.*
+
+**7 internal packages** scanned from `libs, apps, sources`
+
+Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
 
 ## Dependencies
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `pedalboard` | ^0.9.0 | Effects, IR convolution, audio I/O |
-| `pyloudnorm` | ^0.1.1 | EBU R128 loudness measurement |
-| `torch` | ^2.5.0 | NAM model loading and inference |
-| `scipy` | ^1.14.0 | Audio resampling |
-| `soundfile` | ^0.12.0 | Audio file I/O |
-| `numpy` | - | Array operations |
+- **audio** -> core
+- **core** -> (none)
+- **scheduler** -> core, source_t3k, webapp, worker
+- **source_t3k** -> core
+- **video** -> core
+- **webapp** -> audio, core
+- **worker** -> audio, core, source_t3k, webapp
+
+
+### SCHEMA
+
+# ORM Schema
+
+*Auto-generated by `workflow/codebase_mapper.py` -- do not edit.*
+
+**23 models extracted** from `apps/webapp/src/webapp/adapters/persistence/models/`
+
+### BlockType (`block_types`)
+*File: block_type.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `name` | `Mapped[str]` |
+| `category` | `Mapped[BlockCategory]` |
+| `description` | `Mapped[str | None]` |
+| `default_params` | `Mapped[dict[str, Any]]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `blocks` | SignalChainBlock | block_type | raise |
+
+### GearTag (`tags`)
+*File: gear.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `name` | `Mapped[str]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `gear_items` | Gear | tags | raise |
+
+### GearMake (`gear_makes`)
+*File: gear.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `name` | `Mapped[str]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `gear_items` | Gear | make | raise |
+
+### Gear (`gear`)
+*File: gear.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `name` | `Mapped[str]` |
+| `slug` | `Mapped[str]` |
+| `gear_type` | `Mapped[GearType]` |
+| `platform` | `Mapped[str | None]` |
+| `description` | `Mapped[str | None]` |
+| `manufacturer` | `Mapped[str | None]` |
+| `make_id` | `Mapped[uuid.UUID | None]` |
+| `thumbnail_url` | `Mapped[str | None]` |
+| `is_public` | `Mapped[bool]` |
+| `source_id` | `Mapped[uuid.UUID | None]` |
+| `license_text` | `Mapped[str | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `make` | GearMake | gear_items | raise |
+| `source` | GearSource | gear | raise |
+| `models` | GearModel | gear | raise |
+| `tags` | GearTag | gear_items | raise |
+
+### GearModel (`gear_models`)
+*File: gear_model.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `id` | `Mapped[uuid.UUID]` |
+| `gear_id` | `Mapped[uuid.UUID]` |
+| `platform` | `Mapped[Platform]` |
+| `size` | `Mapped[ModelSize]` |
+| `file_path` | `Mapped[str | None]` |
+| `download_url` | `Mapped[str | None]` |
+| `download_status` | `Mapped[DownloadStatus]` |
+| `file_hash` | `Mapped[str | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `gear` | Gear | models | raise |
+| `user_gear` | UserGear | gear_model | raise |
+
+### GearSource (`gear_sources`)
+*File: gear_source.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `id` | `Mapped[uuid.UUID]` |
+| `created_at` | `Mapped[datetime]` |
+| `updated_at` | `Mapped[datetime]` |
+| `source_name` | `Mapped[str]` |
+| `source_record_id` | `Mapped[str]` |
+| `source_updated_at` | `Mapped[datetime]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `gear` | Gear | source | raise |
+
+### Job (`jobs`)
+*File: job.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID | None]` |
+| `job_type` | `Mapped[JobType]` |
+| `parent_job_id` | `Mapped[uuid.UUID | None]` |
+| `depends_on` | `Mapped[list[str]]` |
+| `status` | `Mapped[JobStatus]` |
+| `progress` | `Mapped[int]` |
+| `message` | `Mapped[str | None]` |
+| `started_at` | `Mapped[datetime | None]` |
+| `completed_at` | `Mapped[datetime | None]` |
+| `last_heartbeat` | `Mapped[datetime | None]` |
+| `attempt` | `Mapped[int]` |
+| `max_attempts` | `Mapped[int]` |
+| `next_retry_at` | `Mapped[datetime | None]` |
+| `result_path` | `Mapped[str | None]` |
+| `error` | `Mapped[str | None]` |
+| `task_id` | `Mapped[str | None]` |
+| `entity_id` | `Mapped[uuid.UUID | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | jobs | raise |
+
+### AuditLog (`audit_logs`)
+*File: job.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `id` | `Mapped[uuid.UUID]` |
+| `timestamp` | `Mapped[datetime]` |
+| `user_id` | `Mapped[uuid.UUID | None]` |
+| `ip_address` | `Mapped[str | None]` |
+| `user_agent` | `Mapped[str | None]` |
+| `action` | `Mapped[str]` |
+| `resource_type` | `Mapped[str]` |
+| `resource_id` | `Mapped[uuid.UUID | None]` |
+| `changes` | `Mapped[dict[str, Any] | None]` |
+| `extra_data` | `Mapped[dict[str, Any] | None]` |
+| `request_id` | `Mapped[str | None]` |
+| `trace_id` | `Mapped[str | None]` |
+
+### UserNotification (`user_notifications`)
+*File: notification.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[UUID]` |
+| `type` | `Mapped[str]` |
+| `title` | `Mapped[str]` |
+| `message` | `Mapped[str]` |
+| `read_at` | `Mapped[datetime | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | notifications | raise |
+
+### Preset (`presets`)
+*File: preset.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `signal_chain_block_id` | `Mapped[uuid.UUID]` |
+| `name` | `Mapped[str]` |
+| `description` | `Mapped[str | None]` |
+| `params` | `Mapped[dict[str, Any]]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `signal_chain_block` | SignalChainBlock | presets | raise |
+
+### DITrack (`di_tracks`)
+*File: shootout.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID]` |
+| `name` | `Mapped[str]` |
+| `file_path` | `Mapped[str]` |
+| `original_filename` | `Mapped[str]` |
+| `duration_seconds` | `Mapped[float]` |
+| `sample_rate` | `Mapped[int]` |
+| `channels` | `Mapped[int | None]` |
+| `waveform` | `Mapped[Any]` |
+| `description` | `Mapped[str | None]` |
+| `guitar` | `Mapped[str | None]` |
+| `pickup` | `Mapped[str | None]` |
+| `tuning` | `Mapped[str | None]` |
+| `checksum` | `Mapped[Any]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | di_tracks | raise |
+| `shootouts` | Shootout | di_track | raise |
+
+### Shootout (`shootouts`)
+*File: shootout.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID]` |
+| `di_track_id` | `Mapped[uuid.UUID | None]` |
+| `name` | `Mapped[str]` |
+| `description` | `Mapped[str | None]` |
+| `status` | `Mapped[ShootoutStatus]` |
+| `video_path` | `Mapped[str | None]` |
+| `video_status` | `Mapped[str | None]` |
+| `video_job_id` | `Mapped[str | None]` |
+| `output_path` | `Mapped[str | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | shootouts | raise |
+| `di_track` | DITrack | shootouts | raise |
+| `chains` | ShootoutChain | shootout | raise |
+| `comments` | ShootoutComment | shootout | raise |
+
+### ShootoutChain (`shootout_chains`)
+*File: shootout.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `shootout_id` | `Mapped[uuid.UUID]` |
+| `signal_chain_id` | `Mapped[uuid.UUID]` |
+| `position` | `Mapped[int]` |
+| `label` | `Mapped[str]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `shootout` | Shootout | chains | raise |
+| `signal_chain` | SignalChain |  | raise |
+| `segments` | AudioSegment | shootout_chain | raise |
+
+### AudioSegment (`audio_segments`)
+*File: shootout.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `shootout_chain_id` | `Mapped[uuid.UUID]` |
+| `file_path` | `Mapped[str]` |
+| `duration_seconds` | `Mapped[float]` |
+| `integrated_lufs` | `Mapped[float]` |
+| `peak_dbfs` | `Mapped[float]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `shootout_chain` | ShootoutChain | segments | raise |
+
+### ShootoutComment (`shootout_comments`)
+*File: shootout_comment.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `shootout_id` | `Mapped[uuid.UUID]` |
+| `user_id` | `Mapped[uuid.UUID]` |
+| `content` | `Mapped[str]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `shootout` | Shootout | comments | raise |
+| `user` | User |  | raise |
+
+### SignalChain (`signal_chains`)
+*File: signal_chain.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID]` |
+| `name` | `Mapped[str]` |
+| `description` | `Mapped[str | None]` |
+| `platform` | `Mapped[Platform]` |
+| `group_id` | `Mapped[uuid.UUID | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | signal_chains | raise |
+| `blocks` | SignalChainBlock | signal_chain | raise |
+| `group` | SignalChainGroup |  | raise |
+
+### SignalChainBlock (`signal_chain_blocks`)
+*File: signal_chain.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `signal_chain_id` | `Mapped[uuid.UUID]` |
+| `position` | `Mapped[int]` |
+| `user_gear_id` | `Mapped[uuid.UUID | None]` |
+| `gear_type` | `Mapped[GearType | None]` |
+| `block_type_id` | `Mapped[uuid.UUID | None]` |
+| `params` | `Mapped[dict[str, Any]]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `signal_chain` | SignalChain | blocks | raise |
+| `block_type` | BlockType | blocks | raise |
+| `presets` | Preset | signal_chain_block | raise |
+
+### SignalChainGroup (`signal_chain_groups`)
+*File: signal_chain.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID]` |
+| `name` | `Mapped[str]` |
+| `description` | `Mapped[str | None]` |
+| `base_chain_id` | `Mapped[uuid.UUID | None]` |
+| `slot_positions` | `Mapped[list[int]]` |
+| `gear_options` | `Mapped[dict[int, list[str]]]` |
+| `include_null` | `Mapped[bool]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | signal_chain_groups | raise |
+| `base_chain` | SignalChain |  | raise |
+
+### Tag (`user_tags`)
+*File: tag.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `name` | `Mapped[str]` |
+| `user_id` | `Mapped[UUID]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | tags | raise |
+
+### OAuthProvider (`oauth_providers`)
+*File: user.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `name` | `Mapped[str]` |
+| `client_id` | `Mapped[str | None]` |
+| `client_secret` | `Mapped[str | None]` |
+| `enabled` | `Mapped[bool]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `identities` | UserIdentity | provider | raise |
+
+### User (`users`)
+*File: user.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `username` | `Mapped[str]` |
+| `email` | `Mapped[str | None]` |
+| `avatar_url` | `Mapped[str | None]` |
+| `is_active` | `Mapped[bool]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `identities` | UserIdentity | user | raise |
+| `signal_chains` | SignalChain | user | raise |
+| `signal_chain_groups` | SignalChainGroup | user | raise |
+| `di_tracks` | DITrack | user | raise |
+| `shootouts` | Shootout | user | raise |
+| `jobs` | Job | user | raise |
+| `user_gear` | UserGear | user | raise |
+| `notifications` | UserNotification | user | raise |
+| `tags` | Tag | user | raise |
+
+### UserGear (`user_gear`)
+*File: user_gear.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID]` |
+| `gear_model_id` | `Mapped[uuid.UUID]` |
+| `nickname` | `Mapped[str | None]` |
+| `notes` | `Mapped[str | None]` |
+| `is_favourite` | `Mapped[bool]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | user_gear | raise |
+| `gear_model` | GearModel | user_gear | raise |
+
+### UserIdentity (`user_identities`)
+*File: user_identity.py*
+
+**Columns:**
+
+| Column | Type |
+|--------|------|
+| `user_id` | `Mapped[uuid.UUID]` |
+| `provider_id` | `Mapped[uuid.UUID]` |
+| `external_id` | `Mapped[str]` |
+| `username` | `Mapped[str]` |
+| `avatar_url` | `Mapped[str | None]` |
+
+**Relationships:**
+
+| Name | Target | back_populates | lazy |
+|------|--------|----------------|------|
+| `user` | User | identities | raise |
+| `provider` | OAuthProvider | identities | raise |
+
+
+### STRUCTURE
+
+# Codebase Structure
+
+*Auto-generated by `workflow/codebase_mapper.py` -- do not edit.*
+
+## Directory Tree
+
+```
+95-phase-4-completion-di-tracks-groups-shoo/  (20 files)
+  .claude/  (3 files)
+    agents/  (5 files)
+    archive/
+      2026-01-consolidation/  (1 files)
+        software-architecture/  (1 files)
+      2026-02-uv-workspace-migration/  (2 files)
+    commands/  (14 files)
+    hooks/  (11 files)
+    prompts/  (4 files)
+      completed/  (1 files)
+    rules/  (14 files)
+    scripts/  (1 files)
+    skills/
+      chrome-devtools/  (1 files)
+      codebase-review/  (1 files)
+        references/  (3 files)
+      docker-infra/  (1 files)
+        references/  (2 files)
+      documentation-style/  (1 files)
+      epic/  (1 files)
+        references/  (4 files)
+      gts-architecture/  (1 files)
+        references/  (13 files)
+      gts-auth/  (1 files)
+        references/  (4 files)
+      gts-backend-dev/  (1 files)
+      gts-frontend-dev/  (1 files)
+        references/  (6 files)
+      gts-security/  (1 files)
+        references/  (4 files)
+      gts-testing/  (1 files)
+        references/  (2 files)
+      gts-video/  (1 files)
+      incident-response/  (1 files)
+      micro-task-workflow/  (1 files)
+      prompt-builder/  (1 files)
+        references/  (1 files)
+      python-cheatsheet/  (1 files)
+      ralph-hybrid-overview/  (1 files)
+        references/  (1 files)
+      ralph-hybrid-plan/  (1 files)
+        references/  (4 files)
+      screenshot-eval/  (1 files)
+        resources/  (1 files)
+      site-verify/  (1 files)
+      ui-contract/  (1 files)
+      ui-debug/  (1 files)
+  .github/
+    ISSUE_TEMPLATE/  (2 files)
+  .planning/
+    codebase/  (12 files)
+    epics/
+      E95/  (7 files)
+        stories/
+          01-verification-wiring/  (5 files)
+          02-endpoint-smoke-tests/  (2 files)
+          03-regression-tests/  (4 files)
+    logs/  (30 files)
+  .ralph-hybrid/  (2 files)
+    callbacks/  (3 files)
+    main/  (6 files)
+      logs/  (21 files)
+    skills/  (4 files)
+  .scratch/  (2 files)
+  apps/
+    scheduler/  (2 files)
+      src/
+        scheduler/  (5 files)
+          schedules/  (3 files)
+    webapp/  (2 files)
+      src/
+        webapp/  (7 files)
+          adapters/  (1 files)
+            persistence/  (1 files)
+              models/  (18 files)
+              repositories/  (11 files)
+          api/  (2 files)
+            v1/  (18 files)
+              schemas/  (13 files)
+          auth/  (5 files)
+            providers/  (2 files)
+          config/  (1 files)
+          middleware/  (3 files)
+          services/  (18 files)
+    worker/  (2 files)
+      src/
+        worker/  (8 files)
+          consumers/  (2 files)
+          jobs/  (6 files)
+          services/  (2 files)
+  frontend/
+    astro/  (10 files)
+      .astro/  (4 files)
+        collections/
+      scripts/  (1 files)
+      src/
+        components/  (7 files)
+          RemotionPlayer/  (3 files)
+          SignalChain/  (18 files)
+          common/  (1 files)
+          ui/  (13 files)
+        hooks/  (1 files)
+        islands/  (1 files)
+        layouts/  (1 files)
+        lib/  (5 files)
+        pages/  (6 files)
+          dev/
+            showcase/  (3 files)
+          di-tracks/  (1 files)
+          fragments/  (2 files)
+            di-tracks/  (1 files)
+            gear/  (3 files)
+            library/  (11 files)
+            shootouts/  (5 files)
+              create/  (6 files)
+          gear/  (1 files)
+          jobs/  (1 files)
+          layouts/  (1 files)
+          pages/  (6 files)
+            di-tracks/  (1 files)
+            library/  (5 files)
+          partials/  (2 files)
+          report-error/  (1 files)
+        styles/  (1 files)
+        types/  (1 files)
+  infrastructure/
+    docker/  (7 files)
+    migrations/  (4 files)
+      versions/  (11 files)
+    nginx/  (1 files)
+      error-pages/  (3 files)
+  libs/
+    audio/  (2 files)
+      src/
+        audio/  (1 files)
+          analysis/  (2 files)
+          processing/  (7 files)
+    core/  (2 files)
+      src/
+        core/  (1 files)
+          domain/  (1 files)
+            entities/  (11 files)
+            value_objects/  (17 files)
+          ports/  (5 files)
+          records/  (2 files)
+          services/  (3 files)
+    video/  (8 files)
+      src/
+        video/  (7 files)
+          remotion/  (3 files)
+            compositions/  (5 files)
+  scripts/  (22 files)
+    schemas/  (4 files)
+  sources/
+    t3k/  (3 files)
+      alembic/  (2 files)
+        versions/  (2 files)
+      src/
+        source_t3k/  (1 files)
+          adapters/  (1 files)
+            inbound/  (6 files)
+            outbound/  (3 files)
+          domain/  (3 files)
+          services/  (3 files)
+  src/
+    gts/  (1 files)
+  tests/  (2 files)
+    e2e/  (1 files)
+      python/  (4 files)
+        tests/  (8 files)
+      smoke/  (1 files)
+    fixtures/  (1 files)
+    integration/  (1 files)
+      audio/  (5 files)
+      backend/
+        frontend/  (4 files)
+        migrations/  (1 files)
+        models/  (1 files)
+        tooling/  (4 files)
+        webapp/  (1 files)
+      infrastructure/  (1 files)
+      scheduler/  (2 files)
+      t3k/  (3 files)
+      video/  (4 files)
+      webapp/  (68 files)
+        repositories/  (4 files)
+      worker/  (11 files)
+    regression/  (5 files)
+    unit/  (2 files)
+      audio/  (4 files)
+      backend/
+        core/
+          ports/  (2 files)
+          value_objects/  (2 files)
+        docs/  (2 files)
+        documentation/  (5 files)
+        domain/  (1 files)
+        migrations/  (1 files)
+        models/  (2 files)
+        services/  (5 files)
+      core/  (7 files)
+        services/  (1 files)
+      frontend/  (3 files)
+      scheduler/  (6 files)
+      t3k/  (12 files)
+      video/  (7 files)
+      webapp/  (37 files)
+        services/  (1 files)
+      worker/  (12 files)
+      worktree/  (5 files)
+  workflow/  (1 files)
+  worktree/  (16 files)
+    cli_utils/  (5 files)
+    commands/  (11 files)
+    hooks/  (2 files)
+    services/  (1 files)
+    templates/  (2 files)
+    tests/  (2 files)
+```
+
 
 ---
 
-## PedalboardAudioProcessor
-
-**File:** `processing/processor.py`
-
-Main audio processor implementing the `AudioProcessor` protocol from `libs/core/ports/`.
-
-### Supported Formats
-
-WAV, FLAC, OGG, MP3
-
-### Public Methods
-
-```python
-class PedalboardAudioProcessor:
-    def get_supported_formats(self) -> list[str]
-    def is_format_supported(self, format_ext: str) -> bool
-    async def extract_waveform(self, audio_path: Path, num_peaks: int = 200) -> WaveformData
-    async def measure_loudness(self, audio_path: Path) -> tuple[float, float]
-    async def normalize_loudness(self, input_path: Path, output_path: Path, target_lufs: float = -14.0) -> AudioResult
-    async def process_di_track(self, input_path: Path, output_path: Path, config: ToneConfig) -> AudioResult
-```
-
-### Processing Pipeline
-
-`process_di_track()` executes the following steps:
-
-```
-1. Load DI audio file
-   ↓ (stereo converted to mono by averaging)
-2. Resample if needed
-   ↓ (match config sample rate)
-3. Apply highpass filter (optional)
-   ↓ (Pedalboard HighpassFilter)
-4. Apply NAM model
-   ↓ (sample-by-sample PyTorch inference)
-5. Apply IR convolution (optional)
-   ↓ (Pedalboard Convolution)
-6. Normalize loudness
-   ↓ (EBU R128 to target LUFS)
-7. Write output file
-```
-
-### Return Value
-
-```python
-AudioResult(
-    duration=float,        # seconds
-    sample_rate=int,       # Hz
-    peak_dbfs=float,       # dBFS
-    integrated_lufs=float, # LUFS
-    processing_time=float, # seconds
-)
-```
-
----
-
-## NAM Model Loading
-
-**File:** `processing/nam_loader.py`
-
-Loads Neural Amp Modeler models with LRU caching for repeated use.
-
-### Function
-
-```python
-def load_nam_model(model_path: Path) -> tuple[torch.nn.Module, int]
-```
-
-Returns `(model, sample_rate)`. Default sample rate: 48,000 Hz.
-
-### Implementation
-
-- Checkpoint format: Dictionary with `model` (state dict) and optional `sample_rate`
-- Uses `torch.load(..., weights_only=False)`
-- Model set to evaluation mode after loading
-- Cache key: file path (via `functools.lru_cache`)
-
-### Cache Configuration
-
-| Setting | Value |
-|---------|-------|
-| Cache size | 10 models |
-| Cache key | File path |
-
-### Error Handling
-
-```python
-class NAMLoadError(Exception):
-    """Raised for missing files, invalid formats, or loading failures."""
-```
-
----
-
-## IR Loading
-
-**File:** `processing/ir_loader.py`
-
-Loads impulse response files for cabinet convolution.
-
-### Function
-
-```python
-def load_ir(path: str | Path) -> Convolution
-```
-
-Returns a Pedalboard `Convolution` effect object.
-
-### Supported Formats
-
-| Format | Magic Bytes |
-|--------|-------------|
-| WAV | RIFF header + WAVE signature |
-| FLAC | fLaC header |
-
-### Validation Steps
-
-1. Check file exists
-2. Validate format via magic bytes
-3. For WAV: additional validation via `wave` module
-4. Check file is non-empty
-5. Load into Pedalboard `Convolution`
-
-### Error Handling
-
-```python
-class IRLoadError(Exception):
-    """Raised for missing files, invalid formats, or corruption."""
-```
-
----
-
-## Loudness Processing
-
-**File:** `processing/loudness.py`
-
-EBU R128 standard loudness measurement and normalization using PyLoudnorm.
-
-### Functions
-
-```python
-def measure_loudness(audio_path: Path) -> tuple[float, float]
-    """Returns (integrated_lufs, peak_dbfs)."""
-
-def normalize_loudness(
-    input_path: Path,
-    output_path: Path,
-    target_lufs: float = -14.0
-) -> tuple[float, float]
-    """Normalizes to target LUFS. Returns (result_lufs, result_peak_dbfs)."""
-```
-
-### Default Target
-
--14.0 LUFS (broadcast/streaming standard)
-
-### Silent Audio Detection
-
-Audio with peak < 1e-6 is rejected. Silent input indicates a problem (missing model output, corrupt DI track).
-
-### Error Handling
-
-```python
-class LoudnessError(Exception):
-    """Raised for silent audio or measurement failures."""
-```
-
----
-
-## Signal Chain Execution
-
-**File:** `processing/chain_executor.py`
-
-Sequential block-by-block signal chain execution with constraint validation.
-
-### Function
-
-```python
-async def execute_signal_chain(
-    chain: SignalChain,
-    di_audio: np.ndarray,
-    sample_rate: int,
-    gear_path_resolver: Callable[[UUID], Path]
-) -> np.ndarray
-```
-
-### Processing Logic
-
-1. Validate chain is not empty
-2. Sort blocks by position (enforces execution order)
-3. Validate chain constraints
-4. Process each block sequentially
-
-### Supported Gear Types
-
-| Gear Type | Processing |
-|-----------|------------|
-| `AMP`, `FULL_RIG`, `PEDAL`, `POST_EFFECT` | NAM model |
-| `IR` | Convolution |
-
-### Chain Constraints
-
-| Rule | Constraint |
-|------|------------|
-| FULL_RIG | Cannot combine with IR (cabinet baked in) |
-| HEAD (AMP) | Requires IR block for cabinet simulation |
-
-### Error Handling
-
-```python
-class ChainExecutionError(Exception):
-    """Raised for invalid chains or processing failures."""
-```
-
----
-
-## Permutation Processing
-
-**File:** `processing/permutation.py`
-
-Expands signal chain groups into all valid permutations.
-
-### Functions
-
-```python
-def expand_signal_chain_group(group: SignalChainGroup) -> list[dict[int, UUID | None]]
-    """Returns list of permutations. Each: slot position → gear ID or None."""
-
-def generate_permutation_labels(
-    permutations: list[dict[int, UUID | None]],
-    gear_names: dict[UUID, str],
-    null_label: str = "None"
-) -> list[str]
-    """Creates human-readable labels for each permutation."""
-```
-
-### Permutation Limits
-
-| Constraint | Value |
-|------------|-------|
-| Max permutations | 27 |
-| Max options per block | 3 |
-
-### Null Gear
-
-`None` in a slot means "no gear in this position". Enables A/B comparison with/without an effect.
-
-Amps and IRs cannot be null - they're required chain components.
-
-### Error Handling
-
-```python
-class PermutationError(Exception):
-    """Raised for invalid config or exceeded limits."""
-```
-
----
-
-## Waveform Extraction
-
-**File:** `analysis/waveform.py`
-
-Extracts waveform visualization data for UI display.
-
-### Function
-
-```python
-def extract_waveform(
-    audio_path: Path,
-    num_peaks: int = 200
-) -> WaveformData
-```
-
-### Return Value
-
-```python
-WaveformData(
-    peaks=tuple[float, ...],  # Peak values, normalized [-1.0, 1.0]
-    sample_rate=int,
-    duration_seconds=float,
-    samples_per_peak=int,
-)
-```
-
-### Algorithm
-
-1. Load audio (stereo → mono by averaging)
-2. Divide into segments (one per peak)
-3. For each segment: find max absolute value, preserve sign
-4. Normalize to [-1.0, 1.0]
-
----
-
-## Integration
-
-### Port/Adapter Pattern
-
-`PedalboardAudioProcessor` implements `AudioProcessor` protocol defined in `libs/core/ports/audio_processor.py`.
-
-### Domain Types
-
-Imports from `libs/core`:
-- `AudioResult` - Processing result
-- `ToneConfig` - Processing configuration
-- `WaveformData` - Visualization data
-- `SignalChain` - Chain definition
-- `GearType` - Gear type enum
-
-### Usage Example
-
-```python
-from audio.processing.processor import PedalboardAudioProcessor
-from core.domain.value_objects import ToneConfig
-
-processor = PedalboardAudioProcessor()
-
-# Process a DI track
-result = await processor.process_di_track(
-    input_path=Path("/app/storage/uploads/di_tracks/123.wav"),
-    output_path=Path("/app/storage/audio/456.wav"),
-    config=ToneConfig(
-        nam_model_path="/app/storage/models/amp.nam",
-        ir_path="/app/storage/models/cab.wav",
-        sample_rate=48000,
-        highpass_freq=80.0,
-        target_lufs=-14.0,
-    ),
-)
-
-print(f"Duration: {result.duration}s, LUFS: {result.integrated_lufs}")
-```
-
----
-
-## Error Hierarchy
-
-| Exception | Module | Cause |
-|-----------|--------|-------|
-| `NAMLoadError` | nam_loader | Missing/invalid NAM file |
-| `IRLoadError` | ir_loader | Missing/invalid IR file |
-| `LoudnessError` | loudness | Silent audio or measurement failure |
-| `ChainExecutionError` | chain_executor | Invalid chain or processing failure |
-| `PermutationError` | permutation | Invalid config or exceeded limits |
-| `ProcessingError` | processor | Wrapped exception for any failure |
-
----
-
-## File Formats
-
-### Input
-
-| Type | Formats | Constraints |
-|------|---------|-------------|
-| DI Track | WAV, FLAC, OGG, MP3 | Any sample rate (resampled) |
-| NAM Model | `.nam` | PyTorch checkpoint |
-| IR | WAV, FLAC | Mono, ≤2 seconds |
-
-### Output
-
-| Type | Format | Settings |
-|------|--------|----------|
-| Audio segment | WAV | 48 kHz, 16-bit PCM |
-
----
-
-## References
-
-- [[GTS-Technical-Architecture]] - Architecture overview
-- `libs/core/ports/audio_processor.py` - Protocol definition
-- `libs/core/domain/value_objects/` - Domain types
+## Scope Discussion Questions
+
+These questions should be addressed during scope discussion to reduce ambiguity:
+
+### API Contract
+
+- REST endpoint path? (/api/v1/...)
+- HTML endpoint path? (/api/v1/html/...)
+- Pydantic request/response schemas?
+- Validation error format?
+- Pagination approach (offset or cursor)?
+
+### Audio Processing
+
+- Does this involve audio processing?
+- NAM model loading?
+- IR convolution?
+- Loudness normalization?
+- libs/audio or apps/worker?
+
+### Data Model
+
+- What's the primary entity?
+- What fields are required vs optional?
+- What's the status/lifecycle?
+- Relations to existing tables in gts_core?
+- Indexes or constraints needed?
+- Soft delete or hard delete?
+
+### Dual Database
+
+- Which database is this for? (gts_core or gts_t3k_source)
+- If source data, is worker the access point?
+- pgmq messages involved?
+- Sync records needed?
+- Cross-database implications?
+
+### Frontend Layers
+
+- Is this a static page (Astro SSG)?
+- Is this a dynamic page (Jinja2 SSR)?
+- Does it need HTMX fragments?
+- Is it the SignalChainBuilder (React)?
+- Design tokens from Astro CSS?
+
+### Gear Model
+
+- Does this feature involve gear?
+- Unified Gear model or source-specific?
+- GearModel files involved? (NAM, IR)
+- Source attribution needed?
+- User-uploaded (community) or synced from source?
+- UserGear library implications?
+
+### Jobs/Queues
+
+- Does this trigger background jobs?
+- TaskIQ job or pgmq consumer?
+- Parent/child job hierarchy? (like SHOOTOUT)
+- Retry strategy and max attempts?
+- Progress reporting (WebSocket for user jobs)?
+- Redis locks needed?
+
+### Security
+
+- Does endpoint require authentication?
+- CurrentUser dependency?
+- Ownership check (user_id match)?
+- Return 404 for unauthorised (not 403)?
+- Rate limiting?
+
+### Signal Chain
+
+- Does this feature involve signal chains?
+- Which block types are affected? (amp, IR, pedal, built-in)
+- HEAD vs FULL_RIG considerations? (IR required vs forbidden)
+- Loop effects allowed? (not with FULL_RIG)
+- Block ordering constraints?
+- Permutation support needed? (SignalChainGroup)
