@@ -44,6 +44,81 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 # ---------------------------------------------------------------------------
+# Pipeline helpers
+# ---------------------------------------------------------------------------
+
+
+def _should_skip(artefact_path: Path, label: str) -> bool:
+    """Prompt the user to skip a step if its output artefact already exists.
+
+    Returns True if the user wants to skip, False to re-run.
+    """
+    if not artefact_path.exists():
+        return False
+
+    skip = typer.confirm(
+        f"{label} already exists at {artefact_path.name}. Skip?",
+        default=True,
+    )
+    return skip
+
+
+def _run_pipeline(epic_number: int) -> None:
+    """Run Steps 1-3 of the epic pipeline: ingest, context, scope."""
+    from workflow.context_assembler import AssemblyError, assemble_context
+    from workflow.epic_ingest import IngestionError, ingest_epic
+    from workflow.scope_discussion import ScopeDiscussionError, run_scope_discussion
+
+    epic_dir = PROJECT_ROOT / ".planning" / "epics" / f"E{epic_number}"
+
+    # Step 1: Ingestion
+    epic_md_path = epic_dir / "EPIC.md"
+    if _should_skip(epic_md_path, "EPIC.md"):
+        console.print("[dim]Step 1: Ingestion — skipped[/dim]")
+    else:
+        console.print(f"[bold]Step 1:[/bold] Ingesting epic #{epic_number}...")
+        try:
+            path = ingest_epic(epic_number)
+            console.print(f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)}")
+        except IngestionError as exc:
+            console.print(f"  [red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    # Step 2: Context Assembly
+    context_path = epic_dir / "CONTEXT.md"
+    if _should_skip(context_path, "CONTEXT.md"):
+        console.print("[dim]Step 2: Context Assembly — skipped[/dim]")
+    else:
+        console.print("[bold]Step 2:[/bold] Assembling context...")
+        try:
+            path = assemble_context(epic_dir, PROJECT_ROOT)
+            size = path.stat().st_size
+            console.print(
+                f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)} "
+                f"({size:,d} bytes, ~{size // 4:,d} tokens)"
+            )
+        except AssemblyError as exc:
+            console.print(f"  [red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    # Step 3: Scope Discussion
+    decisions_path = epic_dir / "user-decisions.json"
+    if _should_skip(decisions_path, "user-decisions.json"):
+        console.print("[dim]Step 3: Scope Discussion — skipped[/dim]")
+    else:
+        console.print("[bold]Step 3:[/bold] Scope discussion...")
+        try:
+            decisions = run_scope_discussion(epic_dir)
+            console.print(f"  [green]{len(decisions)} decisions recorded.[/green]")
+        except ScopeDiscussionError as exc:
+            console.print(f"  [red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    console.print()
+    console.print("[green]Steps 1-3 complete.[/green] Plan generation not yet implemented.")
+
+
+# ---------------------------------------------------------------------------
 # Epic commands
 # ---------------------------------------------------------------------------
 
@@ -58,8 +133,7 @@ def epic_callback(
         return
     if epic_number is None:
         raise typer.BadParameter("Epic number is required. Usage: ./wf epic N")
-    console.print(f"[yellow]Epic {epic_number} full pipeline — not yet implemented.[/yellow]")
-    raise typer.Exit(1)
+    _run_pipeline(epic_number)
 
 
 @epic_app.command("status")

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "user-decisions.schema.json",
+  "title": "User Decisions",
+  "description": "Scope discussion decisions: question string to answer string pairs.",
+  "type": "object",
+  "additionalProperties": {
+    "type": "string"
+  }
+}
