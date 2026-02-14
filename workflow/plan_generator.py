@@ -438,13 +438,22 @@ def _parse_structured_plan(result) -> Plan:
     data = None
 
     if result.structured_output and isinstance(result.structured_output, dict):
-        # The envelope's "result" field contains the JSON string
-        result_field = result.structured_output.get("result")
-        if isinstance(result_field, str):
+        # Check structured_output envelope field first (--json-schema output)
+        so_field = result.structured_output.get("structured_output")
+        if isinstance(so_field, dict):
+            data = so_field
+        elif isinstance(so_field, str):
             with contextlib.suppress(json.JSONDecodeError):
-                data = json.loads(result_field)
-        elif isinstance(result_field, dict):
-            data = result_field
+                data = json.loads(so_field)
+
+        # Then check the "result" field
+        if data is None:
+            result_field = result.structured_output.get("result")
+            if isinstance(result_field, str):
+                with contextlib.suppress(json.JSONDecodeError):
+                    data = json.loads(result_field)
+            elif isinstance(result_field, dict):
+                data = result_field
 
     # Fallback: try parsing the output text directly
     if data is None and result.output:
