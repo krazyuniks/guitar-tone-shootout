@@ -111,8 +111,8 @@ class ClaudeAdapter:
             "--dangerously-skip-permissions",
         ]
 
-        if tools:
-            args.extend(["--tools", ",".join(tools)])
+        # --tools "" disables all tools; comma-separated list restricts to named tools
+        args.extend(["--tools", ",".join(tools)])
 
         if mcp_config:
             mcp_json = json.dumps({"mcpServers": mcp_config})
