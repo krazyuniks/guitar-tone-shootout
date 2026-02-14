@@ -1,12 +1,12 @@
 """Typer CLI for the epic workflow pipeline.
 
 Provides subcommand routing for:
-  ./wf epic N              — Full pipeline (Steps 1-7: ingest -> plan -> verify -> commit)
-  ./wf epic status N       — Show progress from JSONL logs
+  ./wf epic run N           — Full pipeline (Stages 1-4: ingest -> plan -> verify -> execute)
+  ./wf epic status N        — Show progress from JSONL logs
   ./wf epic validate-plan N — Run Phase A deterministic validation only (read-only)
-  ./wf map codebase        — Regenerate .planning/codebase/ files
-  ./wf map wiki            — Regenerate .planning/wiki-indexes/
-  ./wf map all             — Both of the above
+  ./wf map codebase         — Regenerate .planning/codebase/ files
+  ./wf map wiki             — Regenerate .planning/wiki-indexes/
+  ./wf map all              — Both of the above
 """
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ epic_app = typer.Typer(
     name="epic",
     help="Epic pipeline commands.",
     no_args_is_help=True,
-    invoke_without_command=True,
 )
 
 map_app = typer.Typer(
@@ -82,8 +81,12 @@ def _load_decisions(epic_dir: Path) -> dict:
     return json.loads(decisions_path.read_text(encoding="utf-8"))
 
 
-def _run_pipeline(epic_number: int) -> None:
-    """Run Steps 1-7 of the epic pipeline: ingest -> commit+push."""
+def _run_planning_pipeline(epic_number: int) -> None:
+    """Run Steps 1-7 of the planning pipeline: ingest -> commit+push.
+
+    This is the Stage 3 planning pipeline. Called by the orchestrator's
+    run_pipeline() which then continues to Stage 4 execution.
+    """
     import logging
     import uuid
 
@@ -104,11 +107,9 @@ def _run_pipeline(epic_number: int) -> None:
 
     epic_dir = PROJECT_ROOT / ".planning" / "epics" / f"E{epic_number}"
 
-    # Check for already-committed plan — skip directly to Stage 4
+    # Check for already-committed plan — caller handles Stage 4
     if _check_plan_committed(epic_dir):
-        console.print(
-            "[green]Plan already committed.[/green] " "Stage 4 execution not yet implemented."
-        )
+        console.print("[green]Plan already committed.[/green]")
         return
 
     # Set up JSONL logging for planning events
@@ -303,7 +304,7 @@ def _run_pipeline(epic_number: int) -> None:
     epic_logger.log_event("plan_committed", epic=epic_number, commit=commit_hash)
 
     console.print()
-    console.print("[green]Stage 3 complete.[/green] " "Stage 4 execution not yet implemented.")
+    console.print("[green]Stage 3 complete.[/green] Plan committed.")
 
 
 # ---------------------------------------------------------------------------
@@ -311,17 +312,17 @@ def _run_pipeline(epic_number: int) -> None:
 # ---------------------------------------------------------------------------
 
 
-@epic_app.callback(invoke_without_command=True)
-def epic_callback(
-    ctx: typer.Context,
-    epic_number: int = typer.Argument(None, help="Epic number to run the full pipeline for."),
+@epic_app.command("run")
+def epic_run(
+    epic_number: int = typer.Argument(..., help="Epic number to run the full pipeline for."),
 ) -> None:
-    """Run the full epic pipeline, or use a subcommand."""
-    if ctx.invoked_subcommand is not None:
-        return
-    if epic_number is None:
-        raise typer.BadParameter("Epic number is required. Usage: ./wf epic N")
-    _run_pipeline(epic_number)
+    """Run the full epic pipeline: ingest -> plan -> verify -> gate -> execute."""
+    import logging
+
+    from workflow.orchestrator import run_pipeline
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    run_pipeline(epic_number)
 
 
 @epic_app.command("status")
@@ -329,8 +330,9 @@ def epic_status(
     epic_number: int = typer.Argument(..., help="Epic number to check status for."),
 ) -> None:
     """Show epic progress from JSONL logs (read-only)."""
-    console.print(f"[yellow]Epic {epic_number} status — not yet implemented.[/yellow]")
-    raise typer.Exit(1)
+    from workflow.orchestrator import show_status
+
+    show_status(epic_number)
 
 
 @epic_app.command("validate-plan")

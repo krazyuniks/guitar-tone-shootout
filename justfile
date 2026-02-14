@@ -413,33 +413,29 @@ mock-check +FILES:
     python scripts/test_quality_check.py --strict {{FILES}}
 
 # =============================================================================
-# Epic Workflow V2 — Behavioural Validation
+# Epic Workflow V3 — Behavioural Validation
 # =============================================================================
 
-# Fetch a GitHub epic locally
-epic-ingest epic_num:
-    python -m scripts.epic_ingest {{epic_num}}
-
-# Run the full planning pipeline (context → scope → plan → verify → gate)
-epic-plan epic_num:
-    python -m scripts.orchestrator plan {{epic_num}}
-
-# Start epic execution (dispatches stories sequentially)
-epic-start epic_num:
-    python -m scripts.orchestrator run {{epic_num}}
-
-# Resume a crashed/interrupted epic execution
-epic-resume epic_num:
-    python -m scripts.orchestrator run {{epic_num}} --resume
-
-# Resume a crashed/interrupted planning phase
-epic-plan-resume epic_num:
-    python -m scripts.orchestrator plan {{epic_num}} --resume
+# Full epic pipeline: ingest -> plan -> verify -> gate -> execute
+epic epic_num:
+    ./wf epic run {{epic_num}}
 
 # Show epic status from JSONL logs
 epic-status epic_num:
-    python -m scripts.orchestrator status {{epic_num}}
+    ./wf epic status {{epic_num}}
 
 # Validate plan.json against schema (Phase A only)
 epic-validate-plan epic_num:
-    python -m scripts.plan_validator {{epic_num}}
+    ./wf epic validate-plan {{epic_num}}
+
+# Regenerate .planning/codebase/ files
+map-codebase:
+    ./wf map codebase
+
+# Regenerate .planning/wiki-indexes/
+index-wiki:
+    ./wf map wiki
+
+# Regenerate both codebase and wiki maps
+map-context:
+    ./wf map all
