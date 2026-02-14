@@ -1,17 +1,17 @@
-"""V2 plan generation — single Opus invocation.
+"""V2 plan generation — single Opus invocation with structured output.
 
-Reads CONTEXT.md (from Step 6), appends locked scope decisions, constructs
-the planner prompt, dispatches via dispatch_agent(), and parses the output
-into PLAN.md and plan.json.  This single Opus invocation replaces the V1
-pipeline of 3 separate AI invocations (context-loader, gray-area-analyst,
-goal-backward + task-breakdown).
+Reads CONTEXT.md (from context assembly), constructs the planner prompt,
+dispatches via dispatch_agent() with --json-schema, and parses the output
+into plan.json via Pydantic. PLAN.md is rendered deterministically from
+the model.
 
 Reference: Research doc Section 8.4 Decisions 1, 3, 4, 5, 6, 7.
 
 Usage:
-    python -m workflow.plan_generator <epic_number> [--decisions decisions.json]
+    python -m workflow.plan_generator <epic_number>
 """
 
+import contextlib
 import json
 import logging
 import re
@@ -22,34 +22,17 @@ from workflow.dispatch import (
     BUDGET_DEFAULTS,
     FALLBACK_MODELS,
     dispatch_with_fallback,
-    get_tools_for_role,
 )
+from workflow.models import Plan, render_plan_md
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
-SCHEMAS_DIR = PROJECT_ROOT / "workflow" / "schemas"
-TEMPLATES_DIR = PROJECT_ROOT / "workflow" / "templates"
 
 logger = logging.getLogger(__name__)
 
 
 class PlanGenerationError(Exception):
     """Raised when plan generation fails."""
-
-
-# ---------------------------------------------------------------------------
-# Plan schema loader
-# ---------------------------------------------------------------------------
-
-
-def _load_plan_schema() -> dict:
-    """Load the plan.json JSON Schema for inclusion in the planner prompt."""
-    schema_path = SCHEMAS_DIR / "plan.schema.json"
-    if not schema_path.is_file():
-        raise PlanGenerationError(
-            f"Plan schema not found at {schema_path}. " "Ensure Step 1 schemas are in place."
-        )
-    return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -74,36 +57,6 @@ def _read_epic_number(epic_dir: Path) -> int:
     if match:
         return int(match.group(1))
     raise PlanGenerationError(f"Cannot extract epic number from directory name: {epic_dir.name}")
-
-
-# ---------------------------------------------------------------------------
-# Decision formatting
-# ---------------------------------------------------------------------------
-
-
-def _format_decisions(decisions: dict) -> str:
-    """Format locked scope decisions for injection into the planner prompt.
-
-    Decisions are a dict of question -> answer pairs from the interactive
-    Phase 2 scope discussion.  They are appended to the context so the
-    planner can incorporate them.
-    """
-    if not decisions:
-        return ""
-
-    lines = [
-        "## Locked Scope Decisions",
-        "",
-        "The following decisions were confirmed during the interactive scope discussion. "
-        "Treat them as hard constraints when generating the plan.",
-        "",
-    ]
-    for question, answer in decisions.items():
-        lines.append(f"**Q:** {question}")
-        lines.append(f"**A:** {answer}")
-        lines.append("")
-
-    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -192,30 +145,13 @@ Budget defaults (starting points):
 
 def _build_planner_prompt(
     context: str,
-    decisions_text: str,
-    plan_schema: dict,
     epic_number: int,
 ) -> str:
     """Construct the Opus planner prompt.
 
-    The prompt instructs Opus to:
-    1. Perform goal-backward analysis (truths -> artefacts -> stories)
-    2. Produce user journeys with critical_transitions
-    3. Write PLAN.md in narrative structure
-    4. Emit plan.json conforming to the JSON Schema
-    5. Specify full agent config per story
-    6. Include state_assumption per story
-    7. Place validation checkpoints strategically
-    8. Specify wiki_sections per story for Stage 4 prompt builder
-
-    NOTE: The planner prompt can alternatively be loaded from
-    workflow/templates/planner.md (not yet implemented). When the
-    template file exists, it will use {context}, {decisions_text},
-    {schema_json}, {epic_number} as format placeholders plus the
-    various guidance constants.
+    The prompt instructs Opus to produce a plan.json structure only.
+    PLAN.md is rendered deterministically from the validated model.
     """
-    schema_json = json.dumps(plan_schema, indent=2)
-
     prompt = f"""\
 # Task: Generate Epic Plan
 
@@ -223,26 +159,20 @@ You are the planner for the GTS (Guitar Tone Shootout) project. Your job is to
 produce a complete plan for epic #{epic_number} that will be executed by AI agents
 under an automated orchestrator.
 
-You must produce TWO outputs:
-1. **PLAN.md** — a human-readable narrative plan (for review at the Decision Gate)
-2. **plan.json** — a machine-readable plan conforming to the JSON Schema below
-
-Both must contain the same information. The orchestrator parses ONLY plan.json.
-PLAN.md is for human reviewers.
+You must produce a JSON object conforming to the structure enforced by --json-schema.
+The orchestrator parses this JSON directly. A separate process renders PLAN.md from
+the JSON, so you do NOT produce PLAN.md.
 
 ---
 
 ## Input Context
 
 The following is the assembled context for this epic, including the epic description
-from GitHub, codebase architecture, detected architecture areas, and locked scope
-decisions.
+from GitHub and codebase architecture.
 
 <context>
 {context}
 </context>
-
-{decisions_text}
 
 ---
 
@@ -327,105 +257,22 @@ correct fields for the check type:
 
 ---
 
-## Output Format
+## Output
 
-### Output 1: PLAN.md
+Produce a single JSON object. The structure is enforced by --json-schema.
 
-Write the plan in this exact structure:
+Key fields:
+- `schema_v`: always 1
+- `epic_number`: {epic_number}
+- `goal`: outcome-shaped goal statement
+- `observable_truths`: array of {{id, statement}}
+- `user_journeys`: array with journey_id (pattern "J1", "J2", ...), persona,
+  narrative, truths_covered, entry_point, critical_transitions
+- `stories`: ordered array with story_id (pattern "01-name"), name, purpose,
+  agent config, scope, implementation_notes, truths_addressed, wiki_sections
+- `validation_checkpoints`: array with after_story, check_type, checks
 
-```
-# Plan: {{Epic Title}}
-
-## Goal
-
-{{Outcome-shaped goal statement from goal-backward analysis}}
-
-## Observable Truths
-
-1. {{Truth 1 — user perspective, verifiable by a human}}
-2. {{Truth 2}}
-...
-
-## User Journeys
-
-### Journey 1: {{Persona}} — {{Summary}}
-
-{{Narrative: connected end-to-end walkthrough in plain English, present tense.
-Covers happy path from entry point through all critical transitions.}}
-
-**Truths covered:** 1, 2, 3
-**Entry point:** /path
-**Critical transitions:**
-- {{from}} -> {{to}} ({{mechanism}})
-
-## Stories
-
-### Story 1: {{Name}}
-
-**Purpose:** {{What this story delivers — 1-2 sentences}}
-
-**Agent:**
-- model: {{sonnet|opus|haiku}}
-- skills: [{{skill1}}, {{skill2}}]
-- tools: [Read, Edit, Write, Bash, Glob, Grep]
-- mcp: {{[] or [chrome-devtools] or [playwright]}}
-- max_turns: {{number}}
-- max_budget_usd: {{number}}
-
-**Scope:**
-- Create: `{{path/to/new/file.py}}`
-- Modify: `{{path/to/existing/file.py}}`
-
-**Wiki Sections:** {{list of wiki section names for targeted context loading}}
-
-**Implementation Notes:**
-- {{Domain-specific hint}}
-
-**Truths Addressed:** {{1, 2}}
-
----
-
-### Validation Checkpoint: After {{Story Name}}
-
-**Type:** {{check_type}}
-**Checks:**
-- {{criterion}} (evidence: {{field1}}, {{field2}})
-
----
-
-## Artefact Summary
-
-| Truth | Key Artefacts | Story |
-|-------|---------------|-------|
-| Truth 1 | {{artefacts}} | Story 1 |
-```
-
-### Output 2: plan.json
-
-Emit a valid JSON object conforming to this schema. The schema is a HARD CONSTRAINT.
-Every required field must be present with the correct type. Each story object MUST
-include a `wiki_sections` array listing the wiki section header names that the
-Stage 4 prompt builder should load into the story's agent prompt.
-
-<schema>
-{schema_json}
-</schema>
-
----
-
-## Output Delimiters
-
-Emit the two outputs separated by these exact delimiters:
-
-```
-===PLAN_MD_START===
-(PLAN.md content here)
-===PLAN_MD_END===
-
-===PLAN_JSON_START===
-(plan.json content here — valid JSON, no markdown fences)
-===PLAN_JSON_END===
-```
+The `from` field in critical_transitions uses the JSON key "from" (not "from_").
 
 ---
 
@@ -450,125 +297,7 @@ Emit the two outputs separated by these exact delimiters:
 
 
 # ---------------------------------------------------------------------------
-# Output parsing
-# ---------------------------------------------------------------------------
-
-
-def _extract_delimited(output: str, start_marker: str, end_marker: str) -> str | None:
-    """Extract content between two delimiter markers."""
-    start_idx = output.find(start_marker)
-    if start_idx == -1:
-        return None
-    start_idx += len(start_marker)
-    end_idx = output.find(end_marker, start_idx)
-    if end_idx == -1:
-        return None
-    return output[start_idx:end_idx].strip()
-
-
-def _parse_plan_output(output: str) -> tuple[str, dict]:
-    """Parse the planner's output into PLAN.md content and plan.json dict.
-
-    The planner is instructed to emit output with delimiters:
-    ===PLAN_MD_START=== ... ===PLAN_MD_END===
-    ===PLAN_JSON_START=== ... ===PLAN_JSON_END===
-
-    If delimiters are missing, fall back to heuristic extraction.
-
-    Returns:
-        Tuple of (plan_md_content, plan_json_dict).
-
-    Raises:
-        PlanGenerationError: If output cannot be parsed.
-    """
-    # Try delimiter-based extraction first
-    plan_md = _extract_delimited(output, "===PLAN_MD_START===", "===PLAN_MD_END===")
-    plan_json_str = _extract_delimited(output, "===PLAN_JSON_START===", "===PLAN_JSON_END===")
-
-    # If delimiters worked, parse the JSON
-    if plan_md and plan_json_str:
-        try:
-            plan_json = json.loads(plan_json_str)
-            return plan_md, plan_json
-        except json.JSONDecodeError as exc:
-            raise PlanGenerationError(
-                f"plan.json content between delimiters is not valid JSON: {exc}"
-            ) from exc
-
-    # Fallback: try to find JSON block in the output
-    # Look for the largest JSON object in the output
-    plan_json = _extract_json_fallback(output)
-    if plan_json is None:
-        raise PlanGenerationError(
-            "Could not extract plan.json from planner output. "
-            "Expected ===PLAN_JSON_START=== / ===PLAN_JSON_END=== delimiters "
-            "or a JSON object containing 'schema_v' and 'stories'."
-        )
-
-    # For PLAN.md, if delimiters missing, use everything before the JSON block
-    if plan_md is None:
-        plan_md = _extract_plan_md_fallback(output)
-
-    return plan_md, plan_json
-
-
-def _extract_json_fallback(output: str) -> dict | None:
-    """Attempt to extract a plan.json object from unstructured output.
-
-    Searches for JSON objects that contain the expected plan fields
-    (schema_v, stories). Returns the first valid match.
-    """
-    # Find all potential JSON objects (starting with { at various positions)
-    # Try progressively from the end (the JSON is likely emitted last)
-    candidates = []
-    for match in re.finditer(r"\{", output):
-        start = match.start()
-        # Try to find the matching closing brace by attempting JSON parse
-        # Starting from longer substrings
-        depth = 0
-        for i in range(start, len(output)):
-            if output[i] == "{":
-                depth += 1
-            elif output[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    candidate = output[start : i + 1]
-                    candidates.append(candidate)
-                    break
-
-    # Try each candidate, preferring ones with plan-specific fields
-    for candidate in reversed(candidates):
-        try:
-            parsed = json.loads(candidate)
-            if isinstance(parsed, dict) and "stories" in parsed:
-                return parsed
-        except json.JSONDecodeError:
-            continue
-
-    return None
-
-
-def _extract_plan_md_fallback(output: str) -> str:
-    """Extract PLAN.md content from unstructured output as a fallback.
-
-    Looks for markdown content that starts with a heading like "# Plan:".
-    If not found, returns the full output (better than nothing).
-    """
-    # Look for the plan heading
-    match = re.search(r"(# Plan:.*)", output, re.DOTALL)
-    if match:
-        plan_text = match.group(1)
-        # Trim at the JSON block if present
-        json_start = plan_text.find('{"schema_v"')
-        if json_start > 0:
-            plan_text = plan_text[:json_start].strip()
-        return plan_text
-
-    return output
-
-
-# ---------------------------------------------------------------------------
-# Revision prompt for Phase A failures
+# Revision prompts
 # ---------------------------------------------------------------------------
 
 
@@ -580,13 +309,6 @@ def build_revision_prompt(
 
     Appends the validation errors to the original prompt so the planner
     can fix structural issues in plan.json.
-
-    Args:
-        original_prompt: The original planner prompt.
-        validation_errors: List of specific validation error messages.
-
-    Returns:
-        Revised prompt with error context.
     """
     error_list = "\n".join(f"- {err}" for err in validation_errors)
 
@@ -597,22 +319,15 @@ def build_revision_prompt(
 ## REVISION REQUIRED
 
 Your previous plan.json output failed structural validation. Fix the following
-errors and re-emit both PLAN.md and plan.json:
+errors and re-emit the plan JSON object:
 
 {error_list}
 
-All other instructions from the original prompt still apply. Emit the two
-outputs separated by the exact delimiters specified in the Output Delimiters
-section above (===PLAN_MD_START===, ===PLAN_MD_END===, ===PLAN_JSON_START===,
-===PLAN_JSON_END===).
+All other instructions from the original prompt still apply. Produce a single
+JSON object conforming to the --json-schema.
 """
 
     return original_prompt + revision_section
-
-
-# ---------------------------------------------------------------------------
-# Verifier feedback revision prompt
-# ---------------------------------------------------------------------------
 
 
 def build_verifier_revision_prompt(
@@ -624,13 +339,6 @@ def build_verifier_revision_prompt(
     Appends the structured verifier output so the planner can address
     specific gaps: journey incompleteness, uncovered transitions, intent
     misalignment, logical gaps, and weak validations.
-
-    Args:
-        original_prompt: The original planner prompt.
-        verifier_result: Structured output from the plan verifier.
-
-    Returns:
-        Revised prompt with verifier feedback.
     """
     feedback_lines = [
         "",
@@ -639,7 +347,7 @@ def build_verifier_revision_prompt(
         "## REVISION REQUIRED (Verifier Feedback)",
         "",
         "Your plan was structurally valid but failed verification. Address the "
-        "following issues and re-emit both PLAN.md and plan.json:",
+        "following issues and re-emit the plan JSON object:",
         "",
     ]
 
@@ -698,13 +406,61 @@ def build_verifier_revision_prompt(
         feedback_lines.append("")
 
     feedback_lines.append(
-        "Fix all issues above. Emit the two outputs separated by the exact "
-        "delimiters specified in the Output Delimiters section above "
-        "(===PLAN_MD_START===, ===PLAN_MD_END===, ===PLAN_JSON_START===, "
-        "===PLAN_JSON_END===)."
+        "Fix all issues above. Produce a single JSON object conforming to " "the --json-schema."
     )
 
     return original_prompt + "\n".join(feedback_lines)
+
+
+# ---------------------------------------------------------------------------
+# Structured output parsing
+# ---------------------------------------------------------------------------
+
+
+def _parse_structured_plan(result) -> Plan:
+    """Parse a dispatch result into a validated Plan model.
+
+    Claude Code with --json-schema returns the JSON in the result field
+    of the output envelope. The structured_output dict contains the full
+    envelope; the output string contains just the result text.
+
+    Args:
+        result: AgentResult from dispatch.
+
+    Returns:
+        Validated Plan model.
+
+    Raises:
+        PlanGenerationError: If output cannot be parsed or validated.
+    """
+    # Try structured_output first — Claude Code envelope has a "result" key
+    # containing the JSON string when --json-schema is used.
+    data = None
+
+    if result.structured_output and isinstance(result.structured_output, dict):
+        # The envelope's "result" field contains the JSON string
+        result_field = result.structured_output.get("result")
+        if isinstance(result_field, str):
+            with contextlib.suppress(json.JSONDecodeError):
+                data = json.loads(result_field)
+        elif isinstance(result_field, dict):
+            data = result_field
+
+    # Fallback: try parsing the output text directly
+    if data is None and result.output:
+        with contextlib.suppress(json.JSONDecodeError):
+            data = json.loads(result.output)
+
+    if data is None:
+        raise PlanGenerationError(
+            "Could not extract JSON from planner output. "
+            f"Output (first 500 chars): {result.output[:500]}"
+        )
+
+    try:
+        return Plan.model_validate(data)
+    except Exception as exc:
+        raise PlanGenerationError(f"Plan JSON failed Pydantic validation: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -714,19 +470,16 @@ def build_verifier_revision_prompt(
 
 def generate_plan(
     epic_dir: Path,
-    decisions: dict | None = None,
 ) -> tuple[Path, Path]:
     """Generate PLAN.md and plan.json from assembled context.
 
-    This is the single Opus AI invocation that replaces 3 AI invocations
-    in V1 (context-loader, goal-backward, task-breakdown).
+    Dispatches a single Opus invocation with --json-schema and tools=[]
+    to get structured plan output. PLAN.md is rendered deterministically
+    from the validated Pydantic model.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
-            Must contain CONTEXT.md from Step 6.
-        decisions: Locked scope decisions from the interactive Phase 2
-            discussion. Dict of question -> answer pairs. May be None
-            if no interactive decisions were made.
+            Must contain CONTEXT.md from context assembly.
 
     Returns:
         Tuple of (plan_md_path, plan_json_path).
@@ -735,22 +488,13 @@ def generate_plan(
         PlanGenerationError: If context is missing, dispatch fails, or
             output cannot be parsed.
     """
-    if decisions is None:
-        decisions = {}
-
     # Read inputs
     context = _read_context(epic_dir)
     epic_number = _read_epic_number(epic_dir)
-    plan_schema = _load_plan_schema()
-
-    # Format decisions
-    decisions_text = _format_decisions(decisions)
 
     # Build the planner prompt
     prompt = _build_planner_prompt(
         context=context,
-        decisions_text=decisions_text,
-        plan_schema=plan_schema,
         epic_number=epic_number,
     )
 
@@ -761,16 +505,20 @@ def generate_plan(
         len(prompt) // 4,
     )
 
-    # Dispatch via Opus with Sonnet fallback
+    # Generate JSON Schema from Pydantic model
+    plan_schema = Plan.model_json_schema()
+
+    # Dispatch with tools=[] and json_schema for structured output.
+    # No tools needed — all context is in the prompt.
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=prompt,
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
-        tools=get_tools_for_role("planning"),
-        skills=["gts-architecture", "gts-backend-dev", "gts-frontend-dev"],
+        tools=[],
         max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
+        json_schema=plan_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -780,31 +528,27 @@ def generate_plan(
             f"Output: {result.output[:500]}"
         )
 
-    # result.output is the agent's text response (already unwrapped
-    # from the Claude Code JSON envelope by parse_result).
-    output = result.output
-
     logger.info(
-        "Planner output length: %d chars, first 500: %s",
-        len(output),
-        output[:500],
+        "Planner output length: %d chars, turns: %s",
+        len(result.output),
+        result.turns or "unknown",
     )
 
-    # Parse the planner's output
-    plan_md_content, plan_json_dict = _parse_plan_output(output)
+    # Parse structured output into Pydantic model
+    plan = _parse_structured_plan(result)
 
-    # Write PLAN.md
-    plan_md_path = epic_dir / "PLAN.md"
-    plan_md_path.write_text(plan_md_content, encoding="utf-8")
-    logger.info("Wrote PLAN.md to %s", plan_md_path)
-
-    # Write plan.json
+    # Write plan.json (serialised from validated model)
     plan_json_path = epic_dir / "plan.json"
     plan_json_path.write_text(
-        json.dumps(plan_json_dict, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(plan.model_dump(by_alias=True), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     logger.info("Wrote plan.json to %s", plan_json_path)
+
+    # Render and write PLAN.md deterministically
+    plan_md_path = epic_dir / "PLAN.md"
+    plan_md_path.write_text(render_plan_md(plan), encoding="utf-8")
+    logger.info("Wrote PLAN.md to %s", plan_md_path)
 
     return plan_md_path, plan_json_path
 
@@ -815,10 +559,10 @@ def generate_plan(
 
 
 def main() -> None:
-    """CLI entry point: python -m workflow.plan_generator <epic_number> [--decisions file.json]."""
+    """CLI entry point: python -m workflow.plan_generator <epic_number>."""
     if len(sys.argv) < 2:
         print(
-            f"Usage: {sys.argv[0]} <epic_number> [--decisions decisions.json]",
+            f"Usage: {sys.argv[0]} <epic_number>",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -832,23 +576,6 @@ def main() -> None:
         )
         sys.exit(1)
 
-    # Parse optional --decisions flag
-    decisions: dict = {}
-    if "--decisions" in sys.argv:
-        idx = sys.argv.index("--decisions")
-        if idx + 1 >= len(sys.argv):
-            print("Error: --decisions requires a file path argument", file=sys.stderr)
-            sys.exit(1)
-        decisions_path = Path(sys.argv[idx + 1])
-        if not decisions_path.is_file():
-            print(f"Error: decisions file not found: {decisions_path}", file=sys.stderr)
-            sys.exit(1)
-        try:
-            decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            print(f"Error: invalid JSON in decisions file: {exc}", file=sys.stderr)
-            sys.exit(1)
-
     epic_dir = PLANNING_DIR / f"E{epic_number}"
     if not epic_dir.is_dir():
         print(
@@ -861,7 +588,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     try:
-        plan_md_path, plan_json_path = generate_plan(epic_dir, decisions)
+        plan_md_path, plan_json_path = generate_plan(epic_dir)
         print(f"Plan generated for epic #{epic_number}:")
         print(f"  PLAN.md:   {plan_md_path.relative_to(PROJECT_ROOT)}")
         print(f"  plan.json: {plan_json_path.relative_to(PROJECT_ROOT)}")

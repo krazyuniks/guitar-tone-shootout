@@ -37,3 +37,5 @@ docker-compose.override.yml
 
 # Epic planning working files (keep .planning/ tracked for audit trail)
 .planning/epics/.gitkeep
+.gemini/
+.agents/

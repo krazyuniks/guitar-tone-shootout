@@ -86,21 +86,15 @@ class ClaudeAdapter:
 
     def build_args(
         self,
-        _prompt: str,
         model: str,
         tools: list[str],
-        _skills: list[str],
         mcp_config: dict | None,
         max_turns: int,
         max_budget_usd: float,
         json_schema: dict | None,
         fallback_model: str | None = None,
     ) -> list[str]:
-        """Build CLI arguments. Prompt is piped via stdin by the caller.
-
-        _prompt and _skills are accepted for protocol compatibility but
-        not embedded in args. The caller pipes prompt via stdin.
-        """
+        """Build CLI arguments. Prompt is piped via stdin by the caller."""
         args = [
             "claude",
             "-p",
@@ -402,7 +396,6 @@ def dispatch_agent(
     prompt: str,
     model: str,
     tools: list[str],
-    skills: list[str] | None = None,
     mcp_config: dict | None = None,
     max_turns: int = 30,
     max_budget_usd: float = 3.0,
@@ -415,13 +408,12 @@ def dispatch_agent(
 
     Constructs CLI arguments via the adapter, runs the subprocess,
     and parses the result into an AgentResult. Logs dispatch metadata
-    (model, prompt_hash, prompt_tokens, skill_tokens).
+    (model, prompt_hash, prompt_tokens).
 
     Args:
         prompt: The full agent prompt text.
         model: Model identifier (e.g. "opus", "sonnet", "haiku").
         tools: List of tool names the agent may use.
-        skills: List of skill names to inject (optional).
         mcp_config: MCP server config dict (optional).
         max_turns: Maximum conversation turns.
         max_budget_usd: Dollar cap for this invocation.
@@ -436,9 +428,6 @@ def dispatch_agent(
     if adapter is None:
         adapter = _claude_adapter
 
-    if skills is None:
-        skills = []
-
     # Resolve fallback model from defaults if not provided
     if fallback_model is None:
         fallback_model = FALLBACK_MODELS.get(model)
@@ -448,11 +437,10 @@ def dispatch_agent(
     prompt_tokens = estimate_tokens(prompt)
 
     logger.info(
-        "Dispatching agent: model=%s, tools=%s, skills=%s, max_turns=%d, "
+        "Dispatching agent: model=%s, tools=%s, max_turns=%d, "
         "max_budget=$%.2f, json_schema=%s, prompt_hash=%s, prompt_tokens=%d",
         model,
         tools,
-        skills,
         max_turns,
         max_budget_usd,
         bool(json_schema),
@@ -463,13 +451,9 @@ def dispatch_agent(
     # Write prompt to logs dir for post-mortem debugging
     _log_dispatch_prompt(prompt, prompt_hash, model)
 
-    # Build CLI arguments — prompt and skills passed positionally because
-    # ClaudeAdapter names them _prompt/_skills (unused, piped via stdin).
     args = adapter.build_args(
-        prompt,
-        model,
-        tools,
-        skills,
+        model=model,
+        tools=tools,
         mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
@@ -522,7 +506,6 @@ def dispatch_with_fallback(
     primary_model: str,
     fallback_model: str,
     tools: list[str],
-    skills: list[str] | None = None,
     mcp_config: dict | None = None,
     max_turns: int = 30,
     max_budget_usd: float = 3.0,
@@ -549,7 +532,6 @@ def dispatch_with_fallback(
         primary_model: Primary model to try first.
         fallback_model: Model to use on transient failure retry.
         tools: List of tool names.
-        skills: Skill names to inject.
         mcp_config: MCP server config.
         max_turns: Maximum turns.
         max_budget_usd: Dollar cap.
@@ -565,7 +547,6 @@ def dispatch_with_fallback(
         prompt=prompt,
         model=primary_model,
         tools=tools,
-        skills=skills,
         mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
@@ -594,7 +575,6 @@ def dispatch_with_fallback(
         prompt=prompt,
         model=fallback_model,
         tools=tools,
-        skills=skills,
         mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
@@ -615,23 +595,20 @@ def dispatch_with_fallback(
 def get_dispatch_metadata(
     prompt: str,
     model: str,
-    skills: list[str] | None = None,
 ) -> dict:
     """Build metadata dict suitable for JSONL agent_dispatched events.
 
     Args:
         prompt: The prompt text.
         model: Model identifier.
-        skills: List of skill names.
 
     Returns:
-        Dict with model, prompt_hash, prompt_tokens, skill_tokens.
+        Dict with model, prompt_hash, prompt_tokens.
     """
     return {
         "model": model,
         "prompt_hash": compute_prompt_hash(prompt),
         "prompt_tokens": estimate_tokens(prompt),
-        "skill_tokens": 0,  # Skills loaded from project config, not counted separately
     }
 
 

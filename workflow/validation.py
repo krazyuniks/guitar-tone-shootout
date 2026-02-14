@@ -536,7 +536,6 @@ def run_validation_checkpoint(
         primary_model=config.model,
         fallback_model=fallback_model,
         tools=tools,
-        skills=None,
         mcp_config=mcp_config,
         max_turns=15,
         max_budget_usd=0.50,

@@ -1,3 +1,21 @@
+# Task: Generate Epic Plan
+
+You are the planner for the GTS (Guitar Tone Shootout) project. Your job is to
+produce a complete plan for epic #95 that will be executed by AI agents
+under an automated orchestrator.
+
+You must produce a JSON object conforming to the structure enforced by --json-schema.
+The orchestrator parses this JSON directly. A separate process renders PLAN.md from
+the JSON, so you do NOT produce PLAN.md.
+
+---
+
+## Input Context
+
+The following is the assembled context for this epic, including the epic description
+from GitHub and codebase architecture.
+
+<context>
 # Epic Context
 
 **Assembled:** 2026-02-14T20:35:58Z
@@ -4874,3 +4892,178 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
     templates/  (2 files)
     tests/  (2 files)
 ```
+
+</context>
+
+---
+
+## Planning Methodology: Goal-Backward Analysis
+
+Follow this methodology strictly:
+
+### Step 1: Define Observable Truths
+
+Define observable truths — user-perspective, verifiable-by-a-human statements that
+define "done". These are NOT technical requirements. They describe what a user can
+see or do when the epic is complete.
+
+Good truths:
+- "A user can visit /gear and see a list of their gear items"
+- "Clicking a gear item navigates to a detail page showing model information"
+- "Submitting the edit form updates the gear name, visible on return to detail page"
+
+Bad truths (too technical):
+- "GearRepository has a get_by_id method"
+- "The Pydantic schema validates input"
+- "The migration adds a gear table"
+
+### Step 2: Derive Required Artefacts
+
+For each truth, identify what code artefacts must exist for the truth to be
+observable. Walk the full stack: entity -> ORM model -> repository -> service ->
+API endpoint -> page template -> navigation link.
+
+### Step 3: Organise Artefacts into Stories
+
+Group artefacts into stories. Each story is a coherent chunk that one AI agent
+completes in a single invocation.
+
+Story sizing constraints:
+- Target 2-5 stories per epic. Each story is a coherent chunk an agent completes
+  in one invocation.
+- 3-8 files created/modified per story.
+- Each story should use <50% of the agent context window.
+- Full vertical slice OR one layer across multiple entities.
+- Each story should produce something checkable.
+- Each story builds on the previous but is self-contained.
+- State assumption: declare whether the story expects cumulative state (default)
+  or clean state (orchestrator runs db-reset before dispatch).
+
+Example story breakdown for a typical GTS epic:
+| Story | Scope | Model | Budget |
+|-------|-------|-------|--------|
+| 1. Architecture | Entity, ORM, repo, service, migration | Sonnet | $3 |
+| 2. API + Schemas | Routes, Pydantic schemas, route registration | Sonnet | $2 |
+| 3. UI Scaffolding | Page templates, fragments, navigation | Sonnet | $3 |
+| 4. CRUD Features | Form handling, HTMX interactions, DB writes | Sonnet | $4 |
+| 5. Regression Tests | E2E tests, regression test updates | Sonnet | $3 |
+
+### Step 4: Define User Journeys
+
+Create connected, end-to-end narratives that link observable truths into coherent
+flows. Not isolated assertions ("GET /gear returns 200") but connected walks
+("user clicks Gear in nav, sees list, clicks item, sees detail").
+
+Every truth must appear in at least one journey. Journeys include
+critical_transitions with {from, to, mechanism}.
+
+### Step 5: Place Validation Checkpoints
+
+Place validation checkpoints strategically based on story types:
+- After scaffolding: pages exist, routes respond, navigation works.
+- After CRUD: create/read/update/delete work end-to-end.
+- After complex features: feature-specific behaviour verified.
+- Before regression tests: full product works (don't waste tokens testing broken product).
+- After regression tests: tests pass, quality gates pass (final gate).
+
+Not every story needs a checkpoint. Backend-only stories (entity + repo + service)
+may wait for the UI story that exposes them. The key is to catch wiring failures
+before building on top of broken scaffolding.
+
+### Step 6: Specify Wiki Sections
+
+For each story, specify `wiki_sections` — a list of wiki section header names from
+the project wiki indexes (`.planning/wiki-indexes/`). The Stage 4 prompt builder
+uses this to load targeted wiki sections into each story's agent prompt, keeping
+prompt size manageable.
+
+---
+
+## Agent Configuration Reference
+
+For each story, specify the full agent dispatch configuration.
+
+Skill mapping per story type (select appropriate skills for each story):
+| Story Type | Typical Skills |
+|------------|---------------|
+| Architecture | `gts-architecture`, `repository-patterns`, `service-patterns` |
+| API + Schemas | `gts-backend-dev`, `web-handlers`, `error-handling` |
+| UI Scaffolding | `gts-frontend-dev`, `htmx`, `astro-frontend` |
+| CRUD Features | `gts-frontend-dev`, `htmx`, `gts-backend-dev` |
+| Regression Tests | `gts-testing`, `playwright` |
+
+Tool restrictions per agent role:
+| Agent Role | Tools |
+|------------|-------|
+| Implementation | Read, Edit, Write, Bash, Glob, Grep |
+| Validation (browser) | Read, Bash, Glob, Grep + MCP |
+| Validation (API/DB) | Bash, Read, Glob, Grep |
+| Regression test | Read, Edit, Write, Bash, Glob, Grep |
+
+Budget defaults (starting points):
+| Agent Type | Max Turns | Max Budget |
+|------------|-----------|------------|
+| Architecture (Sonnet) | 30 | $3.00 |
+| Implementation (Sonnet) | 40 | $4.00 |
+| Validation (Haiku) | 15 | $0.50 |
+| Regression tests (Sonnet) | 30 | $3.00 |
+
+MCP servers (specify in the `mcp` array):
+- `chrome-devtools` — for stories that need browser DOM inspection
+- `playwright` — for stories that need browser automation (E2E tests)
+- Most stories need NO MCP (empty array `[]`)
+
+---
+
+## Evidence Fields per Check Type
+
+Each validation checkpoint must specify `evidence_fields` per criterion. Use the
+correct fields for the check type:
+
+| Check Type | Required Evidence Fields |
+|------------|------------------------|
+| `http` | `status_code`, `url`, `response_excerpt` |
+| `http+dom` | `status_code`, `url`, `dom_selector`, `element_text` |
+| `browser+db` | `action_performed`, `sql_query`, `row_count`, `sample_row` |
+| `api+response` | `status_code`, `url`, `method`, `response_body_excerpt` |
+| `process` | `process_name`, `pid_or_status`, `log_excerpt` |
+| `screenshot` | `screenshot_path`, `observations` |
+| `regression` | `test_command`, `exit_code`, `test_count`, `failure_count` |
+| `quality` | `commands_run`, `exit_code`, `error_count` |
+
+---
+
+## Output
+
+Produce a single JSON object. The structure is enforced by --json-schema.
+
+Key fields:
+- `schema_v`: always 1
+- `epic_number`: 95
+- `goal`: outcome-shaped goal statement
+- `observable_truths`: array of {id, statement}
+- `user_journeys`: array with journey_id (pattern "J1", "J2", ...), persona,
+  narrative, truths_covered, entry_point, critical_transitions
+- `stories`: ordered array with story_id (pattern "01-name"), name, purpose,
+  agent config, scope, implementation_notes, truths_addressed, wiki_sections
+- `validation_checkpoints`: array with after_story, check_type, checks
+
+The `from` field in critical_transitions uses the JSON key "from" (not "from_").
+
+---
+
+## Critical Rules
+
+1. Every observable truth must be addressed by at least one story.
+2. Every observable truth must appear in at least one journey's truths_covered.
+3. Every checkpoint after_story must reference a valid story_id.
+4. Every journey truths_covered ID must exist in observable_truths.
+5. Files in scope.modify must be real files that exist in the GTS codebase.
+6. Files in scope.create must have parent directories that exist.
+7. Stories that use files created by earlier stories must appear after them.
+8. state_assumption defaults to "cumulative". Only set "clean" when validation
+   criteria depend on known data state.
+9. The plan.json epic_number must be 95.
+10. Do NOT invent features not described in the epic. Stay within scope.
+11. Every story MUST include `wiki_sections` — a list of wiki section header names
+    from `.planning/wiki-indexes/` for the Stage 4 prompt builder.

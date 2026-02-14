@@ -5,7 +5,43 @@
 ## Directory Tree
 
 ```
-95-phase-4-completion-di-tracks-groups-shoo/  (20 files)
+95-phase-4-completion-di-tracks-groups-shoo/  (33 files)
+  .agents/
+    skills/
+      chrome-devtools/  (1 files)
+      codebase-review/  (1 files)
+        references/  (3 files)
+      docker-infra/  (1 files)
+        references/  (2 files)
+      documentation-style/  (1 files)
+      epic/  (1 files)
+        references/  (4 files)
+      gts-architecture/  (1 files)
+        references/  (13 files)
+      gts-auth/  (1 files)
+        references/  (4 files)
+      gts-backend-dev/  (1 files)
+      gts-frontend-dev/  (1 files)
+        references/  (6 files)
+      gts-security/  (1 files)
+        references/  (4 files)
+      gts-testing/  (1 files)
+        references/  (2 files)
+      gts-video/  (1 files)
+      incident-response/  (1 files)
+      micro-task-workflow/  (1 files)
+      prompt-builder/  (1 files)
+        references/  (1 files)
+      python-cheatsheet/  (1 files)
+      ralph-hybrid-overview/  (1 files)
+        references/  (1 files)
+      ralph-hybrid-plan/  (1 files)
+        references/  (4 files)
+      screenshot-eval/  (1 files)
+        resources/  (1 files)
+      site-verify/  (1 files)
+      ui-contract/  (1 files)
+      ui-debug/  (1 files)
   .claude/  (3 files)
     agents/  (5 files)
     archive/
@@ -53,17 +89,15 @@
       site-verify/  (1 files)
       ui-contract/  (1 files)
       ui-debug/  (1 files)
+  .gemini/
+    commands/  (14 files)
   .github/
     ISSUE_TEMPLATE/  (2 files)
   .planning/
-    codebase/  (12 files)
+    codebase/  (6 files)
     epics/
-      E95/  (7 files)
-        stories/
-          01-verification-wiring/  (5 files)
-          02-endpoint-smoke-tests/  (2 files)
-          03-regression-tests/  (4 files)
-    logs/  (30 files)
+    logs/
+    wiki-indexes/  (18 files)
   .ralph-hybrid/  (2 files)
     callbacks/  (3 files)
     main/  (6 files)
@@ -216,7 +250,9 @@
         services/  (1 files)
       worker/  (12 files)
       worktree/  (5 files)
-  workflow/  (1 files)
+  workflow/  (17 files)
+    schemas/  (5 files)
+    templates/  (5 files)
   worktree/  (16 files)
     cli_utils/  (5 files)
     commands/  (11 files)

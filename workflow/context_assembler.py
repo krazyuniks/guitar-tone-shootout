@@ -167,90 +167,6 @@ AREA_DEFINITIONS: dict[str, dict[str, str]] = {
     },
 }
 
-# Question bank -- area-specific questions for scope discussion
-AREA_QUESTIONS: dict[str, list[str]] = {
-    "signal_chain": [
-        "Does this feature involve signal chains?",
-        "Which block types are affected? (amp, IR, pedal, built-in)",
-        "HEAD vs FULL_RIG considerations? (IR required vs forbidden)",
-        "Loop effects allowed? (not with FULL_RIG)",
-        "Block ordering constraints?",
-        "Permutation support needed? (SignalChainGroup)",
-    ],
-    "gear_model": [
-        "Does this feature involve gear?",
-        "Unified Gear model or source-specific?",
-        "GearModel files involved? (NAM, IR)",
-        "Source attribution needed?",
-        "User-uploaded (community) or synced from source?",
-        "UserGear library implications?",
-    ],
-    "dual_database": [
-        "Which database is this for? (gts_core or gts_t3k_source)",
-        "If source data, is worker the access point?",
-        "pgmq messages involved?",
-        "Sync records needed?",
-        "Cross-database implications?",
-    ],
-    "frontend_layers": [
-        "Is this a static page (Astro SSG)?",
-        "Is this a dynamic page (Jinja2 SSR)?",
-        "Does it need HTMX fragments?",
-        "Is it the SignalChainBuilder (React)?",
-        "Design tokens from Astro CSS?",
-    ],
-    "job_processing": [
-        "Does this trigger background jobs?",
-        "TaskIQ job or pgmq consumer?",
-        "Parent/child job hierarchy? (like SHOOTOUT)",
-        "Retry strategy and max attempts?",
-        "Progress reporting (WebSocket for user jobs)?",
-        "Redis locks needed?",
-    ],
-    "audio_processing": [
-        "Does this involve audio processing?",
-        "NAM model loading?",
-        "IR convolution?",
-        "Loudness normalization?",
-        "libs/audio or apps/worker?",
-    ],
-    "data_model": [
-        "What's the primary entity?",
-        "What fields are required vs optional?",
-        "What's the status/lifecycle?",
-        "Relations to existing tables in gts_core?",
-        "Indexes or constraints needed?",
-        "Soft delete or hard delete?",
-    ],
-    "orm_patterns": [
-        "Follow existing repository pattern?",
-        "Which existing repository to reference?",
-        "Eager or lazy loading for relations?",
-        "Transaction boundaries (service owns)?",
-    ],
-    "api_contract": [
-        "REST endpoint path? (/api/v1/...)",
-        "HTML endpoint path? (/api/v1/html/...)",
-        "Pydantic request/response schemas?",
-        "Validation error format?",
-        "Pagination approach (offset or cursor)?",
-    ],
-    "security": [
-        "Does endpoint require authentication?",
-        "CurrentUser dependency?",
-        "Ownership check (user_id match)?",
-        "Return 404 for unauthorised (not 403)?",
-        "Rate limiting?",
-    ],
-    "testing": [
-        "What pure functions need testing? (tests/unit/)",
-        "What API flows need testing? (tests/integration/)",
-        "What user journeys are critical? (tests/e2e/python/)",
-        "Playwright page interactions?",
-        "Three-layer validation (UI > DOM > Database)?",
-    ],
-}
-
 
 # ---------------------------------------------------------------------------
 # Area-to-wiki-section mapping
@@ -572,37 +488,6 @@ def check_freshness(
 # ---------------------------------------------------------------------------
 
 
-def _build_scope_questions_section(areas: set[str]) -> str:
-    """Build the scope discussion questions section from detected areas."""
-    if not areas:
-        return (
-            "## Scope Discussion Questions\n\n"
-            "No specific areas detected. The planner should determine "
-            "relevant questions from the epic content.\n"
-        )
-
-    lines = ["## Scope Discussion Questions\n"]
-    lines.append(
-        "These questions should be addressed during scope discussion " "to reduce ambiguity:\n"
-    )
-
-    for area_id in sorted(areas):
-        defn = AREA_DEFINITIONS.get(area_id)
-        if defn is None:
-            continue
-
-        questions = AREA_QUESTIONS.get(area_id, [])
-        if not questions:
-            continue
-
-        lines.append(f"### {defn['name']}\n")
-        for q in questions:
-            lines.append(f"- {q}")
-        lines.append("")
-
-    return "\n".join(lines)
-
-
 def _build_context_md(
     epic_md_content: str,
     wiki_sections: dict[str, str],
@@ -665,10 +550,6 @@ def _build_context_md(
             parts.append(f"\n### {name}\n")
             parts.append(content.strip())
             parts.append("")
-
-    # Section 4: Scope Discussion Questions (area-specific)
-    parts.append("\n---\n")
-    parts.append(_build_scope_questions_section(detected_areas))
 
     return "\n".join(parts)
 

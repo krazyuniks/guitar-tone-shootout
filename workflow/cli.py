@@ -1,7 +1,7 @@
 """Typer CLI for the epic workflow pipeline.
 
 Provides subcommand routing for:
-  ./wf epic run N           — Full pipeline (Stages 1-4: ingest -> plan -> verify -> execute)
+  ./wf epic run N           — Full pipeline: ingest -> context -> plan -> verify -> gate -> execute
   ./wf epic status N        — Show progress from JSONL logs
   ./wf epic validate-plan N — Run Phase A deterministic validation only (read-only)
   ./wf map codebase         — Regenerate .planning/codebase/ files
@@ -71,18 +71,8 @@ def _check_plan_committed(epic_dir: Path) -> bool:
     return find_last_event(events, "plan_committed") is not None
 
 
-def _load_decisions(epic_dir: Path) -> dict:
-    """Load user-decisions.json from the epic directory."""
-    import json
-
-    decisions_path = epic_dir / "user-decisions.json"
-    if not decisions_path.is_file():
-        return {}
-    return json.loads(decisions_path.read_text(encoding="utf-8"))
-
-
 def _run_planning_pipeline(epic_number: int) -> None:
-    """Run Steps 1-7 of the planning pipeline: ingest -> commit+push.
+    """Run Steps 1-6 of the planning pipeline: ingest -> commit+push.
 
     This is the Stage 3 planning pipeline. Called by the orchestrator's
     run_pipeline() which then continues to Stage 4 execution.
@@ -101,7 +91,6 @@ def _run_planning_pipeline(epic_number: int) -> None:
         present_decision_gate,
         verify_with_revision_cycle,
     )
-    from workflow.scope_discussion import ScopeDiscussionError, run_scope_discussion
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -146,29 +135,13 @@ def _run_planning_pipeline(epic_number: int) -> None:
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 3: Scope Discussion
-    decisions_path = epic_dir / "user-decisions.json"
-    if _should_skip(decisions_path, "user-decisions.json"):
-        console.print("[dim]Step 3: Scope Discussion — skipped[/dim]")
-    else:
-        console.print("[bold]Step 3:[/bold] Scope discussion...")
-        try:
-            decisions = run_scope_discussion(epic_dir)
-            console.print(f"  [green]{len(decisions)} decisions recorded.[/green]")
-        except ScopeDiscussionError as exc:
-            console.print(f"  [red]Error:[/red] {exc}")
-            raise typer.Exit(1) from exc
-
-    console.print()
-
-    # Step 4: Plan Generation
+    # Step 3: Plan Generation
     plan_json_path = epic_dir / "plan.json"
     plan_md_path = epic_dir / "PLAN.md"
     if _should_skip(plan_json_path, "plan.json"):
-        console.print("[dim]Step 4: Plan Generation — skipped[/dim]")
+        console.print("[dim]Step 3: Plan Generation — skipped[/dim]")
     else:
-        console.print("[bold]Step 4:[/bold] Generating plan...")
-        loaded_decisions = _load_decisions(epic_dir)
+        console.print("[bold]Step 3:[/bold] Generating plan...")
 
         epic_logger.log_event(
             "planner_dispatched",
@@ -178,7 +151,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
         )
 
         try:
-            plan_md_path, plan_json_path = generate_plan(epic_dir, loaded_decisions)
+            plan_md_path, plan_json_path = generate_plan(epic_dir)
             size = plan_json_path.stat().st_size
             console.print(
                 f"  [green]Written:[/green] {plan_json_path.relative_to(PROJECT_ROOT)} "
@@ -201,13 +174,12 @@ def _run_planning_pipeline(epic_number: int) -> None:
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 5: Verification (Phase A + Phase B with revision cycle)
+    # Step 4: Verification (Phase A + Phase B with revision cycle)
     console.print()
-    console.print("[bold]Step 5:[/bold] Verifying plan...")
-    loaded_decisions = _load_decisions(epic_dir)
+    console.print("[bold]Step 4:[/bold] Verifying plan...")
 
     try:
-        verifier_result, success = verify_with_revision_cycle(epic_dir, loaded_decisions)
+        verifier_result, success = verify_with_revision_cycle(epic_dir)
     except PlanVerificationError as exc:
         console.print(f"  [red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
@@ -250,10 +222,26 @@ def _run_planning_pipeline(epic_number: int) -> None:
         console.print("\n  Plan verification failed. Review plan.json and PLAN.md manually.")
         # Fall through to Decision Gate — human can still approve
 
-    # Step 6: Decision Gate
+    # Step 5: Decision Gate
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
-    gate_result: DecisionGateResult = present_decision_gate(plan_md_path, verifier_result)
+
+    # Non-TTY: auto-approve if verification passed, auto-reject if failed
+    import sys as _sys
+
+    if not _sys.stdin.isatty():
+        if success:
+            gate_result = DecisionGateResult("approve", reason="Auto-approved (non-interactive)")
+            console.print("[green]Decision Gate: auto-approved (non-interactive).[/green]")
+        else:
+            gate_result = DecisionGateResult(
+                "reject", reason="Auto-rejected (non-interactive, verification failed)"
+            )
+            console.print(
+                "[red]Decision Gate: auto-rejected (non-interactive, verification failed).[/red]"
+            )
+    else:
+        gate_result = present_decision_gate(plan_md_path, verifier_result)
 
     if gate_result.approved:
         epic_logger.log_event("plan_approved", epic=epic_number)
@@ -272,9 +260,9 @@ def _run_planning_pipeline(epic_number: int) -> None:
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
         return
 
-    # Step 7: Commit + Push
+    # Step 6: Commit + Push
     console.print()
-    console.print("[bold]Step 7:[/bold] Committing planning artefacts...")
+    console.print("[bold]Step 6:[/bold] Committing planning artefacts...")
 
     planning_paths = [
         str(epic_dir.relative_to(PROJECT_ROOT)),

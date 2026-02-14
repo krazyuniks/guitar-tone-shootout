@@ -1,9 +1,12 @@
 """Phase A: Deterministic plan validation ($0 AI cost).
 
-Validates plan.json against the JSON Schema from Step 1 and checks 7
+Validates plan.json against the Pydantic Plan model and checks 6
 structural properties that are mechanical and instant to verify. This
 runs before Phase B (AI verification) to catch structural errors without
 spending any AI tokens.
+
+Check 1 (schema conformance) is eliminated — Pydantic validation in
+the plan generator already enforces it.
 
 Reference: Research doc Section 8.4 Decision 8.
 
@@ -17,14 +20,10 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-try:
-    import jsonschema
-except ImportError:
-    jsonschema = None  # type: ignore[assignment]
+from workflow.models import Plan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
-SCHEMAS_DIR = PROJECT_ROOT / "workflow" / "schemas"
 
 logger = logging.getLogger(__name__)
 
@@ -61,64 +60,11 @@ class ValidationResult:
 
 
 # ---------------------------------------------------------------------------
-# Schema conformance (Check 1)
-# ---------------------------------------------------------------------------
-
-
-def _load_plan_schema() -> dict:
-    """Load plan.schema.json."""
-    schema_path = SCHEMAS_DIR / "plan.schema.json"
-    if not schema_path.is_file():
-        raise FileNotFoundError(f"Plan schema not found at {schema_path}")
-    return json.loads(schema_path.read_text(encoding="utf-8"))
-
-
-# ---------------------------------------------------------------------------
-# Check 1: Schema conformance (via jsonschema library)
-# ---------------------------------------------------------------------------
-
-
-def _check_schema_conformance(plan: dict) -> list[ValidationError]:
-    """Check 1: plan.json validates against plan.schema.json.
-
-    Uses the jsonschema library for full Draft 2020-12 validation when
-    available. Falls back to checking only required top-level fields
-    when jsonschema is not installed.
-    """
-    schema = _load_plan_schema()
-
-    if jsonschema is not None:
-        validator = jsonschema.Draft202012Validator(schema)
-        errors: list[ValidationError] = []
-        for error in sorted(validator.iter_errors(plan), key=lambda e: list(e.absolute_path)):
-            path = ".".join(str(p) for p in error.absolute_path) or "(root)"
-            errors.append(
-                ValidationError(
-                    check="schema_conformance",
-                    message=f"{path}: {error.message}",
-                )
-            )
-        return errors
-
-    # Fallback: check required top-level fields only
-    errors = []
-    for req_field in schema.get("required", []):
-        if req_field not in plan:
-            errors.append(
-                ValidationError(
-                    check="schema_conformance",
-                    message=f"Missing required top-level field: '{req_field}'",
-                )
-            )
-    return errors
-
-
-# ---------------------------------------------------------------------------
 # Check 2: Referential integrity
 # ---------------------------------------------------------------------------
 
 
-def _check_referential_integrity(plan: dict) -> list[ValidationError]:
+def _check_referential_integrity(plan: Plan) -> list[ValidationError]:
     """Check 2: All cross-references are valid.
 
     - Every truths_addressed ID exists in observable_truths
@@ -127,54 +73,43 @@ def _check_referential_integrity(plan: dict) -> list[ValidationError]:
     """
     errors: list[ValidationError] = []
 
-    truth_ids = {
-        t["id"] for t in plan.get("observable_truths", []) if isinstance(t, dict) and "id" in t
-    }
-    story_ids = {
-        s["story_id"] for s in plan.get("stories", []) if isinstance(s, dict) and "story_id" in s
-    }
+    truth_ids = {t.id for t in plan.observable_truths}
+    story_ids = {s.story_id for s in plan.stories}
 
     # truths_addressed in stories
-    for story in plan.get("stories", []):
-        if not isinstance(story, dict):
-            continue
-        sid = story.get("story_id", "?")
-        for tid in story.get("truths_addressed", []):
+    for story in plan.stories:
+        for tid in story.truths_addressed:
             if tid not in truth_ids:
                 errors.append(
                     ValidationError(
                         check="referential_integrity",
-                        message=f"Story '{sid}' references truth ID {tid} in truths_addressed, "
-                        f"but no observable_truth with that ID exists. Valid IDs: {sorted(truth_ids)}",
+                        message=f"Story '{story.story_id}' references truth ID {tid} in "
+                        f"truths_addressed, but no observable_truth with that ID exists. "
+                        f"Valid IDs: {sorted(truth_ids)}",
                     )
                 )
 
     # after_story in validation_checkpoints
-    for cp in plan.get("validation_checkpoints", []):
-        if not isinstance(cp, dict):
-            continue
-        after = cp.get("after_story", "?")
-        if after not in story_ids:
+    for cp in plan.validation_checkpoints:
+        if cp.after_story not in story_ids:
             errors.append(
                 ValidationError(
                     check="referential_integrity",
-                    message=f"Checkpoint after_story '{after}' does not match any story_id. "
-                    f"Valid story_ids: {sorted(story_ids)}",
+                    message=f"Checkpoint after_story '{cp.after_story}' does not match "
+                    f"any story_id. Valid story_ids: {sorted(story_ids)}",
                 )
             )
 
     # truths_covered in user_journeys
-    for journey in plan.get("user_journeys", []):
-        if not isinstance(journey, dict):
-            continue
-        jid = journey.get("journey_id", "?")
-        for tid in journey.get("truths_covered", []):
+    for journey in plan.user_journeys:
+        for tid in journey.truths_covered:
             if tid not in truth_ids:
                 errors.append(
                     ValidationError(
                         check="referential_integrity",
-                        message=f"Journey '{jid}' references truth ID {tid} in truths_covered, "
-                        f"but no observable_truth with that ID exists. Valid IDs: {sorted(truth_ids)}",
+                        message=f"Journey '{journey.journey_id}' references truth ID {tid} "
+                        f"in truths_covered, but no observable_truth with that ID exists. "
+                        f"Valid IDs: {sorted(truth_ids)}",
                     )
                 )
 
@@ -186,59 +121,47 @@ def _check_referential_integrity(plan: dict) -> list[ValidationError]:
 # ---------------------------------------------------------------------------
 
 
-def _check_truth_coverage(plan: dict) -> list[ValidationError]:
+def _check_truth_coverage(plan: Plan) -> list[ValidationError]:
     """Check 3: Every truth is addressed by at least one story AND covered by at least one journey."""
     errors: list[ValidationError] = []
 
-    truth_ids = {
-        t["id"] for t in plan.get("observable_truths", []) if isinstance(t, dict) and "id" in t
-    }
+    truth_ids = {t.id for t in plan.observable_truths}
 
     # Truths addressed by stories
     addressed_by_stories: set[int] = set()
-    for story in plan.get("stories", []):
-        if isinstance(story, dict):
-            for tid in story.get("truths_addressed", []):
-                addressed_by_stories.add(tid)
+    for story in plan.stories:
+        for tid in story.truths_addressed:
+            addressed_by_stories.add(tid)
 
     # Truths covered by journeys
     covered_by_journeys: set[int] = set()
-    for journey in plan.get("user_journeys", []):
-        if isinstance(journey, dict):
-            for tid in journey.get("truths_covered", []):
-                covered_by_journeys.add(tid)
+    for journey in plan.user_journeys:
+        for tid in journey.truths_covered:
+            covered_by_journeys.add(tid)
+
+    truth_map = {t.id: t.statement for t in plan.observable_truths}
 
     for tid in sorted(truth_ids):
+        statement = truth_map.get(tid, "?")
         if tid not in addressed_by_stories:
-            # Find the truth statement for a helpful error message
-            statement = _find_truth_statement(plan, tid)
             errors.append(
                 ValidationError(
                     check="truth_coverage",
-                    message=f"Observable truth {tid} ('{statement}') is not addressed by any story. "
-                    f"Add it to at least one story's truths_addressed.",
+                    message=f"Observable truth {tid} ('{statement}') is not addressed by "
+                    f"any story. Add it to at least one story's truths_addressed.",
                 )
             )
 
         if tid not in covered_by_journeys:
-            statement = _find_truth_statement(plan, tid)
             errors.append(
                 ValidationError(
                     check="truth_coverage",
-                    message=f"Observable truth {tid} ('{statement}') is not covered by any user journey. "
-                    f"Add it to at least one journey's truths_covered.",
+                    message=f"Observable truth {tid} ('{statement}') is not covered by "
+                    f"any user journey. Add it to at least one journey's truths_covered.",
                 )
             )
 
     return errors
-
-
-def _find_truth_statement(plan: dict, truth_id: int) -> str:
-    """Find the statement text for a given truth ID."""
-    for truth in plan.get("observable_truths", []):
-        if isinstance(truth, dict) and truth.get("id") == truth_id:
-            return truth.get("statement", "?")
-    return "?"
 
 
 # ---------------------------------------------------------------------------
@@ -246,33 +169,27 @@ def _find_truth_statement(plan: dict, truth_id: int) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _check_journey_coverage(plan: dict) -> list[ValidationError]:
-    """Check 4: Every truth appears in at least one journey's truths_covered.
-
-    This is intentionally redundant with the journey part of Check 3 to
-    make the validation explicit as a separate dimension. The plan spec
-    lists this as a separate check.
-    """
+def _check_journey_coverage(plan: Plan) -> list[ValidationError]:
+    """Check 4: Every truth appears in at least one journey's truths_covered."""
     errors: list[ValidationError] = []
 
-    truth_ids = {
-        t["id"] for t in plan.get("observable_truths", []) if isinstance(t, dict) and "id" in t
-    }
+    truth_ids = {t.id for t in plan.observable_truths}
 
     covered_by_journeys: set[int] = set()
-    for journey in plan.get("user_journeys", []):
-        if isinstance(journey, dict):
-            for tid in journey.get("truths_covered", []):
-                covered_by_journeys.add(tid)
+    for journey in plan.user_journeys:
+        for tid in journey.truths_covered:
+            covered_by_journeys.add(tid)
 
+    truth_map = {t.id: t.statement for t in plan.observable_truths}
     orphan_truths = truth_ids - covered_by_journeys
     for tid in sorted(orphan_truths):
-        statement = _find_truth_statement(plan, tid)
+        statement = truth_map.get(tid, "?")
         errors.append(
             ValidationError(
                 check="journey_coverage",
-                message=f"Orphan truth: observable truth {tid} ('{statement}') is asserted but never "
-                f"exercised in a connected user journey flow. Add it to at least one journey's truths_covered.",
+                message=f"Orphan truth: observable truth {tid} ('{statement}') is asserted "
+                f"but never exercised in a connected user journey flow. Add it to at "
+                f"least one journey's truths_covered.",
             )
         )
 
@@ -284,44 +201,34 @@ def _check_journey_coverage(plan: dict) -> list[ValidationError]:
 # ---------------------------------------------------------------------------
 
 
-def _check_scope_coherence(plan: dict) -> list[ValidationError]:
+def _check_scope_coherence(plan: Plan) -> list[ValidationError]:
     """Check 5: Files in modify scope exist on disk; files in create scope have existing parent dirs."""
     errors: list[ValidationError] = []
 
-    for story in plan.get("stories", []):
-        if not isinstance(story, dict):
-            continue
-        sid = story.get("story_id", "?")
-        scope = story.get("scope", {})
-        if not isinstance(scope, dict):
-            continue
-
+    for story in plan.stories:
         # Files in modify must exist on disk
-        for fpath in scope.get("modify", []):
-            if not isinstance(fpath, str):
-                continue
+        for fpath in story.scope.modify:
             full_path = PROJECT_ROOT / fpath
             if not full_path.exists():
                 errors.append(
                     ValidationError(
                         check="scope_coherence",
-                        message=f"Story '{sid}' lists '{fpath}' in scope.modify, "
+                        message=f"Story '{story.story_id}' lists '{fpath}' in scope.modify, "
                         f"but the file does not exist on disk.",
                     )
                 )
 
         # Files in create must have existing parent directories
-        for fpath in scope.get("create", []):
-            if not isinstance(fpath, str):
-                continue
+        for fpath in story.scope.create:
             full_path = PROJECT_ROOT / fpath
             parent = full_path.parent
             if not parent.exists():
                 errors.append(
                     ValidationError(
                         check="scope_coherence",
-                        message=f"Story '{sid}' lists '{fpath}' in scope.create, "
-                        f"but the parent directory '{parent.relative_to(PROJECT_ROOT)}' does not exist.",
+                        message=f"Story '{story.story_id}' lists '{fpath}' in scope.create, "
+                        f"but the parent directory "
+                        f"'{parent.relative_to(PROJECT_ROOT)}' does not exist.",
                     )
                 )
 
@@ -333,79 +240,48 @@ def _check_scope_coherence(plan: dict) -> list[ValidationError]:
 # ---------------------------------------------------------------------------
 
 
-def _check_dependency_ordering(plan: dict) -> list[ValidationError]:
-    """Check 6: Stories referencing files from earlier stories appear after them.
-
-    If Story B modifies a file that Story A creates, Story B must come
-    after Story A in the stories array.
-    """
+def _check_dependency_ordering(plan: Plan) -> list[ValidationError]:
+    """Check 6: Stories referencing files from earlier stories appear after them."""
     errors: list[ValidationError] = []
 
-    stories = plan.get("stories", [])
-    if not isinstance(stories, list):
-        return errors
+    stories = plan.stories
 
     # Build a map: file -> index of the story that creates it
     created_by_index: dict[str, int] = {}
     for i, story in enumerate(stories):
-        if not isinstance(story, dict):
-            continue
-        scope = story.get("scope", {})
-        if not isinstance(scope, dict):
-            continue
-        for fpath in scope.get("create", []):
-            if isinstance(fpath, str):
-                created_by_index[fpath] = i
+        for fpath in story.scope.create:
+            created_by_index[fpath] = i
 
     # Check that stories modifying files created by earlier stories
     # appear after those stories
     for i, story in enumerate(stories):
-        if not isinstance(story, dict):
-            continue
-        sid = story.get("story_id", "?")
-        scope = story.get("scope", {})
-        if not isinstance(scope, dict):
-            continue
-
-        for fpath in scope.get("modify", []):
-            if not isinstance(fpath, str):
-                continue
+        for fpath in story.scope.modify:
             if fpath in created_by_index:
                 creator_index = created_by_index[fpath]
                 if i <= creator_index:
-                    creator_story = stories[creator_index]
-                    creator_sid = (
-                        creator_story.get("story_id", "?")
-                        if isinstance(creator_story, dict)
-                        else "?"
-                    )
+                    creator_sid = stories[creator_index].story_id
                     errors.append(
                         ValidationError(
                             check="dependency_ordering",
-                            message=f"Story '{sid}' (index {i}) modifies '{fpath}', "
+                            message=f"Story '{story.story_id}' (index {i}) modifies '{fpath}', "
                             f"which is created by story '{creator_sid}' (index {creator_index}). "
-                            f"'{sid}' must appear after '{creator_sid}' in the stories array.",
+                            f"'{story.story_id}' must appear after '{creator_sid}' in the "
+                            f"stories array.",
                         )
                     )
 
-        # Also check: if Story B creates a file already in Story A's create,
-        # and Story B references something from Story A's create in its modify
-        for fpath in scope.get("create", []):
-            if not isinstance(fpath, str):
-                continue
+        # Check: if a file is created by two different stories
+        for fpath in story.scope.create:
             if fpath in created_by_index and created_by_index[fpath] != i:
                 other_index = created_by_index[fpath]
-                other_story = stories[other_index]
-                other_sid = (
-                    other_story.get("story_id", "?") if isinstance(other_story, dict) else "?"
-                )
-                # Only report if the other story comes after (creating same file twice is a plan issue)
+                other_sid = stories[other_index].story_id
                 if other_index < i:
                     errors.append(
                         ValidationError(
                             check="dependency_ordering",
-                            message=f"File '{fpath}' is created by both story '{other_sid}' (index {other_index}) "
-                            f"and story '{sid}' (index {i}). Each file should be created by exactly one story.",
+                            message=f"File '{fpath}' is created by both story '{other_sid}' "
+                            f"(index {other_index}) and story '{story.story_id}' (index {i}). "
+                            f"Each file should be created by exactly one story.",
                         )
                     )
 
@@ -417,19 +293,11 @@ def _check_dependency_ordering(plan: dict) -> list[ValidationError]:
 # ---------------------------------------------------------------------------
 
 
-def _check_budget_sanity(plan: dict) -> list[ValidationError]:
+def _check_budget_sanity(plan: Plan) -> list[ValidationError]:
     """Check 7: Total max_budget_usd is within a reasonable limit."""
     errors: list[ValidationError] = []
 
-    total_budget = 0.0
-    for story in plan.get("stories", []):
-        if not isinstance(story, dict):
-            continue
-        agent = story.get("agent", {})
-        if isinstance(agent, dict):
-            budget = agent.get("max_budget_usd", 0)
-            if isinstance(budget, int | float):
-                total_budget += budget
+    total_budget = sum(story.agent.max_budget_usd for story in plan.stories)
 
     if total_budget > MAX_TOTAL_BUDGET_USD:
         errors.append(
@@ -445,7 +313,8 @@ def _check_budget_sanity(plan: dict) -> list[ValidationError]:
         errors.append(
             ValidationError(
                 check="budget_sanity",
-                message="Total max_budget_usd is $0.00 or negative. Every story must have a positive budget.",
+                message="Total max_budget_usd is $0.00 or negative. "
+                "Every story must have a positive budget.",
             )
         )
 
@@ -458,12 +327,11 @@ def _check_budget_sanity(plan: dict) -> list[ValidationError]:
 
 
 def validate_plan(epic_dir: Path) -> ValidationResult:
-    """Run all 7 deterministic validation checks on plan.json.
+    """Run 6 deterministic validation checks on plan.json.
 
     Phase A of the two-phase plan verification system. This is the
-    deterministic, $0, instant check. If this fails, the planner is
-    re-invoked with the validation errors before spending AI tokens on
-    Phase B.
+    deterministic, $0, instant check. Check 1 (schema conformance) is
+    eliminated — Pydantic validation already handles it at parse time.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -486,7 +354,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
         )
 
     try:
-        plan = json.loads(plan_json_path.read_text(encoding="utf-8"))
+        raw = json.loads(plan_json_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         return ValidationResult(
             valid=False,
@@ -498,20 +366,22 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
             ],
         )
 
-    if not isinstance(plan, dict):
+    # Validate against Pydantic model (replaces Check 1: schema conformance)
+    try:
+        plan = Plan.model_validate(raw)
+    except Exception as exc:
         return ValidationResult(
             valid=False,
             errors=[
                 ValidationError(
                     check="schema_conformance",
-                    message=f"plan.json root must be an object, got {type(plan).__name__}",
+                    message=f"plan.json failed Pydantic validation: {exc}",
                 )
             ],
         )
 
-    # Run all 7 checks
+    # Run checks 2-7 on the validated model
     all_errors: list[ValidationError] = []
-    all_errors.extend(_check_schema_conformance(plan))
     all_errors.extend(_check_referential_integrity(plan))
     all_errors.extend(_check_truth_coverage(plan))
     all_errors.extend(_check_journey_coverage(plan))

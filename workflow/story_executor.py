@@ -805,7 +805,6 @@ def _dispatch_and_validate_loop(
     # Read agent config directly from story dict
     agent = story.get("agent", {})
     model = agent.get("model", "sonnet")
-    skills = agent.get("skills", [])
     tools = agent.get("tools", ["Read", "Edit", "Write", "Bash", "Glob", "Grep"])
     mcp = agent.get("mcp", [])
     max_turns = agent.get("max_turns", 40)
@@ -839,7 +838,6 @@ def _dispatch_and_validate_loop(
         metadata = get_dispatch_metadata(
             prompt,
             model,
-            skills,
         )
 
         # Log agent_dispatched
@@ -864,7 +862,6 @@ def _dispatch_and_validate_loop(
             primary_model=model,
             fallback_model=fallback_model,
             tools=tools,
-            skills=skills,
             mcp_config=mcp_config,
             max_turns=max_turns,
             max_budget_usd=max_budget_usd,

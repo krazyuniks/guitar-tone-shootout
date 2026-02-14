@@ -1,8 +1,0 @@
-{
-  "What OAuth providers are needed?": "T3K is the only OAuth provider. No Google/GitHub/Facebook needed.",
-  "How much of the codebase already exists?": "17/20 Phase 4 files exist on disk. All routers are mounted, most services/repos/APIs are wired. This is wiring verification and bug-fixing, not net-new implementation.",
-  "What about Tag/Preset entities?": "Tag and Preset entities need domain entities and repos to complete the stack. ORM models may exist but service wiring needs verification.",
-  "What about UserNotification/AuditLog?": "UserNotification and AuditLog have ORM models but may need service wiring to complete the stack.",
-  "Is this a feature branch or main?": "Feature branch (95/phase-4-completion-di-tracks-groups-shoo). No redis/worker/scheduler available — worker-dependent features must be deferred.",
-  "What is the validation strategy?": "Primarily just check + just test-regression for quality gates. E2E tests via just test-golden-path for user-facing verification."
-}

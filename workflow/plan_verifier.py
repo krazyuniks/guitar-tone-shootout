@@ -27,10 +27,11 @@ from workflow.dispatch import (
     BUDGET_DEFAULTS,
     FALLBACK_MODELS,
     dispatch_with_fallback,
-    get_tools_for_role,
 )
+from workflow.models import Plan, render_plan_md
 from workflow.plan_generator import (
     PlanGenerationError,
+    _parse_structured_plan,
     build_verifier_revision_prompt,
 )
 from workflow.plan_validator import validate_plan
@@ -71,24 +72,9 @@ def _build_verifier_prompt(
     plan_json: dict,
     epic_md: str,
     context_md: str,
-    decisions: dict | None = None,
 ) -> str:
-    """Construct the Sonnet verifier prompt.
-
-    The verifier receives the full plan, original epic intent, assembled
-    context, and locked scope decisions. It checks 5 dimensions and
-    returns structured output.
-    """
+    """Construct the Sonnet verifier prompt."""
     plan_json_str = json.dumps(plan_json, indent=2)
-
-    decisions_text = ""
-    if decisions:
-        lines = ["## Locked Scope Decisions", ""]
-        for question, answer in decisions.items():
-            lines.append(f"**Q:** {question}")
-            lines.append(f"**A:** {answer}")
-            lines.append("")
-        decisions_text = "\n".join(lines)
 
     prompt = f"""\
 # Task: Verify Epic Plan
@@ -112,8 +98,6 @@ You must check 5 dimensions and return structured JSON output.
 <context>
 {context_md}
 </context>
-
-{decisions_text}
 
 ## Input 3: Generated Plan (plan.json)
 
@@ -220,53 +204,31 @@ def _parse_verifier_result(result_output: str, structured_output: dict | None) -
 
     Tries structured_output first (from --json-schema), then falls back
     to extracting JSON from the raw output text.
-
-    Returns:
-        Dict conforming to verifier-result.schema.json.
-
-    Raises:
-        PlanVerificationError: If output cannot be parsed.
     """
     # Try structured output first
-    if structured_output and isinstance(structured_output, dict) and "status" in structured_output:
-        return structured_output
+    if structured_output and isinstance(structured_output, dict):
+        # Check if result is nested in the envelope
+        result_field = structured_output.get("result")
+        if isinstance(result_field, str):
+            try:
+                parsed = json.loads(result_field)
+                if isinstance(parsed, dict) and "status" in parsed:
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+        elif isinstance(result_field, dict) and "status" in result_field:
+            return result_field
+        if "status" in structured_output:
+            return structured_output
 
-    # Try to extract JSON from raw output
+    # Fallback: try parsing the output text directly
     if result_output.strip():
-        # The output may be wrapped in Claude's JSON output format
         try:
             parsed = json.loads(result_output)
-            if isinstance(parsed, dict):
-                # Check if the result is nested
-                if "result" in parsed and isinstance(parsed["result"], dict):
-                    candidate = parsed["result"]
-                    if "status" in candidate:
-                        return candidate
-                if "status" in parsed:
-                    return parsed
+            if isinstance(parsed, dict) and "status" in parsed:
+                return parsed
         except json.JSONDecodeError:
             pass
-
-        # Try to find JSON in the output text
-        import re
-
-        for match in re.finditer(r"\{", result_output):
-            start = match.start()
-            depth = 0
-            for i in range(start, len(result_output)):
-                if result_output[i] == "{":
-                    depth += 1
-                elif result_output[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        candidate_str = result_output[start : i + 1]
-                        try:
-                            candidate = json.loads(candidate_str)
-                            if isinstance(candidate, dict) and "status" in candidate:
-                                return candidate
-                        except json.JSONDecodeError:
-                            pass
-                        break
 
     raise PlanVerificationError(
         "Could not parse verifier output into structured result. "
@@ -301,13 +263,7 @@ def _extract_dimension_failures(result: dict) -> list[str]:
 
 
 class DecisionGateResult:
-    """Result from the human Decision Gate.
-
-    Three outcomes:
-    - approve: Proceed to execution
-    - revise: Human edited plan, re-run Phase A + B (no planner re-invocation)
-    - reject: Exit to human, planning artefacts NOT committed
-    """
+    """Result from the human Decision Gate."""
 
     def __init__(self, decision: str, reason: str = "") -> None:
         if decision not in ("approve", "revise", "reject"):
@@ -335,23 +291,7 @@ def present_decision_gate(
     plan_md_path: Path,
     verifier_result: dict,
 ) -> DecisionGateResult:
-    """Present the human with PLAN.md + verifier report and get a decision.
-
-    Three outcomes:
-    - approve: Proceed to commit + push, then start execution
-    - revise: Human edits plan.json + PLAN.md directly, re-run Phase A + B.
-              No planner re-invocation — the human IS the planner for revisions.
-    - reject: Log exit_to_human event, exit. Planning artefacts NOT committed.
-              Human restarts from step 1 (re-ingest), step 3 (re-scope), or
-              step 4 (re-plan).
-
-    Args:
-        plan_md_path: Path to PLAN.md for the human to review.
-        verifier_result: Structured verifier output to display alongside the plan.
-
-    Returns:
-        DecisionGateResult with the human's decision.
-    """
+    """Present the human with PLAN.md + verifier report and get a decision."""
     # Display plan location
     print("\n" + "=" * 70)
     print("DECISION GATE")
@@ -381,7 +321,6 @@ def present_decision_gate(
             dim = verifier_result.get(dim_name, {})
             if not isinstance(dim, dict):
                 continue
-            # Show first few items from the failure details
             for key in [
                 "gaps",
                 "uncovered",
@@ -432,25 +371,8 @@ def present_decision_gate(
 
 def verify_plan(
     epic_dir: Path,
-    decisions: dict | None = None,
 ) -> dict:
-    """Run Phase B AI verification on the plan.
-
-    Dispatches a Sonnet agent to check the plan against the epic intent
-    across 5 dimensions. Returns structured output conforming to
-    verifier-result.schema.json.
-
-    Args:
-        epic_dir: Path to the epic directory containing plan.json,
-            EPIC.md, and CONTEXT.md.
-        decisions: Locked scope decisions from interactive Phase 2.
-
-    Returns:
-        Dict conforming to verifier-result.schema.json.
-
-    Raises:
-        PlanVerificationError: If verification fails unrecoverably.
-    """
+    """Run Phase B AI verification on the plan."""
     # Read inputs
     plan_json_path = epic_dir / "plan.json"
     epic_md_path = epic_dir / "EPIC.md"
@@ -475,7 +397,6 @@ def verify_plan(
         plan_json=plan_json,
         epic_md=epic_md,
         context_md=context_md,
-        decisions=decisions,
     )
 
     logger.info(
@@ -486,7 +407,6 @@ def verify_plan(
 
     # Dispatch via Sonnet with Haiku fallback
     validation_budget = BUDGET_DEFAULTS["validation"]
-    # Verifier needs more budget than a standard validation check
     verifier_budget_usd = max(float(validation_budget["max_budget_usd"]), 2.0)
     verifier_max_turns = max(int(validation_budget["max_turns"]), 20)
 
@@ -494,7 +414,7 @@ def verify_plan(
         prompt=prompt,
         primary_model="sonnet",
         fallback_model=FALLBACK_MODELS["sonnet"],
-        tools=get_tools_for_role("validation_api"),
+        tools=[],
         max_turns=verifier_max_turns,
         max_budget_usd=verifier_budget_usd,
         json_schema=verifier_schema,
@@ -526,30 +446,8 @@ def verify_plan(
 
 def verify_with_revision_cycle(
     epic_dir: Path,
-    decisions: dict | None = None,
 ) -> tuple[dict, bool]:
-    """Run the full two-phase verification with one revision cycle.
-
-    Flow:
-    1. Run Phase A (deterministic validation)
-    2. If Phase A fails, re-invoke planner with validation errors
-    3. Run Phase A again on revised plan
-    4. If Phase A passes, run Phase B (AI verification)
-    5. If Phase B fails, feed verifier output back to planner for revision
-    6. Run Phase A + B on revised plan
-    7. If second attempt also fails, exit to human
-
-    Args:
-        epic_dir: Path to the epic directory.
-        decisions: Locked scope decisions.
-
-    Returns:
-        Tuple of (verifier_result_dict, success_bool).
-        On success, verifier_result contains the passing verification.
-        On failure, verifier_result contains the last failing verification.
-    """
-    if decisions is None:
-        decisions = {}
+    """Run the full two-phase verification with one revision cycle."""
 
     # Phase A: Deterministic validation (attempt 1)
     logger.info("Running Phase A validation (attempt 1)...")
@@ -563,7 +461,7 @@ def verify_with_revision_cycle(
 
         # Re-invoke planner with validation errors
         try:
-            _regenerate_plan_with_errors(epic_dir, phase_a_result.error_messages(), decisions)
+            _regenerate_plan_with_errors(epic_dir, phase_a_result.error_messages())
         except PlanGenerationError as exc:
             logger.error("Plan regeneration failed: %s", exc)
             return (
@@ -588,7 +486,7 @@ def verify_with_revision_cycle(
 
     # Phase B: AI verification (attempt 1)
     try:
-        verifier_result = verify_plan(epic_dir, decisions)
+        verifier_result = verify_plan(epic_dir)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed: %s", exc)
         return ({"status": "fail", "error": str(exc)}, False)
@@ -605,7 +503,7 @@ def verify_with_revision_cycle(
     )
 
     try:
-        _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result, decisions)
+        _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result)
     except PlanGenerationError as exc:
         logger.error("Plan regeneration (verifier feedback) failed: %s", exc)
         return (verifier_result, False)
@@ -626,7 +524,7 @@ def verify_with_revision_cycle(
     # Phase B: AI verification (attempt 2 — final)
     logger.info("Running Phase B verification (attempt 2, final)...")
     try:
-        verifier_result = verify_plan(epic_dir, decisions)
+        verifier_result = verify_plan(epic_dir)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed on second attempt: %s", exc)
         return ({"status": "fail", "error": str(exc)}, False)
@@ -642,31 +540,6 @@ def verify_with_revision_cycle(
         ", ".join(failed_dims),
     )
     return (verifier_result, False)
-
-
-# ---------------------------------------------------------------------------
-# Structured plan extraction
-# ---------------------------------------------------------------------------
-
-
-def _extract_plan_from_output(result) -> tuple[str, dict]:
-    """Extract plan_md and plan_json from a dispatch result.
-
-    Parses the agent's text output using delimiter-based extraction
-    (===PLAN_MD_START===, ===PLAN_JSON_START===).
-
-    Args:
-        result: AgentResult from dispatch_with_fallback.
-
-    Returns:
-        Tuple of (plan_md_content, plan_json_dict).
-
-    Raises:
-        PlanGenerationError: If output cannot be parsed.
-    """
-    from workflow.plan_generator import _parse_plan_output
-
-    return _parse_plan_output(result.output)
 
 
 # ---------------------------------------------------------------------------
@@ -687,34 +560,35 @@ def _read_original_prompt_context(epic_dir: Path) -> tuple[str, int]:
     return context, epic_number
 
 
+def _write_plan_from_model(plan: Plan, epic_dir: Path) -> None:
+    """Write plan.json and PLAN.md from a validated Plan model."""
+    (epic_dir / "plan.json").write_text(
+        json.dumps(plan.model_dump(by_alias=True), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    (epic_dir / "PLAN.md").write_text(render_plan_md(plan), encoding="utf-8")
+    logger.info("Wrote revised plan.json and PLAN.md")
+
+
 def _regenerate_plan_with_errors(
     epic_dir: Path,
     validation_errors: list[str],
-    decisions: dict,
 ) -> None:
     """Re-invoke the planner with Phase A validation errors.
 
-    Builds a revision prompt containing the original planning prompt plus
-    the specific validation errors, then dispatches the planner again.
-    The agent emits output using ===PLAN_MD_START=== / ===PLAN_JSON_START===
-    delimiters, parsed by _parse_plan_output().
+    Uses structured output (--json-schema, tools=[]) and parses the
+    result with Pydantic.
     """
     from workflow.plan_generator import (
         _build_planner_prompt,
-        _format_decisions,
-        _load_plan_schema,
         build_revision_prompt,
     )
 
     context, epic_number = _read_original_prompt_context(epic_dir)
-    plan_schema = _load_plan_schema()
-    decisions_text = _format_decisions(decisions)
 
     # Rebuild the original prompt
     original_prompt = _build_planner_prompt(
         context=context,
-        decisions_text=decisions_text,
-        plan_schema=plan_schema,
         epic_number=epic_number,
     )
 
@@ -723,8 +597,7 @@ def _regenerate_plan_with_errors(
 
     logger.info("Dispatching planner revision (Phase A errors, %d chars)", len(revision_prompt))
 
-    # Revision agents get no tools — all context is in the prompt, they
-    # only need to produce delimited text output.
+    plan_schema = Plan.model_json_schema()
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
@@ -733,6 +606,7 @@ def _regenerate_plan_with_errors(
         tools=[],
         max_turns=5,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
+        json_schema=plan_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -742,45 +616,26 @@ def _regenerate_plan_with_errors(
             f"Output: {result.output[:500]}"
         )
 
-    # Extract plan_md and plan_json from structured output
-    plan_md_content, plan_json_dict = _extract_plan_from_output(result)
-
-    (epic_dir / "PLAN.md").write_text(plan_md_content, encoding="utf-8")
-    (epic_dir / "plan.json").write_text(
-        json.dumps(plan_json_dict, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
-    logger.info("Wrote revised PLAN.md and plan.json")
+    plan = _parse_structured_plan(result)
+    _write_plan_from_model(plan, epic_dir)
 
 
 def _regenerate_plan_with_verifier_feedback(
     epic_dir: Path,
     verifier_result: dict,
-    decisions: dict,
 ) -> None:
     """Re-invoke the planner with Phase B verifier feedback.
 
-    Builds a revision prompt containing the original planning prompt plus
-    the structured verifier output, then dispatches the planner again.
-    The agent emits output using ===PLAN_MD_START=== / ===PLAN_JSON_START===
-    delimiters, parsed by _parse_plan_output().
+    Uses structured output (--json-schema, tools=[]) and parses the
+    result with Pydantic.
     """
-    from workflow.plan_generator import (
-        _build_planner_prompt,
-        _format_decisions,
-        _load_plan_schema,
-    )
+    from workflow.plan_generator import _build_planner_prompt
 
     context, epic_number = _read_original_prompt_context(epic_dir)
-    plan_schema = _load_plan_schema()
-    decisions_text = _format_decisions(decisions)
 
     # Rebuild the original prompt
     original_prompt = _build_planner_prompt(
         context=context,
-        decisions_text=decisions_text,
-        plan_schema=plan_schema,
         epic_number=epic_number,
     )
 
@@ -789,8 +644,7 @@ def _regenerate_plan_with_verifier_feedback(
 
     logger.info("Dispatching planner revision (verifier feedback, %d chars)", len(revision_prompt))
 
-    # Revision agents get no tools — all context is in the prompt, they
-    # only need to produce delimited text output.
+    plan_schema = Plan.model_json_schema()
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
@@ -799,6 +653,7 @@ def _regenerate_plan_with_verifier_feedback(
         tools=[],
         max_turns=5,
         max_budget_usd=float(planning_budget["max_budget_usd"]),
+        json_schema=plan_schema,
         cwd=PROJECT_ROOT,
     )
 
@@ -808,16 +663,8 @@ def _regenerate_plan_with_verifier_feedback(
             f"(exit_code={result.exit_code}). Output: {result.output[:500]}"
         )
 
-    # Extract plan_md and plan_json from structured output
-    plan_md_content, plan_json_dict = _extract_plan_from_output(result)
-
-    (epic_dir / "PLAN.md").write_text(plan_md_content, encoding="utf-8")
-    (epic_dir / "plan.json").write_text(
-        json.dumps(plan_json_dict, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
-    logger.info("Wrote revised PLAN.md and plan.json (verifier feedback)")
+    plan = _parse_structured_plan(result)
+    _write_plan_from_model(plan, epic_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -826,10 +673,10 @@ def _regenerate_plan_with_verifier_feedback(
 
 
 def main() -> None:
-    """CLI entry point: python scripts/plan_verifier.py <epic_number> [--full-cycle] [--decisions file.json]."""
+    """CLI entry point: python scripts/plan_verifier.py <epic_number> [--full-cycle]."""
     if len(sys.argv) < 2:
         print(
-            f"Usage: {sys.argv[0]} <epic_number> [--full-cycle] [--decisions file.json]",
+            f"Usage: {sys.argv[0]} <epic_number> [--full-cycle]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -842,23 +689,6 @@ def main() -> None:
 
     full_cycle = "--full-cycle" in sys.argv
 
-    # Parse optional --decisions flag
-    decisions: dict = {}
-    if "--decisions" in sys.argv:
-        idx = sys.argv.index("--decisions")
-        if idx + 1 >= len(sys.argv):
-            print("Error: --decisions requires a file path argument", file=sys.stderr)
-            sys.exit(1)
-        decisions_path = Path(sys.argv[idx + 1])
-        if not decisions_path.is_file():
-            print(f"Error: decisions file not found: {decisions_path}", file=sys.stderr)
-            sys.exit(1)
-        try:
-            decisions = json.loads(decisions_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            print(f"Error: invalid JSON in decisions file: {exc}", file=sys.stderr)
-            sys.exit(1)
-
     epic_dir = PLANNING_DIR / f"E{epic_number}"
     if not epic_dir.is_dir():
         print(f"Error: Epic directory not found: {epic_dir}", file=sys.stderr)
@@ -867,8 +697,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     if full_cycle:
-        # Run the full verification with revision cycle
-        verifier_result, success = verify_with_revision_cycle(epic_dir, decisions)
+        verifier_result, success = verify_with_revision_cycle(epic_dir)
 
         if success:
             print(f"\nPlan verification PASSED for epic #{epic_number}")
@@ -886,9 +715,8 @@ def main() -> None:
         sys.exit(0 if success else 1)
 
     else:
-        # Run Phase B verification only (Phase A should have passed already)
         try:
-            verifier_result = verify_plan(epic_dir, decisions)
+            verifier_result = verify_plan(epic_dir)
         except PlanVerificationError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
