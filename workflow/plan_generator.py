@@ -1,9 +1,9 @@
-"""V2 plan generation — single Opus invocation with structured output.
+"""V2 plan generation — single Opus invocation producing JSON.
 
-Reads CONTEXT.md (from context assembly), constructs the planner prompt,
-dispatches via dispatch_agent() with --json-schema, and parses the output
-into plan.json via Pydantic. PLAN.md is rendered deterministically from
-the model.
+Reads CONTEXT.md (from context assembly), constructs the planner prompt
+(with JSON schema embedded in text), dispatches via dispatch_agent(),
+and parses the output into plan.json via Pydantic. PLAN.md is rendered
+deterministically from the model.
 
 Reference: Research doc Section 8.4 Decisions 1, 3, 4, 5, 6, 7.
 
@@ -11,7 +11,6 @@ Usage:
     python -m workflow.plan_generator <epic_number>
 """
 
-import contextlib
 import json
 import logging
 import re
@@ -128,7 +127,7 @@ Tool restrictions per agent role:
 | Agent Role | Tools |
 |------------|-------|
 | Implementation | Read, Edit, Write, Bash, Glob, Grep |
-| Validation (browser) | Read, Bash, Glob, Grep + MCP |
+| Validation (browser) | Read, Bash, Glob, Grep |
 | Validation (API/DB) | Bash, Read, Glob, Grep |
 | Regression test | Read, Edit, Write, Bash, Glob, Grep |"""
 
@@ -151,7 +150,12 @@ def _build_planner_prompt(
 
     The prompt instructs Opus to produce a plan.json structure only.
     PLAN.md is rendered deterministically from the validated model.
+    The JSON schema is included inline so the model knows the structure
+    without relying on --json-schema constrained decoding.
     """
+    # Generate schema for prompt context
+    plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
+
     prompt = f"""\
 # Task: Generate Epic Plan
 
@@ -159,9 +163,26 @@ You are the planner for the GTS (Guitar Tone Shootout) project. Your job is to
 produce a complete plan for epic #{epic_number} that will be executed by AI agents
 under an automated orchestrator.
 
-You must produce a JSON object conforming to the structure enforced by --json-schema.
-The orchestrator parses this JSON directly. A separate process renders PLAN.md from
-the JSON, so you do NOT produce PLAN.md.
+Think through the plan step by step first, then emit the final JSON inside a
+```json code fence. The orchestrator extracts JSON from your response
+automatically. A separate process renders PLAN.md from the JSON, so you do NOT
+produce PLAN.md.
+
+Before emitting the JSON, verify your own work:
+- Count your observable truths and confirm every ID appears in at least one
+  story's truths_addressed AND at least one journey's truths_covered.
+- Confirm every checkpoint after_story references a real story_id.
+- List any gaps and fix them before writing the JSON.
+
+---
+
+## JSON Schema
+
+Your output must conform to this schema:
+
+<json_schema>
+{plan_schema_json}
+</json_schema>
 
 ---
 
@@ -241,11 +262,6 @@ For each story, specify the full agent dispatch configuration.
 
 {BUDGET_REFERENCE}
 
-MCP servers (specify in the `mcp` array):
-- `chrome-devtools` — for stories that need browser DOM inspection
-- `playwright` — for stories that need browser automation (E2E tests)
-- Most stories need NO MCP (empty array `[]`)
-
 ---
 
 ## Evidence Fields per Check Type
@@ -259,20 +275,20 @@ correct fields for the check type:
 
 ## Output
 
-Produce a single JSON object. The structure is enforced by --json-schema.
+After your analysis, produce the plan JSON inside a ```json code fence.
 
 Key fields:
 - `schema_v`: always 1
 - `epic_number`: {epic_number}
 - `goal`: outcome-shaped goal statement
 - `observable_truths`: array of {{id, statement}}
-- `user_journeys`: array with journey_id (pattern "J1", "J2", ...), persona,
+- `user_journeys`: array with journey_id ("J1", "J2", ...), persona,
   narrative, truths_covered, entry_point, critical_transitions
-- `stories`: ordered array with story_id (pattern "01-name"), name, purpose,
+- `stories`: ordered array with story_id ("01-name"), name, purpose,
   agent config, scope, implementation_notes, truths_addressed, wiki_sections
 - `validation_checkpoints`: array with after_story, check_type, checks
 
-The `from` field in critical_transitions uses the JSON key "from" (not "from_").
+The critical_transitions use {{source, to, mechanism}}.
 
 ---
 
@@ -291,7 +307,8 @@ The `from` field in critical_transitions uses the JSON key "from" (not "from_").
 10. Do NOT invent features not described in the epic. Stay within scope.
 11. Every story MUST include `wiki_sections` — a list of wiki section header names
     from `.planning/wiki-indexes/` for the Stage 4 prompt builder.
-"""
+
+Think step by step, then emit the JSON in a ```json code fence."""
 
     return prompt
 
@@ -324,7 +341,7 @@ errors and re-emit the plan JSON object:
 {error_list}
 
 All other instructions from the original prompt still apply. Produce a single
-JSON object conforming to the --json-schema.
+JSON object and NOTHING ELSE — no markdown, no explanation. Raw JSON only.
 """
 
     return original_prompt + revision_section
@@ -406,7 +423,8 @@ def build_verifier_revision_prompt(
         feedback_lines.append("")
 
     feedback_lines.append(
-        "Fix all issues above. Produce a single JSON object conforming to " "the --json-schema."
+        "Fix all issues above. Produce a single JSON object conforming to "
+        "the schema. Output ONLY the raw JSON, no other text."
     )
 
     return original_prompt + "\n".join(feedback_lines)
@@ -420,52 +438,36 @@ def build_verifier_revision_prompt(
 def _parse_structured_plan(result) -> Plan:
     """Parse a dispatch result into a validated Plan model.
 
-    Claude Code with --json-schema returns the JSON in the result field
-    of the output envelope. The structured_output dict contains the full
-    envelope; the output string contains just the result text.
-
-    Args:
-        result: AgentResult from dispatch.
-
-    Returns:
-        Validated Plan model.
-
-    Raises:
-        PlanGenerationError: If output cannot be parsed or validated.
+    The model produces reasoning text followed by JSON in a ```json code fence.
+    We extract the fenced JSON and validate with Pydantic.
     """
-    # Try structured_output first — Claude Code envelope has a "result" key
-    # containing the JSON string when --json-schema is used.
-    data = None
+    text = result.output.strip()
 
-    if result.structured_output and isinstance(result.structured_output, dict):
-        # Check structured_output envelope field first (--json-schema output)
-        so_field = result.structured_output.get("structured_output")
-        if isinstance(so_field, dict):
-            data = so_field
-        elif isinstance(so_field, str):
-            with contextlib.suppress(json.JSONDecodeError):
-                data = json.loads(so_field)
+    # Dump raw output for debugging
+    dump_path = PLANNING_DIR.parent / "logs" / "last-planner-output.txt"
+    dump_path.parent.mkdir(parents=True, exist_ok=True)
+    dump_path.write_text(text, encoding="utf-8")
+    logger.info("Raw planner output dumped to %s (%d chars)", dump_path, len(text))
 
-        # Then check the "result" field
-        if data is None:
-            result_field = result.structured_output.get("result")
-            if isinstance(result_field, str):
-                with contextlib.suppress(json.JSONDecodeError):
-                    data = json.loads(result_field)
-            elif isinstance(result_field, dict):
-                data = result_field
+    # Extract JSON from ```json code fence
+    fence_match = re.search(r"```json\s*\n(.*?)```", text, re.DOTALL)
+    json_text = fence_match.group(1).strip() if fence_match else text
 
-    # Fallback: try parsing the output text directly
-    if data is None and result.output:
-        with contextlib.suppress(json.JSONDecodeError):
-            data = json.loads(result.output)
-
-    if data is None:
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        pos = exc.pos or 0
+        context_start = max(0, pos - 200)
+        context_end = min(len(json_text), pos + 200)
+        error_context = json_text[context_start:context_end]
+        marker_pos = pos - context_start
+        marker_line = " " * marker_pos + "^ ERROR HERE"
         raise PlanGenerationError(
-            "Could not extract JSON from planner output. "
-            f"Output (first 500 chars): {result.output[:500]}"
-        )
-
+            f"Planner output is not valid JSON: {exc}\n"
+            f"Context around error (char {pos}):\n"
+            f"{error_context}\n{marker_line}\n"
+            f"Full output dumped to: {dump_path}"
+        ) from exc
     try:
         return Plan.model_validate(data)
     except Exception as exc:
@@ -482,9 +484,10 @@ def generate_plan(
 ) -> tuple[Path, Path]:
     """Generate PLAN.md and plan.json from assembled context.
 
-    Dispatches a single Opus invocation with --json-schema and tools=[]
-    to get structured plan output. PLAN.md is rendered deterministically
-    from the validated Pydantic model.
+    Dispatches a single Opus invocation with tools=[] to produce plan JSON.
+    The JSON schema is included in the prompt text (not via --json-schema
+    constrained decoding, which fails on large outputs). PLAN.md is rendered
+    deterministically from the validated Pydantic model.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -501,7 +504,7 @@ def generate_plan(
     context = _read_context(epic_dir)
     epic_number = _read_epic_number(epic_dir)
 
-    # Build the planner prompt
+    # Build the planner prompt (includes JSON schema as context)
     prompt = _build_planner_prompt(
         context=context,
         epic_number=epic_number,
@@ -514,11 +517,9 @@ def generate_plan(
         len(prompt) // 4,
     )
 
-    # Generate JSON Schema from Pydantic model
-    plan_schema = Plan.model_json_schema()
-
-    # Dispatch with tools=[] and json_schema for structured output.
-    # No tools needed — all context is in the prompt.
+    # Dispatch with tools=[] — no constrained decoding.
+    # The prompt instructs the model to produce raw JSON; we validate
+    # with Pydantic after parsing.
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=prompt,
@@ -527,8 +528,9 @@ def generate_plan(
         tools=[],
         max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
-        json_schema=plan_schema,
+        json_schema=None,
         cwd=PROJECT_ROOT,
+        no_mcp=True,
     )
 
     if not result.success:
@@ -549,7 +551,7 @@ def generate_plan(
     # Write plan.json (serialised from validated model)
     plan_json_path = epic_dir / "plan.json"
     plan_json_path.write_text(
-        json.dumps(plan.model_dump(by_alias=True), indent=2, ensure_ascii=False) + "\n",
+        json.dumps(plan.model_dump(), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     logger.info("Wrote plan.json to %s", plan_json_path)

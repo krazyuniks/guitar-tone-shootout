@@ -17,3 +17,6 @@
 {"schema_v": 1, "run_id": "3b74b64f-c631-40ca-914a-ae5e66f13b91", "ts": "2026-02-15T00:28:23.593355+00:00", "event": "phase_a_pass", "epic": 95, "attempt": 1}
 {"schema_v": 1, "run_id": "3b74b64f-c631-40ca-914a-ae5e66f13b91", "ts": "2026-02-15T00:28:23.593442+00:00", "event": "phase_b_pass", "epic": 95, "attempt": 1, "scores": {"journey_completeness": "unknown", "transition_coverage": "unknown", "intent_alignment": "unknown", "gap_detection": "unknown", "validation_sufficiency": "unknown"}}
 {"schema_v": 1, "run_id": "3b74b64f-c631-40ca-914a-ae5e66f13b91", "ts": "2026-02-15T00:28:23.593918+00:00", "event": "plan_approved", "epic": 95}
+{"schema_v": 1, "run_id": "3b74b64f-c631-40ca-914a-ae5e66f13b91", "ts": "2026-02-15T00:28:28.718438+00:00", "event": "plan_committed", "epic": 95, "commit": "da7587a2"}
+{"schema_v": 1, "run_id": "c686274d-3151-4594-804c-8b210f5d767f", "ts": "2026-02-15T00:28:28.719148+00:00", "event": "epic_started", "epic": 95, "stories": 4}
+{"schema_v": 1, "run_id": "c686274d-3151-4594-804c-8b210f5d767f", "ts": "2026-02-15T00:47:27.472779+00:00", "event": "github_comment", "epic": 95, "comment_url": "https://github.com/krazyuniks/guitar-tone-shootout/issues/95#issuecomment-3902910940"}

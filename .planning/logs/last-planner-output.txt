@@ -1,0 +1,399 @@
+I'll analyze this epic step-by-step using the goal-backward methodology.
+
+## Step 1: Define Observable Truths
+
+From the epic description, I need to identify what users can actually see and do:
+
+1. **Tags exist on gear items** - Users can see tags associated with gear
+2. **Users can add tags** - Users can add tags to gear items
+3. **Users can see tags on detail page** - Tags are visible on the gear detail page
+4. **Users can filter by tags** - The gear list page allows filtering by tag
+
+## Step 2: Derive Required Artefacts
+
+Walking the full stack for each truth:
+
+**Truth 1-2 (Tags on gear, CRUD operations):**
+- Entity: `Tag` entity in domain model
+- ORM: `Tag` model with relationship to `Gear`
+- Repository: `TagRepository` for CRUD operations
+- Service: `TagService` for business logic
+- Migration: Add `tags` table and `gear_tags` junction table
+- API: POST/GET `/api/v1/gear/{gear_id}/tags`
+- Schemas: Pydantic models for tag request/response
+
+**Truth 3 (Tags visible on detail page):**
+- Template: Update gear detail template to show tags
+- Fragment: Tag display component
+- HTMX: Tag addition interaction
+
+**Truth 4 (Filter by tag):**
+- Template: Update gear list template with tag filter UI
+- Repository: Query method to filter gear by tag
+- API: Update GET `/api/v1/gear` to accept tag filter param
+
+## Step 3: Organize into Stories
+
+Based on the artefacts and typical GTS patterns:
+
+**Story 1: Tag Architecture** (Backend foundation)
+- Tag entity, ORM model with M:N relationship
+- TagRepository and TagService
+- Migration for tags table and junction table
+
+**Story 2: Tag API** (API layer)
+- Route handlers for tag CRUD
+- Pydantic schemas
+- Route registration
+- Filter support in gear list endpoint
+
+**Story 3: Tag UI** (Frontend)
+- Gear detail page shows tags
+- Add tag interaction (HTMX)
+- Gear list page filter by tag
+- Navigation and fragments
+
+**Story 4: Regression Tests** (Quality gate)
+- E2E tests for tag workflows
+- Test tag filtering
+- Update existing gear tests if needed
+
+## Step 4: Define User Journeys
+
+**J1: Add and View Tags**
+- User navigates to gear detail page
+- User adds a tag to gear item
+- Tag appears in the tag list
+- User navigates back to gear list
+- Gear item shows the tag
+
+**J2: Filter by Tag**
+- User navigates to gear list
+- User selects a tag filter
+- Only gear with that tag is shown
+- User clears filter
+- All gear items return
+
+## Step 5: Place Validation Checkpoints
+
+- After Story 2 (API): Verify API endpoints respond, tags can be created via API
+- After Story 3 (UI): Verify full product works (add tags via UI, filter works)
+- After Story 4 (Tests): Verify tests pass and quality gates pass
+
+## Step 6: Specify Wiki Sections
+
+Based on the story types and `.planning/wiki-indexes/` content:
+
+- Architecture story: GTS-Technical-Architecture sections on domain model, repositories
+- API story: GTS-Technical-Architecture sections on API patterns, error handling
+- UI story: Frontend-Architecture sections on Jinja2, HTMX, Alpine.js
+- Test story: Testing sections, E2E patterns
+
+## Verification
+
+Let me verify coverage:
+- Truth 1 (tags exist): Story 1, 2, 3 ✓
+- Truth 2 (can add tags): Story 2, 3 ✓
+- Truth 3 (visible on detail): Story 3 ✓
+- Truth 4 (can filter): Story 2, 3 ✓
+
+Journey coverage:
+- J1 uses truths 1, 2, 3 ✓
+- J2 uses truths 1, 4 ✓
+
+All truths covered in both stories and journeys ✓
+
+```json
+{
+  "schema_v": 1,
+  "epic_number": 999,
+  "goal": "Users can organize their gear collection using tags, viewing tags on gear detail pages and filtering the gear list by tag",
+  "observable_truths": [
+    {
+      "id": 1,
+      "statement": "A user viewing a gear detail page can see tags associated with that gear item"
+    },
+    {
+      "id": 2,
+      "statement": "A user can add a new tag to a gear item from the detail page and see it appear in the tag list"
+    },
+    {
+      "id": 3,
+      "statement": "A user can remove a tag from a gear item and see it disappear from the tag list"
+    },
+    {
+      "id": 4,
+      "statement": "A user on the gear list page can click a tag filter and see only gear items with that tag"
+    },
+    {
+      "id": 5,
+      "statement": "A user can clear the tag filter and see all gear items return to the list"
+    }
+  ],
+  "user_journeys": [
+    {
+      "journey_id": "J1",
+      "persona": "Guitar player organizing their gear collection",
+      "narrative": "User clicks 'Gear' in navigation and arrives at the gear list page. They click on a gear item (e.g., 'Fender Stratocaster') and navigate to the detail page. On the detail page, they see an 'Add Tag' interface. They type 'vintage' and submit. The tag 'vintage' appears in the tag list on the page. They add another tag 'electric'. Both tags are now visible. They remove the 'electric' tag and it disappears from the list.",
+      "truths_covered": [1, 2, 3],
+      "entry_point": "/gear",
+      "critical_transitions": [
+        {
+          "source": "/gear",
+          "to": "/gear/{id}",
+          "mechanism": "Click gear item card"
+        },
+        {
+          "source": "/gear/{id}",
+          "to": "/gear/{id} (tags updated)",
+          "mechanism": "Submit add tag form via HTMX"
+        }
+      ]
+    },
+    {
+      "journey_id": "J2",
+      "persona": "User searching for specific gear types",
+      "narrative": "User navigates to the gear list page at /gear. They see a tag filter interface with available tags like 'vintage', 'electric', 'acoustic'. They click the 'vintage' tag. The page updates to show only gear items tagged with 'vintage'. They click 'Clear filter' and all gear items return to the list.",
+      "truths_covered": [1, 4, 5],
+      "entry_point": "/gear",
+      "critical_transitions": [
+        {
+          "source": "/gear",
+          "to": "/gear?tag=vintage",
+          "mechanism": "Click tag filter"
+        },
+        {
+          "source": "/gear?tag=vintage",
+          "to": "/gear",
+          "mechanism": "Click clear filter button"
+        }
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "story_id": "01-tag-architecture",
+      "name": "Tag Domain Model and Data Layer",
+      "purpose": "Establish the Tag entity, ORM models, repository, service, and database migration for the many-to-many relationship between Gear and Tags",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-architecture", "repository-patterns", "service-patterns", "gts-backend-dev"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 30,
+        "max_budget_usd": 3.0
+      },
+      "scope": {
+        "create": [
+          "libs/core/src/gts_core/gear/tag.py",
+          "libs/core/src/gts_core/gear/tag_repository.py",
+          "libs/core/src/gts_core/gear/tag_service.py",
+          "apps/webapp/migrations/versions/XXXX_add_gear_tags.py"
+        ],
+        "modify": [
+          "libs/core/src/gts_core/gear/__init__.py",
+          "libs/core/src/gts_core/gear/gear.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "Create Tag entity with fields: id, name, created_at",
+        "Use many-to-many relationship via gear_tags junction table",
+        "Tag names should be unique and case-insensitive",
+        "TagRepository should have methods: create, get_by_id, get_by_name, list_all, delete",
+        "Update Gear model to include tags relationship with lazy='raise' and appropriate joinedload strategy",
+        "Migration creates both tags table and gear_tags junction table",
+        "TagService handles business logic including duplicate prevention"
+      ],
+      "truths_addressed": [1, 2, 3, 4],
+      "wiki_sections": [
+        "Domain Model",
+        "Repository Pattern",
+        "Service Layer",
+        "Database Schema",
+        "SQLAlchemy Relationships"
+      ]
+    },
+    {
+      "story_id": "02-tag-api",
+      "name": "Tag API Endpoints and Schemas",
+      "purpose": "Implement REST API endpoints for tag CRUD operations and extend gear list endpoint to support tag filtering",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-backend-dev", "web-handlers", "error-handling", "gts-architecture"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 35,
+        "max_budget_usd": 3.5
+      },
+      "scope": {
+        "create": [
+          "apps/webapp/src/webapp/routes/tags.py",
+          "apps/webapp/src/webapp/schemas/tag.py"
+        ],
+        "modify": [
+          "apps/webapp/src/webapp/main.py",
+          "apps/webapp/src/webapp/routes/gear.py",
+          "apps/webapp/src/webapp/schemas/gear.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "POST /api/v1/gear/{gear_id}/tags - Add tag to gear (create tag if doesn't exist)",
+        "GET /api/v1/gear/{gear_id}/tags - List tags for a gear item",
+        "DELETE /api/v1/gear/{gear_id}/tags/{tag_id} - Remove tag from gear",
+        "GET /api/v1/tags - List all tags",
+        "Update GET /api/v1/gear to accept optional ?tag=name query parameter",
+        "Pydantic schemas: TagCreate, TagRead, TagList",
+        "Update GearRead schema to include tags array",
+        "Tag names should be normalized (lowercase, trimmed) before creation",
+        "Return 404 if gear doesn't exist, proper error handling for invalid tag names"
+      ],
+      "truths_addressed": [1, 2, 3, 4, 5],
+      "wiki_sections": [
+        "API Endpoints",
+        "Request/Response Schemas",
+        "Error Handling",
+        "FastAPI Routing",
+        "Query Parameters"
+      ]
+    },
+    {
+      "story_id": "03-tag-ui",
+      "name": "Tag UI Components and Interactions",
+      "purpose": "Add tag display and management to gear detail page, and tag filtering to gear list page",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-frontend-dev", "htmx", "astro-frontend", "gts-architecture"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 40,
+        "max_budget_usd": 4.0
+      },
+      "scope": {
+        "create": [
+          "apps/webapp/src/webapp/templates/gear/_tag_list.html",
+          "apps/webapp/src/webapp/templates/gear/_add_tag_form.html"
+        ],
+        "modify": [
+          "apps/webapp/src/webapp/templates/gear/detail.html",
+          "apps/webapp/src/webapp/templates/gear/list.html"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "Gear detail page: Display tags as badge-style elements with remove buttons",
+        "Add tag form: Input field + submit button using HTMX to POST without page reload",
+        "Tag removal: Delete button on each tag badge using HTMX DELETE request",
+        "Use hx-target and hx-swap to update only the tag list fragment",
+        "Gear list page: Add tag filter UI showing all available tags as clickable badges",
+        "Tag filter uses query parameter ?tag=name to filter results",
+        "Clear filter button returns to /gear without query params",
+        "All interactive elements must have data-testid attributes for E2E tests",
+        "Use Tailwind utility classes for styling, no inline styles"
+      ],
+      "truths_addressed": [1, 2, 3, 4, 5],
+      "wiki_sections": [
+        "Jinja2 Templates",
+        "HTMX Patterns",
+        "Template Fragments",
+        "Form Handling",
+        "Tailwind CSS"
+      ]
+    },
+    {
+      "story_id": "04-regression-tests",
+      "name": "Tag Feature E2E Tests",
+      "purpose": "Create comprehensive E2E tests for tag workflows and update existing gear tests to account for tag relationships",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-testing", "playwright", "gts-architecture"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 30,
+        "max_budget_usd": 3.0
+      },
+      "scope": {
+        "create": [
+          "tests/e2e/python/test_gear_tags.py"
+        ],
+        "modify": []
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "Test add tag workflow: navigate to detail page, add tag, verify tag appears",
+        "Test remove tag workflow: add tag, remove it, verify it disappears",
+        "Test tag persistence: add tag, navigate away, return, verify tag still present",
+        "Test tag filtering: navigate to list, apply filter, verify only tagged gear shown",
+        "Test clear filter: apply filter, clear it, verify all gear returns",
+        "Test duplicate tag prevention: attempt to add same tag twice",
+        "Use Playwright for browser automation",
+        "Verify database state with raw SQL queries using text()",
+        "All tests must use page.goto() for navigation and assert DOM visibility",
+        "Follow E2E test patterns from existing gear tests"
+      ],
+      "truths_addressed": [1, 2, 3, 4, 5],
+      "wiki_sections": [
+        "E2E Testing",
+        "Playwright Patterns",
+        "Test Database Setup",
+        "Test Data Fixtures"
+      ]
+    }
+  ],
+  "validation_checkpoints": [
+    {
+      "after_story": "02-tag-api",
+      "check_type": "api+response",
+      "checks": [
+        {
+          "criterion": "POST /api/v1/gear/{gear_id}/tags creates a tag and returns 201",
+          "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
+        },
+        {
+          "criterion": "GET /api/v1/gear/{gear_id}/tags returns tags array",
+          "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
+        },
+        {
+          "criterion": "GET /api/v1/gear?tag=vintage filters gear by tag",
+          "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
+        }
+      ]
+    },
+    {
+      "after_story": "03-tag-ui",
+      "check_type": "browser+db",
+      "checks": [
+        {
+          "criterion": "User can navigate to gear detail page and see tag list section",
+          "evidence_fields": ["action_performed", "sql_query", "row_count", "sample_row"]
+        },
+        {
+          "criterion": "User can add a tag via the form and see it appear without page reload",
+          "evidence_fields": ["action_performed", "sql_query", "row_count", "sample_row"]
+        },
+        {
+          "criterion": "User can click a tag filter on gear list and see filtered results",
+          "evidence_fields": ["action_performed", "sql_query", "row_count", "sample_row"]
+        }
+      ]
+    },
+    {
+      "after_story": "04-regression-tests",
+      "check_type": "regression",
+      "checks": [
+        {
+          "criterion": "All E2E tests pass including new tag tests",
+          "evidence_fields": ["test_command", "exit_code", "test_count", "failure_count"]
+        }
+      ]
+    },
+    {
+      "after_story": "04-regression-tests",
+      "check_type": "quality",
+      "checks": [
+        {
+          "criterion": "Quality gates pass (lint, type check, tests)",
+          "evidence_fields": ["commands_run", "exit_code", "error_count"]
+        }
+      ]
+    }
+  ]
+}
+```

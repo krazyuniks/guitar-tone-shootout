@@ -130,20 +130,19 @@ def _create_error_response(
             content=json_content,
         )
 
-    # Page routes default to HTML (unless Accept header requests JSON)
-    if _is_page_route(request):
-        accept = request.headers.get("accept", "")
-        wants_json = "application/json" in accept and "text/html" not in accept
+    # For non-API routes, check Accept header
+    accept = request.headers.get("accept", "")
+    wants_json = "application/json" in accept and "text/html" not in accept
 
-        # Return JSON only if explicitly requested
-        if not wants_json:
-            # Try to load Astro-built error page
-            html_content = _load_error_page(status_code)
-            if html_content:
-                return HTMLResponse(content=html_content, status_code=status_code)
+    # Return HTML unless JSON is explicitly requested
+    if not wants_json:
+        # Try to load Astro-built error page
+        html_content = _load_error_page(status_code)
+        if html_content:
+            return HTMLResponse(content=html_content, status_code=status_code)
 
-            # Fallback to inline HTML if Astro page not available
-            html_content = f"""
+        # Fallback to inline HTML if Astro page not available
+        html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -188,9 +187,9 @@ def _create_error_response(
 </body>
 </html>
 """
-            return HTMLResponse(content=html_content, status_code=status_code)
+        return HTMLResponse(content=html_content, status_code=status_code)
 
-    # Default to JSON (including no Accept header, 404s, etc.)
+    # JSON for non-API routes only if explicitly requested
     return JSONResponse(
         status_code=status_code,
         content=json_content,

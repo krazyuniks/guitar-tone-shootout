@@ -21,11 +21,11 @@ from pathlib import Path
 
 from workflow.dispatch import (
     FALLBACK_MODELS,
-    build_mcp_config,
     dispatch_with_fallback,
     get_dispatch_metadata,
 )
 from workflow.jsonl_logger import EventLogger
+from workflow.models import ValidationCheckpoint
 from workflow.prompt_builder import build_story_prompt
 from workflow.validation import run_validation_checkpoint
 
@@ -46,22 +46,22 @@ MAX_RETRIES = 2
 # ---------------------------------------------------------------------------
 
 
-def find_checkpoint_for_story(plan: dict, story_id: str) -> dict | None:
+def find_checkpoint_for_story(plan: dict, story_id: str) -> ValidationCheckpoint | None:
     """Find the validation checkpoint that follows a given story.
 
     Looks through plan["validation_checkpoints"] for one where
-    after_story == story_id.
+    after_story == story_id. Returns a validated Pydantic model.
 
     Args:
         plan: The full plan.json dict.
         story_id: The story to find a checkpoint for.
 
     Returns:
-        Checkpoint dict if one exists after this story, else None.
+        ValidationCheckpoint if one exists after this story, else None.
     """
     for cp in plan.get("validation_checkpoints", []):
         if cp.get("after_story") == story_id:
-            return cp
+            return ValidationCheckpoint.model_validate(cp)
     return None
 
 
@@ -806,7 +806,6 @@ def _dispatch_and_validate_loop(
     agent = story.get("agent", {})
     model = agent.get("model", "sonnet")
     tools = agent.get("tools", ["Read", "Edit", "Write", "Bash", "Glob", "Grep"])
-    mcp = agent.get("mcp", [])
     max_turns = agent.get("max_turns", 40)
     max_budget_usd = agent.get("max_budget_usd", 4.0)
 
@@ -822,7 +821,7 @@ def _dispatch_and_validate_loop(
         )
 
         # Build the agent prompt using V3 prompt_builder
-        prompt = build_story_prompt(story, RULES_DIR, WIKI_INDEXES_DIR)
+        prompt = build_story_prompt(story, RULES_DIR, WIKI_INDEXES_DIR, checkpoint=checkpoint)
 
         # For retries, append failure feedback section to the prompt
         if retry_context:
@@ -851,18 +850,12 @@ def _dispatch_and_validate_loop(
         # Determine fallback model
         fallback_model = FALLBACK_MODELS.get(model, model)
 
-        # Build MCP config if needed
-        mcp_config = None
-        if mcp:
-            mcp_config = build_mcp_config(mcp)
-
         # Dispatch the implementation agent
         agent_result = dispatch_with_fallback(
             prompt=prompt,
             primary_model=model,
             fallback_model=fallback_model,
             tools=tools,
-            mcp_config=mcp_config,
             max_turns=max_turns,
             max_budget_usd=max_budget_usd,
             cwd=PROJECT_ROOT,

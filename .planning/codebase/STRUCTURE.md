@@ -5,7 +5,7 @@
 ## Directory Tree
 
 ```
-95-phase-4-completion-di-tracks-groups-shoo/  (33 files)
+95-phase-4-completion-di-tracks-groups-shoo/  (21 files)
   .agents/
     skills/
       chrome-devtools/  (1 files)
@@ -52,7 +52,7 @@
     hooks/  (11 files)
     prompts/  (4 files)
       completed/  (1 files)
-    rules/  (14 files)
+    rules/  (15 files)
     scripts/  (1 files)
     skills/
       chrome-devtools/  (1 files)
@@ -104,6 +104,10 @@
       logs/  (21 files)
     skills/  (4 files)
   .scratch/  (2 files)
+  .serena/  (2 files)
+    cache/
+      python/  (2 files)
+    memories/
   apps/
     scheduler/  (2 files)
       src/
@@ -250,7 +254,7 @@
         services/  (1 files)
       worker/  (12 files)
       worktree/  (5 files)
-  workflow/  (17 files)
+  workflow/  (18 files)
     schemas/  (5 files)
     templates/  (5 files)
   worktree/  (16 files)

@@ -2,8 +2,8 @@
 
 Dispatches read-only agents to verify that stories produced working results.
 Each check type (http, http+dom, browser+db, api+response, process,
-screenshot, regression, quality) uses the correct model, MCP configuration,
-and tools. Evidence fields are validated to reject empty or generic responses.
+screenshot, regression, quality) uses the correct model and tools.
+Evidence fields are validated to reject empty or generic responses.
 
 Reference: Research doc Section 8.4 Decisions 4, 5. Section 8.5 Decision 5.
 No dependency on run_epic.py or any V1 code.
@@ -19,13 +19,11 @@ from pathlib import Path
 from workflow.dispatch import (
     FALLBACK_MODELS,
     AgentResult,
-    MCPUnavailableError,
-    build_mcp_config,
     dispatch_with_fallback,
     get_tools_for_role,
-    preflight_mcp_check,
 )
 from workflow.jsonl_logger import EventLogger
+from workflow.models import ValidationCheckpoint
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +36,7 @@ SCHEMA_PATH = PROJECT_ROOT / "workflow" / "schemas" / "validation-result.schema.
 # ---------------------------------------------------------------------------
 
 
-def build_validation_prompt(checkpoint: dict, check_type: str) -> str:
+def build_validation_prompt(checkpoint: ValidationCheckpoint, check_type: str) -> str:
     """Build a minimal validation prompt for the read-only validation agent.
 
     Args:
@@ -48,11 +46,11 @@ def build_validation_prompt(checkpoint: dict, check_type: str) -> str:
     Returns:
         Prompt string for the validation agent.
     """
-    checks = checkpoint.get("checks", [])
+    checks = checkpoint.checks
     criteria_lines = []
     for i, check in enumerate(checks, 1):
-        criterion = check.get("criterion", "")
-        fields = check.get("evidence_fields", [])
+        criterion = check.criterion
+        fields = check.evidence_fields
         criteria_lines.append(f"{i}. {criterion}")
         if fields:
             criteria_lines.append(f"   Evidence required: {', '.join(fields)}")
@@ -84,61 +82,48 @@ class CheckTypeConfig:
     """Configuration for a validation check type."""
 
     model: str
-    mcp_servers: list[str]
     tool_role: str
     pre_conditions: str
-
-    @property
-    def requires_mcp(self) -> bool:
-        return len(self.mcp_servers) > 0
 
 
 CHECK_TYPE_CONFIGS: dict[str, CheckTypeConfig] = {
     "http": CheckTypeConfig(
         model="haiku",
-        mcp_servers=[],
         tool_role="validation_api",
         pre_conditions="webapp + nginx running",
     ),
     "http+dom": CheckTypeConfig(
         model="haiku",
-        mcp_servers=["chrome-devtools"],
         tool_role="validation_browser",
-        pre_conditions="webapp + nginx + Chrome DevTools MCP",
+        pre_conditions="webapp + nginx running",
     ),
     "browser+db": CheckTypeConfig(
         model="sonnet",
-        mcp_servers=["chrome-devtools"],
         tool_role="validation_browser",
-        pre_conditions="webapp + nginx + db + Chrome DevTools MCP",
+        pre_conditions="webapp + nginx + db running",
     ),
     "api+response": CheckTypeConfig(
         model="haiku",
-        mcp_servers=[],
         tool_role="validation_api",
         pre_conditions="webapp running",
     ),
     "process": CheckTypeConfig(
         model="haiku",
-        mcp_servers=[],
         tool_role="validation_api",
         pre_conditions="target service running",
     ),
     "screenshot": CheckTypeConfig(
         model="sonnet",
-        mcp_servers=["chrome-devtools"],
         tool_role="validation_browser",
-        pre_conditions="webapp + nginx + Chrome DevTools MCP",
+        pre_conditions="webapp + nginx running",
     ),
     "regression": CheckTypeConfig(
         model="haiku",
-        mcp_servers=[],
         tool_role="validation_api",
         pre_conditions="all services running, E2E deps on host",
     ),
     "quality": CheckTypeConfig(
         model="haiku",
-        mcp_servers=[],
         tool_role="validation_api",
         pre_conditions="webapp container running",
     ),
@@ -211,7 +196,7 @@ def _match_command(criterion: str) -> str | None:
 
 
 def _run_quality_checks_directly(
-    checks: list[dict],
+    checks: list,
     check_type: str,
     story_id: str,
 ) -> ValidationResult:
@@ -225,7 +210,7 @@ def _run_quality_checks_directly(
     all_pass = True
 
     for check in checks:
-        criterion = check.get("criterion", "")
+        criterion = check.criterion
         cmd = _match_command(criterion)
 
         if cmd is None:
@@ -407,7 +392,7 @@ def _load_validation_schema() -> dict:
 
 
 def run_validation_checkpoint(
-    checkpoint: dict,
+    checkpoint: ValidationCheckpoint,
     epic_dir: Path,
     story_id: str,
     event_logger: EventLogger | None = None,
@@ -415,14 +400,13 @@ def run_validation_checkpoint(
     """Execute a type-aware validation checkpoint.
 
     1. Read checkpoint definition and determine check type.
-    2. Look up model, MCP, and tools from the check type config.
-    3. Run MCP pre-flight if required.
-    4. Build the validation agent prompt (minimal, ~100-200 tokens).
-    5. Dispatch via dispatch_with_fallback() with read-only tools
+    2. Look up model and tools from the check type config.
+    3. Build the validation agent prompt (minimal, ~100-200 tokens).
+    4. Dispatch via dispatch_with_fallback() with read-only tools
        and --json-schema for structured output.
-    6. Parse structured output.
-    7. Validate evidence fields are populated and non-generic.
-    8. Log result to JSONL (validation_pass or validation_fail).
+    5. Parse structured output.
+    6. Validate evidence fields are populated and non-generic.
+    7. Log result to JSONL (validation_pass or validation_fail).
 
     Args:
         checkpoint: Validation checkpoint dict from plan.json. Must contain
@@ -436,8 +420,8 @@ def run_validation_checkpoint(
         ValidationResult with pass/fail status, per-criterion results,
         and any failure details.
     """
-    check_type = checkpoint.get("check_type", "http")
-    checks = checkpoint.get("checks", [])
+    check_type = checkpoint.check_type
+    checks = checkpoint.checks
 
     if not checks:
         logger.warning(
@@ -481,35 +465,11 @@ def run_validation_checkpoint(
             _log_validation_event(event_logger, story_id, result)
         return result
 
-    # MCP pre-flight check (Section 4.5 — fail early)
-    if config.requires_mcp:
-        try:
-            preflight_mcp_check(config.mcp_servers)
-        except MCPUnavailableError as exc:
-            logger.error(
-                "MCP pre-flight failed for '%s' validation on story '%s': %s",
-                check_type,
-                story_id,
-                exc,
-            )
-            result = ValidationResult(
-                passed=False,
-                check_type=check_type,
-                results=[],
-                failure_reason=str(exc),
-                failure_category="env",
-            )
-            if event_logger:
-                _log_validation_event(event_logger, story_id, result)
-            return result
-
-    # Build MCP config if needed
-    mcp_config = build_mcp_config(config.mcp_servers) if config.requires_mcp else None
-
     # Build the minimal validation prompt
     prompt = build_validation_prompt(checkpoint, check_type)
 
-    # Load the JSON schema for structured output
+    # Load the JSON schema for structured output, simplified for
+    # constrained decoding (strips $defs, descriptions, etc.).
     json_schema = _load_validation_schema()
 
     # Get tools for the validation role (read-only — no Edit/Write)
@@ -536,7 +496,6 @@ def run_validation_checkpoint(
         primary_model=config.model,
         fallback_model=fallback_model,
         tools=tools,
-        mcp_config=mcp_config,
         max_turns=15,
         max_budget_usd=0.50,
         json_schema=json_schema,
@@ -687,9 +646,7 @@ def _process_agent_result(
 
     # Check agent's own status assessment
     all_criteria_pass = all(r.get("status", "").upper() == "PASS" for r in per_criterion_results)
-    # Accept "pass" and "conditional_pass" as passing
-    status_passes = agent_status in ("pass", "conditional_pass")
-    overall_pass = status_passes and all_criteria_pass
+    overall_pass = agent_status == "pass" and all_criteria_pass
 
     if not overall_pass:
         # Collect failing criteria for the failure reason

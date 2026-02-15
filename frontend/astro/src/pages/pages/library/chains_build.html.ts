@@ -17,7 +17,7 @@ export const GET: APIRoute = () => {
 
 {% block head %}
 <!-- SignalChainBuilder React island CSS - built from frontend/src/styles/global.css -->
-<link rel="stylesheet" href="/static/islands/guitar-tone-shootout-frontend.css">
+<link rel="stylesheet" href="/static/islands/astro-frontend.css">
 
 <!-- SignalChainBuilder React island styles - additional overrides -->
 <style>

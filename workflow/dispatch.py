@@ -1,7 +1,7 @@
 """V2 agent dispatch module.
 
 Dispatches prompts to Claude Code agents with the correct model, tools,
-skills, MCP, and budget controls. ClaudeAdapter is the only concrete
+skills, and budget controls. ClaudeAdapter is the only concrete
 implementation.
 
 No dependency on run_epic.py or any V1 code.
@@ -77,7 +77,8 @@ class ClaudeAdapter:
     """Claude Code CLI adapter.
 
     Passes prompt via stdin (-p -) to avoid OS argument length limits.
-    Model, tools, skills, and MCP are passed as individual CLI flags.
+    Model, tools, and skills are passed as individual CLI flags.
+    MCP servers are managed globally via Claude Code's own configuration.
     """
 
     @property
@@ -88,11 +89,11 @@ class ClaudeAdapter:
         self,
         model: str,
         tools: list[str],
-        mcp_config: dict | None,
         max_turns: int,
         max_budget_usd: float,
         json_schema: dict | None,
         fallback_model: str | None = None,
+        no_mcp: bool = False,
     ) -> list[str]:
         """Build CLI arguments. Prompt is piped via stdin by the caller."""
         args = [
@@ -114,15 +115,14 @@ class ClaudeAdapter:
         # --tools "" disables all tools; comma-separated list restricts to named tools
         args.extend(["--tools", ",".join(tools)])
 
-        if mcp_config:
-            mcp_json = json.dumps({"mcpServers": mcp_config})
-            args.extend(["--strict-mcp-config", "--mcp-config", mcp_json])
-
         if json_schema:
             args.extend(["--json-schema", json.dumps(json_schema)])
 
         if fallback_model and fallback_model != model:
             args.extend(["--fallback-model", fallback_model])
+
+        if no_mcp:
+            args.extend(["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'])
 
         return args
 
@@ -176,114 +176,6 @@ class ClaudeAdapter:
             turns=turns,
             is_overload_or_transient=is_transient,
         )
-
-
-# ---------------------------------------------------------------------------
-# MCP configuration builder
-# ---------------------------------------------------------------------------
-
-
-def detect_chrome_executable() -> str | None:
-    """Find Chrome/Chromium executable on the system."""
-    for candidate in ["google-chrome", "chromium", "chromium-browser"]:
-        result = subprocess.run(
-            ["which", candidate],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    return None
-
-
-def build_mcp_config(mcp_servers: list[str]) -> dict | None:
-    """Build MCP server configuration from a list of required server names.
-
-    Supported server names:
-    - "chrome-devtools": Chrome DevTools MCP for browser inspection
-    - "playwright": Playwright MCP for browser automation
-
-    Args:
-        mcp_servers: List of MCP server names required by the story.
-
-    Returns:
-        MCP config dict (without the outer "mcpServers" key), or None
-        if no MCP servers are needed.
-    """
-    if not mcp_servers:
-        return None
-
-    config: dict = {}
-
-    if "chrome-devtools" in mcp_servers:
-        chrome_exe = detect_chrome_executable()
-        chrome_args = ["-y", "chrome-devtools-mcp@latest"]
-        if chrome_exe:
-            chrome_args.extend(["--executablePath", chrome_exe])
-        chrome_args.append("--headless")
-
-        config["chrome-devtools"] = {
-            "command": "npx",
-            "args": chrome_args,
-        }
-
-    if "playwright" in mcp_servers:
-        config["playwright"] = {
-            "command": "npx",
-            "args": ["-y", "@playwright/mcp@latest"],
-        }
-
-    return config if config else None
-
-
-# ---------------------------------------------------------------------------
-# Pre-flight MCP check
-# ---------------------------------------------------------------------------
-
-
-class MCPUnavailableError(Exception):
-    """Raised when a required MCP server is unavailable."""
-
-    def __init__(self, server_name: str, reason: str) -> None:
-        self.server_name = server_name
-        self.reason = reason
-        super().__init__(f"MCP server '{server_name}' unavailable: {reason}")
-
-
-def preflight_mcp_check(mcp_servers: list[str]) -> None:
-    """Verify that required MCP servers are available before dispatch.
-
-    Checks that npx is available (required for both chrome-devtools and
-    playwright MCP servers). For chrome-devtools, also checks that a
-    Chrome/Chromium executable can be found.
-
-    Args:
-        mcp_servers: List of required MCP server names.
-
-    Raises:
-        MCPUnavailableError: If a required MCP server cannot be started.
-    """
-    if not mcp_servers:
-        return
-
-    # Check npx availability (common requirement)
-    npx_check = subprocess.run(
-        ["which", "npx"],
-        capture_output=True,
-        text=True,
-    )
-    if npx_check.returncode != 0:
-        server = mcp_servers[0]
-        raise MCPUnavailableError(server, "npx not found — required for MCP servers")
-
-    if "chrome-devtools" in mcp_servers:
-        chrome_exe = detect_chrome_executable()
-        if chrome_exe is None:
-            raise MCPUnavailableError(
-                "chrome-devtools",
-                "No Chrome/Chromium executable found. "
-                "Install google-chrome, chromium, or chromium-browser.",
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -396,13 +288,13 @@ def dispatch_agent(
     prompt: str,
     model: str,
     tools: list[str],
-    mcp_config: dict | None = None,
     max_turns: int = 30,
     max_budget_usd: float = 3.0,
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
     fallback_model: str | None = None,
     adapter: ClaudeAdapter | None = None,
+    no_mcp: bool = False,
 ) -> AgentResult:
     """Dispatch a prompt to an agent and return the structured result.
 
@@ -414,13 +306,13 @@ def dispatch_agent(
         prompt: The full agent prompt text.
         model: Model identifier (e.g. "opus", "sonnet", "haiku").
         tools: List of tool names the agent may use.
-        mcp_config: MCP server config dict (optional).
         max_turns: Maximum conversation turns.
         max_budget_usd: Dollar cap for this invocation.
         json_schema: JSON schema for structured output (optional).
         cwd: Working directory for the subprocess.
         fallback_model: Model to fall back to on HTTP 529 overload.
         adapter: Provider adapter to use (defaults to ClaudeAdapter).
+        no_mcp: If True, pass --no-mcp to skip MCP server startup.
 
     Returns:
         AgentResult with success status, output, cost, and turn count.
@@ -454,11 +346,11 @@ def dispatch_agent(
     args = adapter.build_args(
         model=model,
         tools=tools,
-        mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
         json_schema=json_schema,
         fallback_model=fallback_model,
+        no_mcp=no_mcp,
     )
 
     # Run subprocess — prompt piped via stdin to avoid OS arg length limits.
@@ -506,12 +398,12 @@ def dispatch_with_fallback(
     primary_model: str,
     fallback_model: str,
     tools: list[str],
-    mcp_config: dict | None = None,
     max_turns: int = 30,
     max_budget_usd: float = 3.0,
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
     adapter: ClaudeAdapter | None = None,
+    no_mcp: bool = False,
 ) -> AgentResult:
     """Dispatch with orchestrator-level retry for transient provider failures.
 
@@ -532,12 +424,12 @@ def dispatch_with_fallback(
         primary_model: Primary model to try first.
         fallback_model: Model to use on transient failure retry.
         tools: List of tool names.
-        mcp_config: MCP server config.
         max_turns: Maximum turns.
         max_budget_usd: Dollar cap.
         json_schema: Structured output schema.
         cwd: Working directory.
         adapter: Provider adapter.
+        no_mcp: If True, pass --no-mcp to skip MCP server startup.
 
     Returns:
         AgentResult from either the primary or fallback dispatch.
@@ -547,13 +439,13 @@ def dispatch_with_fallback(
         prompt=prompt,
         model=primary_model,
         tools=tools,
-        mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
         json_schema=json_schema,
         cwd=cwd,
         fallback_model=fallback_model,
         adapter=adapter,
+        no_mcp=no_mcp,
     )
 
     if result.success:
@@ -575,13 +467,13 @@ def dispatch_with_fallback(
         prompt=prompt,
         model=fallback_model,
         tools=tools,
-        mcp_config=mcp_config,
         max_turns=max_turns,
         max_budget_usd=max_budget_usd,
         json_schema=json_schema,
         cwd=cwd,
         fallback_model=None,  # No further fallback
         adapter=adapter,
+        no_mcp=no_mcp,
     )
 
     return fallback_result

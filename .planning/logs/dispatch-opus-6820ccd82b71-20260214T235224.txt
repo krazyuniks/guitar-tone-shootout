@@ -4,9 +4,388 @@ You are the planner for the GTS (Guitar Tone Shootout) project. Your job is to
 produce a complete plan for epic #95 that will be executed by AI agents
 under an automated orchestrator.
 
-You must produce a JSON object conforming to the structure enforced by --json-schema.
-The orchestrator parses this JSON directly. A separate process renders PLAN.md from
-the JSON, so you do NOT produce PLAN.md.
+You must produce a single JSON object and nothing else — no markdown, no
+explanation, no code fences. The output must be valid JSON conforming to the
+schema below. The orchestrator will parse your raw output with `json.loads()`
+directly. A separate process renders PLAN.md from the JSON, so you do NOT
+produce PLAN.md.
+
+---
+
+## JSON Schema
+
+Your output must conform to this schema:
+
+<json_schema>
+{
+  "$defs": {
+    "AgentConfig": {
+      "description": "Full agent dispatch specification for a story.",
+      "properties": {
+        "model": {
+          "description": "Claude model tier.",
+          "enum": [
+            "opus",
+            "sonnet",
+            "haiku"
+          ],
+          "title": "Model",
+          "type": "string"
+        },
+        "skills": {
+          "description": "Skill names to inject.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Skills",
+          "type": "array"
+        },
+        "tools": {
+          "description": "Tools available to the agent.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "max_turns": {
+          "description": "Maximum conversation turns.",
+          "title": "Max Turns",
+          "type": "integer"
+        },
+        "max_budget_usd": {
+          "description": "Maximum spend in USD.",
+          "title": "Max Budget Usd",
+          "type": "number"
+        }
+      },
+      "required": [
+        "model",
+        "max_turns",
+        "max_budget_usd"
+      ],
+      "title": "AgentConfig",
+      "type": "object"
+    },
+    "CheckCriterion": {
+      "description": "Individual criterion to verify at a validation checkpoint.",
+      "properties": {
+        "criterion": {
+          "description": "Natural-language behaviour to verify.",
+          "title": "Criterion",
+          "type": "string"
+        },
+        "evidence_fields": {
+          "description": "Required evidence fields for this criterion.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "criterion",
+        "evidence_fields"
+      ],
+      "title": "CheckCriterion",
+      "type": "object"
+    },
+    "CriticalTransition": {
+      "description": "Key navigation or state transition in a user journey.",
+      "properties": {
+        "source": {
+          "description": "Source page or state.",
+          "title": "Source",
+          "type": "string"
+        },
+        "to": {
+          "description": "Target page or state.",
+          "title": "To",
+          "type": "string"
+        },
+        "mechanism": {
+          "description": "How the user transitions.",
+          "title": "Mechanism",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "to",
+        "mechanism"
+      ],
+      "title": "CriticalTransition",
+      "type": "object"
+    },
+    "ObservableTruth": {
+      "description": "User-perspective, verifiable-by-a-human assertion that defines 'done'.",
+      "properties": {
+        "id": {
+          "description": "Unique identifier referenced by stories and journeys.",
+          "title": "Id",
+          "type": "integer"
+        },
+        "statement": {
+          "description": "User-perspective assertion.",
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "statement"
+      ],
+      "title": "ObservableTruth",
+      "type": "object"
+    },
+    "Scope": {
+      "description": "Files a story creates and modifies.",
+      "properties": {
+        "create": {
+          "description": "File paths to create.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Create",
+          "type": "array"
+        },
+        "modify": {
+          "description": "File paths to modify (must exist).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Modify",
+          "type": "array"
+        }
+      },
+      "title": "Scope",
+      "type": "object"
+    },
+    "Story": {
+      "description": "A coherent chunk of work an agent completes in one invocation.",
+      "properties": {
+        "story_id": {
+          "description": "Unique story identifier, e.g. '01-architecture'.",
+          "title": "Story Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Human-readable story name.",
+          "title": "Name",
+          "type": "string"
+        },
+        "purpose": {
+          "description": "What this story delivers.",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentConfig"
+        },
+        "scope": {
+          "$ref": "#/$defs/Scope"
+        },
+        "state_assumption": {
+          "default": "cumulative",
+          "enum": [
+            "cumulative",
+            "clean"
+          ],
+          "title": "State Assumption",
+          "type": "string"
+        },
+        "implementation_notes": {
+          "description": "Domain-specific hints.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Implementation Notes",
+          "type": "array"
+        },
+        "truths_addressed": {
+          "description": "IDs of observable truths this story contributes to.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Truths Addressed",
+          "type": "array"
+        },
+        "wiki_sections": {
+          "description": "Wiki section headers for Stage 4 prompt builder.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Wiki Sections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "story_id",
+        "name",
+        "purpose",
+        "agent",
+        "scope",
+        "truths_addressed"
+      ],
+      "title": "Story",
+      "type": "object"
+    },
+    "UserJourney": {
+      "description": "Connected end-to-end narrative linking observable truths.",
+      "properties": {
+        "journey_id": {
+          "description": "Journey identifier, e.g. 'J1'.",
+          "title": "Journey Id",
+          "type": "string"
+        },
+        "persona": {
+          "description": "Who is performing this journey.",
+          "title": "Persona",
+          "type": "string"
+        },
+        "narrative": {
+          "description": "End-to-end walkthrough in plain English.",
+          "title": "Narrative",
+          "type": "string"
+        },
+        "truths_covered": {
+          "description": "IDs of observable truths exercised.",
+          "items": {
+            "type": "integer"
+          },
+          "title": "Truths Covered",
+          "type": "array"
+        },
+        "entry_point": {
+          "description": "URL path where the journey begins.",
+          "title": "Entry Point",
+          "type": "string"
+        },
+        "critical_transitions": {
+          "description": "Key transitions that must work.",
+          "items": {
+            "$ref": "#/$defs/CriticalTransition"
+          },
+          "title": "Critical Transitions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "journey_id",
+        "persona",
+        "narrative",
+        "truths_covered",
+        "entry_point",
+        "critical_transitions"
+      ],
+      "title": "UserJourney",
+      "type": "object"
+    },
+    "ValidationCheckpoint": {
+      "description": "Strategic validation checkpoint placed after a story.",
+      "properties": {
+        "after_story": {
+          "description": "References a story_id.",
+          "title": "After Story",
+          "type": "string"
+        },
+        "check_type": {
+          "description": "Type of validation check.",
+          "enum": [
+            "http",
+            "http+dom",
+            "browser+db",
+            "api+response",
+            "process",
+            "screenshot",
+            "regression",
+            "quality"
+          ],
+          "title": "Check Type",
+          "type": "string"
+        },
+        "checks": {
+          "description": "Criteria to verify.",
+          "items": {
+            "$ref": "#/$defs/CheckCriterion"
+          },
+          "title": "Checks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "after_story",
+        "check_type",
+        "checks"
+      ],
+      "title": "ValidationCheckpoint",
+      "type": "object"
+    }
+  },
+  "description": "Machine-readable plan specification for the epic workflow.",
+  "properties": {
+    "schema_v": {
+      "const": 1,
+      "default": 1,
+      "description": "Schema version.",
+      "title": "Schema V",
+      "type": "integer"
+    },
+    "epic_number": {
+      "description": "GitHub issue number for the epic.",
+      "title": "Epic Number",
+      "type": "integer"
+    },
+    "goal": {
+      "description": "Outcome-shaped goal statement.",
+      "title": "Goal",
+      "type": "string"
+    },
+    "observable_truths": {
+      "description": "Truths that define 'done'.",
+      "items": {
+        "$ref": "#/$defs/ObservableTruth"
+      },
+      "title": "Observable Truths",
+      "type": "array"
+    },
+    "user_journeys": {
+      "description": "End-to-end narratives.",
+      "items": {
+        "$ref": "#/$defs/UserJourney"
+      },
+      "title": "User Journeys",
+      "type": "array"
+    },
+    "stories": {
+      "description": "Ordered sequence of stories to execute.",
+      "items": {
+        "$ref": "#/$defs/Story"
+      },
+      "title": "Stories",
+      "type": "array"
+    },
+    "validation_checkpoints": {
+      "description": "Strategic validation checkpoints.",
+      "items": {
+        "$ref": "#/$defs/ValidationCheckpoint"
+      },
+      "title": "Validation Checkpoints",
+      "type": "array"
+    }
+  },
+  "required": [
+    "epic_number",
+    "goal",
+    "observable_truths",
+    "user_journeys",
+    "stories"
+  ],
+  "title": "Plan",
+  "type": "object"
+}
+</json_schema>
 
 ---
 
@@ -18,7 +397,7 @@ from GitHub and codebase architecture.
 <context>
 # Epic Context
 
-**Assembled:** 2026-02-14T20:35:58Z
+**Assembled:** 2026-02-14T23:48:31Z
 **Detected Areas:** api_contract, audio_processing, data_model, dual_database, frontend_layers, gear_model, job_processing, security, signal_chain
 
 This document is an intermediate artefact for the plan generator. It combines the epic description, selectively loaded architecture documentation, and codebase context based on detected areas. Zero AI tokens were spent producing this file.
@@ -34,7 +413,7 @@ github_issue: 95
 title: "Phase 4 Completion — DI Tracks, Groups, Shootout Workflow, Content APIs, Platform Infra"
 state: OPEN
 labels: ["epic"]
-fetched: 2026-02-14T20:35:58Z
+fetched: 2026-02-14T23:48:31Z
 ---
 
 ## Epic: Phase 4 Completion
@@ -2089,438 +2468,6 @@ just migrate  # Run migrations
 ---
 
 
-### Audio-Processing
-
-# Audio Processing
-
-Implementation details for `libs/audio/`. For architectural overview, see [[GTS-Technical-Architecture]].
-
----
-
-## Overview
-
-The audio library processes DI guitar tracks through signal chains to produce audio segments for shootout comparisons.
-
-| Component | Purpose |
-|-----------|---------|
-| `processing/processor.py` | Main AudioProcessor implementation |
-| `processing/nam_loader.py` | NAM model loading with LRU cache |
-| `processing/ir_loader.py` | Impulse response file loading |
-| `processing/loudness.py` | EBU R128 loudness measurement/normalization |
-| `processing/chain_executor.py` | Signal chain block execution |
-| `processing/permutation.py` | Signal chain group expansion |
-| `analysis/waveform.py` | Waveform visualization data |
-
----
-
-## Directory Structure
-
-```
-libs/audio/
-├── src/audio/
-│   ├── __init__.py
-│   ├── processing/
-│   │   ├── __init__.py
-│   │   ├── processor.py         # PedalboardAudioProcessor
-│   │   ├── nam_loader.py        # load_nam_model()
-│   │   ├── ir_loader.py         # load_ir()
-│   │   ├── loudness.py          # measure_loudness(), normalize_loudness()
-│   │   ├── chain_executor.py    # execute_signal_chain()
-│   │   └── permutation.py       # expand_signal_chain_group()
-│   ├── analysis/
-│   │   ├── __init__.py
-│   │   └── waveform.py          # extract_waveform()
-│   └── video/
-│       └── __init__.py          # Placeholder for video composition
-└── pyproject.toml
-```
-
----
-
-## Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `pedalboard` | ^0.9.0 | Effects, IR convolution, audio I/O |
-| `pyloudnorm` | ^0.1.1 | EBU R128 loudness measurement |
-| `torch` | ^2.5.0 | NAM model loading and inference |
-| `scipy` | ^1.14.0 | Audio resampling |
-| `soundfile` | ^0.12.0 | Audio file I/O |
-| `numpy` | - | Array operations |
-
----
-
-## PedalboardAudioProcessor
-
-**File:** `processing/processor.py`
-
-Main audio processor implementing the `AudioProcessor` protocol from `libs/core/ports/`.
-
-### Supported Formats
-
-WAV, FLAC, OGG, MP3
-
-### Public Methods
-
-```python
-class PedalboardAudioProcessor:
-    def get_supported_formats(self) -> list[str]
-    def is_format_supported(self, format_ext: str) -> bool
-    async def extract_waveform(self, audio_path: Path, num_peaks: int = 200) -> WaveformData
-    async def measure_loudness(self, audio_path: Path) -> tuple[float, float]
-    async def normalize_loudness(self, input_path: Path, output_path: Path, target_lufs: float = -14.0) -> AudioResult
-    async def process_di_track(self, input_path: Path, output_path: Path, config: ToneConfig) -> AudioResult
-```
-
-### Processing Pipeline
-
-`process_di_track()` executes the following steps:
-
-```
-1. Load DI audio file
-   ↓ (stereo converted to mono by averaging)
-2. Resample if needed
-   ↓ (match config sample rate)
-3. Apply highpass filter (optional)
-   ↓ (Pedalboard HighpassFilter)
-4. Apply NAM model
-   ↓ (sample-by-sample PyTorch inference)
-5. Apply IR convolution (optional)
-   ↓ (Pedalboard Convolution)
-6. Normalize loudness
-   ↓ (EBU R128 to target LUFS)
-7. Write output file
-```
-
-### Return Value
-
-```python
-AudioResult(
-    duration=float,        # seconds
-    sample_rate=int,       # Hz
-    peak_dbfs=float,       # dBFS
-    integrated_lufs=float, # LUFS
-    processing_time=float, # seconds
-)
-```
-
----
-
-## NAM Model Loading
-
-**File:** `processing/nam_loader.py`
-
-Loads Neural Amp Modeler models with LRU caching for repeated use.
-
-### Function
-
-```python
-def load_nam_model(model_path: Path) -> tuple[torch.nn.Module, int]
-```
-
-Returns `(model, sample_rate)`. Default sample rate: 48,000 Hz.
-
-### Implementation
-
-- Checkpoint format: Dictionary with `model` (state dict) and optional `sample_rate`
-- Uses `torch.load(..., weights_only=False)`
-- Model set to evaluation mode after loading
-- Cache key: file path (via `functools.lru_cache`)
-
-### Cache Configuration
-
-| Setting | Value |
-|---------|-------|
-| Cache size | 10 models |
-| Cache key | File path |
-
-### Error Handling
-
-```python
-class NAMLoadError(Exception):
-    """Raised for missing files, invalid formats, or loading failures."""
-```
-
----
-
-## IR Loading
-
-**File:** `processing/ir_loader.py`
-
-Loads impulse response files for cabinet convolution.
-
-### Function
-
-```python
-def load_ir(path: str | Path) -> Convolution
-```
-
-Returns a Pedalboard `Convolution` effect object.
-
-### Supported Formats
-
-| Format | Magic Bytes |
-|--------|-------------|
-| WAV | RIFF header + WAVE signature |
-| FLAC | fLaC header |
-
-### Validation Steps
-
-1. Check file exists
-2. Validate format via magic bytes
-3. For WAV: additional validation via `wave` module
-4. Check file is non-empty
-5. Load into Pedalboard `Convolution`
-
-### Error Handling
-
-```python
-class IRLoadError(Exception):
-    """Raised for missing files, invalid formats, or corruption."""
-```
-
----
-
-## Loudness Processing
-
-**File:** `processing/loudness.py`
-
-EBU R128 standard loudness measurement and normalization using PyLoudnorm.
-
-### Functions
-
-```python
-def measure_loudness(audio_path: Path) -> tuple[float, float]
-    """Returns (integrated_lufs, peak_dbfs)."""
-
-def normalize_loudness(
-    input_path: Path,
-    output_path: Path,
-    target_lufs: float = -14.0
-) -> tuple[float, float]
-    """Normalizes to target LUFS. Returns (result_lufs, result_peak_dbfs)."""
-```
-
-### Default Target
-
--14.0 LUFS (broadcast/streaming standard)
-
-### Silent Audio Detection
-
-Audio with peak < 1e-6 is rejected. Silent input indicates a problem (missing model output, corrupt DI track).
-
-### Error Handling
-
-```python
-class LoudnessError(Exception):
-    """Raised for silent audio or measurement failures."""
-```
-
----
-
-## Signal Chain Execution
-
-**File:** `processing/chain_executor.py`
-
-Sequential block-by-block signal chain execution with constraint validation.
-
-### Function
-
-```python
-async def execute_signal_chain(
-    chain: SignalChain,
-    di_audio: np.ndarray,
-    sample_rate: int,
-    gear_path_resolver: Callable[[UUID], Path]
-) -> np.ndarray
-```
-
-### Processing Logic
-
-1. Validate chain is not empty
-2. Sort blocks by position (enforces execution order)
-3. Validate chain constraints
-4. Process each block sequentially
-
-### Supported Gear Types
-
-| Gear Type | Processing |
-|-----------|------------|
-| `AMP`, `FULL_RIG`, `PEDAL`, `POST_EFFECT` | NAM model |
-| `IR` | Convolution |
-
-### Chain Constraints
-
-| Rule | Constraint |
-|------|------------|
-| FULL_RIG | Cannot combine with IR (cabinet baked in) |
-| HEAD (AMP) | Requires IR block for cabinet simulation |
-
-### Error Handling
-
-```python
-class ChainExecutionError(Exception):
-    """Raised for invalid chains or processing failures."""
-```
-
----
-
-## Permutation Processing
-
-**File:** `processing/permutation.py`
-
-Expands signal chain groups into all valid permutations.
-
-### Functions
-
-```python
-def expand_signal_chain_group(group: SignalChainGroup) -> list[dict[int, UUID | None]]
-    """Returns list of permutations. Each: slot position → gear ID or None."""
-
-def generate_permutation_labels(
-    permutations: list[dict[int, UUID | None]],
-    gear_names: dict[UUID, str],
-    null_label: str = "None"
-) -> list[str]
-    """Creates human-readable labels for each permutation."""
-```
-
-### Permutation Limits
-
-| Constraint | Value |
-|------------|-------|
-| Max permutations | 27 |
-| Max options per block | 3 |
-
-### Null Gear
-
-`None` in a slot means "no gear in this position". Enables A/B comparison with/without an effect.
-
-Amps and IRs cannot be null - they're required chain components.
-
-### Error Handling
-
-```python
-class PermutationError(Exception):
-    """Raised for invalid config or exceeded limits."""
-```
-
----
-
-## Waveform Extraction
-
-**File:** `analysis/waveform.py`
-
-Extracts waveform visualization data for UI display.
-
-### Function
-
-```python
-def extract_waveform(
-    audio_path: Path,
-    num_peaks: int = 200
-) -> WaveformData
-```
-
-### Return Value
-
-```python
-WaveformData(
-    peaks=tuple[float, ...],  # Peak values, normalized [-1.0, 1.0]
-    sample_rate=int,
-    duration_seconds=float,
-    samples_per_peak=int,
-)
-```
-
-### Algorithm
-
-1. Load audio (stereo → mono by averaging)
-2. Divide into segments (one per peak)
-3. For each segment: find max absolute value, preserve sign
-4. Normalize to [-1.0, 1.0]
-
----
-
-## Integration
-
-### Port/Adapter Pattern
-
-`PedalboardAudioProcessor` implements `AudioProcessor` protocol defined in `libs/core/ports/audio_processor.py`.
-
-### Domain Types
-
-Imports from `libs/core`:
-- `AudioResult` - Processing result
-- `ToneConfig` - Processing configuration
-- `WaveformData` - Visualization data
-- `SignalChain` - Chain definition
-- `GearType` - Gear type enum
-
-### Usage Example
-
-```python
-from audio.processing.processor import PedalboardAudioProcessor
-from core.domain.value_objects import ToneConfig
-
-processor = PedalboardAudioProcessor()
-
-# Process a DI track
-result = await processor.process_di_track(
-    input_path=Path("/app/storage/uploads/di_tracks/123.wav"),
-    output_path=Path("/app/storage/audio/456.wav"),
-    config=ToneConfig(
-        nam_model_path="/app/storage/models/amp.nam",
-        ir_path="/app/storage/models/cab.wav",
-        sample_rate=48000,
-        highpass_freq=80.0,
-        target_lufs=-14.0,
-    ),
-)
-
-print(f"Duration: {result.duration}s, LUFS: {result.integrated_lufs}")
-```
-
----
-
-## Error Hierarchy
-
-| Exception | Module | Cause |
-|-----------|--------|-------|
-| `NAMLoadError` | nam_loader | Missing/invalid NAM file |
-| `IRLoadError` | ir_loader | Missing/invalid IR file |
-| `LoudnessError` | loudness | Silent audio or measurement failure |
-| `ChainExecutionError` | chain_executor | Invalid chain or processing failure |
-| `PermutationError` | permutation | Invalid config or exceeded limits |
-| `ProcessingError` | processor | Wrapped exception for any failure |
-
----
-
-## File Formats
-
-### Input
-
-| Type | Formats | Constraints |
-|------|---------|-------------|
-| DI Track | WAV, FLAC, OGG, MP3 | Any sample rate (resampled) |
-| NAM Model | `.nam` | PyTorch checkpoint |
-| IR | WAV, FLAC | Mono, ≤2 seconds |
-
-### Output
-
-| Type | Format | Settings |
-|------|--------|----------|
-| Audio segment | WAV | 48 kHz, 16-bit PCM |
-
----
-
-## References
-
-- [[GTS-Technical-Architecture]] - Architecture overview
-- `libs/core/ports/audio_processor.py` - Protocol definition
-- `libs/core/domain/value_objects/` - Domain types
-
-
 ### Frontend-Architecture
 
 # Frontend Architecture
@@ -3335,6 +3282,438 @@ PRs fail CI if `dist/` is not committed with matching `src/` changes.
 - [[GTS-Technical-Architecture]] - Architecture overview
 - `frontend/astro/` - Source code
 - `.claude/rules/frontend-standards.md` - Development rules
+
+
+### Audio-Processing
+
+# Audio Processing
+
+Implementation details for `libs/audio/`. For architectural overview, see [[GTS-Technical-Architecture]].
+
+---
+
+## Overview
+
+The audio library processes DI guitar tracks through signal chains to produce audio segments for shootout comparisons.
+
+| Component | Purpose |
+|-----------|---------|
+| `processing/processor.py` | Main AudioProcessor implementation |
+| `processing/nam_loader.py` | NAM model loading with LRU cache |
+| `processing/ir_loader.py` | Impulse response file loading |
+| `processing/loudness.py` | EBU R128 loudness measurement/normalization |
+| `processing/chain_executor.py` | Signal chain block execution |
+| `processing/permutation.py` | Signal chain group expansion |
+| `analysis/waveform.py` | Waveform visualization data |
+
+---
+
+## Directory Structure
+
+```
+libs/audio/
+├── src/audio/
+│   ├── __init__.py
+│   ├── processing/
+│   │   ├── __init__.py
+│   │   ├── processor.py         # PedalboardAudioProcessor
+│   │   ├── nam_loader.py        # load_nam_model()
+│   │   ├── ir_loader.py         # load_ir()
+│   │   ├── loudness.py          # measure_loudness(), normalize_loudness()
+│   │   ├── chain_executor.py    # execute_signal_chain()
+│   │   └── permutation.py       # expand_signal_chain_group()
+│   ├── analysis/
+│   │   ├── __init__.py
+│   │   └── waveform.py          # extract_waveform()
+│   └── video/
+│       └── __init__.py          # Placeholder for video composition
+└── pyproject.toml
+```
+
+---
+
+## Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `pedalboard` | ^0.9.0 | Effects, IR convolution, audio I/O |
+| `pyloudnorm` | ^0.1.1 | EBU R128 loudness measurement |
+| `torch` | ^2.5.0 | NAM model loading and inference |
+| `scipy` | ^1.14.0 | Audio resampling |
+| `soundfile` | ^0.12.0 | Audio file I/O |
+| `numpy` | - | Array operations |
+
+---
+
+## PedalboardAudioProcessor
+
+**File:** `processing/processor.py`
+
+Main audio processor implementing the `AudioProcessor` protocol from `libs/core/ports/`.
+
+### Supported Formats
+
+WAV, FLAC, OGG, MP3
+
+### Public Methods
+
+```python
+class PedalboardAudioProcessor:
+    def get_supported_formats(self) -> list[str]
+    def is_format_supported(self, format_ext: str) -> bool
+    async def extract_waveform(self, audio_path: Path, num_peaks: int = 200) -> WaveformData
+    async def measure_loudness(self, audio_path: Path) -> tuple[float, float]
+    async def normalize_loudness(self, input_path: Path, output_path: Path, target_lufs: float = -14.0) -> AudioResult
+    async def process_di_track(self, input_path: Path, output_path: Path, config: ToneConfig) -> AudioResult
+```
+
+### Processing Pipeline
+
+`process_di_track()` executes the following steps:
+
+```
+1. Load DI audio file
+   ↓ (stereo converted to mono by averaging)
+2. Resample if needed
+   ↓ (match config sample rate)
+3. Apply highpass filter (optional)
+   ↓ (Pedalboard HighpassFilter)
+4. Apply NAM model
+   ↓ (sample-by-sample PyTorch inference)
+5. Apply IR convolution (optional)
+   ↓ (Pedalboard Convolution)
+6. Normalize loudness
+   ↓ (EBU R128 to target LUFS)
+7. Write output file
+```
+
+### Return Value
+
+```python
+AudioResult(
+    duration=float,        # seconds
+    sample_rate=int,       # Hz
+    peak_dbfs=float,       # dBFS
+    integrated_lufs=float, # LUFS
+    processing_time=float, # seconds
+)
+```
+
+---
+
+## NAM Model Loading
+
+**File:** `processing/nam_loader.py`
+
+Loads Neural Amp Modeler models with LRU caching for repeated use.
+
+### Function
+
+```python
+def load_nam_model(model_path: Path) -> tuple[torch.nn.Module, int]
+```
+
+Returns `(model, sample_rate)`. Default sample rate: 48,000 Hz.
+
+### Implementation
+
+- Checkpoint format: Dictionary with `model` (state dict) and optional `sample_rate`
+- Uses `torch.load(..., weights_only=False)`
+- Model set to evaluation mode after loading
+- Cache key: file path (via `functools.lru_cache`)
+
+### Cache Configuration
+
+| Setting | Value |
+|---------|-------|
+| Cache size | 10 models |
+| Cache key | File path |
+
+### Error Handling
+
+```python
+class NAMLoadError(Exception):
+    """Raised for missing files, invalid formats, or loading failures."""
+```
+
+---
+
+## IR Loading
+
+**File:** `processing/ir_loader.py`
+
+Loads impulse response files for cabinet convolution.
+
+### Function
+
+```python
+def load_ir(path: str | Path) -> Convolution
+```
+
+Returns a Pedalboard `Convolution` effect object.
+
+### Supported Formats
+
+| Format | Magic Bytes |
+|--------|-------------|
+| WAV | RIFF header + WAVE signature |
+| FLAC | fLaC header |
+
+### Validation Steps
+
+1. Check file exists
+2. Validate format via magic bytes
+3. For WAV: additional validation via `wave` module
+4. Check file is non-empty
+5. Load into Pedalboard `Convolution`
+
+### Error Handling
+
+```python
+class IRLoadError(Exception):
+    """Raised for missing files, invalid formats, or corruption."""
+```
+
+---
+
+## Loudness Processing
+
+**File:** `processing/loudness.py`
+
+EBU R128 standard loudness measurement and normalization using PyLoudnorm.
+
+### Functions
+
+```python
+def measure_loudness(audio_path: Path) -> tuple[float, float]
+    """Returns (integrated_lufs, peak_dbfs)."""
+
+def normalize_loudness(
+    input_path: Path,
+    output_path: Path,
+    target_lufs: float = -14.0
+) -> tuple[float, float]
+    """Normalizes to target LUFS. Returns (result_lufs, result_peak_dbfs)."""
+```
+
+### Default Target
+
+-14.0 LUFS (broadcast/streaming standard)
+
+### Silent Audio Detection
+
+Audio with peak < 1e-6 is rejected. Silent input indicates a problem (missing model output, corrupt DI track).
+
+### Error Handling
+
+```python
+class LoudnessError(Exception):
+    """Raised for silent audio or measurement failures."""
+```
+
+---
+
+## Signal Chain Execution
+
+**File:** `processing/chain_executor.py`
+
+Sequential block-by-block signal chain execution with constraint validation.
+
+### Function
+
+```python
+async def execute_signal_chain(
+    chain: SignalChain,
+    di_audio: np.ndarray,
+    sample_rate: int,
+    gear_path_resolver: Callable[[UUID], Path]
+) -> np.ndarray
+```
+
+### Processing Logic
+
+1. Validate chain is not empty
+2. Sort blocks by position (enforces execution order)
+3. Validate chain constraints
+4. Process each block sequentially
+
+### Supported Gear Types
+
+| Gear Type | Processing |
+|-----------|------------|
+| `AMP`, `FULL_RIG`, `PEDAL`, `POST_EFFECT` | NAM model |
+| `IR` | Convolution |
+
+### Chain Constraints
+
+| Rule | Constraint |
+|------|------------|
+| FULL_RIG | Cannot combine with IR (cabinet baked in) |
+| HEAD (AMP) | Requires IR block for cabinet simulation |
+
+### Error Handling
+
+```python
+class ChainExecutionError(Exception):
+    """Raised for invalid chains or processing failures."""
+```
+
+---
+
+## Permutation Processing
+
+**File:** `processing/permutation.py`
+
+Expands signal chain groups into all valid permutations.
+
+### Functions
+
+```python
+def expand_signal_chain_group(group: SignalChainGroup) -> list[dict[int, UUID | None]]
+    """Returns list of permutations. Each: slot position → gear ID or None."""
+
+def generate_permutation_labels(
+    permutations: list[dict[int, UUID | None]],
+    gear_names: dict[UUID, str],
+    null_label: str = "None"
+) -> list[str]
+    """Creates human-readable labels for each permutation."""
+```
+
+### Permutation Limits
+
+| Constraint | Value |
+|------------|-------|
+| Max permutations | 27 |
+| Max options per block | 3 |
+
+### Null Gear
+
+`None` in a slot means "no gear in this position". Enables A/B comparison with/without an effect.
+
+Amps and IRs cannot be null - they're required chain components.
+
+### Error Handling
+
+```python
+class PermutationError(Exception):
+    """Raised for invalid config or exceeded limits."""
+```
+
+---
+
+## Waveform Extraction
+
+**File:** `analysis/waveform.py`
+
+Extracts waveform visualization data for UI display.
+
+### Function
+
+```python
+def extract_waveform(
+    audio_path: Path,
+    num_peaks: int = 200
+) -> WaveformData
+```
+
+### Return Value
+
+```python
+WaveformData(
+    peaks=tuple[float, ...],  # Peak values, normalized [-1.0, 1.0]
+    sample_rate=int,
+    duration_seconds=float,
+    samples_per_peak=int,
+)
+```
+
+### Algorithm
+
+1. Load audio (stereo → mono by averaging)
+2. Divide into segments (one per peak)
+3. For each segment: find max absolute value, preserve sign
+4. Normalize to [-1.0, 1.0]
+
+---
+
+## Integration
+
+### Port/Adapter Pattern
+
+`PedalboardAudioProcessor` implements `AudioProcessor` protocol defined in `libs/core/ports/audio_processor.py`.
+
+### Domain Types
+
+Imports from `libs/core`:
+- `AudioResult` - Processing result
+- `ToneConfig` - Processing configuration
+- `WaveformData` - Visualization data
+- `SignalChain` - Chain definition
+- `GearType` - Gear type enum
+
+### Usage Example
+
+```python
+from audio.processing.processor import PedalboardAudioProcessor
+from core.domain.value_objects import ToneConfig
+
+processor = PedalboardAudioProcessor()
+
+# Process a DI track
+result = await processor.process_di_track(
+    input_path=Path("/app/storage/uploads/di_tracks/123.wav"),
+    output_path=Path("/app/storage/audio/456.wav"),
+    config=ToneConfig(
+        nam_model_path="/app/storage/models/amp.nam",
+        ir_path="/app/storage/models/cab.wav",
+        sample_rate=48000,
+        highpass_freq=80.0,
+        target_lufs=-14.0,
+    ),
+)
+
+print(f"Duration: {result.duration}s, LUFS: {result.integrated_lufs}")
+```
+
+---
+
+## Error Hierarchy
+
+| Exception | Module | Cause |
+|-----------|--------|-------|
+| `NAMLoadError` | nam_loader | Missing/invalid NAM file |
+| `IRLoadError` | ir_loader | Missing/invalid IR file |
+| `LoudnessError` | loudness | Silent audio or measurement failure |
+| `ChainExecutionError` | chain_executor | Invalid chain or processing failure |
+| `PermutationError` | permutation | Invalid config or exceeded limits |
+| `ProcessingError` | processor | Wrapped exception for any failure |
+
+---
+
+## File Formats
+
+### Input
+
+| Type | Formats | Constraints |
+|------|---------|-------------|
+| DI Track | WAV, FLAC, OGG, MP3 | Any sample rate (resampled) |
+| NAM Model | `.nam` | PyTorch checkpoint |
+| IR | WAV, FLAC | Mono, ≤2 seconds |
+
+### Output
+
+| Type | Format | Settings |
+|------|--------|----------|
+| Audio segment | WAV | 48 kHz, 16-bit PCM |
+
+---
+
+## References
+
+- [[GTS-Technical-Architecture]] - Architecture overview
+- `libs/core/ports/audio_processor.py` - Protocol definition
+- `libs/core/domain/value_objects/` - Domain types
 
 
 ### GTS-Remotion-Architecture
@@ -4636,7 +5015,7 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
 ## Directory Tree
 
 ```
-95-phase-4-completion-di-tracks-groups-shoo/  (33 files)
+95-phase-4-completion-di-tracks-groups-shoo/  (21 files)
   .agents/
     skills/
       chrome-devtools/  (1 files)
@@ -4683,7 +5062,7 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
     hooks/  (11 files)
     prompts/  (4 files)
       completed/  (1 files)
-    rules/  (14 files)
+    rules/  (15 files)
     scripts/  (1 files)
     skills/
       chrome-devtools/  (1 files)
@@ -4735,6 +5114,10 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
       logs/  (21 files)
     skills/  (4 files)
   .scratch/  (2 files)
+  .serena/  (2 files)
+    cache/
+      python/  (2 files)
+    memories/
   apps/
     scheduler/  (2 files)
       src/
@@ -4881,7 +5264,7 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
         services/  (1 files)
       worker/  (12 files)
       worktree/  (5 files)
-  workflow/  (17 files)
+  workflow/  (18 files)
     schemas/  (5 files)
     templates/  (5 files)
   worktree/  (16 files)
@@ -4996,7 +5379,7 @@ Tool restrictions per agent role:
 | Agent Role | Tools |
 |------------|-------|
 | Implementation | Read, Edit, Write, Bash, Glob, Grep |
-| Validation (browser) | Read, Bash, Glob, Grep + MCP |
+| Validation (browser) | Read, Bash, Glob, Grep |
 | Validation (API/DB) | Bash, Read, Glob, Grep |
 | Regression test | Read, Edit, Write, Bash, Glob, Grep |
 
@@ -5007,11 +5390,6 @@ Budget defaults (starting points):
 | Implementation (Sonnet) | 40 | $4.00 |
 | Validation (Haiku) | 15 | $0.50 |
 | Regression tests (Sonnet) | 30 | $3.00 |
-
-MCP servers (specify in the `mcp` array):
-- `chrome-devtools` — for stories that need browser DOM inspection
-- `playwright` — for stories that need browser automation (E2E tests)
-- Most stories need NO MCP (empty array `[]`)
 
 ---
 
@@ -5035,20 +5413,21 @@ correct fields for the check type:
 
 ## Output
 
-Produce a single JSON object. The structure is enforced by --json-schema.
+Produce a single JSON object and NOTHING ELSE. No markdown fences, no explanation
+text before or after. Just the raw JSON.
 
 Key fields:
 - `schema_v`: always 1
 - `epic_number`: 95
 - `goal`: outcome-shaped goal statement
 - `observable_truths`: array of {id, statement}
-- `user_journeys`: array with journey_id (pattern "J1", "J2", ...), persona,
+- `user_journeys`: array with journey_id ("J1", "J2", ...), persona,
   narrative, truths_covered, entry_point, critical_transitions
-- `stories`: ordered array with story_id (pattern "01-name"), name, purpose,
+- `stories`: ordered array with story_id ("01-name"), name, purpose,
   agent config, scope, implementation_notes, truths_addressed, wiki_sections
 - `validation_checkpoints`: array with after_story, check_type, checks
 
-The `from` field in critical_transitions uses the JSON key "from" (not "from_").
+The critical_transitions use {source, to, mechanism}.
 
 ---
 
@@ -5067,3 +5446,17 @@ The `from` field in critical_transitions uses the JSON key "from" (not "from_").
 10. Do NOT invent features not described in the epic. Stay within scope.
 11. Every story MUST include `wiki_sections` — a list of wiki section header names
     from `.planning/wiki-indexes/` for the Stage 4 prompt builder.
+
+REMEMBER: Output ONLY the raw JSON object. No other text.
+
+---
+
+## REVISION REQUIRED
+
+Your previous plan.json output failed structural validation. Fix the following
+errors and re-emit the plan JSON object:
+
+- [truth_coverage] Observable truth 14 ('GET /sitemap.xml returns a valid XML sitemap including static pages, public shootouts, and gear pages.') is not addressed by any story. Add it to at least one story's truths_addressed.
+
+All other instructions from the original prompt still apply. Produce a single
+JSON object conforming to the --json-schema.

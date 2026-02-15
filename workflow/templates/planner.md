@@ -92,11 +92,6 @@ For each story, specify the full agent dispatch configuration.
 
 {BUDGET_REFERENCE}
 
-MCP servers (specify in the `mcp` array):
-- `chrome-devtools` — for stories that need browser DOM inspection
-- `playwright` — for stories that need browser automation (E2E tests)
-- Most stories need NO MCP (empty array `[]`)
-
 ---
 
 ## Evidence Fields per Check Type
@@ -149,7 +144,6 @@ Covers happy path from entry point through all critical transitions.}}
 - model: {{sonnet|opus|haiku}}
 - skills: [{{skill1}}, {{skill2}}]
 - tools: [Read, Edit, Write, Bash, Glob, Grep]
-- mcp: {{[] or [chrome-devtools] or [playwright]}}
 - max_turns: {{number}}
 - max_budget_usd: {{number}}
 

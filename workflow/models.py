@@ -30,18 +30,16 @@ from pydantic import BaseModel, Field
 class CriticalTransition(BaseModel):
     """Key navigation or state transition in a user journey."""
 
-    from_: str = Field(min_length=1, alias="from", description="Source page or state.")
-    to: str = Field(min_length=1, description="Target page or state.")
-    mechanism: str = Field(min_length=1, description="How the user transitions.")
-
-    model_config = {"populate_by_name": True}
+    source: str = Field(description="Source page or state.")
+    to: str = Field(description="Target page or state.")
+    mechanism: str = Field(description="How the user transitions.")
 
 
 class ObservableTruth(BaseModel):
     """User-perspective, verifiable-by-a-human assertion that defines 'done'."""
 
-    id: int = Field(ge=1, description="Unique identifier referenced by stories and journeys.")
-    statement: str = Field(min_length=1, description="User-perspective assertion.")
+    id: int = Field(description="Unique identifier referenced by stories and journeys.")
+    statement: str = Field(description="User-perspective assertion.")
 
 
 class Scope(BaseModel):
@@ -59,18 +57,15 @@ class AgentConfig(BaseModel):
     model: Literal["opus", "sonnet", "haiku"] = Field(description="Claude model tier.")
     skills: list[str] = Field(default_factory=list, description="Skill names to inject.")
     tools: list[str] = Field(default_factory=list, description="Tools available to the agent.")
-    mcp: list[str] = Field(default_factory=list, description="MCP server names required.")
-    max_turns: int = Field(ge=1, description="Maximum conversation turns.")
-    max_budget_usd: float = Field(gt=0, description="Maximum spend in USD.")
+    max_turns: int = Field(description="Maximum conversation turns.")
+    max_budget_usd: float = Field(description="Maximum spend in USD.")
 
 
 class CheckCriterion(BaseModel):
     """Individual criterion to verify at a validation checkpoint."""
 
-    criterion: str = Field(min_length=1, description="Natural-language behaviour to verify.")
-    evidence_fields: list[str] = Field(
-        min_length=1, description="Required evidence fields for this criterion."
-    )
+    criterion: str = Field(description="Natural-language behaviour to verify.")
+    evidence_fields: list[str] = Field(description="Required evidence fields for this criterion.")
 
 
 # ---------------------------------------------------------------------------
@@ -81,27 +76,22 @@ class CheckCriterion(BaseModel):
 class UserJourney(BaseModel):
     """Connected end-to-end narrative linking observable truths."""
 
-    journey_id: str = Field(pattern=r"^J[0-9]+$", description="Journey identifier, e.g. 'J1'.")
-    persona: str = Field(min_length=1, description="Who is performing this journey.")
-    narrative: str = Field(min_length=1, description="End-to-end walkthrough in plain English.")
-    truths_covered: list[int] = Field(
-        min_length=1, description="IDs of observable truths exercised."
-    )
-    entry_point: str = Field(min_length=1, description="URL path where the journey begins.")
+    journey_id: str = Field(description="Journey identifier, e.g. 'J1'.")
+    persona: str = Field(description="Who is performing this journey.")
+    narrative: str = Field(description="End-to-end walkthrough in plain English.")
+    truths_covered: list[int] = Field(description="IDs of observable truths exercised.")
+    entry_point: str = Field(description="URL path where the journey begins.")
     critical_transitions: list[CriticalTransition] = Field(
-        min_length=1, description="Key transitions that must work."
+        description="Key transitions that must work."
     )
 
 
 class Story(BaseModel):
     """A coherent chunk of work an agent completes in one invocation."""
 
-    story_id: str = Field(
-        pattern=r"^[a-z0-9][a-z0-9-]*$",
-        description="Unique story identifier, e.g. '01-architecture'.",
-    )
-    name: str = Field(min_length=1, description="Human-readable story name.")
-    purpose: str = Field(min_length=1, description="What this story delivers.")
+    story_id: str = Field(description="Unique story identifier, e.g. '01-architecture'.")
+    name: str = Field(description="Human-readable story name.")
+    purpose: str = Field(description="What this story delivers.")
     agent: AgentConfig
     scope: Scope
     state_assumption: Literal["cumulative", "clean"] = "cumulative"
@@ -109,7 +99,7 @@ class Story(BaseModel):
         default_factory=list, description="Domain-specific hints."
     )
     truths_addressed: list[int] = Field(
-        min_length=1, description="IDs of observable truths this story contributes to."
+        description="IDs of observable truths this story contributes to."
     )
     wiki_sections: list[str] = Field(
         default_factory=list, description="Wiki section headers for Stage 4 prompt builder."
@@ -119,7 +109,7 @@ class Story(BaseModel):
 class ValidationCheckpoint(BaseModel):
     """Strategic validation checkpoint placed after a story."""
 
-    after_story: str = Field(min_length=1, description="References a story_id.")
+    after_story: str = Field(description="References a story_id.")
     check_type: Literal[
         "http",
         "http+dom",
@@ -130,7 +120,7 @@ class ValidationCheckpoint(BaseModel):
         "regression",
         "quality",
     ] = Field(description="Type of validation check.")
-    checks: list[CheckCriterion] = Field(min_length=1, description="Criteria to verify.")
+    checks: list[CheckCriterion] = Field(description="Criteria to verify.")
 
 
 # ---------------------------------------------------------------------------
@@ -142,15 +132,11 @@ class Plan(BaseModel):
     """Machine-readable plan specification for the epic workflow."""
 
     schema_v: Literal[1] = Field(default=1, description="Schema version.")
-    epic_number: int = Field(ge=1, description="GitHub issue number for the epic.")
-    goal: str = Field(min_length=1, description="Outcome-shaped goal statement.")
-    observable_truths: list[ObservableTruth] = Field(
-        min_length=1, description="Truths that define 'done'."
-    )
-    user_journeys: list[UserJourney] = Field(min_length=1, description="End-to-end narratives.")
-    stories: list[Story] = Field(
-        min_length=1, description="Ordered sequence of stories to execute."
-    )
+    epic_number: int = Field(description="GitHub issue number for the epic.")
+    goal: str = Field(description="Outcome-shaped goal statement.")
+    observable_truths: list[ObservableTruth] = Field(description="Truths that define 'done'.")
+    user_journeys: list[UserJourney] = Field(description="End-to-end narratives.")
+    stories: list[Story] = Field(description="Ordered sequence of stories to execute.")
     validation_checkpoints: list[ValidationCheckpoint] = Field(
         default_factory=list, description="Strategic validation checkpoints."
     )
@@ -196,7 +182,7 @@ def render_plan_md(plan: Plan) -> str:
         lines.append(f"**Entry point:** {journey.entry_point}")
         lines.append("**Critical transitions:**")
         for ct in journey.critical_transitions:
-            lines.append(f"- {ct.from_} -> {ct.to} ({ct.mechanism})")
+            lines.append(f"- {ct.source} -> {ct.to} ({ct.mechanism})")
         lines.append("")
 
     # Stories
@@ -211,7 +197,6 @@ def render_plan_md(plan: Plan) -> str:
         lines.append(f"- model: {story.agent.model}")
         lines.append(f"- skills: [{', '.join(story.agent.skills)}]")
         lines.append(f"- tools: [{', '.join(story.agent.tools)}]")
-        lines.append(f"- mcp: [{', '.join(story.agent.mcp)}]")
         lines.append(f"- max_turns: {story.agent.max_turns}")
         lines.append(f"- max_budget_usd: {story.agent.max_budget_usd}")
         lines.append("")

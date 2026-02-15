@@ -18,6 +18,8 @@ import re
 import sys
 from pathlib import Path
 
+from workflow.models import CheckCriterion, ValidationCheckpoint
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -81,22 +83,26 @@ DOMAIN_TO_WIKI_SECTIONS: dict[str, list[str]] = {
 # ---------------------------------------------------------------------------
 
 
-def derive_story_domains(story: dict) -> set[str]:
-    """Derive domains from a plan.json story dict.
+def derive_story_domains(
+    story: dict,
+    checkpoint: ValidationCheckpoint | None = None,
+) -> set[str]:
+    """Derive domains from a story dict and its validation checkpoint.
 
-    Scans checkpoints and files_to_modify.
+    Sources:
+    - checkpoint.check_type (from plan.validation_checkpoints, resolved by caller)
+    - scope file paths (create + modify)
+
     Returns set of domain strings like {"backend", "database", "frontend"}.
     """
     domains: set[str] = set()
 
-    # 1. Scan checkpoints (from validation_checkpoints, matched by story_id)
-    checkpoints = story.get("checkpoints", [])
-    for cp in checkpoints:
-        check_type = cp.get("check_type", "")
-        mapped = CHECK_TYPE_TO_DOMAINS.get(check_type, [])
+    # 1. Derive from validation checkpoint check_type
+    if checkpoint:
+        mapped = CHECK_TYPE_TO_DOMAINS.get(checkpoint.check_type, [])
         domains.update(mapped)
 
-    # 2. Scan files_to_modify from scope
+    # 2. Derive from scope file paths
     scope = story.get("scope", {})
     files_to_modify = scope.get("modify", []) + scope.get("create", [])
     for file_path in files_to_modify:
@@ -230,6 +236,7 @@ def build_story_prompt(
     story: dict,
     rules_dir: Path,
     wiki_indexes_dir: Path,
+    checkpoint: ValidationCheckpoint | None = None,
     inline_rules: bool = False,
 ) -> str:
     """Build the complete story prompt with selective documentation.
@@ -239,14 +246,23 @@ def build_story_prompt(
     loaded automatically by Claude Code -- they do not need to be inlined
     unless ``inline_rules=True`` is set (which exceeds the 650-token budget).
 
+    Args:
+        story: Story dict from plan.json.
+        rules_dir: Path to .claude/rules/ directory.
+        wiki_indexes_dir: Path to .planning/wiki-indexes/ directory.
+        checkpoint: Validation checkpoint that will run after this story
+            (from plan.validation_checkpoints, resolved by the caller).
+        inline_rules: If True, inline rule file contents into the prompt.
+
     Returns the prompt string with:
     1. Compressed doc index line (lists rules, skills, wiki sections)
     2. AGENTS.md pointer
     3. Optionally, inlined rules file contents (domain-filtered)
     4. Story-specific instructions
+    5. Validation checkpoint criteria (if any)
     """
     # Derive domains
-    story_domains = derive_story_domains(story)
+    story_domains = derive_story_domains(story, checkpoint)
 
     # Parse and select rules
     domain_tags = parse_domain_tags(rules_dir)
@@ -310,6 +326,16 @@ def build_story_prompt(
             parts.append(f"- {note}")
         parts.append("")
 
+    # Validation checkpoint (tells the agent what will be verified after it)
+    if checkpoint:
+        parts.append("### Validation Checkpoint")
+        parts.append("")
+        parts.append(f"After this story, a **{checkpoint.check_type}** validation will verify:")
+        for check in checkpoint.checks:
+            evidence = ", ".join(check.evidence_fields)
+            parts.append(f"- {check.criterion} (evidence: {evidence})")
+        parts.append("")
+
     return "\n".join(parts)
 
 
@@ -365,8 +391,10 @@ def main() -> None:
         print(f"  {filename}: {tags}")
     print()
 
-    # Sample stories for testing
-    sample_stories = {
+    # Sample stories and checkpoints for testing.
+    # Checkpoints live at plan level (plan.validation_checkpoints), not inside
+    # stories. Each checkpoint references a story_id via after_story.
+    sample_stories: dict[str, dict] = {
         "backend": {
             "story_id": "sample-backend",
             "name": "Backend API Implementation",
@@ -378,9 +406,6 @@ def main() -> None:
                     "apps/webapp/src/webapp/adapters/persistence/repositories/signal_chain.py",
                 ],
             },
-            "checkpoints": [
-                {"check_type": "api+response"},
-            ],
             "implementation_notes": [
                 "Follow existing repository patterns",
                 "Use joinedload for eager loading",
@@ -396,9 +421,6 @@ def main() -> None:
                     "frontend/astro/src/pages/gear/index.html.ts",
                 ],
             },
-            "checkpoints": [
-                {"check_type": "http+dom"},
-            ],
             "implementation_notes": [
                 "Use Astro SSG pattern",
                 "Add data-testid attributes",
@@ -416,17 +438,31 @@ def main() -> None:
                     "frontend/astro/src/pages/library/di-tracks.html.ts",
                 ],
             },
-            "checkpoints": [
-                {"check_type": "http+dom"},
-                {"check_type": "api+response"},
-                {"check_type": "regression"},
-            ],
             "implementation_notes": [
                 "Upload form with HTMX",
                 "Backend file validation",
                 "Write regression tests",
             ],
         },
+    }
+
+    # Checkpoints keyed by story_id (mirrors plan.validation_checkpoints)
+    sample_checkpoints: dict[str, ValidationCheckpoint] = {
+        "sample-backend": ValidationCheckpoint(
+            after_story="sample-backend",
+            check_type="api+response",
+            checks=[CheckCriterion(criterion="API returns 200", evidence_fields=["status_code"])],
+        ),
+        "sample-frontend": ValidationCheckpoint(
+            after_story="sample-frontend",
+            check_type="http+dom",
+            checks=[CheckCriterion(criterion="Page renders", evidence_fields=["dom_element"])],
+        ),
+        "sample-full-stack": ValidationCheckpoint(
+            after_story="sample-full-stack",
+            check_type="regression",
+            checks=[CheckCriterion(criterion="Tests pass", evidence_fields=["test_output"])],
+        ),
     }
 
     # Generate and report for each sample
@@ -436,8 +472,11 @@ def main() -> None:
         print(f"=== {label.upper()} Story ===")
         print()
 
+        story_id = story["story_id"]
+        cp = sample_checkpoints.get(story_id)
+
         # Derive domains
-        domains = derive_story_domains(story)
+        domains = derive_story_domains(story, cp)
         print(f"  Domains: {sorted(domains)}")
 
         # Select rules
@@ -468,7 +507,7 @@ def main() -> None:
         print(f"  Doc index: {doc_index}")
 
         # Build prompt (default: index-only mode, within 650-token budget)
-        prompt = build_story_prompt(story, rules_dir, wiki_indexes_dir)
+        prompt = build_story_prompt(story, rules_dir, wiki_indexes_dir, checkpoint=cp)
         tokens = estimate_tokens(prompt)
         print(f"  Prompt size (index-only): {len(prompt):,d} chars (~{tokens:,d} tokens)")
 
@@ -484,7 +523,9 @@ def main() -> None:
             )
 
         # Also show inlined-rules mode for comparison
-        prompt_inlined = build_story_prompt(story, rules_dir, wiki_indexes_dir, inline_rules=True)
+        prompt_inlined = build_story_prompt(
+            story, rules_dir, wiki_indexes_dir, checkpoint=cp, inline_rules=True
+        )
         tokens_inlined = estimate_tokens(prompt_inlined)
         print(
             f"  Prompt size (rules inlined): {len(prompt_inlined):,d} chars (~{tokens_inlined:,d} tokens)"
@@ -496,7 +537,8 @@ def main() -> None:
     print()
 
     # 1. Backend story should NOT have frontend-standards.md
-    backend_domains = derive_story_domains(sample_stories["backend"])
+    backend_cp = sample_checkpoints.get("sample-backend")
+    backend_domains = derive_story_domains(sample_stories["backend"], backend_cp)
     backend_rules = select_rules(domain_tags, backend_domains)
     if "frontend-standards.md" in backend_rules:
         print("  FAIL: Backend story includes frontend-standards.md")
@@ -504,7 +546,8 @@ def main() -> None:
         print("  PASS: Backend story excludes frontend-standards.md")
 
     # 2. Frontend story should NOT have query-patterns.md
-    frontend_domains = derive_story_domains(sample_stories["frontend"])
+    frontend_cp = sample_checkpoints.get("sample-frontend")
+    frontend_domains = derive_story_domains(sample_stories["frontend"], frontend_cp)
     frontend_rules = select_rules(domain_tags, frontend_domains)
     if "query-patterns.md" in frontend_rules:
         print("  FAIL: Frontend story includes query-patterns.md")
@@ -512,7 +555,8 @@ def main() -> None:
         print("  PASS: Frontend story excludes query-patterns.md")
 
     # 3. Full-stack story should include both
-    fullstack_domains = derive_story_domains(sample_stories["full-stack"])
+    fullstack_cp = sample_checkpoints.get("sample-full-stack")
+    fullstack_domains = derive_story_domains(sample_stories["full-stack"], fullstack_cp)
     fullstack_rules = select_rules(domain_tags, fullstack_domains)
     has_frontend = "frontend-standards.md" in fullstack_rules
     has_backend = "query-patterns.md" in fullstack_rules
@@ -528,7 +572,9 @@ def main() -> None:
 
     # 4. All-tagged rules in every prompt
     for label, story in sample_stories.items():
-        domains = derive_story_domains(story)
+        story_id = story["story_id"]
+        cp = sample_checkpoints.get(story_id)
+        domains = derive_story_domains(story, cp)
         selected = set(select_rules(domain_tags, domains))
         missing = all_tagged_files - selected
         if missing:

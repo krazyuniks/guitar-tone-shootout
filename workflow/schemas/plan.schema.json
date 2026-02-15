@@ -242,13 +242,6 @@
           },
           "description": "Tools available to the agent, e.g. ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep']."
         },
-        "mcp": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "MCP server names required, e.g. ['chrome-devtools', 'playwright']."
-        },
         "max_turns": {
           "type": "integer",
           "minimum": 1,
@@ -260,7 +253,7 @@
           "description": "Maximum spend in USD for this agent invocation."
         }
       },
-      "required": ["model", "skills", "tools", "mcp", "max_turns", "max_budget_usd"],
+      "required": ["model", "skills", "tools", "max_turns", "max_budget_usd"],
       "additionalProperties": false
     },
     "scope": {
@@ -304,7 +297,7 @@
             "regression",
             "quality"
           ],
-          "description": "Type of validation check. Determines the model, MCP, and evidence fields required."
+          "description": "Type of validation check. Determines the model and evidence fields required."
         },
         "checks": {
           "type": "array",

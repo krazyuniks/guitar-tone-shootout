@@ -8,17 +8,29 @@ context: fork
 
 **Activation:** `/epic` command -- lifecycle management for epics using the behavioural validation workflow.
 
+**NEVER run `just --list` or search for commands.** All commands are listed below. Use them exactly as written.
+
+---
+
+## Dispatch (EXECUTE IMMEDIATELY)
+
+Parse the user's args and run the matching command. Do NOT ask clarifying questions. Do NOT search for commands.
+
+| User says | Run this immediately |
+|-----------|---------------------|
+| `/epic run <N>`, `/epic <N>` | `yes \| just epic <N>` |
+| `/epic status <N>` | `just epic-status <N>` |
+| `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
+
+If no args provided, ask which epic number. That is the ONLY question you may ask.
+
 ---
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
-| `just epic-ingest <N>` | Fetch epic from GitHub, write EPIC.md |
-| `just epic-plan <N>` | Full planning pipeline: context -> scope -> plan -> verify -> gate |
-| `just epic-plan-resume <N>` | Resume planning after crash |
-| `just epic-start <N>` | Execute stories sequentially via orchestrator |
-| `just epic-resume <N>` | Resume execution after crash/interruption |
+| `just epic <N>` | Full pipeline: ingest -> plan -> verify -> gate -> execute |
 | `just epic-status <N>` | Show progress from JSONL logs |
 | `just epic-validate-plan <N>` | Validate plan.json against schema (Phase A only) |
 

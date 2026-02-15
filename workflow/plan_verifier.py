@@ -185,8 +185,13 @@ Set `weak_checks` to an empty array if all checkpoints are sufficient.
 
 ## Output
 
-Return a JSON object with the structure defined by the --json-schema.
-The overall status is "pass" only if ALL 5 dimensions pass.
+Your ENTIRE response must be a single JSON object — no markdown, no analysis text,
+no explanation before or after. Output ONLY the JSON object.
+
+The JSON must have this structure:
+- "status": "pass" or "fail" (pass only if ALL 5 dimensions pass)
+- "dimensions": object with keys for each dimension, each containing "status" and "findings"
+- "summary": brief overall summary string
 
 Be rigorous but fair. Flag real issues, not stylistic preferences.
 """
@@ -199,41 +204,30 @@ Be rigorous but fair. Flag real issues, not stylistic preferences.
 # ---------------------------------------------------------------------------
 
 
-def _parse_verifier_result(result_output: str, structured_output: dict | None) -> dict:
-    """Parse the verifier agent's output into a structured result dict.
+def _parse_verifier_result(result_output: str) -> dict:
+    """Parse the verifier agent's output as JSON.
 
-    Tries structured_output first (from --json-schema), then falls back
-    to extracting JSON from the raw output text.
+    The prompt instructs the agent to return ONLY a JSON object.
+    Agents commonly wrap JSON in markdown code fences, so we strip those.
     """
-    # Try structured output first
-    if structured_output and isinstance(structured_output, dict):
-        # Check if result is nested in the envelope
-        result_field = structured_output.get("result")
-        if isinstance(result_field, str):
-            try:
-                parsed = json.loads(result_field)
-                if isinstance(parsed, dict) and "status" in parsed:
-                    return parsed
-            except json.JSONDecodeError:
-                pass
-        elif isinstance(result_field, dict) and "status" in result_field:
-            return result_field
-        if "status" in structured_output:
-            return structured_output
-
-    # Fallback: try parsing the output text directly
-    if result_output.strip():
-        try:
-            parsed = json.loads(result_output)
-            if isinstance(parsed, dict) and "status" in parsed:
-                return parsed
-        except json.JSONDecodeError:
-            pass
-
-    raise PlanVerificationError(
-        "Could not parse verifier output into structured result. "
-        f"Raw output (first 500 chars): {result_output[:500]}"
-    )
+    text = (result_output or "").strip()
+    # Strip markdown code fences if present
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove first line (```json) and last line (```)
+        if lines[-1].strip() == "```":
+            text = "\n".join(lines[1:-1]).strip()
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise PlanVerificationError(
+            f"Verifier did not return valid JSON: {exc}\n" f"Output (first 500 chars): {text[:500]}"
+        ) from exc
+    if not isinstance(data, dict) or "status" not in data:
+        raise PlanVerificationError(
+            f"Verifier JSON missing 'status' field. Keys: {list(data.keys()) if isinstance(data, dict) else type(data)}"
+        )
+    return data
 
 
 def _is_verifier_pass(result: dict) -> bool:
@@ -389,9 +383,6 @@ def verify_plan(
     epic_md = epic_md_path.read_text(encoding="utf-8")
     context_md = context_md_path.read_text(encoding="utf-8")
 
-    # Load the verifier result schema for --json-schema
-    verifier_schema = _load_verifier_schema()
-
     # Build the verifier prompt
     prompt = _build_verifier_prompt(
         plan_json=plan_json,
@@ -417,8 +408,9 @@ def verify_plan(
         tools=[],
         max_turns=verifier_max_turns,
         max_budget_usd=verifier_budget_usd,
-        json_schema=verifier_schema,
+        json_schema=None,
         cwd=PROJECT_ROOT,
+        no_mcp=True,
     )
 
     if not result.success:
@@ -428,7 +420,7 @@ def verify_plan(
         )
 
     # Parse structured output
-    verifier_result = _parse_verifier_result(result.output, result.structured_output)
+    verifier_result = _parse_verifier_result(result.output)
 
     logger.info(
         "Verifier result: status=%s, cost=$%s",
@@ -563,7 +555,7 @@ def _read_original_prompt_context(epic_dir: Path) -> tuple[str, int]:
 def _write_plan_from_model(plan: Plan, epic_dir: Path) -> None:
     """Write plan.json and PLAN.md from a validated Plan model."""
     (epic_dir / "plan.json").write_text(
-        json.dumps(plan.model_dump(by_alias=True), indent=2, ensure_ascii=False) + "\n",
+        json.dumps(plan.model_dump(), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
     (epic_dir / "PLAN.md").write_text(render_plan_md(plan), encoding="utf-8")
@@ -597,17 +589,17 @@ def _regenerate_plan_with_errors(
 
     logger.info("Dispatching planner revision (Phase A errors, %d chars)", len(revision_prompt))
 
-    plan_schema = Plan.model_json_schema()
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
         tools=[],
-        max_turns=5,
+        max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
-        json_schema=plan_schema,
+        json_schema=None,
         cwd=PROJECT_ROOT,
+        no_mcp=True,
     )
 
     if not result.success:
@@ -644,17 +636,17 @@ def _regenerate_plan_with_verifier_feedback(
 
     logger.info("Dispatching planner revision (verifier feedback, %d chars)", len(revision_prompt))
 
-    plan_schema = Plan.model_json_schema()
     planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=revision_prompt,
         primary_model="opus",
         fallback_model=FALLBACK_MODELS["opus"],
         tools=[],
-        max_turns=5,
+        max_turns=int(planning_budget["max_turns"]),
         max_budget_usd=float(planning_budget["max_budget_usd"]),
-        json_schema=plan_schema,
+        json_schema=None,
         cwd=PROJECT_ROOT,
+        no_mcp=True,
     )
 
     if not result.success:
