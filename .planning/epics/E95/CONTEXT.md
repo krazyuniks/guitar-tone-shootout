@@ -1,6 +1,6 @@
 # Epic Context
 
-**Assembled:** 2026-02-14T20:35:58Z
+**Assembled:** 2026-02-14T23:48:31Z
 **Detected Areas:** api_contract, audio_processing, data_model, dual_database, frontend_layers, gear_model, job_processing, security, signal_chain
 
 This document is an intermediate artefact for the plan generator. It combines the epic description, selectively loaded architecture documentation, and codebase context based on detected areas. Zero AI tokens were spent producing this file.
@@ -16,7 +16,7 @@ github_issue: 95
 title: "Phase 4 Completion — DI Tracks, Groups, Shootout Workflow, Content APIs, Platform Infra"
 state: OPEN
 labels: ["epic"]
-fetched: 2026-02-14T20:35:58Z
+fetched: 2026-02-14T23:48:31Z
 ---
 
 ## Epic: Phase 4 Completion
@@ -2071,438 +2071,6 @@ just migrate  # Run migrations
 ---
 
 
-### Audio-Processing
-
-# Audio Processing
-
-Implementation details for `libs/audio/`. For architectural overview, see [[GTS-Technical-Architecture]].
-
----
-
-## Overview
-
-The audio library processes DI guitar tracks through signal chains to produce audio segments for shootout comparisons.
-
-| Component | Purpose |
-|-----------|---------|
-| `processing/processor.py` | Main AudioProcessor implementation |
-| `processing/nam_loader.py` | NAM model loading with LRU cache |
-| `processing/ir_loader.py` | Impulse response file loading |
-| `processing/loudness.py` | EBU R128 loudness measurement/normalization |
-| `processing/chain_executor.py` | Signal chain block execution |
-| `processing/permutation.py` | Signal chain group expansion |
-| `analysis/waveform.py` | Waveform visualization data |
-
----
-
-## Directory Structure
-
-```
-libs/audio/
-├── src/audio/
-│   ├── __init__.py
-│   ├── processing/
-│   │   ├── __init__.py
-│   │   ├── processor.py         # PedalboardAudioProcessor
-│   │   ├── nam_loader.py        # load_nam_model()
-│   │   ├── ir_loader.py         # load_ir()
-│   │   ├── loudness.py          # measure_loudness(), normalize_loudness()
-│   │   ├── chain_executor.py    # execute_signal_chain()
-│   │   └── permutation.py       # expand_signal_chain_group()
-│   ├── analysis/
-│   │   ├── __init__.py
-│   │   └── waveform.py          # extract_waveform()
-│   └── video/
-│       └── __init__.py          # Placeholder for video composition
-└── pyproject.toml
-```
-
----
-
-## Dependencies
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `pedalboard` | ^0.9.0 | Effects, IR convolution, audio I/O |
-| `pyloudnorm` | ^0.1.1 | EBU R128 loudness measurement |
-| `torch` | ^2.5.0 | NAM model loading and inference |
-| `scipy` | ^1.14.0 | Audio resampling |
-| `soundfile` | ^0.12.0 | Audio file I/O |
-| `numpy` | - | Array operations |
-
----
-
-## PedalboardAudioProcessor
-
-**File:** `processing/processor.py`
-
-Main audio processor implementing the `AudioProcessor` protocol from `libs/core/ports/`.
-
-### Supported Formats
-
-WAV, FLAC, OGG, MP3
-
-### Public Methods
-
-```python
-class PedalboardAudioProcessor:
-    def get_supported_formats(self) -> list[str]
-    def is_format_supported(self, format_ext: str) -> bool
-    async def extract_waveform(self, audio_path: Path, num_peaks: int = 200) -> WaveformData
-    async def measure_loudness(self, audio_path: Path) -> tuple[float, float]
-    async def normalize_loudness(self, input_path: Path, output_path: Path, target_lufs: float = -14.0) -> AudioResult
-    async def process_di_track(self, input_path: Path, output_path: Path, config: ToneConfig) -> AudioResult
-```
-
-### Processing Pipeline
-
-`process_di_track()` executes the following steps:
-
-```
-1. Load DI audio file
-   ↓ (stereo converted to mono by averaging)
-2. Resample if needed
-   ↓ (match config sample rate)
-3. Apply highpass filter (optional)
-   ↓ (Pedalboard HighpassFilter)
-4. Apply NAM model
-   ↓ (sample-by-sample PyTorch inference)
-5. Apply IR convolution (optional)
-   ↓ (Pedalboard Convolution)
-6. Normalize loudness
-   ↓ (EBU R128 to target LUFS)
-7. Write output file
-```
-
-### Return Value
-
-```python
-AudioResult(
-    duration=float,        # seconds
-    sample_rate=int,       # Hz
-    peak_dbfs=float,       # dBFS
-    integrated_lufs=float, # LUFS
-    processing_time=float, # seconds
-)
-```
-
----
-
-## NAM Model Loading
-
-**File:** `processing/nam_loader.py`
-
-Loads Neural Amp Modeler models with LRU caching for repeated use.
-
-### Function
-
-```python
-def load_nam_model(model_path: Path) -> tuple[torch.nn.Module, int]
-```
-
-Returns `(model, sample_rate)`. Default sample rate: 48,000 Hz.
-
-### Implementation
-
-- Checkpoint format: Dictionary with `model` (state dict) and optional `sample_rate`
-- Uses `torch.load(..., weights_only=False)`
-- Model set to evaluation mode after loading
-- Cache key: file path (via `functools.lru_cache`)
-
-### Cache Configuration
-
-| Setting | Value |
-|---------|-------|
-| Cache size | 10 models |
-| Cache key | File path |
-
-### Error Handling
-
-```python
-class NAMLoadError(Exception):
-    """Raised for missing files, invalid formats, or loading failures."""
-```
-
----
-
-## IR Loading
-
-**File:** `processing/ir_loader.py`
-
-Loads impulse response files for cabinet convolution.
-
-### Function
-
-```python
-def load_ir(path: str | Path) -> Convolution
-```
-
-Returns a Pedalboard `Convolution` effect object.
-
-### Supported Formats
-
-| Format | Magic Bytes |
-|--------|-------------|
-| WAV | RIFF header + WAVE signature |
-| FLAC | fLaC header |
-
-### Validation Steps
-
-1. Check file exists
-2. Validate format via magic bytes
-3. For WAV: additional validation via `wave` module
-4. Check file is non-empty
-5. Load into Pedalboard `Convolution`
-
-### Error Handling
-
-```python
-class IRLoadError(Exception):
-    """Raised for missing files, invalid formats, or corruption."""
-```
-
----
-
-## Loudness Processing
-
-**File:** `processing/loudness.py`
-
-EBU R128 standard loudness measurement and normalization using PyLoudnorm.
-
-### Functions
-
-```python
-def measure_loudness(audio_path: Path) -> tuple[float, float]
-    """Returns (integrated_lufs, peak_dbfs)."""
-
-def normalize_loudness(
-    input_path: Path,
-    output_path: Path,
-    target_lufs: float = -14.0
-) -> tuple[float, float]
-    """Normalizes to target LUFS. Returns (result_lufs, result_peak_dbfs)."""
-```
-
-### Default Target
-
--14.0 LUFS (broadcast/streaming standard)
-
-### Silent Audio Detection
-
-Audio with peak < 1e-6 is rejected. Silent input indicates a problem (missing model output, corrupt DI track).
-
-### Error Handling
-
-```python
-class LoudnessError(Exception):
-    """Raised for silent audio or measurement failures."""
-```
-
----
-
-## Signal Chain Execution
-
-**File:** `processing/chain_executor.py`
-
-Sequential block-by-block signal chain execution with constraint validation.
-
-### Function
-
-```python
-async def execute_signal_chain(
-    chain: SignalChain,
-    di_audio: np.ndarray,
-    sample_rate: int,
-    gear_path_resolver: Callable[[UUID], Path]
-) -> np.ndarray
-```
-
-### Processing Logic
-
-1. Validate chain is not empty
-2. Sort blocks by position (enforces execution order)
-3. Validate chain constraints
-4. Process each block sequentially
-
-### Supported Gear Types
-
-| Gear Type | Processing |
-|-----------|------------|
-| `AMP`, `FULL_RIG`, `PEDAL`, `POST_EFFECT` | NAM model |
-| `IR` | Convolution |
-
-### Chain Constraints
-
-| Rule | Constraint |
-|------|------------|
-| FULL_RIG | Cannot combine with IR (cabinet baked in) |
-| HEAD (AMP) | Requires IR block for cabinet simulation |
-
-### Error Handling
-
-```python
-class ChainExecutionError(Exception):
-    """Raised for invalid chains or processing failures."""
-```
-
----
-
-## Permutation Processing
-
-**File:** `processing/permutation.py`
-
-Expands signal chain groups into all valid permutations.
-
-### Functions
-
-```python
-def expand_signal_chain_group(group: SignalChainGroup) -> list[dict[int, UUID | None]]
-    """Returns list of permutations. Each: slot position → gear ID or None."""
-
-def generate_permutation_labels(
-    permutations: list[dict[int, UUID | None]],
-    gear_names: dict[UUID, str],
-    null_label: str = "None"
-) -> list[str]
-    """Creates human-readable labels for each permutation."""
-```
-
-### Permutation Limits
-
-| Constraint | Value |
-|------------|-------|
-| Max permutations | 27 |
-| Max options per block | 3 |
-
-### Null Gear
-
-`None` in a slot means "no gear in this position". Enables A/B comparison with/without an effect.
-
-Amps and IRs cannot be null - they're required chain components.
-
-### Error Handling
-
-```python
-class PermutationError(Exception):
-    """Raised for invalid config or exceeded limits."""
-```
-
----
-
-## Waveform Extraction
-
-**File:** `analysis/waveform.py`
-
-Extracts waveform visualization data for UI display.
-
-### Function
-
-```python
-def extract_waveform(
-    audio_path: Path,
-    num_peaks: int = 200
-) -> WaveformData
-```
-
-### Return Value
-
-```python
-WaveformData(
-    peaks=tuple[float, ...],  # Peak values, normalized [-1.0, 1.0]
-    sample_rate=int,
-    duration_seconds=float,
-    samples_per_peak=int,
-)
-```
-
-### Algorithm
-
-1. Load audio (stereo → mono by averaging)
-2. Divide into segments (one per peak)
-3. For each segment: find max absolute value, preserve sign
-4. Normalize to [-1.0, 1.0]
-
----
-
-## Integration
-
-### Port/Adapter Pattern
-
-`PedalboardAudioProcessor` implements `AudioProcessor` protocol defined in `libs/core/ports/audio_processor.py`.
-
-### Domain Types
-
-Imports from `libs/core`:
-- `AudioResult` - Processing result
-- `ToneConfig` - Processing configuration
-- `WaveformData` - Visualization data
-- `SignalChain` - Chain definition
-- `GearType` - Gear type enum
-
-### Usage Example
-
-```python
-from audio.processing.processor import PedalboardAudioProcessor
-from core.domain.value_objects import ToneConfig
-
-processor = PedalboardAudioProcessor()
-
-# Process a DI track
-result = await processor.process_di_track(
-    input_path=Path("/app/storage/uploads/di_tracks/123.wav"),
-    output_path=Path("/app/storage/audio/456.wav"),
-    config=ToneConfig(
-        nam_model_path="/app/storage/models/amp.nam",
-        ir_path="/app/storage/models/cab.wav",
-        sample_rate=48000,
-        highpass_freq=80.0,
-        target_lufs=-14.0,
-    ),
-)
-
-print(f"Duration: {result.duration}s, LUFS: {result.integrated_lufs}")
-```
-
----
-
-## Error Hierarchy
-
-| Exception | Module | Cause |
-|-----------|--------|-------|
-| `NAMLoadError` | nam_loader | Missing/invalid NAM file |
-| `IRLoadError` | ir_loader | Missing/invalid IR file |
-| `LoudnessError` | loudness | Silent audio or measurement failure |
-| `ChainExecutionError` | chain_executor | Invalid chain or processing failure |
-| `PermutationError` | permutation | Invalid config or exceeded limits |
-| `ProcessingError` | processor | Wrapped exception for any failure |
-
----
-
-## File Formats
-
-### Input
-
-| Type | Formats | Constraints |
-|------|---------|-------------|
-| DI Track | WAV, FLAC, OGG, MP3 | Any sample rate (resampled) |
-| NAM Model | `.nam` | PyTorch checkpoint |
-| IR | WAV, FLAC | Mono, ≤2 seconds |
-
-### Output
-
-| Type | Format | Settings |
-|------|--------|----------|
-| Audio segment | WAV | 48 kHz, 16-bit PCM |
-
----
-
-## References
-
-- [[GTS-Technical-Architecture]] - Architecture overview
-- `libs/core/ports/audio_processor.py` - Protocol definition
-- `libs/core/domain/value_objects/` - Domain types
-
-
 ### Frontend-Architecture
 
 # Frontend Architecture
@@ -3317,6 +2885,438 @@ PRs fail CI if `dist/` is not committed with matching `src/` changes.
 - [[GTS-Technical-Architecture]] - Architecture overview
 - `frontend/astro/` - Source code
 - `.claude/rules/frontend-standards.md` - Development rules
+
+
+### Audio-Processing
+
+# Audio Processing
+
+Implementation details for `libs/audio/`. For architectural overview, see [[GTS-Technical-Architecture]].
+
+---
+
+## Overview
+
+The audio library processes DI guitar tracks through signal chains to produce audio segments for shootout comparisons.
+
+| Component | Purpose |
+|-----------|---------|
+| `processing/processor.py` | Main AudioProcessor implementation |
+| `processing/nam_loader.py` | NAM model loading with LRU cache |
+| `processing/ir_loader.py` | Impulse response file loading |
+| `processing/loudness.py` | EBU R128 loudness measurement/normalization |
+| `processing/chain_executor.py` | Signal chain block execution |
+| `processing/permutation.py` | Signal chain group expansion |
+| `analysis/waveform.py` | Waveform visualization data |
+
+---
+
+## Directory Structure
+
+```
+libs/audio/
+├── src/audio/
+│   ├── __init__.py
+│   ├── processing/
+│   │   ├── __init__.py
+│   │   ├── processor.py         # PedalboardAudioProcessor
+│   │   ├── nam_loader.py        # load_nam_model()
+│   │   ├── ir_loader.py         # load_ir()
+│   │   ├── loudness.py          # measure_loudness(), normalize_loudness()
+│   │   ├── chain_executor.py    # execute_signal_chain()
+│   │   └── permutation.py       # expand_signal_chain_group()
+│   ├── analysis/
+│   │   ├── __init__.py
+│   │   └── waveform.py          # extract_waveform()
+│   └── video/
+│       └── __init__.py          # Placeholder for video composition
+└── pyproject.toml
+```
+
+---
+
+## Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `pedalboard` | ^0.9.0 | Effects, IR convolution, audio I/O |
+| `pyloudnorm` | ^0.1.1 | EBU R128 loudness measurement |
+| `torch` | ^2.5.0 | NAM model loading and inference |
+| `scipy` | ^1.14.0 | Audio resampling |
+| `soundfile` | ^0.12.0 | Audio file I/O |
+| `numpy` | - | Array operations |
+
+---
+
+## PedalboardAudioProcessor
+
+**File:** `processing/processor.py`
+
+Main audio processor implementing the `AudioProcessor` protocol from `libs/core/ports/`.
+
+### Supported Formats
+
+WAV, FLAC, OGG, MP3
+
+### Public Methods
+
+```python
+class PedalboardAudioProcessor:
+    def get_supported_formats(self) -> list[str]
+    def is_format_supported(self, format_ext: str) -> bool
+    async def extract_waveform(self, audio_path: Path, num_peaks: int = 200) -> WaveformData
+    async def measure_loudness(self, audio_path: Path) -> tuple[float, float]
+    async def normalize_loudness(self, input_path: Path, output_path: Path, target_lufs: float = -14.0) -> AudioResult
+    async def process_di_track(self, input_path: Path, output_path: Path, config: ToneConfig) -> AudioResult
+```
+
+### Processing Pipeline
+
+`process_di_track()` executes the following steps:
+
+```
+1. Load DI audio file
+   ↓ (stereo converted to mono by averaging)
+2. Resample if needed
+   ↓ (match config sample rate)
+3. Apply highpass filter (optional)
+   ↓ (Pedalboard HighpassFilter)
+4. Apply NAM model
+   ↓ (sample-by-sample PyTorch inference)
+5. Apply IR convolution (optional)
+   ↓ (Pedalboard Convolution)
+6. Normalize loudness
+   ↓ (EBU R128 to target LUFS)
+7. Write output file
+```
+
+### Return Value
+
+```python
+AudioResult(
+    duration=float,        # seconds
+    sample_rate=int,       # Hz
+    peak_dbfs=float,       # dBFS
+    integrated_lufs=float, # LUFS
+    processing_time=float, # seconds
+)
+```
+
+---
+
+## NAM Model Loading
+
+**File:** `processing/nam_loader.py`
+
+Loads Neural Amp Modeler models with LRU caching for repeated use.
+
+### Function
+
+```python
+def load_nam_model(model_path: Path) -> tuple[torch.nn.Module, int]
+```
+
+Returns `(model, sample_rate)`. Default sample rate: 48,000 Hz.
+
+### Implementation
+
+- Checkpoint format: Dictionary with `model` (state dict) and optional `sample_rate`
+- Uses `torch.load(..., weights_only=False)`
+- Model set to evaluation mode after loading
+- Cache key: file path (via `functools.lru_cache`)
+
+### Cache Configuration
+
+| Setting | Value |
+|---------|-------|
+| Cache size | 10 models |
+| Cache key | File path |
+
+### Error Handling
+
+```python
+class NAMLoadError(Exception):
+    """Raised for missing files, invalid formats, or loading failures."""
+```
+
+---
+
+## IR Loading
+
+**File:** `processing/ir_loader.py`
+
+Loads impulse response files for cabinet convolution.
+
+### Function
+
+```python
+def load_ir(path: str | Path) -> Convolution
+```
+
+Returns a Pedalboard `Convolution` effect object.
+
+### Supported Formats
+
+| Format | Magic Bytes |
+|--------|-------------|
+| WAV | RIFF header + WAVE signature |
+| FLAC | fLaC header |
+
+### Validation Steps
+
+1. Check file exists
+2. Validate format via magic bytes
+3. For WAV: additional validation via `wave` module
+4. Check file is non-empty
+5. Load into Pedalboard `Convolution`
+
+### Error Handling
+
+```python
+class IRLoadError(Exception):
+    """Raised for missing files, invalid formats, or corruption."""
+```
+
+---
+
+## Loudness Processing
+
+**File:** `processing/loudness.py`
+
+EBU R128 standard loudness measurement and normalization using PyLoudnorm.
+
+### Functions
+
+```python
+def measure_loudness(audio_path: Path) -> tuple[float, float]
+    """Returns (integrated_lufs, peak_dbfs)."""
+
+def normalize_loudness(
+    input_path: Path,
+    output_path: Path,
+    target_lufs: float = -14.0
+) -> tuple[float, float]
+    """Normalizes to target LUFS. Returns (result_lufs, result_peak_dbfs)."""
+```
+
+### Default Target
+
+-14.0 LUFS (broadcast/streaming standard)
+
+### Silent Audio Detection
+
+Audio with peak < 1e-6 is rejected. Silent input indicates a problem (missing model output, corrupt DI track).
+
+### Error Handling
+
+```python
+class LoudnessError(Exception):
+    """Raised for silent audio or measurement failures."""
+```
+
+---
+
+## Signal Chain Execution
+
+**File:** `processing/chain_executor.py`
+
+Sequential block-by-block signal chain execution with constraint validation.
+
+### Function
+
+```python
+async def execute_signal_chain(
+    chain: SignalChain,
+    di_audio: np.ndarray,
+    sample_rate: int,
+    gear_path_resolver: Callable[[UUID], Path]
+) -> np.ndarray
+```
+
+### Processing Logic
+
+1. Validate chain is not empty
+2. Sort blocks by position (enforces execution order)
+3. Validate chain constraints
+4. Process each block sequentially
+
+### Supported Gear Types
+
+| Gear Type | Processing |
+|-----------|------------|
+| `AMP`, `FULL_RIG`, `PEDAL`, `POST_EFFECT` | NAM model |
+| `IR` | Convolution |
+
+### Chain Constraints
+
+| Rule | Constraint |
+|------|------------|
+| FULL_RIG | Cannot combine with IR (cabinet baked in) |
+| HEAD (AMP) | Requires IR block for cabinet simulation |
+
+### Error Handling
+
+```python
+class ChainExecutionError(Exception):
+    """Raised for invalid chains or processing failures."""
+```
+
+---
+
+## Permutation Processing
+
+**File:** `processing/permutation.py`
+
+Expands signal chain groups into all valid permutations.
+
+### Functions
+
+```python
+def expand_signal_chain_group(group: SignalChainGroup) -> list[dict[int, UUID | None]]
+    """Returns list of permutations. Each: slot position → gear ID or None."""
+
+def generate_permutation_labels(
+    permutations: list[dict[int, UUID | None]],
+    gear_names: dict[UUID, str],
+    null_label: str = "None"
+) -> list[str]
+    """Creates human-readable labels for each permutation."""
+```
+
+### Permutation Limits
+
+| Constraint | Value |
+|------------|-------|
+| Max permutations | 27 |
+| Max options per block | 3 |
+
+### Null Gear
+
+`None` in a slot means "no gear in this position". Enables A/B comparison with/without an effect.
+
+Amps and IRs cannot be null - they're required chain components.
+
+### Error Handling
+
+```python
+class PermutationError(Exception):
+    """Raised for invalid config or exceeded limits."""
+```
+
+---
+
+## Waveform Extraction
+
+**File:** `analysis/waveform.py`
+
+Extracts waveform visualization data for UI display.
+
+### Function
+
+```python
+def extract_waveform(
+    audio_path: Path,
+    num_peaks: int = 200
+) -> WaveformData
+```
+
+### Return Value
+
+```python
+WaveformData(
+    peaks=tuple[float, ...],  # Peak values, normalized [-1.0, 1.0]
+    sample_rate=int,
+    duration_seconds=float,
+    samples_per_peak=int,
+)
+```
+
+### Algorithm
+
+1. Load audio (stereo → mono by averaging)
+2. Divide into segments (one per peak)
+3. For each segment: find max absolute value, preserve sign
+4. Normalize to [-1.0, 1.0]
+
+---
+
+## Integration
+
+### Port/Adapter Pattern
+
+`PedalboardAudioProcessor` implements `AudioProcessor` protocol defined in `libs/core/ports/audio_processor.py`.
+
+### Domain Types
+
+Imports from `libs/core`:
+- `AudioResult` - Processing result
+- `ToneConfig` - Processing configuration
+- `WaveformData` - Visualization data
+- `SignalChain` - Chain definition
+- `GearType` - Gear type enum
+
+### Usage Example
+
+```python
+from audio.processing.processor import PedalboardAudioProcessor
+from core.domain.value_objects import ToneConfig
+
+processor = PedalboardAudioProcessor()
+
+# Process a DI track
+result = await processor.process_di_track(
+    input_path=Path("/app/storage/uploads/di_tracks/123.wav"),
+    output_path=Path("/app/storage/audio/456.wav"),
+    config=ToneConfig(
+        nam_model_path="/app/storage/models/amp.nam",
+        ir_path="/app/storage/models/cab.wav",
+        sample_rate=48000,
+        highpass_freq=80.0,
+        target_lufs=-14.0,
+    ),
+)
+
+print(f"Duration: {result.duration}s, LUFS: {result.integrated_lufs}")
+```
+
+---
+
+## Error Hierarchy
+
+| Exception | Module | Cause |
+|-----------|--------|-------|
+| `NAMLoadError` | nam_loader | Missing/invalid NAM file |
+| `IRLoadError` | ir_loader | Missing/invalid IR file |
+| `LoudnessError` | loudness | Silent audio or measurement failure |
+| `ChainExecutionError` | chain_executor | Invalid chain or processing failure |
+| `PermutationError` | permutation | Invalid config or exceeded limits |
+| `ProcessingError` | processor | Wrapped exception for any failure |
+
+---
+
+## File Formats
+
+### Input
+
+| Type | Formats | Constraints |
+|------|---------|-------------|
+| DI Track | WAV, FLAC, OGG, MP3 | Any sample rate (resampled) |
+| NAM Model | `.nam` | PyTorch checkpoint |
+| IR | WAV, FLAC | Mono, ≤2 seconds |
+
+### Output
+
+| Type | Format | Settings |
+|------|--------|----------|
+| Audio segment | WAV | 48 kHz, 16-bit PCM |
+
+---
+
+## References
+
+- [[GTS-Technical-Architecture]] - Architecture overview
+- `libs/core/ports/audio_processor.py` - Protocol definition
+- `libs/core/domain/value_objects/` - Domain types
 
 
 ### GTS-Remotion-Architecture
@@ -4618,7 +4618,7 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
 ## Directory Tree
 
 ```
-95-phase-4-completion-di-tracks-groups-shoo/  (33 files)
+95-phase-4-completion-di-tracks-groups-shoo/  (21 files)
   .agents/
     skills/
       chrome-devtools/  (1 files)
@@ -4665,7 +4665,7 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
     hooks/  (11 files)
     prompts/  (4 files)
       completed/  (1 files)
-    rules/  (14 files)
+    rules/  (15 files)
     scripts/  (1 files)
     skills/
       chrome-devtools/  (1 files)
@@ -4717,6 +4717,10 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
       logs/  (21 files)
     skills/  (4 files)
   .scratch/  (2 files)
+  .serena/  (2 files)
+    cache/
+      python/  (2 files)
+    memories/
   apps/
     scheduler/  (2 files)
       src/
@@ -4863,7 +4867,7 @@ Internal packages: audio, core, scheduler, source_t3k, video, webapp, worker
         services/  (1 files)
       worker/  (12 files)
       worktree/  (5 files)
-  workflow/  (17 files)
+  workflow/  (18 files)
     schemas/  (5 files)
     templates/  (5 files)
   worktree/  (16 files)
