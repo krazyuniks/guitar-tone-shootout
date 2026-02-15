@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gts.local/schemas/jsonl-events.schema.json",
+  "title": "JSONL Event Log Schema",
+  "description": "Documents all JSONL event types for the epic workflow pipeline. Every event has universal fields (schema_v, run_id, ts, event) plus event-specific fields.",
+  "type": "object",
+  "properties": {
+    "schema_v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version."
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID4 identifying this execution run."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp."
+    },
+    "event": {
+      "type": "string",
+      "description": "Event type identifier."
+    }
+  },
+  "required": ["schema_v", "run_id", "ts", "event"],
+  "$defs": {
+    "stage3_events": {
+      "description": "Stage 3 (Planning) events written to epic.jsonl.",
+      "type": "object",
+      "properties": {
+        "planner_dispatched": {
+          "description": "Fields: epic, attempt, tier, model, prompt_hash, prompt_tokens"
+        },
+        "planner_complete": {
+          "description": "Fields: epic, attempt, turns, cost_usd, response_path"
+        },
+        "planner_failed": {
+          "description": "Fields: epic, attempt, error, turns, cost_usd, response_path"
+        },
+        "phase_a_pass": {
+          "description": "Fields: epic, attempt"
+        },
+        "phase_a_fail": {
+          "description": "Fields: epic, attempt, checks_failed[]"
+        },
+        "verifier_dispatched": {
+          "description": "Fields: epic, attempt, tier, model, prompt_hash, prompt_tokens"
+        },
+        "phase_b_pass": {
+          "description": "Fields: epic, attempt, scores{}"
+        },
+        "phase_b_fail": {
+          "description": "Fields: epic, attempt, scores{}, feedback"
+        },
+        "plan_approved": {
+          "description": "Fields: epic"
+        },
+        "plan_revised": {
+          "description": "Fields: epic"
+        },
+        "plan_rejected": {
+          "description": "Fields: epic"
+        },
+        "plan_committed": {
+          "description": "Fields: epic, commit"
+        }
+      }
+    },
+    "stage4_events": {
+      "description": "Stage 4 (Execution) events. epic_started/epic_complete/epic_failed/github_comment go to epic.jsonl. Story-level events go to stories/{story_id}/story.jsonl.",
+      "type": "object",
+      "properties": {
+        "epic_started": {
+          "description": "Level: epic. Fields: epic, stories"
+        },
+        "story_started": {
+          "description": "Level: story. Fields: story_id, attempt, index"
+        },
+        "preflight_pass": {
+          "description": "Level: story. Fields: story_id, attempt"
+        },
+        "preflight_fail": {
+          "description": "Level: story. Fields: story_id, attempt, failure_category, description"
+        },
+        "agent_dispatched": {
+          "description": "Level: story. Fields: story_id, attempt, tier, model, prompt_hash, prompt_tokens"
+        },
+        "agent_complete": {
+          "description": "Level: story. Fields: story_id, attempt, commit, turns, cost_usd, response_path"
+        },
+        "agent_failed": {
+          "description": "Level: story. Fields: story_id, attempt, error, turns, cost_usd, response_path"
+        },
+        "validation_pass": {
+          "description": "Level: story. Fields: story_id, check_type, results[]"
+        },
+        "validation_fail": {
+          "description": "Level: story. Fields: story_id, check_type, results[], failure_category"
+        },
+        "story_complete": {
+          "description": "Level: story. Fields: story_id, attempt, commit"
+        },
+        "story_failed": {
+          "description": "Level: story. Fields: story_id, attempt, reason"
+        },
+        "exit_to_human": {
+          "description": "Level: story. Fields: story_id, reason, failure_category, context{}"
+        },
+        "github_comment": {
+          "description": "Level: epic. Fields: epic, comment_url"
+        },
+        "epic_complete": {
+          "description": "Level: epic. Fields: epic, stories_completed, total_cost_usd"
+        },
+        "epic_failed": {
+          "description": "Level: epic. Fields: epic, reason, stories_completed, stories_failed"
+        }
+      }
+    }
+  }
+}

@@ -115,6 +115,7 @@ class SQLAlchemyDITrackRepository:
                 description=track.description,
                 guitar=track.guitar,
                 pickup=track.pickup,
+                tuning=track.tuning,
                 checksum=track.checksum.value if track.checksum else None,
                 created_at=track.created_at,
                 updated_at=track.updated_at,
@@ -130,6 +131,7 @@ class SQLAlchemyDITrackRepository:
             existing.description = track.description
             existing.guitar = track.guitar
             existing.pickup = track.pickup
+            existing.tuning = track.tuning
             existing.checksum = track.checksum.value if track.checksum else None
             existing.updated_at = track.updated_at
 
@@ -178,6 +180,7 @@ class SQLAlchemyDITrackRepository:
             description=orm_track.description,
             guitar=orm_track.guitar,
             pickup=orm_track.pickup,
+            tuning=orm_track.tuning,
             checksum=checksum,
             waveform=None,  # Not stored in database
             created_at=orm_track.created_at,

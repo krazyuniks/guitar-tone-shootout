@@ -42,14 +42,34 @@ class SQLAlchemyAuditRepository:
             entity_type: Type of entity (e.g., 'shootout', 'signal_chain')
             entity_id: The entity's UUID
             user_id: The acting user's UUID (None for system actions)
-            details: Optional additional details
+            details: Optional additional details (may include ip_address, user_agent, request_id)
         """
+        # Extract known fields from details
+        ip_address = None
+        user_agent = None
+        request_id = None
+        extra_data = {}
+
+        if details:
+            ip_address = details.get("ip_address")
+            user_agent = details.get("user_agent")
+            request_id = details.get("request_id")
+            # Store remaining details in extra_data
+            extra_data = {
+                k: v
+                for k, v in details.items()
+                if k not in ("ip_address", "user_agent", "request_id")
+            }
+
         audit_log = AuditLog(
             action=event_type,
             resource_type=entity_type,
             resource_id=entity_id,
             user_id=user_id,
-            extra_data=details or {},
+            ip_address=ip_address,
+            user_agent=user_agent,
+            request_id=request_id,
+            extra_data=extra_data if extra_data else None,
         )
         self.session.add(audit_log)
         await self.session.flush()

@@ -61,6 +61,32 @@ class ValidationResult:
         return cls(is_valid=False, errors=errors)
 
 
+@dataclass(frozen=True, slots=True)
+class _CategorisedBlocks:
+    """Blocks grouped by gear type with their chain positions."""
+
+    amp_blocks: list[tuple[int, SignalChainBlock]]
+    full_rig_blocks: list[tuple[int, SignalChainBlock]]
+    ir_blocks: list[tuple[int, SignalChainBlock]]
+    pedal_blocks: list[tuple[int, SignalChainBlock]]
+    post_effect_blocks: list[tuple[int, SignalChainBlock]]
+
+    @property
+    def total_amps(self) -> int:
+        return len(self.amp_blocks) + len(self.full_rig_blocks)
+
+    @property
+    def is_full_rig(self) -> bool:
+        return len(self.full_rig_blocks) >= 1
+
+    @property
+    def amp_position(self) -> int:
+        """Position of the first amp-type block."""
+        if self.full_rig_blocks:
+            return self.full_rig_blocks[0][0]
+        return self.amp_blocks[0][0]
+
+
 class SignalChainValidator:
     """Service for validating signal chain compositions.
 
@@ -85,51 +111,63 @@ class SignalChainValidator:
     """
 
     def validate(self, chain: SignalChain) -> ValidationResult:
-        """Validate a signal chain against grammar rules.
-
-        Args:
-            chain: The signal chain to validate
-
-        Returns:
-            ValidationResult with is_valid and any errors
-        """
+        """Validate a signal chain against grammar rules."""
+        cats = self._categorise_blocks(chain)
         errors: list[ValidationError] = []
 
-        # Categorise blocks by type with positions
-        amp_blocks: list[tuple[int, SignalChainBlock]] = []
-        full_rig_blocks: list[tuple[int, SignalChainBlock]] = []
-        ir_blocks: list[tuple[int, SignalChainBlock]] = []
-        pedal_blocks: list[tuple[int, SignalChainBlock]] = []
-        post_effect_blocks: list[tuple[int, SignalChainBlock]] = []
+        errors.extend(self._validate_amp_count(cats))
+        errors.extend(self._validate_ir_count(cats))
 
+        if cats.total_amps >= 1:
+            if cats.total_amps == 1:
+                errors.extend(self._validate_single_amp_rules(chain, cats))
+            errors.extend(self._validate_ordering(cats))
+
+        if errors:
+            return ValidationResult.invalid(errors)
+        return ValidationResult.valid()
+
+    @staticmethod
+    def _categorise_blocks(chain: SignalChain) -> _CategorisedBlocks:
+        amp: list[tuple[int, SignalChainBlock]] = []
+        full_rig: list[tuple[int, SignalChainBlock]] = []
+        ir: list[tuple[int, SignalChainBlock]] = []
+        pedal: list[tuple[int, SignalChainBlock]] = []
+        post_effect: list[tuple[int, SignalChainBlock]] = []
+
+        dispatch = {
+            GearType.AMP: amp,
+            GearType.FULL_RIG: full_rig,
+            GearType.IR: ir,
+            GearType.PEDAL: pedal,
+            GearType.POST_EFFECT: post_effect,
+        }
         for i, block in enumerate(chain.blocks):
-            if block.gear_type == GearType.AMP:
-                amp_blocks.append((i, block))
-            elif block.gear_type == GearType.FULL_RIG:
-                full_rig_blocks.append((i, block))
-            elif block.gear_type == GearType.IR:
-                ir_blocks.append((i, block))
-            elif block.gear_type == GearType.PEDAL:
-                pedal_blocks.append((i, block))
-            elif block.gear_type == GearType.POST_EFFECT:
-                post_effect_blocks.append((i, block))
+            target = dispatch.get(block.gear_type)
+            if target is not None:
+                target.append((i, block))
 
-        # Total amp blocks (AMP + FULL_RIG count as amp blocks)
-        total_amps = len(amp_blocks) + len(full_rig_blocks)
+        return _CategorisedBlocks(
+            amp_blocks=amp,
+            full_rig_blocks=full_rig,
+            ir_blocks=ir,
+            pedal_blocks=pedal,
+            post_effect_blocks=post_effect,
+        )
 
-        # Rule: Amp required (NO_AMP)
-        if total_amps == 0:
+    @staticmethod
+    def _validate_amp_count(cats: _CategorisedBlocks) -> list[ValidationError]:
+        errors: list[ValidationError] = []
+        if cats.total_amps == 0:
             errors.append(
                 ValidationError(
                     code=ValidationRule.NO_AMP,
                     message="Signal chain must have exactly one amp block",
                 )
             )
-
-        # Rule: Multiple amps (MULTIPLE_AMPS)
-        if total_amps > 1:
-            all_amp_positions = sorted(
-                [pos for pos, _ in amp_blocks] + [pos for pos, _ in full_rig_blocks]
+        elif cats.total_amps > 1:
+            all_positions = sorted(
+                [pos for pos, _ in cats.amp_blocks] + [pos for pos, _ in cats.full_rig_blocks]
             )
             errors.extend(
                 ValidationError(
@@ -137,105 +175,103 @@ class SignalChainValidator:
                     message="Only one amp block allowed in signal chain",
                     position=pos,
                 )
-                for pos in all_amp_positions[1:]
+                for pos in all_positions[1:]
+            )
+        return errors
+
+    @staticmethod
+    def _validate_ir_count(cats: _CategorisedBlocks) -> list[ValidationError]:
+        if len(cats.ir_blocks) <= 1:
+            return []
+        return [
+            ValidationError(
+                code=ValidationRule.MULTIPLE_IRS,
+                message="Only one IR block allowed in signal chain",
+                position=pos,
+            )
+            for pos, _ in cats.ir_blocks[1:]
+        ]
+
+    @staticmethod
+    def _validate_single_amp_rules(
+        chain: SignalChain, cats: _CategorisedBlocks
+    ) -> list[ValidationError]:
+        """Rules that apply only when there is exactly one amp."""
+        errors: list[ValidationError] = []
+
+        if not cats.is_full_rig and len(cats.ir_blocks) == 0:
+            errors.append(
+                ValidationError(
+                    code=ValidationRule.IR_REQUIRED,
+                    message="Head amp capture requires an IR block after it",
+                    position=cats.amp_position,
+                )
             )
 
-        # Rule: Multiple IRs (MULTIPLE_IRS)
-        if len(ir_blocks) > 1:
-            for pos, _ in ir_blocks[1:]:
+        if cats.is_full_rig and len(cats.ir_blocks) > 0:
+            errors.extend(
+                ValidationError(
+                    code=ValidationRule.IR_FORBIDDEN,
+                    message="Full-rig amp has baked-in IR; no IR allowed",
+                    position=pos,
+                )
+                for pos, _ in cats.ir_blocks
+            )
+
+        if cats.is_full_rig:
+            errors.extend(
+                ValidationError(
+                    code=ValidationRule.LOOP_FORBIDDEN,
+                    message="Loop position effects are incompatible with full-rig amps",
+                    position=i,
+                )
+                for i, block in enumerate(chain.blocks)
+                if block.block_position == BlockPosition.LOOP
+            )
+
+        return errors
+
+    @staticmethod
+    def _validate_ordering(cats: _CategorisedBlocks) -> list[ValidationError]:
+        """Order rules: pedals before amp, IR after amp, post-effects after IR."""
+        errors: list[ValidationError] = []
+        amp_pos = cats.amp_position
+
+        for pos, _ in cats.pedal_blocks:
+            if pos > amp_pos:
                 errors.append(
                     ValidationError(
-                        code=ValidationRule.MULTIPLE_IRS,
-                        message="Only one IR block allowed in signal chain",
+                        code=ValidationRule.INVALID_ORDER,
+                        message="Pedal blocks must come before the amp block",
                         position=pos,
                     )
                 )
 
-        # Rules that depend on having at least one amp
-        if total_amps >= 1:
-            is_full_rig = len(full_rig_blocks) >= 1
-            # Use the first amp position for order checks (even if there are multiple)
-            amp_position = full_rig_blocks[0][0] if full_rig_blocks else amp_blocks[0][0]
-
-            # Rules that only apply when there's exactly one amp
-            if total_amps == 1:
-                # Rule: IR required for head amp (IR_REQUIRED)
-                if not is_full_rig and len(ir_blocks) == 0:
-                    errors.append(
-                        ValidationError(
-                            code=ValidationRule.IR_REQUIRED,
-                            message="Head amp capture requires an IR block after it",
-                            position=amp_position,
-                        )
+        for pos, _ in cats.ir_blocks:
+            if pos < amp_pos:
+                errors.append(
+                    ValidationError(
+                        code=ValidationRule.INVALID_ORDER,
+                        message="IR block must come after the amp block",
+                        position=pos,
                     )
+                )
 
-                # Rule: IR forbidden for full-rig (IR_FORBIDDEN)
-                if is_full_rig and len(ir_blocks) > 0:
-                    for pos, _ in ir_blocks:
-                        errors.append(
-                            ValidationError(
-                                code=ValidationRule.IR_FORBIDDEN,
-                                message="Full-rig amp has baked-in IR; no IR allowed",
-                                position=pos,
-                            )
-                        )
+        min_post_pos = amp_pos
+        if not cats.is_full_rig and len(cats.ir_blocks) > 0:
+            min_post_pos = cats.ir_blocks[0][0]
 
-                # Rule: Loop position forbidden for full-rig (LOOP_FORBIDDEN)
-                if is_full_rig:
-                    for i, block in enumerate(chain.blocks):
-                        if block.block_position == BlockPosition.LOOP:
-                            errors.append(
-                                ValidationError(
-                                    code=ValidationRule.LOOP_FORBIDDEN,
-                                    message=(
-                                        "Loop position effects are incompatible with full-rig amps"
-                                    ),
-                                    position=i,
-                                )
-                            )
-
-            # Order validation rules apply even with multiple amps
-            # Rule: Invalid order - Pedals must precede amp
-            for pos, _ in pedal_blocks:
-                if pos > amp_position:
-                    errors.append(
-                        ValidationError(
-                            code=ValidationRule.INVALID_ORDER,
-                            message="Pedal blocks must come before the amp block",
-                            position=pos,
-                        )
+        for pos, _ in cats.post_effect_blocks:
+            if pos <= min_post_pos:
+                errors.append(
+                    ValidationError(
+                        code=ValidationRule.INVALID_ORDER,
+                        message="Post-effect blocks must come after the cabinet/IR",
+                        position=pos,
                     )
+                )
 
-            # Rule: Invalid order - IR must follow amp
-            for pos, _ in ir_blocks:
-                if pos < amp_position:
-                    errors.append(
-                        ValidationError(
-                            code=ValidationRule.INVALID_ORDER,
-                            message="IR block must come after the amp block",
-                            position=pos,
-                        )
-                    )
-
-            # Determine minimum position for post-effects
-            min_post_effect_pos = amp_position
-            if not is_full_rig and len(ir_blocks) > 0:
-                min_post_effect_pos = ir_blocks[0][0]
-
-            # Rule: Post-effects must come after IR (or amp for full-rig)
-            for pos, _ in post_effect_blocks:
-                if pos <= min_post_effect_pos:
-                    errors.append(
-                        ValidationError(
-                            code=ValidationRule.INVALID_ORDER,
-                            message="Post-effect blocks must come after the cabinet/IR",
-                            position=pos,
-                        )
-                    )
-
-        if errors:
-            return ValidationResult.invalid(errors)
-        return ValidationResult.valid()
+        return errors
 
     def get_next_valid_gear_types(self, chain: SignalChain) -> list[GearType]:
         """Get the gear types that can be validly added to this chain.

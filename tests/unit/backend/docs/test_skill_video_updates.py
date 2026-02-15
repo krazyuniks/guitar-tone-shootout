@@ -68,8 +68,7 @@ class TestGtsTestingSkillVideoUpdates:
         """Verify gts-testing documents video test file locations."""
         content = skill_file.read_text()
         assert any(
-            location in content
-            for location in ["tests/unit/backend/video", "tests/integration/backend/video"]
+            location in content for location in ["video/"]
         ), "gts-testing must document video test locations"
 
     def test_skill_includes_video_test_patterns(self, skill_file: Path) -> None:

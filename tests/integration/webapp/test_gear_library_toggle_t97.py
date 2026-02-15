@@ -188,6 +188,6 @@ class TestGearLibraryToggleEndpoint:
             )
 
         # Verify response is 405 Method Not Allowed
-        assert (
-            response.status_code == 405
-        ), f"Expected 405 Method Not Allowed, got {response.status_code}"
+        assert response.status_code == 405, (
+            f"Expected 405 Method Not Allowed, got {response.status_code}"
+        )

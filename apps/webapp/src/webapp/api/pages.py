@@ -2,14 +2,14 @@
 
 import contextlib
 import os
-from datetime import UTC
+from datetime import UTC, datetime
 from math import ceil
 from typing import Annotated
 from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -17,6 +17,7 @@ from sqlalchemy.orm import joinedload
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
+from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
@@ -61,7 +62,7 @@ def set_user_override(user: User | None) -> None:
 # --- Gear mapping helpers ---
 
 
-def _gear_to_pack(gear) -> dict:
+def _gear_to_pack(gear: Gear) -> dict[str, object]:
     """Map Gear domain entity to pack dict for browse templates."""
     platform = "nam"
     if gear.models:
@@ -87,7 +88,7 @@ def _gear_to_pack(gear) -> dict:
     }
 
 
-def _gear_to_detail_pack(gear) -> dict:
+def _gear_to_detail_pack(gear: Gear) -> dict[str, object]:
     """Map Gear domain entity to detailed pack dict for detail template."""
     pack = _gear_to_pack(gear)
     pack.update(
@@ -103,6 +104,7 @@ def _gear_to_detail_pack(gear) -> dict:
                 else "#"
             ),
             "created_at": (gear.created_at.strftime("%B %d, %Y") if gear.created_at else None),
+            "license_text": gear.license_text,
             "models": [
                 {
                     "id": str(m.id),
@@ -111,6 +113,11 @@ def _gear_to_detail_pack(gear) -> dict:
                     ),
                     "model_size": (m.size.value if hasattr(m.size, "value") else str(m.size)),
                     "is_saved": False,
+                    "download_status": (
+                        m.download_status.value
+                        if hasattr(m.download_status, "value")
+                        else str(m.download_status)
+                    ),
                 }
                 for m in gear.models
             ],
@@ -296,11 +303,11 @@ async def gear_list_fragment(
     )
 
 
-@router.get("/shootouts", response_class=HTMLResponse)
+@router.get("/shootouts", response_model=None)
 async def shootouts_page(
     request: Request,
     current_user: Annotated[User | None, Depends(get_current_user_optional)],
-) -> HTMLResponse:
+) -> HTMLResponse | RedirectResponse:
     """Render public shootouts page.
 
     If authenticated, redirects to library shootouts.
@@ -329,6 +336,98 @@ async def di_tracks_browse_page(
         "di-tracks/index.html",
         {"user": current_user},
     )
+
+
+@router.get("/sitemap.xml", response_class=Response)
+async def sitemap_xml(
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Response:
+    """Generate dynamic sitemap.xml for search engines.
+
+    Returns valid XML sitemap including:
+    - Static pages (homepage, about, gear browse, shootouts)
+    - Public gear detail pages
+    - Completed shootout pages
+
+    Uses PUBLIC_URL env var for absolute URLs.
+    No authentication required.
+    """
+    public_url = os.getenv("PUBLIC_URL", "http://testserver")
+
+    # Static pages with priority and update frequency
+    now = datetime.now(UTC)
+    static_pages = [
+        ("/", "daily", "1.0", now),
+        ("/about", "monthly", "0.5", now),
+        ("/gear", "daily", "0.9", now),
+        ("/shootouts", "daily", "0.8", now),
+    ]
+
+    # Fetch public gear items
+    gear_result = await db.execute(
+        select(Gear).where(Gear.is_public.is_(True)).order_by(Gear.updated_at.desc())
+    )
+    public_gear = gear_result.scalars().all()
+
+    # Fetch completed shootouts
+    shootout_result = await db.execute(
+        select(Shootout)
+        .where(Shootout.status == ShootoutStatus.COMPLETED)
+        .order_by(Shootout.updated_at.desc())
+    )
+    completed_shootouts = shootout_result.scalars().all()
+
+    # Build sitemap XML
+    xml_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+
+    # Add static pages
+    for path, changefreq, priority, lastmod in static_pages:
+        xml_lines.extend(
+            [
+                "  <url>",
+                f"    <loc>{public_url}{path}</loc>",
+                f"    <lastmod>{lastmod.isoformat()}</lastmod>",
+                f"    <changefreq>{changefreq}</changefreq>",
+                f"    <priority>{priority}</priority>",
+                "  </url>",
+            ]
+        )
+
+    # Add public gear detail pages
+    for gear in public_gear:
+        lastmod = gear.updated_at if gear.updated_at else gear.created_at
+        xml_lines.extend(
+            [
+                "  <url>",
+                f"    <loc>{public_url}/gear/{gear.slug}</loc>",
+                f"    <lastmod>{lastmod.isoformat()}</lastmod>",
+                "    <changefreq>weekly</changefreq>",
+                "    <priority>0.7</priority>",
+                "  </url>",
+            ]
+        )
+
+    # Add completed shootout pages
+    for shootout in completed_shootouts:
+        lastmod = shootout.updated_at if shootout.updated_at else shootout.created_at
+        xml_lines.extend(
+            [
+                "  <url>",
+                f"    <loc>{public_url}/shootouts/{shootout.id}</loc>",
+                f"    <lastmod>{lastmod.isoformat()}</lastmod>",
+                "    <changefreq>weekly</changefreq>",
+                "    <priority>0.6</priority>",
+                "  </url>",
+            ]
+        )
+
+    xml_lines.append("</urlset>")
+    xml_content = "\n".join(xml_lines)
+
+    return Response(content=xml_content, media_type="application/xml")
 
 
 # --- Protected pages (require authentication) ---
@@ -583,6 +682,25 @@ async def library_shootouts_page(
     )
 
 
+@router.get("/shootout/create", response_class=HTMLResponse)
+async def shootout_create_page(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user_page)],
+) -> HTMLResponse:
+    """Render shootout creation wizard page.
+
+    Protected page — wizard steps load via HTMX.
+    """
+    return templates.TemplateResponse(
+        request,
+        "pages/shootout_create.html",
+        {
+            "title": "Create Shootout",
+            "user": current_user,
+        },
+    )
+
+
 @router.get("/shootout/{shootout_id}", response_class=HTMLResponse)
 async def shootout_detail_page(
     request: Request,
@@ -627,7 +745,9 @@ async def shootout_detail_page(
                 }
             )
 
-    chain_items.sort(key=lambda x: x["position"])
+    chain_items.sort(
+        key=lambda x: int(x["position"]) if isinstance(x["position"], int | str) else 0
+    )
 
     return templates.TemplateResponse(
         request,
@@ -752,7 +872,9 @@ async def chain_detail_page(
             }
         )
 
-    block_items.sort(key=lambda x: x["position"])
+    block_items.sort(
+        key=lambda x: int(x["position"]) if isinstance(x["position"], int | str) else 0
+    )
 
     return templates.TemplateResponse(
         request,
@@ -769,25 +891,6 @@ async def chain_detail_page(
                 "created_at": chain.created_at,
                 "updated_at": chain.updated_at,
             },
-            "user": current_user,
-        },
-    )
-
-
-@router.get("/shootout/create", response_class=HTMLResponse)
-async def shootout_create_page(
-    request: Request,
-    current_user: Annotated[User, Depends(get_current_user_page)],
-) -> HTMLResponse:
-    """Render shootout creation wizard page.
-
-    Protected page — wizard steps load via HTMX.
-    """
-    return templates.TemplateResponse(
-        request,
-        "pages/shootout_create.html",
-        {
-            "title": "Create Shootout",
             "user": current_user,
         },
     )

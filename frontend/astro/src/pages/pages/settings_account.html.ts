@@ -44,6 +44,9 @@ export const GET: APIRoute = () => {
           {% if user.email %}
           <p class="text-sm text-[var(--color-text-secondary)]">{{ user.email }}</p>
           {% endif %}
+          {% if user.created_at %}
+          <p class="text-sm text-[var(--color-text-muted)]">Member since {{ user.created_at.strftime('%B %Y') }}</p>
+          {% endif %}
         </div>
       </div>
     </div>

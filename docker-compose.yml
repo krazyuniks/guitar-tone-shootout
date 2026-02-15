@@ -85,9 +85,10 @@ services:
       - ./src:/app/src:ro
       - ./sources:/app/sources:ro
       - ./tests:/app/tests:ro
-      # Infrastructure (migrations, docker configs)
+      # Infrastructure (migrations, docker configs, nginx error pages)
       - ./infrastructure/migrations:/app/infrastructure/migrations:ro
       - ./infrastructure/docker:/app/infrastructure/docker:ro
+      - ./infrastructure/nginx:/app/infrastructure/nginx:ro
       # Claude skills (for documentation tests)
       - ./.claude:/app/.claude:ro
       # Worktree templates for integration tests
@@ -122,6 +123,7 @@ services:
     volumes:
       - ./infrastructure/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
       - ./frontend/astro/dist:/usr/share/nginx/html/static:ro
+      - ./infrastructure/nginx/error-pages:/usr/share/nginx/html/error-pages:ro
     depends_on:
       webapp:
         condition: service_healthy

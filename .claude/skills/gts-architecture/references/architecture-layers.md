@@ -137,7 +137,7 @@ gts/
 ├── scripts/
 │   ├── first-time-setup.sh     # First-time setup (prerequisites, Playwright)
 │   ├── e2e-env.sh              # E2E test environment setup
-│   └── run_epic.py             # TDD state machine + agent dispatch
+│   └── orchestrator.py          # V2 epic workflow orchestrator
 │
 ├── worktree/                   # Worktree CLI infrastructure (PEP 723 inline deps)
 │   ├── auth.py                 # T3K OAuth token management

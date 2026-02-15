@@ -21,9 +21,9 @@ class TestVideoComposerDeprecation:
             # Check if the module has a deprecation notice in docstring
             if VideoComposer.__doc__:
                 doc_lower = VideoComposer.__doc__.lower()
-                assert (
-                    "deprecated" in doc_lower or "use videorenderer" in doc_lower
-                ), "VideoComposer should be marked as deprecated"
+                assert "deprecated" in doc_lower or "use videorenderer" in doc_lower, (
+                    "VideoComposer should be marked as deprecated"
+                )
 
             # Check if importing triggers a deprecation warning
             with warnings.catch_warnings(record=True) as w:

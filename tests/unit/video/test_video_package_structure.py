@@ -80,9 +80,9 @@ class TestVideoPackageStructure:
         package_json = video_root / "package.json"
         data = json.loads(package_json.read_text())
 
-        assert (
-            "dependencies" in data or "devDependencies" in data
-        ), "package.json must have dependencies or devDependencies"
+        assert "dependencies" in data or "devDependencies" in data, (
+            "package.json must have dependencies or devDependencies"
+        )
 
         # Check for remotion in either dependencies or devDependencies
         all_deps = {}

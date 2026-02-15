@@ -24,6 +24,7 @@ export const GET: APIRoute = () => {
   <!-- HTMX-powered shootout detail content -->
   <div
     id="shootout-detail-container"
+    data-testid="shootout-detail-container"
     hx-get="/api/v1/html/shootouts/{{ shootout_id }}"
     hx-trigger="load"
     hx-swap="innerHTML"

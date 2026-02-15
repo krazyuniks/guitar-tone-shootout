@@ -1,0 +1,22 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "typer>=0.9.0",
+#     "rich>=13.0",
+#     "pydantic>=2.0",
+#     "pyyaml>=6.0",
+# ]
+# ///
+"""Epic workflow CLI. All logic is in the workflow package."""
+import sys
+from pathlib import Path
+
+current = Path(__file__).resolve().parent
+if str(current) not in sys.path:
+    sys.path.insert(0, str(current))
+
+from workflow.cli import main
+
+if __name__ == "__main__":
+    main()

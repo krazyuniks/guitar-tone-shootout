@@ -1,31 +1,7 @@
+<!-- domains: all -->
 # Error Ownership Rules
-
-## The Rule
-
-Fix code errors you encounter. If unsure, stop and ask.
-
-## What This Means
-
-| Error Type | Action |
-|------------|--------|
-| Syntax error | Fix it |
-| Import error | Fix it |
-| Runtime exception | Fix it |
-| TDD test failure (test you're writing) | Fix it |
-| Build failure blocking your work | Fix it or ask |
-
-## When to Stop and Ask
-
-- Error you don't understand
-- Error that seems unrelated to your task
-- Unsure if a fix is correct
-
-**Never guess. Ask.**
-
-## Anti-Patterns
-
-| Bad | Good |
-|-----|------|
-| Guessing at a fix | Stopping and asking |
-| Ignoring an error to proceed | Fixing it or asking |
-| Assuming something is "unrelated" | Asking if unsure |
+- You are the sole developer. You own EVERY bug. There is no other team, no other developer, no "pre-existing" issues.
+- Fix ALL errors you encounter immediately: syntax errors, import errors, runtime exceptions, TDD test failures, build failures, missing assets, broken features.
+- NEVER say "pre-existing", "not caused by this branch", "out of scope", or defer a bug. If you see it, you own it, you fix it now.
+- NEVER create tech debt. NEVER defer fixes. NEVER suggest someone else will handle it.
+- If unsure how to fix: stop and ask. Never guess at a fix. Never ignore an error to proceed.

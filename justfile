@@ -53,8 +53,8 @@ rebuild *ARGS:
 # Quality Gates (all run in Docker)
 # =============================================================================
 
-# Run all quality checks
-check: lint check-types check-tests check-imports
+# Run all quality checks (read-only — safe in Docker with :ro mounts)
+check: check-lint check-types check-tests check-imports
 
 # Run type checking (strict on core, TypeScript on video)
 check-types:
@@ -72,6 +72,11 @@ check-imports:
 # =============================================================================
 # Linting (all run in Docker)
 # =============================================================================
+
+# Check lint and formatting (read-only — no file modifications)
+check-lint:
+    docker compose exec -T webapp ruff check libs/ sources/ apps/ tests/
+    docker compose exec -T webapp ruff format --check libs/ sources/ apps/ tests/
 
 # Fix all lint issues (Python + Astro)
 lint:
@@ -379,204 +384,8 @@ uninstall-hooks:
     [ -f "$HOOK" ] && rm "$HOOK" && echo "✓ pre-commit hook uninstalled" || echo "No hook to uninstall"
 
 # =============================================================================
-# AI Development Workflow (Epic/TDD)
+# Quality Utilities (host scripts)
 # =============================================================================
-# Optional workflow for epic/feature development with automated TDD.
-# See wiki: AI-Development-Workflow
-#
-# HOST EXCEPTION: Scripts in this section run on host (not Docker) because:
-# - GitHub scripts need `gh` CLI authentication
-# - Snapshot scripts write to `.tasks/` (not mounted in containers)
-# - Health check orchestrates `just` commands
-#
-# See: .claude/rules/container-execution.md
-
-# --- Epic Management ---
-
-# Unified epic command — routes to appropriate tool
-# Usage: just epic validate 70, just epic status 70, just epic start 70
-epic subcmd epic_num:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    case "{{subcmd}}" in
-        plan)
-            echo "Use '/epic plan {{epic_num}}' in Claude Code (interactive)"
-            ;;
-        validate)
-            python scripts/validate_tasks.py {{epic_num}}
-            ;;
-        fix)
-            echo "Use '/epic fix {{epic_num}}' in Claude Code (interactive)"
-            ;;
-        start)
-            python scripts/run_epic.py run {{epic_num}}
-            ;;
-        status)
-            python scripts/run_epic.py status {{epic_num}}
-            ;;
-        *)
-            echo "Unknown subcommand: {{subcmd}}"
-            echo "Usage: just epic {plan|validate|fix|start|status} {epic_number}"
-            exit 1
-            ;;
-    esac
-
-# Run TDD state machine for epic (backward compat alias)
-epic-start epic:
-    python scripts/run_epic.py run {{epic}}
-
-# Dry-run TDD state machine (show what would happen)
-epic-dry-run epic:
-    python scripts/run_epic.py run {{epic}} --dry-run
-
-# Dispatch a single agent manually
-dispatch agent +prompt:
-    python scripts/run_epic.py dispatch {{agent}} {{prompt}}
-
-# Show epic status (backward compat alias)
-epic-status epic:
-    python scripts/run_epic.py status {{epic}}
-
-# Validate epic tasks (pre-flight)
-epic-validate epic:
-    python scripts/validate_tasks.py {{epic}}
-
-# Materialise TASKS.md into .tasks/ files
-epic-materialise epic *FLAGS:
-    python scripts/tasks_from_plan.py {{epic}} {{FLAGS}}
-
-# --- TDD Phases (Docker-first) ---
-
-# Start test phase (invoke test-author agent)
-tdd-test-phase task:
-    @echo "Starting test phase for {{task}}"
-    @echo "Write tests in tests/unit/, tests/integration/, or tests/e2e/python/"
-    @echo ""
-    @echo "Run: python scripts/run_epic.py dispatch test-author 'Write tests for {{task}}'"
-
-# Verify tests fail (red phase) - runs in Docker
-# Only checks NEW/MODIFIED test files (not pre-existing passing tests)
-# Gate: at least one test must FAIL. Passing tests are warned but tolerated
-# when failures exist (handles tasks that extend already-implemented code).
-tdd-red task:
-    #!/usr/bin/env bash
-    set -e
-    echo "Verifying new tests fail (red phase)..."
-
-    # Find new or modified test files since last commit
-    NEW_TESTS=$(git diff --name-only HEAD -- 'tests/' | grep -v 'tests/e2e/' | grep -E 'test_.*\.py$' || true)
-    UNTRACKED_TESTS=$(git ls-files --others --exclude-standard -- 'tests/' | grep -v 'tests/e2e/' | grep -E 'test_.*\.py$' || true)
-    ALL_NEW_TESTS=$(echo -e "${NEW_TESTS}\n${UNTRACKED_TESTS}" | sort -u | grep -v '^$' || true)
-
-    if [ -z "$ALL_NEW_TESTS" ]; then
-        echo "ERROR: No new test files found. test-author must create test files."
-        exit 1
-    fi
-
-    echo "New test files:"
-    echo "$ALL_NEW_TESTS" | sed 's/^/  /'
-
-    # Run ONLY the new tests — they should fail
-    OUTPUT=$(docker compose exec -T webapp pytest $ALL_NEW_TESTS -v 2>&1) || true
-
-    # Parse pass/fail/error counts from pytest summary line
-    # Matches patterns like: "3 failed, 2 passed", "5 failed", "2 passed, 1 error"
-    FAILED=$(echo "$OUTPUT" | grep -oP '\d+(?= failed)' | tail -1 || true)
-    PASSED=$(echo "$OUTPUT" | grep -oP '\d+(?= passed)' | tail -1 || true)
-    ERRORS=$(echo "$OUTPUT" | grep -oP '\d+(?= error)' | tail -1 || true)
-
-    FAILED=${FAILED:-0}
-    PASSED=${PASSED:-0}
-    ERRORS=${ERRORS:-0}
-
-    echo ""
-    echo "Results: ${FAILED} failed, ${PASSED} passed, ${ERRORS} errors"
-
-    # Gate: at least one test must fail
-    if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
-        echo "ERROR: All ${PASSED} tests passed. Tests must fail before implementation."
-        echo "Either tests are trivial or code already exists for everything tested."
-        echo "$OUTPUT" | tail -20
-        exit 1
-    fi
-
-    # Warn on passing tests but proceed if failures exist
-    if [ "$PASSED" -gt 0 ]; then
-        echo "WARNING: ${PASSED} tests already pass (code may partially exist)."
-        echo "  This is OK — ${FAILED} tests still fail, so there's work to do."
-    fi
-
-    if [ "$ERRORS" -gt 0 ]; then
-        echo "NOTE: ${ERRORS} tests errored (import/syntax issues)."
-        echo "  Errors count as 'not passing' — acceptable in red phase."
-    fi
-
-    echo ""
-    echo "Red phase verified: ${FAILED} failing + ${ERRORS} erroring tests found."
-
-# Lock tests (commit first, then snapshot the lock commit's test files)
-tdd-lock task:
-    #!/usr/bin/env bash
-    set -e
-    git add .tasks/ tests/
-    git commit -m "test-lock: {{task}} tests ready for implementation"
-    python scripts/snapshot_tests.py save {{task}}
-    echo "Tests locked at $(git rev-parse --short HEAD)"
-
-# Implementation phase hint
-tdd-impl-phase task:
-    @echo "Implementation phase for {{task}}"
-    @echo "Make ALL tests pass. You may fix existing tests broken by your changes."
-    @echo ""
-    @echo "Run tests in watch mode:"
-    @echo "  docker compose exec webapp pytest tests/ -v --tb=short -x"
-    @echo ""
-    @echo "Or use TDD helper:"
-    @echo "  just tdd tests/unit/path/to/test.py"
-
-# Verify tests pass (green phase) - runs full test suite in Docker
-# Deselects pre-existing failures listed in tests/known_failures.txt
-tdd-green task:
-    #!/usr/bin/env bash
-    set -e
-    echo "Verifying ALL tests pass for {{task}}..."
-    DESELECT_ARGS=""
-    if [ -f tests/known_failures.txt ]; then
-        while IFS= read -r line; do
-            [ -z "$line" ] && continue
-            DESELECT_ARGS="$DESELECT_ARGS --deselect $line"
-        done < tests/known_failures.txt
-        echo "  (deselecting $(wc -l < tests/known_failures.txt | tr -d ' ') known pre-existing failures)"
-    fi
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only" $DESELECT_ARGS
-    echo "Tests passing"
-
-# Full TDD validation
-tdd-complete task:
-    #!/usr/bin/env bash
-    set -e
-    echo "=== Full TDD Validation for {{task}} ==="
-
-    echo "1. Verifying tests pass..."
-    just tdd-green {{task}}
-
-    echo "2. Verifying test files unchanged..."
-    python scripts/snapshot_tests.py verify {{task}}
-
-    echo "3. Running test quality check..."
-    python scripts/test_quality_check.py tests/ || true
-
-    echo "4. Running regression tests..."
-    just test-regression
-
-    echo "5. Ensuring auth user exists in DB..."
-    just ensure-auth-user
-
-    echo "6. Running golden path tests..."
-    just test-golden-path
-
-    echo ""
-    echo "Task {{task}} validation complete"
 
 # Ensure auth user from .gts-auth.json exists in gts_core DB
 # Integration tests can overwrite the auth file; this ensures the user matches
@@ -595,20 +404,6 @@ ensure-auth-user:
         echo "  WARNING: Could not read auth file, skipping user ensure"
     fi
 
-# --- Validation ---
-
-# Check test immutability
-snapshot-verify task:
-    python scripts/snapshot_tests.py verify {{task}}
-
-# Show changes since test lock
-snapshot-diff task:
-    python scripts/snapshot_tests.py diff {{task}}
-
-# List all test files
-snapshot-list:
-    python scripts/snapshot_tests.py list
-
 # Test quality analysis
 test-quality:
     python scripts/test_quality_check.py tests/
@@ -617,50 +412,30 @@ test-quality:
 mock-check +FILES:
     python scripts/test_quality_check.py --strict {{FILES}}
 
-# Health check for epic
-epic-health epic:
-    python scripts/health_check.py {{epic}}
+# =============================================================================
+# Epic Workflow V3 — Behavioural Validation
+# =============================================================================
 
-# --- Debugging ---
+# Full epic pipeline: ingest -> plan -> verify -> gate -> execute
+epic epic_num:
+    ./wf epic run {{epic_num}}
 
-# Full debug report
-debug epic:
-    #!/usr/bin/env bash
-    echo "=== Debug Report for E{{epic}} ==="
-    echo ""
-    echo "--- Health Check ---"
-    just health {{epic}} || true
-    echo ""
-    echo "--- Recent Errors ---"
-    just errors {{epic}}
-    echo ""
-    echo "--- Status ---"
-    just epic-status {{epic}}
+# Show epic status from JSONL logs
+epic-status epic_num:
+    ./wf epic status {{epic_num}}
 
-# View recent errors
-errors epic:
-    @echo "=== Recent Errors ==="
-    @ls -lt .tasks/projects/*/epics/E{{epic}}/logs/errors/*.log 2>/dev/null | head -5 || echo "No errors found"
-    @echo ""
-    @for f in $(ls -t .tasks/projects/*/epics/E{{epic}}/logs/errors/*.log 2>/dev/null | head -3); do \
-        echo "--- $$f ---"; \
-        cat "$$f"; \
-        echo ""; \
-    done
+# Validate plan.json against schema (Phase A only)
+epic-validate-plan epic_num:
+    ./wf epic validate-plan {{epic_num}}
 
-# View task log
-log epic task phase:
-    cat .tasks/projects/*/epics/E{{epic}}/logs/tasks/{{task}}-{{phase}}.log 2>/dev/null || echo "Log not found"
+# Regenerate .planning/codebase/ files
+map-codebase:
+    ./wf map codebase
 
-# Reset task for retry
-retry epic task:
-    #!/usr/bin/env bash
-    TASK_FILE=$(find .tasks -path "*E{{epic}}*/tasks/{{task}}.md" 2>/dev/null | head -1)
-    if [ -z "$TASK_FILE" ]; then
-        echo "Task file not found"
-        exit 1
-    fi
-    sed -i 's/| State | [a-z_]* |/| State | pending |/' "$TASK_FILE"
-    sed -i 's/| Phase | [a-z_-]* |/| Phase | - |/' "$TASK_FILE"
-    rm -f .tasks/projects/*/epics/E{{epic}}/logs/errors/{{task}}-*.log
-    echo "Task {{task}} reset for retry"
+# Regenerate .planning/wiki-indexes/
+index-wiki:
+    ./wf map wiki
+
+# Regenerate both codebase and wiki maps
+map-context:
+    ./wf map all

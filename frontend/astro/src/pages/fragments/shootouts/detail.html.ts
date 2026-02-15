@@ -77,13 +77,50 @@ export const GET: APIRoute = () => {
 
   {# Title and metadata #}
   <div class="mb-6" data-testid="shootout-header">
-    <h1 class="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)] mb-2" data-testid="shootout-title">
-      {{ shootout.name }}
-    </h1>
+    <div class="flex items-start justify-between gap-4 mb-2">
+      <h1 class="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]" data-testid="shootout-title">
+        {{ shootout.name }}
+      </h1>
+      {% if is_owner %}
+        <div class="flex gap-2">
+          <button
+            class="p-2 rounded-lg hover:bg-[var(--color-bg-elevated)] transition-colors"
+            data-testid="edit-title-btn"
+            title="Edit title"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/>
+            </svg>
+          </button>
+          <button
+            class="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
+            data-testid="delete-shootout-btn"
+            title="Delete shootout"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <button
+            class="p-2 rounded-lg hover:bg-[var(--color-bg-elevated)] transition-colors"
+            data-testid="share-link-btn"
+            title="Share link"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z"/>
+            </svg>
+          </button>
+        </div>
+      {% endif %}
+    </div>
     <div class="flex flex-wrap items-center gap-3 text-sm text-[var(--color-text-secondary)]">
-      <span data-testid="tone-count">{{ tone_count }} {{ 'tone' if tone_count == 1 else 'tones' }}</span>
+      {% if creator %}
+        <span data-testid="creator-name">by {{ creator.username }}</span>
+        <span class="text-[var(--color-text-muted)]">-</span>
+      {% endif %}
+      <span data-testid="creation-date">{{ relative_time }}</span>
       <span class="text-[var(--color-text-muted)]">-</span>
-      <span data-testid="relative-time">{{ relative_time }}</span>
+      <span data-testid="tone-count">{{ tone_count }} {{ 'tone' if tone_count == 1 else 'tones' }}</span>
       {% if shootout.status != 'completed' %}
         <span class="text-[var(--color-text-muted)]">-</span>
         <span class="px-2 py-0.5 rounded-full text-xs

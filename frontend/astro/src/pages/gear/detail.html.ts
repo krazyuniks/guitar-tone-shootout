@@ -147,8 +147,8 @@ export const GET: APIRoute = () => {
         <span class="inline-flex px-3 py-1 rounded-full text-sm font-semibold {{ platform.bg }} {{ platform.text }}">
           {{ pack.platform|upper }}
         </span>
-        <!-- Model count link -->
-        <a href="#models" class="flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)]">
+        <!-- Model count badge -->
+        <a href="#models" data-testid="model-count-badge" class="flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-accent-primary)]">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
             <path d="M3.196 12.87l-.825.483a.75.75 0 000 1.294l7.25 4.25a.75.75 0 00.758 0l7.25-4.25a.75.75 0 000-1.294l-.825-.484-5.666 3.322a2.25 2.25 0 01-2.276 0L3.196 12.87z"/>
             <path d="M3.196 8.87l-.825.483a.75.75 0 000 1.294l7.25 4.25a.75.75 0 00.758 0l7.25-4.25a.75.75 0 000-1.294l-.825-.484-5.666 3.322a2.25 2.25 0 01-2.276 0L3.196 8.87z"/>
@@ -308,10 +308,46 @@ export const GET: APIRoute = () => {
               Login to save models
             </a>
           </div>
+          {% elif pack.models|length > 1 %}
+          <!-- Bulk action buttons for authenticated users with multiple models -->
+          <div class="flex items-center gap-2">
+            <button
+              data-testid="bulk-save-btn"
+              type="button"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-accent-primary)] text-white hover:bg-[var(--color-accent-secondary)] transition-colors"
+              onclick="bulkToggleModels('add')"
+            >
+              Save All
+            </button>
+            <button
+              data-testid="bulk-remove-btn"
+              type="button"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] border border-[var(--border)] transition-colors"
+              onclick="bulkToggleModels('remove')"
+            >
+              Remove All
+            </button>
+          </div>
           {% endif %}
         </div>
 
-        <div data-testid="pack-models-list" class="border border-[var(--border)] rounded-lg overflow-hidden divide-y divide-[var(--border)]">
+        {% if user and pack.models|length > 1 %}
+        <!-- Bulk select all checkbox -->
+        <div class="mb-2 px-4 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-t-lg">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              data-testid="bulk-select-all"
+              id="bulk-select-all"
+              class="w-4 h-4 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
+              onchange="toggleAllModels(this.checked)"
+            />
+            <span class="text-sm text-[var(--color-text-secondary)]">Select All</span>
+          </label>
+        </div>
+        {% endif %}
+
+        <div data-testid="pack-models-list" class="border border-[var(--border)] {% if not user or pack.models|length <= 1 %}rounded-lg{% else %}rounded-b-lg border-t-0{% endif %} overflow-hidden divide-y divide-[var(--border)]">
           {% for model in pack.models %}
           <div
             data-testid="model-row"
@@ -319,6 +355,14 @@ export const GET: APIRoute = () => {
             class="flex items-center justify-between px-4 py-3 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-secondary)] transition-colors"
           >
             <div class="flex items-center gap-3 min-w-0">
+              {% if user and pack.models|length > 1 %}
+              <!-- Bulk select checkbox -->
+              <input
+                type="checkbox"
+                class="model-checkbox w-4 h-4 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
+                data-model-id="{{ model.id }}"
+              />
+              {% endif %}
               <!-- Model size badge -->
               {% if model.model_size %}
               <span class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)]">
@@ -329,6 +373,15 @@ export const GET: APIRoute = () => {
               <span class="text-[var(--color-text-primary)] truncate" data-testid="model-name">
                 {{ model.name }}
               </span>
+              <!-- Download status indicator -->
+              {% if model.download_status %}
+              <span
+                data-testid="model-download-status"
+                class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded {% if model.download_status == 'completed' %}bg-green-500/20 text-green-500{% elif model.download_status == 'downloading' %}bg-blue-500/20 text-blue-500{% else %}bg-gray-500/20 text-gray-400{% endif %}"
+              >
+                {% if model.download_status == 'completed' %}Downloaded{% elif model.download_status == 'downloading' %}Downloading{% else %}Available{% endif %}
+              </span>
+              {% endif %}
               <!-- Saved badge -->
               {% if model.is_saved %}
               <span class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-green-500/20 text-green-500" data-testid="saved-badge">
@@ -364,6 +417,64 @@ export const GET: APIRoute = () => {
         </div>
       </div>
 
+      <script>
+        // Bulk select functionality
+        function toggleAllModels(checked) {
+          document.querySelectorAll('.model-checkbox').forEach(cb => {
+            cb.checked = checked;
+          });
+        }
+
+        async function bulkToggleModels(action) {
+          const checkboxes = document.querySelectorAll('.model-checkbox:checked');
+          const modelIds = Array.from(checkboxes).map(cb => cb.dataset.modelId);
+
+          if (modelIds.length === 0) {
+            alert('Please select at least one model');
+            return;
+          }
+
+          try {
+            const response = await fetch('/api/v1/html/gear/models/bulk-toggle', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model_ids: modelIds,
+                action: action,
+              }),
+            });
+
+            if (response.ok) {
+              // Reload page to reflect changes
+              window.location.reload();
+            } else {
+              alert('Failed to update models. Please try again.');
+            }
+          } catch (error) {
+            console.error('Error updating models:', error);
+            alert('An error occurred. Please try again.');
+          }
+        }
+      </script>
+
+      <!-- License section (collapsible) -->
+      {% if pack.license_text or pack.t3k_url != "#" %}
+      <details data-testid="license-section" class="mb-8 border border-[var(--border)] rounded-lg overflow-hidden">
+        <summary class="px-4 py-3 bg-[var(--color-bg-elevated)] cursor-pointer hover:bg-[var(--color-bg-secondary)] transition-colors">
+          <h2 class="text-lg font-semibold text-[var(--color-text-primary)] inline">License & Terms</h2>
+        </summary>
+        <div class="px-4 py-3 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+          {% if pack.license_text %}
+            {{ pack.license_text }}
+          {% else %}
+            This gear is community-contributed. Users may download and use the data files in software and publish the resulting outputs without royalties or restrictions. However, they may not upload, republish, or distribute the data files without the author's permission.
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
+
       <!-- External links section -->
       {% if pack.external_links %}
       <div class="mb-8">
@@ -388,11 +499,6 @@ export const GET: APIRoute = () => {
         </div>
       </div>
       {% endif %}
-
-      <!-- License info (like T3K) -->
-      <div class="text-sm text-[var(--color-text-muted)] mt-8 pt-6 border-t border-[var(--border)]">
-        <span class="font-medium">License:</span> T3K - Users may download and use the data file in software and publish the resulting outputs without royalties or restrictions. However, they may not upload, republish, or distribute the data file without the author's permission.
-      </div>
     </div>
   </div>
 </div>

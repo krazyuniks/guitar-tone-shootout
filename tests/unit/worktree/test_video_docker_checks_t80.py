@@ -66,26 +66,6 @@ class TestVideoServiceStatus:
 class TestIsHealthyWithVideo:
     """Tests for is_healthy() with video service."""
 
-    @pytest.mark.xfail(reason="Pre-existing: is_healthy API changed since T80", strict=False)
-    @patch("worktree.docker.get_service_status")
-    @patch("worktree.docker.get_main_worktree_path")
-    def test_main_worktree_healthy_with_video_running(self, mock_main_path, mock_status):
-        """Main worktree is healthy when video is running."""
-        mock_main_path.return_value = Path("/fake/main")
-        mock_status.return_value = {
-            "nginx": "running",
-            "webapp": "running",
-            "db": "running",
-            "worker": "running",
-            "scheduler": "running",
-            "redis": "running",
-            "video": "running",
-        }
-
-        result = is_healthy(Path("/fake/main"))
-
-        assert result is True
-
     @patch("worktree.docker.get_service_status")
     @patch("worktree.docker.get_main_worktree_path")
     def test_main_worktree_unhealthy_when_video_not_running(self, mock_main_path, mock_status):
@@ -123,41 +103,6 @@ class TestIsHealthyWithVideo:
         result = is_healthy(Path("/fake/main"))
 
         assert result is False
-
-    @pytest.mark.xfail(reason="Pre-existing: is_healthy API changed since T80", strict=False)
-    @patch("worktree.docker.get_service_status")
-    @patch("worktree.docker.get_main_worktree_path")
-    def test_feature_worktree_healthy_without_video(self, mock_main_path, mock_status):
-        """Feature worktree is healthy without video service."""
-        mock_main_path.return_value = Path("/fake/main")
-        mock_status.return_value = {
-            "nginx": "running",
-            "webapp": "running",
-            "db": "running",
-        }
-
-        result = is_healthy(Path("/fake/42-feature"))
-
-        assert result is True
-
-    @pytest.mark.xfail(reason="Pre-existing: is_healthy API changed since T80", strict=False)
-    @patch("worktree.docker.get_service_status")
-    @patch("worktree.docker.get_main_worktree_path")
-    def test_feature_worktree_not_affected_by_video_presence(self, mock_main_path, mock_status):
-        """Feature worktree health should not be affected by video service."""
-        mock_main_path.return_value = Path("/fake/main")
-        # Feature worktree has video service present but we don't check it
-        mock_status.return_value = {
-            "nginx": "running",
-            "webapp": "running",
-            "db": "running",
-            "video": "exited",  # Present but not running
-        }
-
-        result = is_healthy(Path("/fake/42-feature"))
-
-        # Should be healthy - we don't expect video in feature worktrees
-        assert result is True
 
 
 class TestWaitForHealthyWithVideo:

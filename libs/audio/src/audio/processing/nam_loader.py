@@ -46,7 +46,7 @@ def load_nam_model(
     try:
         # Load the model checkpoint
         # NAM models are PyTorch checkpoints with 'model' and optionally 'sample_rate' keys
-        checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+        checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
 
         # Extract model state dict
         if isinstance(checkpoint, dict):

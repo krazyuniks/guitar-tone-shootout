@@ -1,6 +1,6 @@
 # Goal-Backward Planning Guide
 
-Transform user stories into testable truths, required artifacts, and test specifications.
+Transform user stories into observable truths, required artefacts, user journeys, and validation checkpoints.
 
 ## Philosophy
 
@@ -8,6 +8,8 @@ Transform user stories into testable truths, required artifacts, and test specif
 Forward planning asks: "What should we build?"
 Goal-backward planning asks: "What must be TRUE for the goal to be achieved?"
 ```
+
+The gate is not "do tests pass?" but "does the thing work?" -- verified by type-appropriate checks at validation checkpoints.
 
 ---
 
@@ -29,7 +31,7 @@ Goal: Users can compose signal chains from their gear library
 Ask: "What must be TRUE for this goal to be achieved?"
 
 List 3-7 truths from the USER's perspective:
-- These are observable behaviors
+- These are observable behaviours
 - Each must be verifiable by a human using the application
 - Focus on what user sees/experiences, not implementation
 
@@ -43,29 +45,56 @@ List 3-7 truths from the USER's perspective:
 
 ---
 
-## Step 3: Derive Required Artifacts
+## Step 3: Derive User Journeys
+
+Connect observable truths into coherent end-to-end narratives. Not isolated assertions ("GET /gear returns 200") but connected walks ("user clicks Gear in nav, sees list, clicks item, sees detail").
+
+Every truth must appear in at least one journey. Journeys include critical transitions with `{from, to, mechanism}`.
+
+**Example:**
+```
+Journey: "Build and save a signal chain"
+Persona: authenticated user
+Entry point: /library/chains
+
+1. User navigates to chain builder page (Truth 1)
+2. User adds amp block from gear library (Truth 2)
+3. System shows IR requirement for HEAD amp (Truth 3)
+4. User adds IR block
+5. Chain validation passes (Truth 4)
+6. User saves chain to library (Truth 5)
+7. Chain appears in user's chain list
+
+Critical transitions:
+  - /library/chains -> /library/chains/build (click "New Chain" button)
+  - /library/chains/build -> /library/chains (save and redirect)
+```
+
+---
+
+## Step 4: Derive Required Artefacts
 
 For each truth, ask: "What must EXIST for this to be true?"
 
 **Example:**
 ```
 Truth: "User can add amp block from gear library"
-Artifacts:
+Artefacts:
 - SignalChainBuilder React component (frontend/astro/src/components/)
 - UserGear query endpoint (apps/webapp/src/webapp/api/v1/)
 - SignalChainBlock model (apps/webapp/src/webapp/adapters/persistence/models/)
 - Add block API endpoint
 
 Truth: "Chain validates block ordering and requirements"
-Artifacts:
+Artefacts:
 - SignalChainValidator domain service (libs/core/src/core/services/)
 - Validation rules (HEAD requires IR, FULL_RIG forbids IR, etc.)
 - Error response schemas
 ```
 
-### GTS Artifact Mapping
+### GTS Artefact Mapping
 
-| Artifact Type | GTS Location | Pattern |
+| Artefact Type | GTS Location | Pattern |
 |---------------|--------------|---------|
 | ORM Model | `apps/webapp/src/webapp/adapters/persistence/models/` | SQLAlchemy |
 | Repository | `apps/webapp/src/webapp/adapters/persistence/repositories/` | Protocol impl |
@@ -80,157 +109,133 @@ Artifacts:
 
 ---
 
-## Step 4: Derive Required Wiring
+## Step 5: Derive Required Wiring
 
-For each artifact, ask: "What must be CONNECTED for this to function?"
+For each artefact, ask: "What must be CONNECTED for this to function?"
 
 **Example:**
 ```
-Artifact: POST /api/v1/chains endpoint
+Artefact: POST /api/v1/chains endpoint
 Wiring:
 - FastAPI route registered in apps/webapp/src/webapp/api/v1/__init__.py
 - Pydantic request validation (SignalChainCreate schema)
 - SignalChainService transaction (service owns transaction)
 - SignalChainRepository persistence
 - SignalChainValidator domain validation
-- Response serialization (SignalChainResponse schema)
+- Response serialisation (SignalChainResponse schema)
 ```
 
 ---
 
-## Step 5: Derive Test Specifications
+## Step 6: Define Validation Checkpoints
 
-For each truth, ask: "What test VERIFIES this is true?"
+For each truth (or group of truths), define how the orchestrator will verify the product works. Checkpoints use type-aware validation -- not tests, but direct evidence collection.
+
+### Checkpoint Types
+
+| Check Type | What It Verifies | Evidence Fields |
+|------------|-----------------|-----------------|
+| `http` | Endpoint responds correctly | `status_code`, `url`, `response_excerpt` |
+| `http+dom` | Page renders with expected content | `status_code`, `url`, `dom_selector`, `element_text` |
+| `browser+db` | UI action persists to database | `action_performed`, `sql_query`, `row_count`, `sample_row` |
+| `api+response` | API returns correct data | `status_code`, `url`, `method`, `response_body_excerpt` |
+| `process` | Service is running | `process_name`, `pid_or_status`, `log_excerpt` |
+| `screenshot` | Visual correctness | `screenshot_path`, `observations` |
+| `regression` | Existing tests still pass | `test_command`, `exit_code`, `test_count`, `failure_count` |
+| `quality` | Lint/type checks pass | `commands_run`, `exit_code`, `error_count` |
 
 **Example:**
 ```
-Truth: "Chain validates block ordering and requirements"
-Tests:
-- Unit (tests/unit/core/): test_validator_rejects_head_without_ir
-- Unit: test_validator_rejects_full_rig_with_ir
-- Integration (tests/integration/webapp/): test_create_chain_validates
-- E2E (tests/e2e/python/): test_builder_shows_validation_errors
+After story "02-ui-scaffold":
+  check_type: http+dom
+  checks:
+    - criterion: "Gear list page renders with gear items"
+      evidence_fields: [status_code, url, dom_selector, element_text]
+    - criterion: "Gear detail page shows gear attributes"
+      evidence_fields: [status_code, url, dom_selector, element_text]
+
+After story "03-crud-features":
+  check_type: browser+db
+  checks:
+    - criterion: "Creating a chain persists to database"
+      evidence_fields: [action_performed, sql_query, row_count, sample_row]
 ```
 
-### GTS Test Mapping
+Place checkpoints strategically: after scaffolding, after CRUD, before and after regression tests. Not after every story -- backend-only stories may wait for the UI story that exposes them.
 
-| Truth Type | Test Level | Location | Execution |
-|------------|------------|----------|-----------|
-| Pure logic | Unit | `tests/unit/` | Docker |
-| DB/service | Integration | `tests/integration/` | Docker |
-| User journey | E2E | `tests/e2e/python/` | Host |
+---
 
-### Test Commands (ONLY `just` commands allowed)
+## Step 7: Organise into Stories
 
-| Test Type | Command | Purpose |
-|-----------|---------|---------|
-| Regression | `just test-regression` | **Quality gate** - E2E test exercising all endpoints + stack connectivity |
-| Unit | `just test-unit` | Isolated logic, no I/O |
-| Integration | `just test-integration` | Real DB/Redis |
-| E2E | `just test-golden-path` | Full user journeys |
-| TDD single | `just tdd <path>` | Single test during development |
-
-**NEVER use raw `docker compose exec`, `pytest`, or `python` commands in acceptance criteria.** The `just` commands wrap the underlying execution - implementation details are hidden.
-
-### Three-Layer E2E Validation (MANDATORY)
-
-All E2E tests (including regression) must verify the full code path:
-
-1. **UI Action** - User interaction succeeds (click, submit)
-2. **DOM Update** - Page reflects expected state change
-3. **Database State** - Data persisted correctly (or page content reflects DB query)
-
-This ensures the entire stack is wired correctly: UI → Domain Model → Database.
-
-**Regression test note:** `test-regression` is a Playwright E2E test that serves dual purposes:
-1. **Stack connectivity** - Exercises ORM → Repository → Database through the webapp
-2. **Endpoint validation** - All web endpoints respond correctly with expected content
-
-When adding new endpoints, update `tests/e2e/python/tests/test_regression.py` with specific validation criteria (expected content, UI elements, data counts).
-
-### Layer-Boundary Examples
-
-**Good (single boundary):**
-- Task: "Gear repository + service" — touches `repositories/gear.py` + `services/gear.py`
-- Task: "Gear API endpoints" — touches `api/gear.py` + `schemas/gear.py`
-- Task: "Gear library page" — touches `pages/gear.html.ts` + template
-
-**Bad (crosses boundaries):**
-- Task: "Full gear CRUD" — touches repository + service + API + schemas + template
-- Task: "Implement shootouts and jobs" — crosses entity boundaries
-
-**Bad (crosses aggregates in tests):**
-- Task: "User and SignalChain integration tests" — two aggregates = wider failure surface, harder to debug
-
-**Good (single aggregate per test task):**
-- Task: "User aggregate integration tests"
-- Task: "SignalChain aggregate integration tests"
-
-### Breaking Change Blast Radius Analysis
-
-For refactor epics, the goal-backward phase MUST identify breaking changes and their blast radius:
-
-1. **Identify breaking changes** — any change to model attributes, relationship loading, public APIs, or column types
-2. **Enumerate ALL downstream consumers** — grep the codebase for every usage
-3. **Create two hard-dependent tasks:**
-   - **Task A** — Make the breaking change
-   - **Task B** — Fix all downstream consumers (blocked by A, blocks all subsequent tasks)
-4. **Task B must list every affected file** with the consumer count in the description
-
-**Example (lazy="raise" migration):**
-```
-Breaking change: Set lazy="raise" on all ORM relationships
-Blast radius: 97 test failures
-Consumers: session.get() (4 files), session.refresh() (6 files),
-           auth dependencies (2 files), test fixtures (12 files)
-→ Task A: "Set lazy='raise' on all relationships"
-→ Task B: "Fix 24 downstream consumers of lazy='raise'"
-   Scope: [list every file]
-```
+Group artefacts into stories (2-5 per epic, each 3-8 files). Each story specifies:
+- `story_id`, `name`, `purpose`
+- `agent` config: model, skills, tools, MCP, max_turns, max_budget_usd
+- `scope`: files to create and modify
+- `state_assumption`: `cumulative` (default) or `clean`
+- `implementation_notes`: domain-specific hints
+- `truths_addressed`: which observable truths this story delivers
 
 ---
 
 ## Output Format
 
-Save to `.planning/epics/{slug}/GOALS.md`:
+The planner produces two files:
+
+### PLAN.md (narrative, human-readable)
 
 ```markdown
-# Goal-Backward Analysis: {Epic Title}
+# Plan: {Epic Title}
 
 ## Goal
 {Outcome-shaped goal statement}
 
 ## Observable Truths
-
 1. {Truth 1 - user perspective}
 2. {Truth 2}
-3. {Truth 3}
 ...
 
-## Required Artifacts
+## User Journeys
 
-### Truth 1: {Truth statement}
-| Artifact | Location | Pattern |
-|----------|----------|---------|
-| {Name} | {Path} | {Pattern} |
+### Journey 1: {Title}
+{Connected narrative with entry point, steps, and critical transitions}
 
-### Truth 2: {Truth statement}
+## Stories
+
+### Story 01: {Name}
+{Purpose, scope summary, validation approach}
+
+### Story 02: {Name}
 ...
 
-## Required Wiring
+## Validation Checkpoints
+{When and how each checkpoint verifies the product works}
 
-### {Artifact 1}
-- Connection 1
-- Connection 2
-
-### {Artifact 2}
-...
-
-## Test Specifications
-
-| Truth | Test Level | Test Name | Location |
-|-------|------------|-----------|----------|
-| Truth 1 | E2E | test_user_can_navigate_to_builder | tests/e2e/python/ |
-| Truth 2 | Integration | test_add_amp_block_to_chain | tests/integration/ |
-...
+## Artefact Summary
+{All files created/modified, grouped by story}
 ```
+
+### plan.json (machine-readable)
+
+Conforms to `scripts/schemas/plan.schema.json`. Contains all stories, observable truths, user journeys, and validation checkpoints as structured data for the orchestrator.
+
+---
+
+## Layer-Boundary Examples
+
+**Good (single boundary):**
+- Story: "Architecture -- models, repos, services" -- touches persistence + service layer
+- Story: "API + Schemas" -- touches API routes + Pydantic schemas
+- Story: "UI Scaffolding" -- touches templates + page routes
+
+**Bad (too granular):**
+- Story: "Add GearModel" -- single file, not enough for a story
+- Story: "Everything" -- all layers, too large
+
+### Breaking Change Blast Radius Analysis
+
+For refactor epics, the goal-backward phase MUST identify breaking changes and their blast radius:
+
+1. **Identify breaking changes** -- any change to model attributes, relationship loading, public APIs, or column types
+2. **Enumerate ALL downstream consumers** -- grep the codebase for every usage
+3. **Group consumers into the same story** as the breaking change, or place the fix in the immediately following story
+4. **List every affected file** in the story scope

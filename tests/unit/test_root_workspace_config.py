@@ -27,9 +27,9 @@ class TestRootWorkspaceConfig:
         assert "members = [" in content, "must have workspace members list"
 
         # libs/* pattern covers libs/video
-        assert (
-            '"libs/*"' in content or "'libs/*'" in content
-        ), "workspace members must include libs/* pattern"
+        assert '"libs/*"' in content or "'libs/*'" in content, (
+            "workspace members must include libs/* pattern"
+        )
 
     def test_import_linter_has_video_package(self, root_pyproject: Path) -> None:
         """Import-linter root_packages includes video."""

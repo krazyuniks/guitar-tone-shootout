@@ -205,7 +205,7 @@ class TestCreateSignalChain:
         # Assert
         assert response.status_code == 422
         data = response.json()
-        assert "detail" in data
+        assert "error_code" in data or "detail" in data
         # Should contain validation error details
         assert "NO_AMP" in str(data)
 

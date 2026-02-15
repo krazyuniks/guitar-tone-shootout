@@ -35,7 +35,6 @@ class TestAppCreation:
         assert isinstance(app.version, str)
 
 
-@pytest.mark.xfail(reason="Pre-existing: CORS configuration changed")
 class TestCORSMiddleware:
     """Test CORS middleware configuration."""
 
@@ -101,15 +100,22 @@ class TestExceptionHandlers:
     @pytest.mark.asyncio
     async def test_404_returns_json_error(self, app: FastAPI) -> None:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/nonexistent")
+            response = await client.get(
+                "/api/v1/nonexistent",
+                headers={"accept": "application/json"},
+            )
             assert response.status_code == 404
             data = response.json()
-            assert "detail" in data
+            assert "error_code" in data
+            assert "message" in data
 
     @pytest.mark.asyncio
     async def test_http_exception_returns_json_content_type(self, app: FastAPI) -> None:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/does-not-exist")
+            response = await client.get(
+                "/api/v1/does-not-exist",
+                headers={"accept": "application/json"},
+            )
             assert response.status_code == 404
             assert response.headers["content-type"].startswith("application/json")
 

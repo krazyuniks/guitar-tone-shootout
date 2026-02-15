@@ -298,7 +298,7 @@ class TestLibraryModelLevelAPI:
             json={"gear_model_id": str(test_gear_model.id)},
         )
         assert response.status_code == 409
-        assert "already in library" in response.json()["detail"].lower()
+        assert "already in library" in response.json()["message"].lower()
 
     async def test_different_models_same_gear_both_allowed(
         self,

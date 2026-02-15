@@ -80,6 +80,7 @@ class Gear(Entity):
         models: Available model files
         thumbnail_url: Preview image URL
         is_public: Whether visible to all users
+        license_text: Optional license/terms text for gear usage
         created_at: When created in GTS
         updated_at: When last updated in GTS
     """
@@ -94,6 +95,7 @@ class Gear(Entity):
     models: list[GearModel] = field(default_factory=list)
     thumbnail_url: str | None = None
     is_public: bool = True
+    license_text: str | None = None
     id: UUID = field(default_factory=new_id)
     created_at: datetime = field(default_factory=utcnow)
     updated_at: datetime = field(default_factory=utcnow)

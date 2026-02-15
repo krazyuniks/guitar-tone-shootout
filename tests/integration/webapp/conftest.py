@@ -9,12 +9,23 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+
+from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from webapp.adapters.persistence.models.base import Base
+from webapp.adapters.persistence.models.gear import Gear, GearTag
+from webapp.adapters.persistence.models.gear_model import GearModel
+from webapp.adapters.persistence.models.gear_source import GearSource
+from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.models.user_gear import UserGear
 
 
 class _TestAsyncSession(AsyncSession):
@@ -29,16 +40,6 @@ class _TestAsyncSession(AsyncSession):
         if self.in_transaction():
             return self.begin_nested(**kw)
         return super().begin(**kw)
-
-
-from uuid import uuid4
-
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.models.gear import Gear, GearTag
-from webapp.adapters.persistence.models.gear_model import GearModel
-from webapp.adapters.persistence.models.user import User
-from webapp.adapters.persistence.models.user_gear import UserGear
 
 
 @pytest.fixture
@@ -123,6 +124,23 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
     session.add_all([tag_metal, tag_high_gain, tag_clean, tag_vintage])
     await session.flush()
 
+    # Create gear sources for T3K attribution
+    now = datetime.now(UTC)
+    source1 = GearSource(
+        id=uuid4(),
+        source_name="t3k",
+        source_record_id="t3k-mesa-mark-v",
+        source_updated_at=now,
+    )
+    source2 = GearSource(
+        id=uuid4(),
+        source_name="t3k",
+        source_record_id="t3k-fender-twin",
+        source_updated_at=now,
+    )
+    session.add_all([source1, source2])
+    await session.flush()
+
     # Create gear with tags
     gear1 = Gear(
         id=uuid4(),
@@ -132,6 +150,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         description="High-gain tube amp",
         manufacturer="Mesa Boogie",
         is_public=True,
+        source_id=source1.id,
     )
     gear1.tags = [tag_metal, tag_high_gain]
     session.add(gear1)
@@ -160,6 +179,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         description="Classic clean amp",
         manufacturer="Fender",
         is_public=True,
+        source_id=source2.id,
     )
     gear2.tags = [tag_clean, tag_vintage]
     session.add(gear2)
@@ -206,7 +226,12 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 
     # Wire test_user if: (a) test_user is a direct param, or
     # (b) authenticated_client is a direct param (it manages auth explicitly)
-    should_wire = "test_user" in direct_params or "authenticated_client" in direct_params
+    # BUT never wire if unauthenticated_client is also a direct param —
+    # the test explicitly wants unauthenticated access even when test_user
+    # is needed for setup (e.g., creating owned resources).
+    should_wire = (
+        "test_user" in direct_params or "authenticated_client" in direct_params
+    ) and "unauthenticated_client" not in direct_params
     if should_wire and hasattr(item, "funcargs") and "test_user" in item.funcargs:
         test_user = item.funcargs["test_user"]
         set_user_override(test_user)
@@ -214,16 +239,24 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def _wire_auth_session(db_session: AsyncSession) -> AsyncGenerator[None, None]:
+async def _wire_auth_session(db_session: AsyncSession, tmp_path) -> AsyncGenerator[None, None]:  # type: ignore[no-untyped-def]
     """Auto-wire test DB session into the centralised auth dependencies.
 
     All route modules (auth, pages, html, library) now import from
     webapp.auth.dependencies, so we only need to set the override once.
+
+    Also sets upload base directory to tmp_path for file upload tests
+    and secret key to test-secret for HMAC signature tests.
     """
     from webapp.auth.dependencies import set_session_override, set_user_override
+    from webapp.config.uploads import set_secret_key_override, set_upload_base_override
 
     print(f"[FIXTURE] Setting session override: {db_session}")
     set_session_override(db_session)
+    set_upload_base_override(tmp_path)
+    set_secret_key_override("test-secret")
     yield
     set_session_override(None)
     set_user_override(None)
+    set_upload_base_override(None)
+    set_secret_key_override(None)

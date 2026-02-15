@@ -13,14 +13,121 @@ import '../../../styles/global.css';
 
 export const GET: APIRoute = () => {
   const template = `<!-- Library DI Tracks List Fragment -->
-<div data-testid="track-list" data-empty="{{ 'true' if not tracks else 'false' }}" class="space-y-3">
+<div data-testid="track-list" data-empty="{{ 'true' if not tracks else 'false' }}">
+  <!-- Sort control -->
+  <div class="mb-4 flex items-center justify-between">
+    <div class="text-sm text-[var(--color-text-secondary)]">
+      {{ total_count }} {{ 'track' if total_count == 1 else 'tracks' }}
+    </div>
+    <div class="flex items-center gap-2" x-data="{ sortCombined: '{{ sort_by }}-{{ sort_order }}' }">
+      <label class="text-sm text-[var(--color-text-secondary)]">Sort by:</label>
+      <select
+        data-testid="sort-select"
+        class="px-3 py-1.5 text-sm rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]"
+        x-model="sortCombined"
+        @change="() => {
+          const [sortBy, sortOrder] = sortCombined.split('-');
+          const url = '/api/v1/html/library/tracks?sort_by=' + sortBy + '&sort_order=' + sortOrder + '&page=1&page_size={{ page_size }}';
+          htmx.ajax('GET', url, { target: '[data-testid=track-list]', swap: 'outerHTML' });
+        }"
+      >
+        <option value="date_added-desc" {% if sort_by == 'date_added' and sort_order == 'desc' %}selected{% endif %}>Newest First</option>
+        <option value="date_added-asc" {% if sort_by == 'date_added' and sort_order == 'asc' %}selected{% endif %}>Oldest First</option>
+        <option value="name-asc" {% if sort_by == 'name' and sort_order == 'asc' %}selected{% endif %}>Name (A-Z)</option>
+        <option value="name-desc" {% if sort_by == 'name' and sort_order == 'desc' %}selected{% endif %}>Name (Z-A)</option>
+      </select>
+    </div>
+  </div>
+
   {% if tracks %}
-    {% for track in tracks %}
-      {% with is_library_view=true %}
-        {% include 'fragments/library/track_item.html' %}
-      {% endwith %}
-    {% endfor %}
+    <!-- Track items -->
+    <div class="space-y-3">
+      {% for track in tracks %}
+        {% with is_library_view=true %}
+          {% include 'fragments/library/track_item.html' %}
+        {% endwith %}
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="flex items-center justify-center gap-2 mt-8" data-testid="pagination">
+      <!-- First button -->
+      <button
+        data-testid="pagination-first"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page > 1 %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
+        {% if page > 1 %}
+        hx-get="/api/v1/html/library/tracks?page=1&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+        hx-target="[data-testid='track-list']"
+        hx-swap="outerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+      >
+        First
+      </button>
+
+      <!-- Prev button -->
+      <button
+        data-testid="pagination-prev"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_prev %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
+        {% if has_prev %}
+        hx-get="/api/v1/html/library/tracks?page={{ page - 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+        hx-target="[data-testid='track-list']"
+        hx-swap="outerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+      >
+        Prev
+      </button>
+
+      <!-- Page numbers -->
+      {% for page_num in range(1, total_pages + 1) %}
+        <button
+          data-testid="pagination-page-{{ page_num }}"
+          class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page_num == page %}bg-[var(--color-accent-primary)] text-white{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% endif %}"
+          hx-get="/api/v1/html/library/tracks?page={{ page_num }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+          hx-target="[data-testid='track-list']"
+          hx-swap="outerHTML"
+        >
+          {{ page_num }}
+        </button>
+      {% endfor %}
+
+      <!-- Next button -->
+      <button
+        data-testid="pagination-next"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_next %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
+        {% if has_next %}
+        hx-get="/api/v1/html/library/tracks?page={{ page + 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+        hx-target="[data-testid='track-list']"
+        hx-swap="outerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+      >
+        Next
+      </button>
+
+      <!-- Last button -->
+      <button
+        data-testid="pagination-last"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page < total_pages %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
+        {% if page < total_pages %}
+        hx-get="/api/v1/html/library/tracks?page={{ total_pages }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
+        hx-target="[data-testid='track-list']"
+        hx-swap="outerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+      >
+        Last
+      </button>
+    </div>
+    {% endif %}
   {% else %}
+    <!-- Empty state -->
     <div class="text-center py-12">
       <div class="text-gray-400 mb-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">

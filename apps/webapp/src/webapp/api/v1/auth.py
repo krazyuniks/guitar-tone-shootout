@@ -12,6 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from webapp.adapters.persistence.repositories.audit_repository import (
+    SQLAlchemyAuditRepository,
+)
 from webapp.auth.dependencies import (
     CurrentUser,
     CurrentUserOptional,
@@ -21,6 +24,7 @@ from webapp.auth.encryption import TokenEncryptor
 from webapp.auth.persistence import AuthFilePersistence
 from webapp.auth.providers.t3k import T3KProvider
 from webapp.auth.token import JWT_COOKIE_NAME, JWT_EXPIRY_DAYS, create_access_token
+from webapp.services.audit_service import AuditService
 from webapp.services.identity_service import IdentityService
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,26 @@ def _get_next_url(request: Request) -> str | None:
     if next_url and next_url.startswith("/"):
         return next_url
     return None
+
+
+def _get_client_ip(request: Request) -> str | None:
+    """Extract client IP address from request headers."""
+    # Check X-Forwarded-For header (proxy/load balancer)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # Take the first IP in the chain
+        return forwarded_for.split(",")[0].strip()
+
+    # Fall back to direct connection IP
+    if request.client:
+        return request.client.host
+
+    return None
+
+
+def _get_user_agent(request: Request) -> str | None:
+    """Extract user agent from request headers."""
+    return request.headers.get("User-Agent")
 
 
 # --- Login endpoints ---
@@ -134,7 +158,8 @@ async def callback(
     3. Create or update User + UserIdentity
     4. Issue JWT cookie
     5. Save tokens to auth file
-    6. Redirect to ?next= URL or /library/my-gear
+    6. Log successful login to audit log
+    7. Redirect to ?next= URL or /library/my-gear
     """
     if not api_key:
         return RedirectResponse(url="/login?error=missing_api_key", status_code=302)
@@ -161,6 +186,21 @@ async def callback(
             email=user_info.get("email"),
             avatar_url=user_info.get("avatar_url"),
         )
+
+        # Log successful login to audit log
+        audit_repo = SQLAlchemyAuditRepository(db)
+        audit_service = AuditService(repository=audit_repo)
+        await audit_service.log_event(
+            event_type="login",
+            entity_type="user",
+            entity_id=user.id,
+            user_id=user.id,
+            details={
+                "ip_address": _get_client_ip(request),
+                "user_agent": _get_user_agent(request),
+            },
+        )
+        await db.commit()
 
         # Create JWT
         jwt_token = create_access_token(user.id)
@@ -197,6 +237,28 @@ async def callback(
 
     except Exception:
         logger.exception("T3K callback failed")
+
+        # Log failed login attempt to audit log
+        try:
+            audit_repo = SQLAlchemyAuditRepository(db)
+            audit_service = AuditService(repository=audit_repo)
+            # Use a temporary UUID for entity_id since we don't have a user yet
+            from uuid import uuid4
+
+            await audit_service.log_event(
+                event_type="login_failed",
+                entity_type="user",
+                entity_id=uuid4(),
+                user_id=None,
+                details={
+                    "ip_address": _get_client_ip(request),
+                    "user_agent": _get_user_agent(request),
+                },
+            )
+            await db.commit()
+        except Exception:
+            logger.warning("Failed to log failed login audit event", exc_info=True)
+
         return RedirectResponse(url="/login?error=callback_failed", status_code=302)
 
 
@@ -221,8 +283,31 @@ async def get_me(current_user: CurrentUserOptional) -> dict:
 
 
 @router.post("/logout")
-async def logout_post(request: Request) -> JSONResponse:
+async def logout_post(
+    request: Request,
+    current_user: CurrentUserOptional,
+    db: AsyncSession = Depends(get_db_session),
+) -> JSONResponse:
     """Clear JWT cookie (for HTMX nav POST)."""
+    # Log logout event if user is authenticated
+    if current_user is not None:
+        try:
+            audit_repo = SQLAlchemyAuditRepository(db)
+            audit_service = AuditService(repository=audit_repo)
+            await audit_service.log_event(
+                event_type="logout",
+                entity_type="user",
+                entity_id=current_user.id,
+                user_id=current_user.id,
+                details={
+                    "ip_address": _get_client_ip(request),
+                    "user_agent": _get_user_agent(request),
+                },
+            )
+            await db.commit()
+        except Exception:
+            logger.warning("Failed to log logout audit event", exc_info=True)
+
     response = JSONResponse(content={"status": "logged_out"})
     _clear_jwt_cookie(response)
 
@@ -239,8 +324,31 @@ async def logout_post(request: Request) -> JSONResponse:
 
 
 @router.get("/logout")
-async def logout_get(request: Request) -> RedirectResponse:
+async def logout_get(
+    request: Request,
+    current_user: CurrentUserOptional,
+    db: AsyncSession = Depends(get_db_session),
+) -> RedirectResponse:
     """Clear JWT cookie and redirect to home (browser-friendly)."""
+    # Log logout event if user is authenticated
+    if current_user is not None:
+        try:
+            audit_repo = SQLAlchemyAuditRepository(db)
+            audit_service = AuditService(repository=audit_repo)
+            await audit_service.log_event(
+                event_type="logout",
+                entity_type="user",
+                entity_id=current_user.id,
+                user_id=current_user.id,
+                details={
+                    "ip_address": _get_client_ip(request),
+                    "user_agent": _get_user_agent(request),
+                },
+            )
+            await db.commit()
+        except Exception:
+            logger.warning("Failed to log logout audit event", exc_info=True)
+
     response = RedirectResponse(url="/", status_code=302)
     _clear_jwt_cookie(response)
 

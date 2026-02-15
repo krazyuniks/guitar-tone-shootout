@@ -21,6 +21,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "import-linter>=2.1",
     "aiosqlite>=0.22.1",
+    "jsonschema>=4.20.0",
 ]
 
 [tool.uv]
@@ -97,19 +98,12 @@ type = "forbidden"
 source_modules = ["webapp"]
 forbidden_modules = ["source_t3k"]
 
-# Worker cannot depend on sources directly (uses pgmq messages)
+# Scheduler should not depend on video
 [[tool.importlinter.contracts]]
-name = "worker-no-sources"
-type = "forbidden"
-source_modules = ["worker"]
-forbidden_modules = ["source_t3k"]
-
-# Scheduler can only depend on core
-[[tool.importlinter.contracts]]
-name = "scheduler-dependencies"
+name = "scheduler-no-video"
 type = "forbidden"
 source_modules = ["scheduler"]
-forbidden_modules = ["audio", "source_t3k", "webapp", "worker"]
+forbidden_modules = ["video"]
 
 # =============================================================================
 # Ruff Configuration

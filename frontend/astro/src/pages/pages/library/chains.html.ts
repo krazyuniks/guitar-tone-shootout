@@ -48,6 +48,7 @@ export const GET: APIRoute = () => {
   <!-- HTMX-powered chains list -->
   <div
     id="chains-list-container"
+    data-testid="chains-list-container"
     hx-get="/api/v1/html/library/chains"
     hx-trigger="load"
     hx-swap="innerHTML"

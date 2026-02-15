@@ -325,7 +325,7 @@ async def test_shootout_create_with_group_chains_persists_selection(
     db_session.add(di_track)
     await db_session.flush()
 
-    group, chain_ids = group_with_generated_chains
+    _group, chain_ids = group_with_generated_chains
 
     # Select 2 chains from the generated group chains
     selected_chain_ids = chain_ids[:2]
@@ -391,7 +391,7 @@ async def test_shootout_create_validates_minimum_two_chains(
     db_session.add(di_track)
     await db_session.flush()
 
-    group, chain_ids = group_with_generated_chains
+    _group, chain_ids = group_with_generated_chains
 
     # Try to submit with only 1 chain
     form_data = {

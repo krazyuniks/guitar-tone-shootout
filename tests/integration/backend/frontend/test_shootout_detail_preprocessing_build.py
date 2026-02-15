@@ -33,7 +33,7 @@ class TestShootoutDetailPreProcessingBuild:
             'data-testid="shootout-detail"',
             'data-testid="shootout-title"',
             'data-testid="tone-count"',
-            'data-testid="relative-time"',
+            'data-testid="creation-date"',
             'data-testid="shootout-header"',
         ]
 
@@ -46,9 +46,9 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # DI track section should exist
-        assert (
-            'data-testid="di-track-section"' in content
-        ), "DI track section missing data-testid in detail fragment"
+        assert 'data-testid="di-track-section"' in content, (
+            "DI track section missing data-testid in detail fragment"
+        )
 
     def test_di_track_section_has_audio_player(self) -> None:
         """DI track section contains audio player element."""
@@ -74,9 +74,9 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Status badge should exist
-        assert (
-            'data-testid="status-badge"' in content
-        ), "Status badge missing data-testid in detail fragment"
+        assert 'data-testid="status-badge"' in content, (
+            "Status badge missing data-testid in detail fragment"
+        )
 
     def test_detail_fragment_has_processing_placeholder(self) -> None:
         """Detail fragment contains processing placeholder for pending state."""
@@ -84,14 +84,14 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Processing placeholder should exist
-        assert (
-            'data-testid="processing-placeholder"' in content
-        ), "Processing placeholder missing data-testid"
+        assert 'data-testid="processing-placeholder"' in content, (
+            "Processing placeholder missing data-testid"
+        )
 
         # Should contain explanatory text about pending state
-        assert (
-            "Pending Processing" in content or "pending" in content.lower()
-        ), "No pending state text in processing placeholder"
+        assert "Pending Processing" in content or "pending" in content.lower(), (
+            "No pending state text in processing placeholder"
+        )
 
     def test_detail_fragment_has_chain_list_section(self) -> None:
         """Detail fragment contains segments section for chain list."""
@@ -102,9 +102,9 @@ class TestShootoutDetailPreProcessingBuild:
         assert 'data-testid="segments-section"' in content, "Segments section missing data-testid"
 
         # Should have segment button testid (for chain items)
-        assert (
-            'data-testid="segment-button"' in content
-        ), "Segment button missing data-testid for chains"
+        assert 'data-testid="segment-button"' in content, (
+            "Segment button missing data-testid for chains"
+        )
 
     def test_detail_fragment_has_description_section(self) -> None:
         """Detail fragment contains description section with testid."""
@@ -112,9 +112,9 @@ class TestShootoutDetailPreProcessingBuild:
         content = dist_path.read_text()
 
         # Description section should exist
-        assert (
-            'data-testid="description-section"' in content
-        ), "Description section missing data-testid"
+        assert 'data-testid="description-section"' in content, (
+            "Description section missing data-testid"
+        )
 
     def test_detail_fragment_has_back_link(self) -> None:
         """Detail fragment contains back link with testid."""
@@ -145,7 +145,7 @@ class TestShootoutDetailPreProcessingBuild:
             'data-testid="shootout-header"',
             'data-testid="shootout-title"',
             'data-testid="tone-count"',
-            'data-testid="relative-time"',
+            'data-testid="creation-date"',
             'data-testid="status-badge"',
             'data-testid="description-section"',
             'data-testid="segments-section"',
@@ -157,6 +157,6 @@ class TestShootoutDetailPreProcessingBuild:
         ]
 
         for testid in required_testids:
-            assert (
-                testid in content
-            ), f"{testid} not found in detail fragment (build artifact missing)"
+            assert testid in content, (
+                f"{testid} not found in detail fragment (build artifact missing)"
+            )

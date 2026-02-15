@@ -37,6 +37,7 @@
   <!-- HTMX-powered tracks list -->
   <div
     id="tracks-list-container"
+    data-testid="tracks-list-container"
     hx-get="/api/v1/html/library/tracks"
     hx-trigger="load"
     hx-swap="innerHTML"
@@ -67,8 +68,8 @@
     </div>
   </div>
 
-  <!-- Upload Modal (placeholder - full implementation in future story) -->
-  <dialog id="upload-modal" class="modal bg-transparent">
+  <!-- Upload Modal -->
+  <dialog id="upload-modal" class="modal bg-transparent" x-data="{ dragging: false, uploading: false, progress: 0, fileError: '', uploadError: '' }">
     <div class="modal-box bg-[var(--color-bg-surface)] border border-[var(--border)] max-w-lg">
       <form method="dialog">
         <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 text-[var(--color-text-secondary)]">
@@ -81,37 +82,121 @@
       <form
         id="upload-form"
         data-testid="upload-track-form"
-        hx-post="/api/v1/di-tracks/upload"
+        hx-post="/api/v1/di-tracks"
         hx-encoding="multipart/form-data"
         hx-target="#tracks-list-container"
         hx-swap="innerHTML"
         class="space-y-4"
       >
+        <!-- Drag and Drop Zone -->
+        <div>
+          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
+            Audio File (WAV) *
+          </label>
+          <div
+            data-testid="upload-drop-zone"
+            :class="dragging ? 'border-[var(--color-accent-primary)] bg-[var(--color-accent-primary)]/10' : 'border-[var(--border)] bg-[var(--color-bg-elevated)]'"
+            class="relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer"
+            @dragover.prevent="dragging = true"
+            @dragenter.prevent="dragging = true"
+            @dragleave.prevent="dragging = false"
+            @drop.prevent="
+              dragging = false;
+              const file = $event.dataTransfer.files[0];
+              if (file) {
+                document.getElementById('file-input').files = $event.dataTransfer.files;
+                document.getElementById('file-input').dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            "
+            @click="document.getElementById('file-input').click()"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-12 h-12 mx-auto mb-3 text-[var(--color-text-secondary)]">
+              <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
+              <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+            </svg>
+            <p class="text-[var(--color-text-primary)] font-medium mb-1">
+              Drop WAV file here or click to select
+            </p>
+            <p class="text-sm text-[var(--color-text-secondary)]">
+              Maximum file size: 200MB
+            </p>
+            <input
+              type="file"
+              id="file-input"
+              name="file"
+              data-testid="upload-file-input"
+              accept=".wav,audio/wav,audio/x-wav,audio/wave"
+              required
+              class="hidden"
+              @change="
+                fileError = '';
+                const file = $event.target.files[0];
+                if (!file) return;
+
+                // Validate file type
+                const isWav = file.name.toLowerCase().endsWith('.wav') ||
+                              file.type === 'audio/wav' ||
+                              file.type === 'audio/x-wav' ||
+                              file.type === 'audio/wave';
+                if (!isWav) {
+                  fileError = 'Only WAV files are supported';
+                  $event.target.value = '';
+                  return;
+                }
+
+                // Validate file size (200MB = 200 * 1024 * 1024 bytes)
+                const maxSize = 200 * 1024 * 1024;
+                if (file.size > maxSize) {
+                  fileError = 'File size must be less than 200MB';
+                  $event.target.value = '';
+                  return;
+                }
+              "
+            />
+          </div>
+          <!-- File validation error -->
+          <div
+            x-show="fileError"
+            data-testid="upload-file-error"
+            class="mt-2 text-sm text-red-600"
+            x-text="fileError"
+          ></div>
+        </div>
+
+        <!-- Upload Progress Bar -->
+        <div x-show="uploading" data-testid="upload-progress-bar" class="space-y-2">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-[var(--color-text-secondary)]">Uploading...</span>
+            <span data-testid="upload-progress-text" class="text-[var(--color-text-primary)] font-medium" x-text="progress + '%'"></span>
+          </div>
+          <div class="w-full bg-[var(--color-bg-elevated)] rounded-full h-2 overflow-hidden">
+            <div
+              class="bg-[var(--color-accent-primary)] h-full transition-all duration-300"
+              :style="'width: ' + progress + '%'"
+            ></div>
+          </div>
+        </div>
+
+        <!-- Upload error message -->
+        <div
+          x-show="uploadError"
+          data-testid="upload-error-message"
+          class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800"
+          x-text="uploadError"
+        ></div>
+
         <div>
           <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
             Title *
           </label>
           <input
             type="text"
-            name="title"
+            name="name"
             data-testid="upload-title-input"
             required
             maxlength="255"
             class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
             placeholder="e.g., Clean Tone Test Riff"
-          />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
-            Audio File (WAV) *
-          </label>
-          <input
-            type="file"
-            name="file"
-            data-testid="upload-file-input"
-            accept=".wav"
-            required
-            class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-[var(--color-accent-primary)] file:text-white file:font-medium file:cursor-pointer"
           />
         </div>
         <div>
@@ -134,7 +219,7 @@
             </label>
             <input
               type="text"
-              name="pickups"
+              name="pickup"
               data-testid="upload-pickups-input"
               maxlength="255"
               class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none"
@@ -167,6 +252,18 @@
             placeholder="Optional notes about this recording..."
           ></textarea>
         </div>
+        <div>
+          <label class="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">
+            Notes
+          </label>
+          <textarea
+            name="notes"
+            data-testid="upload-notes-textarea"
+            rows="2"
+            class="w-full px-3 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] focus:border-[var(--color-accent-primary)] focus:ring-1 focus:ring-[var(--color-accent-primary)] outline-none resize-none"
+            placeholder="Additional notes or technical details..."
+          ></textarea>
+        </div>
         <div class="flex justify-end gap-3 pt-4">
           <button
             type="button"
@@ -179,7 +276,8 @@
           <button
             type="submit"
             data-testid="upload-submit-btn"
-            class="px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors"
+            :disabled="uploading"
+            class="px-4 py-2 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Upload
           </button>
@@ -195,21 +293,71 @@
 
 {% block scripts %}
 <script>
-  // Handle HTMX response errors for auth
+  // Handle HTMX response errors for auth and general errors
   document.body.addEventListener('htmx:responseError', (event) => {
     const xhr = event.detail?.xhr;
     if (xhr && xhr.status === 401) {
       // Not authenticated - redirect to login
       const currentPath = window.location.pathname;
       window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
+    } else if (event.detail?.elt?.id === 'upload-form') {
+      // Handle upload errors
+      const alpine = Alpine.store ? Alpine.store : window.Alpine;
+      const modalElement = document.querySelector('#upload-modal');
+      if (modalElement && modalElement.__x) {
+        const data = modalElement.__x.$data;
+        data.uploading = false;
+        data.progress = 0;
+        data.uploadError = xhr?.responseText || 'Upload failed. Please try again.';
+      }
     }
   });
 
-  // Close upload modal on successful upload
+  // Track upload progress via htmx:xhr:progress
+  document.body.addEventListener('htmx:xhr:progress', (event) => {
+    if (event.detail?.elt?.id === 'upload-form') {
+      const modalElement = document.querySelector('#upload-modal');
+      if (modalElement && modalElement.__x) {
+        const data = modalElement.__x.$data;
+        const percent = Math.round((event.detail.loaded / event.detail.total) * 100);
+        data.progress = percent;
+      }
+    }
+  });
+
+  // Handle upload start
+  document.body.addEventListener('htmx:beforeRequest', (event) => {
+    if (event.detail?.elt?.id === 'upload-form') {
+      const modalElement = document.querySelector('#upload-modal');
+      if (modalElement && modalElement.__x) {
+        const data = modalElement.__x.$data;
+        data.uploading = true;
+        data.progress = 0;
+        data.uploadError = '';
+      }
+    }
+  });
+
+  // Close upload modal on successful upload and reset form
   document.body.addEventListener('htmx:afterSwap', (event) => {
     if (event.detail.target.id === 'tracks-list-container' && event.detail.successful) {
       const modal = document.getElementById('upload-modal');
+      const form = document.getElementById('upload-form');
       if (modal && modal.open) {
+        // Reset form
+        if (form) {
+          form.reset();
+        }
+        // Reset Alpine.js state
+        const modalElement = document.querySelector('#upload-modal');
+        if (modalElement && modalElement.__x) {
+          const data = modalElement.__x.$data;
+          data.uploading = false;
+          data.progress = 0;
+          data.fileError = '';
+          data.uploadError = '';
+          data.dragging = false;
+        }
         modal.close();
       }
     }

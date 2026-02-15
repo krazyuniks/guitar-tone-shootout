@@ -48,6 +48,7 @@ export const GET: APIRoute = () => {
   <!-- HTMX-powered shootouts list -->
   <div
     id="shootouts-list-container"
+    data-testid="shootouts-list-container"
     hx-get="/api/v1/html/library/shootouts"
     hx-trigger="load"
     hx-swap="innerHTML"

@@ -230,7 +230,7 @@ class UuidType(TypeDecorator[uuid.UUID]):
             # SQLite and others: use string with hyphens
             return dialect.type_descriptor(String(36))
 
-    def process_bind_param(self, value: uuid.UUID | str | None, dialect: Any) -> str | None:  # noqa: ARG002
+    def process_bind_param(self, value: uuid.UUID | str | None, _dialect: Any) -> str | None:
         """Convert UUID to string with hyphens for database storage."""
         if value is None:
             return None
@@ -238,7 +238,7 @@ class UuidType(TypeDecorator[uuid.UUID]):
             return str(value)
         return str(value)
 
-    def process_result_value(self, value: str | None, dialect: Any) -> uuid.UUID | None:  # noqa: ARG002
+    def process_result_value(self, value: str | None, _dialect: Any) -> uuid.UUID | None:
         """Convert string from database to UUID object."""
         if value is None:
             return None
@@ -290,6 +290,58 @@ class AudioChecksumType(TypeDecorator[Any]):
         except ValueError:
             # Return raw string for invalid checksums (e.g., test data like "abc123")
             return value
+
+
+class WaveformDataType(TypeDecorator[Any]):
+    """SQLAlchemy type for storing WaveformData value objects.
+
+    Stores waveform data as JSON in the database but wraps it in
+    a WaveformData object when loading from the database.
+    """
+
+    from sqlalchemy import JSON
+
+    impl = JSON
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, _dialect: Any) -> dict[str, Any] | None:
+        """Convert WaveformData to JSON for database storage."""
+        if value is None:
+            return None
+        # Import here to avoid circular dependency
+        from core.domain.value_objects.waveform_data import WaveformData
+
+        if isinstance(value, WaveformData):
+            return {
+                "peaks": value.to_list(),
+                "sample_rate": value.sample_rate,
+                "duration_seconds": value.duration_seconds,
+                "samples_per_peak": value.samples_per_peak,
+            }
+        # If it's already a dict (from migration or manual set), pass through
+        if isinstance(value, dict):
+            return value
+        return None
+
+    def process_result_value(self, value: dict[str, Any] | None, _dialect: Any) -> Any:
+        """Convert JSON from database to WaveformData."""
+        if value is None:
+            return None
+
+        # Import here to avoid circular dependency
+        from core.domain.value_objects.waveform_data import WaveformData
+
+        # Try to create WaveformData from stored JSON
+        try:
+            return WaveformData.from_list(
+                peaks=value["peaks"],
+                sample_rate=value["sample_rate"],
+                duration_seconds=value["duration_seconds"],
+                samples_per_peak=value["samples_per_peak"],
+            )
+        except (KeyError, TypeError, ValueError):
+            # Return None for invalid data
+            return None
 
 
 def get_async_session(database_url: str) -> async_sessionmaker[AsyncSession]:

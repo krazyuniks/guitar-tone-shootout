@@ -4,7 +4,11 @@
   data-testid="my-gear-results"
   data-empty="{{ 'true' if not packs else 'false' }}"
 >
-  <!-- Filters -->
+  <!-- Hidden state for HTMX includes -->
+  <input type="hidden" name="page" value="{{ page }}" />
+  <input type="hidden" name="page_size" value="{{ page_size }}" />
+
+  <!-- Filters and Controls -->
   <div class="mb-6 space-y-4">
     <!-- Search bar -->
     <div class="relative">
@@ -19,7 +23,7 @@
         placeholder="Search your gear..."
         value="{{ search or '' }}"
         class="w-full pl-10 pr-10 py-2 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border)] text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]"
-        hx-get="/api/v1/html/my-gear/results"
+        hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
         hx-trigger="keyup changed delay:300ms"
         hx-target="#my-gear-results-container"
         hx-swap="outerHTML"
@@ -29,7 +33,7 @@
         <button
           type="button"
           class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
         >
@@ -40,15 +44,18 @@
       {% endif %}
     </div>
 
-    <!-- Filter row -->
-    <div class="flex flex-wrap items-center gap-3">
+    <!-- Filter and Sort row -->
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <!-- Gear type filter buttons -->
+      <div class="flex items-center gap-1.5">
       <!-- Gear type filter buttons -->
       <div class="flex items-center gap-1.5">
         <button
           name="gear_type"
           value=""
+          data-testid="filter-gear-type-all"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if not gear_type_filter %}bg-[var(--color-accent-primary)] text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-[var(--color-accent-primary)]{% endif %}"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
           hx-include="[name='search']"
@@ -58,8 +65,9 @@
         <button
           name="gear_type"
           value="amp"
+          data-testid="filter-gear-type-amp"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'amp' %}bg-orange-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-orange-500{% endif %}"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?gear_type=amp&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
           hx-include="[name='search']"
@@ -69,8 +77,9 @@
         <button
           name="gear_type"
           value="pedal"
+          data-testid="filter-gear-type-pedal"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'pedal' %}bg-purple-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-purple-500{% endif %}"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?gear_type=pedal&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
           hx-include="[name='search']"
@@ -80,8 +89,9 @@
         <button
           name="gear_type"
           value="ir"
+          data-testid="filter-gear-type-ir"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'ir' %}bg-green-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-green-500{% endif %}"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?gear_type=ir&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
           hx-include="[name='search']"
@@ -91,14 +101,39 @@
         <button
           name="gear_type"
           value="full-rig"
+          data-testid="filter-gear-type-full-rig"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'full-rig' %}bg-yellow-400 text-black border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-yellow-400{% endif %}"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?gear_type=full-rig&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
           hx-include="[name='search']"
         >
           Full Rigs
         </button>
+      </div>
+
+      <!-- Sort control -->
+      <div class="flex items-center gap-2" x-data="{ sortCombined: '{{ sort_by }}-{{ sort_order }}' }">
+        <label class="text-sm text-[var(--color-text-secondary)]">Sort by:</label>
+        <select
+          data-testid="sort-select"
+          class="px-3 py-1.5 text-sm rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border)] text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]"
+          x-model="sortCombined"
+          @change="() => {
+            const [sortBy, sortOrder] = sortCombined.split('-');
+            const searchVal = document.querySelector('[name=search]')?.value || '';
+            const gearType = document.querySelector('[name=gear_type]:checked')?.value || '';
+            const url = '/api/v1/html/my-gear/results?sort_by=' + sortBy + '&sort_order=' + sortOrder + '&page=1&page_size={{ page_size }}' + (searchVal ? '&search=' + encodeURIComponent(searchVal) : '') + (gearType ? '&gear_type=' + gearType : '');
+            htmx.ajax('GET', url, { target: '#my-gear-results-container', swap: 'outerHTML' });
+          }"
+        >
+          <option value="date_added-desc" {% if sort_by == 'date_added' and sort_order == 'desc' %}selected{% endif %}>Newest First</option>
+          <option value="date_added-asc" {% if sort_by == 'date_added' and sort_order == 'asc' %}selected{% endif %}>Oldest First</option>
+          <option value="name-asc" {% if sort_by == 'name' and sort_order == 'asc' %}selected{% endif %}>Name (A-Z)</option>
+          <option value="name-desc" {% if sort_by == 'name' and sort_order == 'desc' %}selected{% endif %}>Name (Z-A)</option>
+          <option value="type-asc" {% if sort_by == 'type' and sort_order == 'asc' %}selected{% endif %}>Type (A-Z)</option>
+          <option value="type-desc" {% if sort_by == 'type' and sort_order == 'desc' %}selected{% endif %}>Type (Z-A)</option>
+        </select>
       </div>
     </div>
   </div>
@@ -119,11 +154,32 @@
 
     <!-- Pagination -->
     {% if total_pages > 1 %}
-    <div class="flex items-center justify-center gap-2 mt-8">
+    <div class="flex flex-col items-center gap-3 mt-8">
+      <div class="text-sm text-[var(--color-text-secondary)]">
+        Page {{ page }} of {{ total_pages }}
+      </div>
+      <div class="flex items-center gap-2" data-testid="pagination">
+      <!-- First button -->
       <button
+        data-testid="pagination-first"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page > 1 %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
+        {% if page > 1 %}
+        hx-get="/api/v1/html/my-gear/results?page=1&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+        hx-target="#my-gear-results-container"
+        hx-swap="outerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+      >
+        First
+      </button>
+
+      <!-- Prev button -->
+      <button
+        data-testid="pagination-prev"
         class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_prev %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
         {% if has_prev %}
-        hx-get="/api/v1/html/my-gear/results?page={{ page - 1 }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+        hx-get="/api/v1/html/my-gear/results?page={{ page - 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
         hx-target="#my-gear-results-container"
         hx-swap="outerHTML"
         {% else %}
@@ -135,14 +191,25 @@
         </svg>
       </button>
 
-      <span class="px-4 py-2 text-sm text-[var(--color-text-secondary)]">
-        Page {{ page }} of {{ total_pages }}
-      </span>
+      <!-- Page numbers -->
+      {% for page_num in range(1, total_pages + 1) %}
+        <button
+          data-testid="pagination-page-{{ page_num }}"
+          class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page_num == page %}bg-[var(--color-accent-primary)] text-white{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% endif %}"
+          hx-get="/api/v1/html/my-gear/results?page={{ page_num }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+          hx-target="#my-gear-results-container"
+          hx-swap="outerHTML"
+        >
+          {{ page_num }}
+        </button>
+      {% endfor %}
 
+      <!-- Next button -->
       <button
+        data-testid="pagination-next"
         class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_next %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
         {% if has_next %}
-        hx-get="/api/v1/html/my-gear/results?page={{ page + 1 }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+        hx-get="/api/v1/html/my-gear/results?page={{ page + 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
         hx-target="#my-gear-results-container"
         hx-swap="outerHTML"
         {% else %}
@@ -153,6 +220,22 @@
           <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
         </svg>
       </button>
+
+      <!-- Last button -->
+      <button
+        data-testid="pagination-last"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page < total_pages %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
+        {% if page < total_pages %}
+        hx-get="/api/v1/html/my-gear/results?page={{ total_pages }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+        hx-target="#my-gear-results-container"
+        hx-swap="outerHTML"
+        {% else %}
+        disabled
+        {% endif %}
+      >
+        Last
+      </button>
+      </div>
     </div>
     {% endif %}
   {% else %}
@@ -178,7 +261,7 @@
       {% if gear_type_filter or search %}
         <button
           class="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-          hx-get="/api/v1/html/my-gear/results"
+          hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
           hx-swap="outerHTML"
         >

@@ -1,10 +1,8 @@
 """Health check endpoints for liveness and readiness probes."""
 
-from __future__ import annotations
-
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,21 +33,32 @@ async def liveness() -> dict[str, str]:
 
 @router.get("/health/ready")
 async def readiness(
+    request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, str]:
     """Readiness probe - check if service can handle requests.
 
-    Tests database connectivity by executing a simple query.
+    Tests:
+    1. Shutdown state (returns 503 if shutting down)
+    2. Database connectivity
+
     Used by load balancers to determine if traffic should be routed to this instance.
 
     Args:
+        request: FastAPI request object for accessing app state
         response: FastAPI response object for setting status code
         db: Database session
 
     Returns:
-        dict: Status and database connectivity state
+        dict: Status and database connectivity status
     """
+    # Check if shutdown is in progress
+    shutdown_manager = getattr(request.app.state, "shutdown_manager", None)
+    if shutdown_manager and shutdown_manager.is_shutting_down:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "unavailable", "shutting_down": True}
+
     try:
         # Execute simple query to verify DB connection
         await db.execute(text("SELECT 1"))

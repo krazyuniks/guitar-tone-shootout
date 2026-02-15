@@ -1,6 +1,6 @@
 # GitHub Issue Templates
 
-Templates for creating epic and task issues compatible with tasks_from_plan.py.
+Templates for creating epic and task issues.
 
 ---
 
@@ -56,7 +56,7 @@ Templates for creating epic and task issues compatible with tasks_from_plan.py.
 
 ## Task Issue Template
 
-**CRITICAL:** This template must be parseable by `scripts/tasks_from_plan.py`. Required sections cannot be omitted.
+**CRITICAL:** Required sections cannot be omitted.
 
 ```markdown
 # [Task]: {title}
@@ -93,15 +93,15 @@ Blocked by: #{issue_number}, #{issue_number}
 
 ---
 
-## Required Sections for tasks_from_plan.py
+## Required Sections
 
-| Section | Required | Parsing |
-|---------|----------|---------|
-| `## Objective` | Yes | `parse_issue_body()` extracts text |
-| `## Acceptance Criteria` | Yes | Regex: `- [ ] (.+)` |
+| Section | Required | Notes |
+|---------|----------|-------|
+| `## Objective` | Yes | 2-3 sentence description |
+| `## Acceptance Criteria` | Yes | Checkboxes: `- [ ] (.+)` |
 | `## Scope` | Yes | `**Create:**` and `**Modify:**` subsections |
-| `## Dependencies` | No | Regex: `Blocked by: #(\d+)` |
-| `## Technical Notes` | No | Passed through to task file |
+| `## Dependencies` | No | `Blocked by: #(\d+)` |
+| `## Technical Notes` | No | Implementation hints |
 
 ---
 
@@ -185,19 +185,6 @@ gh issue edit {epic_number} \
   --repo krazyuniks/guitar-tone-shootout \
   --body "$(cat .planning/epics/{slug}/updated-epic-body.md)"
 ```
-
----
-
-## Validation
-
-After materialising tasks, validate structure:
-
-```bash
-# Validate task files
-just epic-validate {epic_number}
-```
-
-**Note:** Always use `just` commands, never direct `python scripts/...` calls.
 
 ---
 

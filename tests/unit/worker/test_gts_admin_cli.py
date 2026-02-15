@@ -455,9 +455,9 @@ class TestJustfileRegistration:
         # Check for admin recipe
         # Pattern: admin command at start of line, followed by recipe body
         admin_recipe_pattern = r"^admin\s+.*:.*\n.*gts-admin"
-        assert re.search(
-            admin_recipe_pattern, justfile_content, re.MULTILINE
-        ), "justfile must have 'admin' recipe that calls scripts/gts-admin"
+        assert re.search(admin_recipe_pattern, justfile_content, re.MULTILINE), (
+            "justfile must have 'admin' recipe that calls scripts/gts-admin"
+        )
 
     def test_justfile_admin_recipe_accepts_arguments(self) -> None:
         """Justfile admin recipe accepts variable arguments."""
@@ -471,9 +471,9 @@ class TestJustfileRegistration:
         # Check for admin recipe with arguments
         # Pattern: admin +ARGS: or admin *ARGS:
         admin_args_pattern = r"^admin\s+[+*]"
-        assert re.search(
-            admin_args_pattern, justfile_content, re.MULTILINE
-        ), "justfile admin recipe must accept variable arguments (+ARGS or *ARGS)"
+        assert re.search(admin_args_pattern, justfile_content, re.MULTILINE), (
+            "justfile admin recipe must accept variable arguments (+ARGS or *ARGS)"
+        )
 
 
 class TestGtsAdminMainEntryPoint:

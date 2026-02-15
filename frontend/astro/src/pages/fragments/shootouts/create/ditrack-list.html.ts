@@ -28,7 +28,7 @@ export const GET: APIRoute = () => {
         data-track-id="{{ track.id }}"
       >
         <div class="flex items-center justify-between">
-          <div>
+          <div class="flex-1">
             <div class="font-medium">{{ track.title }}</div>
             <div class="text-sm text-[var(--color-text-secondary)]">
               {% set mins = (track.duration_seconds // 60) | int %}
@@ -46,6 +46,15 @@ export const GET: APIRoute = () => {
                 {{ track.description }}
               </div>
             {% endif %}
+            <!-- Waveform placeholder -->
+            <div class="mt-2 h-8 flex items-center gap-0.5" data-testid="ditrack-waveform">
+              {% for i in range(40) %}
+                <div
+                  class="w-1 bg-[var(--color-accent-primary)]/30 rounded-full"
+                  style="height: {{ (20 + (i * 17) % 60) }}%;"
+                ></div>
+              {% endfor %}
+            </div>
           </div>
           <svg
             x-show="selectedTrack?.id === '{{ track.id }}'"

@@ -9,9 +9,18 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
-from .base import AudioChecksumType, Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
+from .base import (
+    AudioChecksumType,
+    Base,
+    EnumByValue,
+    TimestampMixin,
+    UUIDMixin,
+    UuidType,
+    WaveformDataType,
+)
 
 if TYPE_CHECKING:
+    from .shootout_comment import ShootoutComment
     from .signal_chain import SignalChain
     from .user import User
 
@@ -41,9 +50,12 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
         original_filename: Original uploaded filename
         duration_seconds: Track duration in seconds
         sample_rate: Audio sample rate in Hz
+        channels: Number of audio channels (1=mono, 2=stereo)
+        waveform: Waveform visualization data
         description: Optional description
         guitar: Guitar used for recording (optional)
         pickup: Pickup position/type (optional)
+        tuning: Tuning used for recording (optional)
         checksum: Audio file checksum for integrity (optional)
         created_at: When uploaded
         updated_at: When last updated
@@ -63,9 +75,12 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     sample_rate: Mapped[int] = mapped_column(Integer, nullable=False, default=44100)
+    channels: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    waveform: Mapped[Any] = mapped_column(WaveformDataType(), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     guitar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pickup: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tuning: Mapped[str | None] = mapped_column(String(100), nullable=True)
     checksum: Mapped[Any] = mapped_column(AudioChecksumType(), nullable=True)
 
     # Relationships
@@ -150,6 +165,12 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         back_populates="shootout",
         cascade="all, delete-orphan",
         order_by="ShootoutChain.position",
+        lazy="raise",
+    )
+    comments: Mapped[list[ShootoutComment]] = relationship(
+        "ShootoutComment",
+        back_populates="shootout",
+        cascade="all, delete-orphan",
         lazy="raise",
     )
 

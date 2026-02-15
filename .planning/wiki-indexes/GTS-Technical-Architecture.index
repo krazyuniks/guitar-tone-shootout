@@ -1,0 +1,2 @@
+# GTS-Technical-Architecture.md
+architecture-layers:L9-L248:~2450tok|domain-model:L250-L397:~1250tok|design-patterns:L399-L728:~3600tok|data-ingestion:L730-L852:~1150tok|api-design:L854-L871:~150tok|auth:L873-L891:~100tok|frontend:L893-L963:~650tok|persistence:L965-L1447:~4350tok|audio:L1449-L1632:~1700tok|video:L1634-L1718:~550tok|infrastructure:L1720-L1964:~2050tok|testing:L1966-L2083:~1250tok|operational:L2085-L2637:~4650tok

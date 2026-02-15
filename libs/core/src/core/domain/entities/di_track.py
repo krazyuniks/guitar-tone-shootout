@@ -31,6 +31,7 @@ class DITrack(Entity):
         description: Optional description
         guitar: Guitar used for recording
         pickup: Pickup position/type
+        tuning: Tuning used for recording
         checksum: Audio file checksum for integrity
         waveform: Waveform visualization data
         created_at: When uploaded
@@ -46,6 +47,7 @@ class DITrack(Entity):
     description: str | None = None
     guitar: str | None = None
     pickup: str | None = None
+    tuning: str | None = None
     checksum: AudioChecksum | None = None
     waveform: WaveformData | None = None
     id: UUID = field(default_factory=new_id)
@@ -68,6 +70,7 @@ class DITrack(Entity):
         description: str | None = None,
         guitar: str | None = None,
         pickup: str | None = None,
+        tuning: str | None = None,
     ) -> None:
         """Update track metadata.
 
@@ -76,6 +79,7 @@ class DITrack(Entity):
             description: New description (if provided)
             guitar: Guitar info (if provided)
             pickup: Pickup info (if provided)
+            tuning: Tuning info (if provided)
         """
         if name is not None:
             self.name = name
@@ -85,6 +89,8 @@ class DITrack(Entity):
             self.guitar = guitar
         if pickup is not None:
             self.pickup = pickup
+        if tuning is not None:
+            self.tuning = tuning
         self.updated_at = utcnow()
 
     def set_waveform(self, waveform: WaveformData) -> None:

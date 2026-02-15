@@ -25,6 +25,7 @@ from webapp.adapters.persistence.models import (
     Preset,
     Shootout,
     ShootoutChain,
+    ShootoutComment,
     SignalChain,
     SignalChainBlock,
     SignalChainGroup,
@@ -48,6 +49,7 @@ ALL_MODELS = [
     Preset,
     Shootout,
     ShootoutChain,
+    ShootoutComment,
     SignalChain,
     SignalChainBlock,
     SignalChainGroup,
@@ -125,9 +127,9 @@ class TestLazyRaiseEnforcement:
 
         # Verify all use lazy='raise'
         for rel_name, rel_prop in relationships.items():
-            assert (
-                rel_prop.lazy == "raise"
-            ), f"Gear.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            assert rel_prop.lazy == "raise", (
+                f"Gear.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            )
 
     def test_user_relationships_all_lazy_raise(self):
         """Verify User model relationships (task acceptance criterion)."""
@@ -141,6 +143,8 @@ class TestLazyRaiseEnforcement:
             "shootouts",  # reverse
             "jobs",  # reverse
             "user_gear",  # reverse
+            "notifications",  # reverse
+            "tags",  # reverse
         }
         actual_relationships = set(relationships.keys())
 
@@ -152,9 +156,9 @@ class TestLazyRaiseEnforcement:
 
         # Verify all use lazy='raise'
         for rel_name, rel_prop in relationships.items():
-            assert (
-                rel_prop.lazy == "raise"
-            ), f"User.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            assert rel_prop.lazy == "raise", (
+                f"User.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            )
 
     def test_signal_chain_relationships_all_lazy_raise(self):
         """Verify SignalChain model relationships (task acceptance criterion)."""
@@ -171,15 +175,15 @@ class TestLazyRaiseEnforcement:
 
         # Verify all use lazy='raise'
         for rel_name, rel_prop in relationships.items():
-            assert (
-                rel_prop.lazy == "raise"
-            ), f"SignalChain.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            assert rel_prop.lazy == "raise", (
+                f"SignalChain.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            )
 
     def test_shootout_relationships_all_lazy_raise(self):
         """Verify Shootout model relationships (task acceptance criterion)."""
         relationships = get_relationship_properties(Shootout)
 
-        expected_relationships = {"user", "di_track", "chains"}
+        expected_relationships = {"user", "di_track", "chains", "comments"}
         actual_relationships = set(relationships.keys())
 
         # Verify we found all expected relationships
@@ -190,9 +194,9 @@ class TestLazyRaiseEnforcement:
 
         # Verify all use lazy='raise'
         for rel_name, rel_prop in relationships.items():
-            assert (
-                rel_prop.lazy == "raise"
-            ), f"Shootout.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            assert rel_prop.lazy == "raise", (
+                f"Shootout.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            )
 
     def test_user_identity_relationships_all_lazy_raise(self):
         """Verify UserIdentity model relationships (task acceptance criterion)."""
@@ -209,6 +213,6 @@ class TestLazyRaiseEnforcement:
 
         # Verify all use lazy='raise'
         for rel_name, rel_prop in relationships.items():
-            assert (
-                rel_prop.lazy == "raise"
-            ), f"UserIdentity.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            assert rel_prop.lazy == "raise", (
+                f"UserIdentity.{rel_name} must use lazy='raise', found: '{rel_prop.lazy}'"
+            )

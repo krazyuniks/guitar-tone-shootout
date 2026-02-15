@@ -690,9 +690,9 @@ class TestEnqueue:
         await db_session.expire_all()
         result = await db_session.execute(select(Job).where(Job.id == job.id))
         updated_job = result.scalar_one()
-        assert (
-            updated_job.task_id is not None
-        ), "Enqueue must set task_id from TaskIQ dispatch result"
+        assert updated_job.task_id is not None, (
+            "Enqueue must set task_id from TaskIQ dispatch result"
+        )
 
     @pytest.mark.asyncio
     async def test_nonexistent_job_returns_404(

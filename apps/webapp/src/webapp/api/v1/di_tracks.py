@@ -34,6 +34,7 @@ async def upload_di_track(
     description: Annotated[str | None, Form()] = None,
     guitar: Annotated[str | None, Form()] = None,
     pickup: Annotated[str | None, Form()] = None,
+    tuning: Annotated[str | None, Form()] = None,
 ) -> DITrack:
     """Upload a DI track.
 
@@ -89,6 +90,7 @@ async def upload_di_track(
                 description=description,
                 guitar=guitar,
                 pickup=pickup,
+                tuning=tuning,
             )
     except ValueError as e:
         # Clean up file on validation failure
