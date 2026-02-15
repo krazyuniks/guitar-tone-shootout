@@ -68,6 +68,7 @@ export const GET: APIRoute = () => {
         <button
           name="gear_type"
           value=""
+          data-testid="filter-gear-type-all"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if not gear_type_filter %}bg-[var(--color-accent-primary)] text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-[var(--color-accent-primary)]{% endif %}"
           hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
@@ -79,6 +80,7 @@ export const GET: APIRoute = () => {
         <button
           name="gear_type"
           value="amp"
+          data-testid="filter-gear-type-amp"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'amp' %}bg-orange-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-orange-500{% endif %}"
           hx-get="/api/v1/html/my-gear/results?gear_type=amp&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
@@ -90,6 +92,7 @@ export const GET: APIRoute = () => {
         <button
           name="gear_type"
           value="pedal"
+          data-testid="filter-gear-type-pedal"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'pedal' %}bg-purple-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-purple-500{% endif %}"
           hx-get="/api/v1/html/my-gear/results?gear_type=pedal&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
@@ -101,6 +104,7 @@ export const GET: APIRoute = () => {
         <button
           name="gear_type"
           value="ir"
+          data-testid="filter-gear-type-ir"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'ir' %}bg-green-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-green-500{% endif %}"
           hx-get="/api/v1/html/my-gear/results?gear_type=ir&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"
@@ -112,6 +116,7 @@ export const GET: APIRoute = () => {
         <button
           name="gear_type"
           value="full-rig"
+          data-testid="filter-gear-type-full-rig"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'full-rig' %}bg-yellow-400 text-black border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-yellow-400{% endif %}"
           hx-get="/api/v1/html/my-gear/results?gear_type=full-rig&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           hx-target="#my-gear-results-container"

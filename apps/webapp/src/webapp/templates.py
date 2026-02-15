@@ -45,12 +45,9 @@ def _relative_time(dt: datetime | None) -> str:
     return f"{years}y ago"
 
 
-# Create a custom Jinja2 environment with auto-escaping disabled.
-# Fragment templates render trusted data from our own database,
-# and input validation + CSP headers provide XSS protection.
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
-    autoescape=False,
+    autoescape=True,
 )
 
 

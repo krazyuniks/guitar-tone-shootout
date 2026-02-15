@@ -50,6 +50,7 @@ export const GET: APIRoute = () => {
   <!-- HTMX-powered tracks list -->
   <div
     id="tracks-list-container"
+    data-testid="tracks-list-container"
     hx-get="/api/v1/html/library/tracks"
     hx-trigger="load"
     hx-swap="innerHTML"

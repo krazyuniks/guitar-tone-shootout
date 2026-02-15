@@ -36,6 +36,7 @@ export const GET: APIRoute = () => {
     <!-- HTMX container that loads my-gear results on page load -->
     <div
       id="my-gear-results-container"
+      data-testid="my-gear-results-container"
       hx-get="/api/v1/html/my-gear/results"
       hx-trigger="load"
       hx-swap="outerHTML"

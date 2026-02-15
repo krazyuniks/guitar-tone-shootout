@@ -37,6 +37,7 @@ export const GET: APIRoute = () => {
       {% if prev_url %}
       <a
         href="{{ prev_url }}"
+        data-testid="pagination-prev"
         hx-get="/api/v1/html{{ prev_url }}"
         hx-target="#di-tracks-results"
         hx-swap="innerHTML"
@@ -48,6 +49,7 @@ export const GET: APIRoute = () => {
       {% if next_url %}
       <a
         href="{{ next_url }}"
+        data-testid="pagination-next"
         hx-get="/api/v1/html{{ next_url }}"
         hx-target="#di-tracks-results"
         hx-swap="innerHTML"

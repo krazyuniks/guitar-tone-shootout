@@ -20,6 +20,7 @@ export const GET: APIRoute = () => {
   {# HTMX container that loads sections on page load #}
   <div
     id="shootouts-sections-container"
+    data-testid="shootouts-sections-container"
     hx-get="/api/v1/html/shootouts/sections"
     hx-trigger="load"
     hx-swap="innerHTML"

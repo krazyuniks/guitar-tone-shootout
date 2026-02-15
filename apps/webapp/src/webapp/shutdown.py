@@ -132,7 +132,7 @@ class ShutdownMiddleware(BaseHTTPMiddleware):
 
         # Health endpoints must remain accessible during shutdown
         # so load balancers can detect the shutdown state
-        if manager.is_shutting_down and not request.url.path.startswith("/health/"):
+        if manager.is_shutting_down and not request.url.path.startswith("/health"):
             return JSONResponse(
                 status_code=503,
                 content={"detail": "Service shutting down"},
