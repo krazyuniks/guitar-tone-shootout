@@ -64,7 +64,8 @@ services:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       # No REDIS_URL - webapp doesn't need Redis (T3K rate limiting is worker's domain)
       SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production}
-      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-dev_oauth_key_32_bytes_exactly!!}
+      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
+      GTS_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       ENV: ${ENV:-development}
     env_file:
       - path: .env
@@ -151,7 +152,7 @@ services:
       T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_t3k_source
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
-      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-}
+      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
     env_file:
       - path: .env
         required: false
