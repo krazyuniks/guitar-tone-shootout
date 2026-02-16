@@ -280,6 +280,10 @@ services:
       - ./apps/worker:/app/apps/worker
       - ./sources:/app/sources:ro
       - {volumes.uploads}:/app/uploads
+      # Parent dir for shared auth file (.gts-auth.json)
+      - ../:/worktrees
+    environment:
+      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
 
   scheduler:
     container_name: {worktree.compose_project}-scheduler

@@ -52,6 +52,10 @@ services:
       - ./apps/worker:/app/apps/worker
       - ./sources:/app/sources:ro
       - {{ worktree.volumes.uploads }}:/app/uploads
+      # Parent dir for shared auth file (.gts-auth.json)
+      - ../:/worktrees
+    environment:
+      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
 
   scheduler:
     container_name: {{ worktree.compose_project }}-scheduler
@@ -73,7 +77,7 @@ services:
     ports:
       - "127.0.0.1:{{ worktree.ports.db }}:5432"
     volumes:
-      - {{ worktree.volumes.postgres }}:/var/lib/postgresql/data
+      - {{ worktree.volumes.postgres }}:/var/lib/postgresql
 
   redis:
     container_name: {{ worktree.compose_project }}-redis

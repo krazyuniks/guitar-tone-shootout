@@ -13,13 +13,13 @@ services:
   # PostgreSQL - Dual database with pgmq extension
   # ==========================================================================
   db:
-    image: postgres:18-alpine
+    image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
     environment:
       POSTGRES_USER: gts
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
       POSTGRES_DB: gts_core
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
       - ./infrastructure/docker/init-pgmq.sql:/docker-entrypoint-initdb.d/02-init-pgmq.sql
     healthcheck:
@@ -70,6 +70,8 @@ services:
       - path: .env
         required: false
       - path: .env.local
+        required: false
+      - path: .env.secrets
         required: false
     volumes:
       - ./libs:/app/libs:ro
@@ -149,10 +151,13 @@ services:
       T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_t3k_source
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
+      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-}
     env_file:
       - path: .env
         required: false
       - path: .env.local
+        required: false
+      - path: .env.secrets
         required: false
     volumes:
       - ./libs:/app/libs:ro
@@ -189,6 +194,8 @@ services:
       - path: .env
         required: false
       - path: .env.local
+        required: false
+      - path: .env.secrets
         required: false
     volumes:
       - ./libs:/app/libs:ro
@@ -236,6 +243,8 @@ services:
       - path: .env
         required: false
       - path: .env.local
+        required: false
+      - path: .env.secrets
         required: false
     volumes:
       - ./libs/core:/app/libs/core:ro
