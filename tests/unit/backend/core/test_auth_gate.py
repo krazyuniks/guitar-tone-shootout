@@ -30,9 +30,16 @@ class TestCheckAuthStatus:
         result = check_auth_status(str(auth_file))
         assert result == SourceAuthStatus.LOGIN_REQUIRED
 
-    def test_returns_unknown_when_status_field_missing(self, tmp_path: Path) -> None:
+    def test_returns_valid_when_status_missing_but_token_exists(self, tmp_path: Path) -> None:
+        """Backwards-compat: pre-existing auth files without auth_status field."""
         auth_file = tmp_path / "auth.json"
         auth_file.write_text(json.dumps({"access_token": "encrypted"}))
+        result = check_auth_status(str(auth_file))
+        assert result == SourceAuthStatus.VALID
+
+    def test_returns_unknown_when_no_status_and_no_token(self, tmp_path: Path) -> None:
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text(json.dumps({"username": "test"}))
         result = check_auth_status(str(auth_file))
         assert result == SourceAuthStatus.UNKNOWN
 

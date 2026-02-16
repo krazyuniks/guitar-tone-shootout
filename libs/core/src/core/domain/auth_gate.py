@@ -32,6 +32,9 @@ def check_auth_status(auth_file_path: str) -> SourceAuthStatus:
 
     raw_status = data.get("auth_status")
     if raw_status is None:
+        # Backwards-compat: auth files written before auth_status existed
+        if data.get("access_token"):
+            return SourceAuthStatus.VALID
         return SourceAuthStatus.UNKNOWN
 
     try:
