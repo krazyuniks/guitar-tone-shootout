@@ -106,15 +106,6 @@ class ErrorsSummaryResponse(BaseModel):
     time_window_hours: int
 
 
-class AuthStatusResponse(BaseModel):
-    """Response for auth status endpoint."""
-
-    status: str  # SourceAuthStatus value
-    can_proceed: bool
-    expires_at: str | None = None
-    message: str | None = None
-
-
 class PendingRetriesCountResponse(BaseModel):
     """Response for pending retries count endpoint."""
 

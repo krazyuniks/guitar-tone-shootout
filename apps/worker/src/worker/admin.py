@@ -26,7 +26,6 @@ from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
 from worker.db import get_core_session
 from worker.schemas import (
-    AuthStatusResponse,
     EnqueueRequest,
     EnqueueResponse,
     ErrorsSummaryResponse,
@@ -766,42 +765,6 @@ async def get_errors_summary(
     return ErrorsSummaryResponse(
         errors=errors,
         time_window_hours=24,
-    )
-
-
-@app.get("/api/admin/sources/{source}/auth/status", response_model=AuthStatusResponse)
-async def get_auth_status(
-    source: str,
-) -> AuthStatusResponse:
-    """Get auth status for a source by reading the auth file."""
-    validate_source(source)
-
-    import json
-    import os
-
-    from core.domain.auth_gate import check_auth_status
-
-    auth_file_path = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
-    status = check_auth_status(auth_file_path)
-
-    # Read expires_at from auth file if available
-    expires_at = None
-    try:
-        with open(auth_file_path) as f:
-            data = json.load(f)
-        expires_at = data.get("expires_at")
-    except (json.JSONDecodeError, OSError):
-        pass
-
-    message = None
-    if status.needs_login():
-        message = "Auth expired — run `just t3k-login`"
-
-    return AuthStatusResponse(
-        status=status.value,
-        can_proceed=status.can_proceed(),
-        expires_at=expires_at,
-        message=message,
     )
 
 

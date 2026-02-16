@@ -7,7 +7,6 @@ Tests for new endpoints added to apps/worker/src/worker/admin.py:
 - GET /api/admin/sources/{source}/sync/stats — Sync statistics
 - GET /api/admin/sources/{source}/sync/lag — Time since last successful sync
 - GET /api/admin/sources/{source}/errors/summary — Error counts by type
-- GET /api/admin/sources/{source}/auth/status — OAuth token validity
 - GET /api/admin/jobs/dead-lettered — List dead-lettered jobs
 - GET /api/admin/jobs/pending-retries/count — Count of pending retries
 - POST /api/admin/sources/{source}/sync/unlock — Release sync lock
@@ -17,14 +16,12 @@ Tests for new endpoints added to apps/worker/src/worker/admin.py:
 
 from __future__ import annotations
 
-import json
 from datetime import UTC
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-    from pathlib import Path
 
     from redis.asyncio import Redis
 
@@ -336,69 +333,6 @@ class TestSourceErrorsSummary:
         assert response.status_code == 404
 
 
-class TestSourceAuthStatus:
-    """Tests for GET /api/admin/sources/{source}/auth/status endpoint."""
-
-    async def test_returns_valid_status_from_auth_file(
-        self, client: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """GET /api/admin/sources/t3k/auth/status returns status from auth file."""
-        auth_file = tmp_path / "auth.json"
-        auth_file.write_text(
-            json.dumps(
-                {
-                    "auth_status": "valid",
-                    "expires_at": "2099-01-01T00:00:00+00:00",
-                }
-            )
-        )
-        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
-
-        response = await client.get("/api/admin/sources/t3k/auth/status")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "valid"
-        assert data["can_proceed"] is True
-        assert data["expires_at"] == "2099-01-01T00:00:00+00:00"
-
-    async def test_returns_login_required_when_auth_unhealthy(
-        self, client: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """GET /api/admin/sources/t3k/auth/status returns login_required."""
-        auth_file = tmp_path / "auth.json"
-        auth_file.write_text(json.dumps({"auth_status": "login_required"}))
-        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
-
-        response = await client.get("/api/admin/sources/t3k/auth/status")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "login_required"
-        assert data["can_proceed"] is False
-        assert data["message"] is not None
-        assert "t3k-login" in data["message"]
-
-    async def test_returns_unknown_when_auth_file_missing(
-        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """GET /api/admin/sources/t3k/auth/status returns unknown when file missing."""
-        monkeypatch.setenv("GTS_AUTH_FILE", "/nonexistent/auth.json")
-
-        response = await client.get("/api/admin/sources/t3k/auth/status")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "unknown"
-        assert data["can_proceed"] is False
-
-    async def test_returns_404_for_unknown_source(self, client: AsyncClient) -> None:
-        """GET /api/admin/sources/unknown/auth/status returns 404."""
-        response = await client.get("/api/admin/sources/unknown/auth/status")
-
-        assert response.status_code == 404
-
-
 class TestDeadLetteredJobs:
     """Tests for GET /api/admin/jobs/dead-lettered endpoint."""
 
@@ -578,7 +512,6 @@ class TestUnknownSourceHandling:
             ("GET", "/api/admin/sources/nonexistent/sync/stats"),
             ("GET", "/api/admin/sources/nonexistent/sync/lag"),
             ("GET", "/api/admin/sources/nonexistent/errors/summary"),
-            ("GET", "/api/admin/sources/nonexistent/auth/status"),
             ("POST", "/api/admin/sources/nonexistent/sync/unlock"),
         ]
 
