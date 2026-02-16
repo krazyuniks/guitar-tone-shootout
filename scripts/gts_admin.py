@@ -82,12 +82,24 @@ async def source_status(source: str, base_url: str | None = None) -> None:
 
             data = response.json()
 
+            # Fetch auth status too
+            auth_url = f"{base_url}/api/admin/sources/{source}/auth/status"
+            auth_response = await client.get(auth_url)
+            auth_data = auth_response.json() if auth_response.status_code == 200 else {}
+
             # Display as table
-            print(f"\nSync Status: {source}")
+            print(f"\nSource Status: {source}")
             print("─" * 50)
-            print(f"Status:     {data.get('status', 'unknown')}")
+            print(f"Sync:       {data.get('status', 'unknown')}")
             print(f"Enabled:    {data.get('enabled', False)}")
             print(f"Checkpoint: {data.get('checkpoint', 'none')}")
+            auth_status = auth_data.get("status", "unknown")
+            can_proceed = auth_data.get("can_proceed", False)
+            print(f"Auth:       {auth_status} ({'ok' if can_proceed else 'BLOCKED'})")
+            if auth_data.get("expires_at"):
+                print(f"Expires:    {auth_data['expires_at']}")
+            if auth_data.get("message"):
+                print(f"Message:    {auth_data['message']}")
             print("─" * 50)
 
     except Exception as e:

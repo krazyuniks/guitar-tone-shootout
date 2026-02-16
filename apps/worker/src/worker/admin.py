@@ -21,7 +21,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from source_t3k.adapters.outbound.models import OAuthToken, SyncCheckpoint
+from source_t3k.adapters.outbound.models import SyncCheckpoint
 from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
 from worker.db import get_core_session
@@ -567,27 +567,37 @@ async def get_sync_status(
     lock_exists = await redis.exists(lock_key)
     status = "running" if lock_exists else "idle"
 
-    # Query SyncCheckpoint for pack entity type
-    stmt = select(SyncCheckpoint).where(
-        SyncCheckpoint.source_name == source,
-        SyncCheckpoint.entity_type == "pack",
+    # Query SyncCheckpoint for tone entity type
+    stmt = (
+        select(SyncCheckpoint)
+        .where(
+            SyncCheckpoint.source_name == source,
+            SyncCheckpoint.entity_type.in_(["tone", "tones"]),
+        )
+        .order_by(SyncCheckpoint.last_synced_at.desc())
+        .limit(1)
     )
     result = await t3k_session.execute(stmt)
-    pack_checkpoint = result.scalar_one_or_none()
+    tone_checkpoint = result.scalar_one_or_none()
 
     # Query SyncCheckpoint for model entity type
-    stmt = select(SyncCheckpoint).where(
-        SyncCheckpoint.source_name == source,
-        SyncCheckpoint.entity_type == "model",
+    stmt = (
+        select(SyncCheckpoint)
+        .where(
+            SyncCheckpoint.source_name == source,
+            SyncCheckpoint.entity_type.in_(["model", "models"]),
+        )
+        .order_by(SyncCheckpoint.last_synced_at.desc())
+        .limit(1)
     )
     result = await t3k_session.execute(stmt)
     model_checkpoint = result.scalar_one_or_none()
 
     # Build checkpoint info if we have any checkpoints
     checkpoint = None
-    if pack_checkpoint or model_checkpoint:
+    if tone_checkpoint or model_checkpoint:
         checkpoint = SyncCheckpointInfo(
-            last_pack_id=pack_checkpoint.last_record_id if pack_checkpoint else None,
+            last_tone_id=tone_checkpoint.last_record_id if tone_checkpoint else None,
             last_model_id=model_checkpoint.last_record_id if model_checkpoint else None,
         )
 
@@ -762,46 +772,36 @@ async def get_errors_summary(
 @app.get("/api/admin/sources/{source}/auth/status", response_model=AuthStatusResponse)
 async def get_auth_status(
     source: str,
-    t3k_session: AsyncSession = Depends(get_t3k_db_session),
 ) -> AuthStatusResponse:
-    """Get OAuth token validity status for a source.
-
-    Args:
-        source: Source name (e.g., "t3k")
-        t3k_session: T3K database session (injected)
-
-    Returns:
-        OAuth token validity and expiry
-
-    Raises:
-        HTTPException: 404 if source is unknown
-
-    Note:
-        No authentication required - access controlled at network level.
-    """
+    """Get auth status for a source by reading the auth file."""
     validate_source(source)
 
-    # Query the most recent OAuth token
-    stmt = select(OAuthToken).order_by(OAuthToken.created_at.desc()).limit(1)
-    result = await t3k_session.execute(stmt)
-    token = result.scalar_one_or_none()
+    import json
+    import os
 
-    if token is None:
-        return AuthStatusResponse(
-            valid=False,
-            expires_at=None,
-        )
+    from core.domain.auth_gate import check_auth_status
 
-    # Check if token is expired — ensure timezone-aware comparison
-    now = datetime.now(UTC)
-    expires_at = token.expires_at
-    if expires_at is not None and expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=UTC)
-    is_valid = expires_at is not None and expires_at > now
+    auth_file_path = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
+    status = check_auth_status(auth_file_path)
+
+    # Read expires_at from auth file if available
+    expires_at = None
+    try:
+        with open(auth_file_path) as f:
+            data = json.load(f)
+        expires_at = data.get("expires_at")
+    except (json.JSONDecodeError, OSError):
+        pass
+
+    message = None
+    if status.needs_login():
+        message = "Auth expired — run `just t3k-login`"
 
     return AuthStatusResponse(
-        valid=is_valid,
-        expires_at=token.expires_at.isoformat() if token.expires_at else None,
+        status=status.value,
+        can_proceed=status.can_proceed(),
+        expires_at=expires_at,
+        message=message,
     )
 
 

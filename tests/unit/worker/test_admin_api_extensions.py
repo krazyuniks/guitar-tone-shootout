@@ -17,12 +17,14 @@ Tests for new endpoints added to apps/worker/src/worker/admin.py:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+    from pathlib import Path
 
     from redis.asyncio import Redis
 
@@ -36,7 +38,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from source_t3k.adapters.outbound.models import Base as T3KBase
+from source_t3k.adapters.outbound.models import SyncCheckpoint
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job
 from worker.admin import app, get_db_session, get_redis_client, get_t3k_db_session
@@ -69,9 +71,10 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create an in-memory SQLite database for testing."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
-        # Create both Core and T3K tables
+        # Create Core tables + only the T3K table needed (SyncCheckpoint).
+        # T3KToneStaging uses PostgreSQL ARRAY columns incompatible with SQLite.
         await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(T3KBase.metadata.create_all)
+        await conn.run_sync(SyncCheckpoint.__table__.create)
     yield engine
     await engine.dispose()
 
@@ -219,7 +222,7 @@ class TestSourceSyncStatus:
         # Checkpoint may be null or an object
         if data.get("checkpoint") is not None:
             checkpoint = data["checkpoint"]
-            assert "last_pack_id" in checkpoint or "last_model_id" in checkpoint
+            assert "last_tone_id" in checkpoint or "last_model_id" in checkpoint
 
     async def test_returns_404_for_unknown_source(self, client: AsyncClient) -> None:
         """GET /api/admin/sources/unknown/sync/status returns 404."""
@@ -336,24 +339,58 @@ class TestSourceErrorsSummary:
 class TestSourceAuthStatus:
     """Tests for GET /api/admin/sources/{source}/auth/status endpoint."""
 
-    async def test_returns_oauth_token_validity(self, client: AsyncClient) -> None:
-        """GET /api/admin/sources/t3k/auth/status returns token validity."""
+    async def test_returns_valid_status_from_auth_file(
+        self, client: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET /api/admin/sources/t3k/auth/status returns status from auth file."""
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text(
+            json.dumps(
+                {
+                    "auth_status": "valid",
+                    "expires_at": "2099-01-01T00:00:00+00:00",
+                }
+            )
+        )
+        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
+
         response = await client.get("/api/admin/sources/t3k/auth/status")
 
         assert response.status_code == 200
         data = response.json()
-        assert "valid" in data
-        assert isinstance(data["valid"], bool)
+        assert data["status"] == "valid"
+        assert data["can_proceed"] is True
+        assert data["expires_at"] == "2099-01-01T00:00:00+00:00"
 
-    async def test_includes_token_expiry_when_valid(self, client: AsyncClient) -> None:
-        """GET /api/admin/sources/t3k/auth/status includes expiry when valid."""
+    async def test_returns_login_required_when_auth_unhealthy(
+        self, client: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET /api/admin/sources/t3k/auth/status returns login_required."""
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text(json.dumps({"auth_status": "login_required"}))
+        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
+
         response = await client.get("/api/admin/sources/t3k/auth/status")
 
         assert response.status_code == 200
         data = response.json()
-        # Expiry may be null if token is invalid or not set
-        if data.get("expires_at") is not None:
-            assert isinstance(data["expires_at"], str)  # ISO 8601 datetime
+        assert data["status"] == "login_required"
+        assert data["can_proceed"] is False
+        assert data["message"] is not None
+        assert "t3k-login" in data["message"]
+
+    async def test_returns_unknown_when_auth_file_missing(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET /api/admin/sources/t3k/auth/status returns unknown when file missing."""
+        monkeypatch.setenv("GTS_AUTH_FILE", "/nonexistent/auth.json")
+
+        response = await client.get("/api/admin/sources/t3k/auth/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "unknown"
+        assert data["can_proceed"] is False
 
     async def test_returns_404_for_unknown_source(self, client: AsyncClient) -> None:
         """GET /api/admin/sources/unknown/auth/status returns 404."""
@@ -551,8 +588,8 @@ class TestUnknownSourceHandling:
             elif method == "POST":
                 response = await client.post(endpoint)
 
-            assert response.status_code == 404, (
-                f"{method} {endpoint} should return 404 for unknown source"
-            )
+            assert (
+                response.status_code == 404
+            ), f"{method} {endpoint} should return 404 for unknown source"
             data = response.json()
             assert "detail" in data, f"{method} {endpoint} should have detail message"

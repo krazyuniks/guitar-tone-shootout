@@ -67,7 +67,7 @@ class EnqueueResponse(BaseModel):
 class SyncCheckpointInfo(BaseModel):
     """Checkpoint information for sync status."""
 
-    last_pack_id: str | None = None
+    last_tone_id: str | None = None
     last_model_id: str | None = None
 
 
@@ -109,8 +109,10 @@ class ErrorsSummaryResponse(BaseModel):
 class AuthStatusResponse(BaseModel):
     """Response for auth status endpoint."""
 
-    valid: bool
-    expires_at: str | None = None  # ISO 8601 datetime
+    status: str  # SourceAuthStatus value
+    can_proceed: bool
+    expires_at: str | None = None
+    message: str | None = None
 
 
 class PendingRetriesCountResponse(BaseModel):
