@@ -25,10 +25,10 @@ def _make_auth_file(tmp_path: Path, fernet: Fernet, **overrides) -> Path:
 
 
 class TestTokenManagerAuthStatus:
-    def test_load_sets_auth_status_valid(self, tmp_path: Path) -> None:
+    def test_load_does_not_overwrite_auth_status(self, tmp_path: Path) -> None:
         key = Fernet.generate_key()
         fernet = Fernet(key)
-        auth_file = _make_auth_file(tmp_path, fernet)
+        auth_file = _make_auth_file(tmp_path, fernet, auth_status="login_required")
 
         manager = T3KTokenManager(
             auth_file_path=str(auth_file),
@@ -38,7 +38,7 @@ class TestTokenManagerAuthStatus:
         manager._load_from_auth_file()
 
         data = json.loads(auth_file.read_text())
-        assert data["auth_status"] == "valid"
+        assert data["auth_status"] == "login_required"
 
     def test_save_sets_auth_status_valid(self, tmp_path: Path) -> None:
         key = Fernet.generate_key()

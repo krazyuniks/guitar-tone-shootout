@@ -14,7 +14,6 @@ from httpx import AsyncClient, MockTransport, Request, Response
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
 from source_t3k.adapters.inbound.exceptions import (
     T3KAPIError,
-    T3KAuthenticationError,
     T3KRateLimitError,
 )
 from source_t3k.adapters.inbound.token_manager import T3KTokenManager
@@ -55,6 +54,8 @@ def _make_token_manager() -> T3KTokenManager:
 def _make_client(handler) -> T3KAPIClient:
     """Create a T3KAPIClient wired to a MockTransport handler."""
     tm = _make_token_manager()
+    # Wire token manager's client to same mock so refresh calls go through handler
+    tm._client = AsyncClient(transport=MockTransport(handler))
     client = T3KAPIClient(
         token_manager=tm,
         base_url="https://t3k.test",
@@ -201,7 +202,7 @@ class TestGetUsers:
 
 class TestErrorHandling:
     @pytest.mark.asyncio
-    async def test_raises_auth_error_on_401(self) -> None:
+    async def test_raises_error_on_401_after_refresh_fails(self) -> None:
         call_count = 0
 
         def handler(request: Request) -> Response:
@@ -211,10 +212,10 @@ class TestErrorHandling:
 
         client = _make_client(handler)
 
-        with pytest.raises(T3KAuthenticationError):
+        with pytest.raises(T3KAPIError):
             await client.get_tones()
 
-        # Should have retried once after clearing token
+        # 1 API call + 1 refresh attempt = 2
         assert call_count == 2
 
     @pytest.mark.asyncio

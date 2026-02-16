@@ -146,7 +146,7 @@ class T3KAPIClient:
                 return await self._circuit_breaker.call(make_request)
             except T3KAuthenticationError:
                 logger.warning("T3K 401 — refreshing token and retrying")
-                self._token_manager._access_token = None
+                await self._token_manager._refresh()
                 return await self._circuit_breaker.call(make_request)
             except T3KRateLimitError:
                 if attempt >= max_retries:

@@ -113,7 +113,6 @@ class T3KTokenManager:
             # No expiry info — assume valid for 1 hour from now
             self._expires_at = time.time() + 3600
 
-        self._update_auth_status_field(SourceAuthStatus.VALID)
         logger.info("Loaded T3K tokens from auth file")
 
     async def _refresh(self) -> None:
