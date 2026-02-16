@@ -31,8 +31,8 @@ class RateLimiter:
             raise ValueError("requests_per_second must be positive")
 
         self._requests_per_second = requests_per_second
-        self._max_tokens = requests_per_second
-        self._tokens = requests_per_second
+        self._max_tokens = max(1.0, requests_per_second)
+        self._tokens = max(1.0, requests_per_second)
         self._last_update = time.monotonic()
         self._lock = asyncio.Lock()
 

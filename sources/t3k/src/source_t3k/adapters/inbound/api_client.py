@@ -4,6 +4,8 @@ HTTP client for the Tone3000 REST API using httpx. Implements per-endpoint
 rate limiting and circuit breaker pattern for resilience.
 """
 
+import asyncio
+import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any, TypeVar
@@ -11,365 +13,272 @@ from typing import Any, TypeVar
 from httpx import AsyncClient
 
 from source_t3k.adapters.inbound.circuit_breaker import CircuitBreaker
-from source_t3k.adapters.inbound.exceptions import T3KAPIError, T3KRateLimitError
+from source_t3k.adapters.inbound.exceptions import (
+    T3KAPIError,
+    T3KAuthenticationError,
+    T3KRateLimitError,
+)
 from source_t3k.adapters.inbound.rate_limiter import RateLimiter
-from source_t3k.domain.entities import T3KCreator, T3KModel, T3KPack
-from source_t3k.domain.value_objects import T3KPackType, T3KPlatform
+from source_t3k.adapters.inbound.token_manager import T3KTokenManager
+from source_t3k.adapters.inbound.vercel_solver import is_vercel_challenge, solve_challenge
+from source_t3k.domain.entities import T3KModel, T3KTone, T3KUser
+from source_t3k.domain.value_objects import T3KGearKind, T3KPlatform
 
 T = TypeVar("T")
+logger = logging.getLogger(__name__)
 
 
 class T3KAPIClient:
     """Async HTTP client for the Tone3000 REST API.
 
-    Provides methods to fetch packs, models, and creators from the T3K API.
+    Provides methods to fetch tones, models, and users from the T3K API.
     Includes rate limiting and circuit breaker for resilience.
-
-    Attributes:
-        base_url: Base URL of the T3K API
-        api_key: API key for authentication
     """
 
     def __init__(
         self,
-        base_url: str,
-        api_key: str,
-        list_requests_per_second: float = 10.0,
-        detail_requests_per_second: float = 30.0,
+        token_manager: T3KTokenManager,
+        base_url: str = "https://www.tone3000.com",
+        requests_per_second: float = 0.75,
         circuit_breaker_threshold: int = 5,
         circuit_breaker_timeout: float = 30.0,
+        retry_base_wait: float = 30.0,
     ) -> None:
-        """Initialize T3K API client.
-
-        Args:
-            base_url: Base URL of the T3K API
-            api_key: API key for authentication
-            list_requests_per_second: Rate limit for list endpoints
-            detail_requests_per_second: Rate limit for detail endpoints
-            circuit_breaker_threshold: Failures before circuit opens
-            circuit_breaker_timeout: Seconds before circuit enters half-open
-        """
+        self._token_manager = token_manager
         self._base_url = base_url.rstrip("/")
-        self._api_key = api_key
-        self._client = AsyncClient()
+        self._retry_base_wait = retry_base_wait
+        self._client = AsyncClient(
+            headers={
+                "User-Agent": "GuitarToneShootout/1.0 (sync; +https://github.com/krazyuniks/guitar-tone-shootout)",
+                "Accept": "application/json",
+            },
+        )
 
-        # Rate limiters for different endpoint types
-        self._list_rate_limiter = RateLimiter(requests_per_second=list_requests_per_second)
-        self._detail_rate_limiter = RateLimiter(requests_per_second=detail_requests_per_second)
+        self._rate_limiter = RateLimiter(requests_per_second=requests_per_second)
 
-        # Circuit breaker for all requests
         self._circuit_breaker = CircuitBreaker(
             failure_threshold=circuit_breaker_threshold,
             timeout_seconds=circuit_breaker_timeout,
         )
 
-    def _get_auth_headers(self) -> dict[str, str]:
-        """Get authentication headers for API requests.
+    async def _get_auth_headers(self) -> dict[str, str]:
+        """Get authentication headers with a valid JWT."""
+        token = await self._token_manager.get_access_token()
+        return {"Authorization": f"Bearer {token}"}
 
-        Returns:
-            Dictionary with Authorization header
+    async def get_tones(
+        self, page: int = 1, page_size: int = 50, sort: str = "newest"
+    ) -> list[T3KTone]:
+        """Fetch a page of tones from the T3K API.
+
+        Uses GET /api/v1/tones/search with pagination.
         """
-        return {"Authorization": f"Bearer {self._api_key}"}
+        await self._rate_limiter.acquire()
 
-    async def get_packs(self, page: int, per_page: int) -> list[T3KPack]:
-        """Fetch a page of packs from the T3K API.
-
-        Args:
-            page: Page number (1-indexed)
-            per_page: Number of items per page
-
-        Returns:
-            List of T3KPack entities
-
-        Raises:
-            T3KRateLimitError: If rate limit is exceeded (HTTP 429)
-            T3KAPIError: If API returns an error response
-        """
-        await self._list_rate_limiter.acquire()
-
-        async def make_request() -> list[T3KPack]:
+        async def make_request() -> list[T3KTone]:
+            headers = await self._get_auth_headers()
             response = await self._client.get(
-                f"{self._base_url}/packs",
-                params={"page": page, "per_page": per_page},
-                headers=self._get_auth_headers(),
+                f"{self._base_url}/api/v1/tones/search",
+                params={"page": page, "page_size": page_size, "sort": sort},
+                headers=headers,
             )
-            return self._handle_response(response, self._parse_packs)
+            return self._handle_response(response, self._parse_tones)
 
-        try:
-            return await self._circuit_breaker.call(make_request)
-        except Exception as e:
-            if "Circuit breaker" in str(e):
-                raise T3KAPIError(str(e)) from e
-            raise
+        return await self._call_with_retry(make_request)
 
-    async def get_pack(self, pack_id: str) -> T3KPack:
-        """Fetch a single pack by ID from the T3K API.
+    async def get_models(self, tone_id: int) -> list[T3KModel]:
+        """Fetch all models for a tone from the T3K API.
 
-        Args:
-            pack_id: T3K pack ID
-
-        Returns:
-            T3KPack entity
-
-        Raises:
-            T3KRateLimitError: If rate limit is exceeded (HTTP 429)
-            T3KAPIError: If API returns an error response or pack not found
+        Uses GET /api/v1/models?tone_id=N with pagination (max 100 per page).
         """
-        await self._detail_rate_limiter.acquire()
+        all_models: list[T3KModel] = []
+        page = 1
 
-        async def make_request() -> T3KPack:
-            response = await self._client.get(
-                f"{self._base_url}/packs/{pack_id}",
-                headers=self._get_auth_headers(),
-            )
-            return self._handle_response(response, self._parse_pack)
+        while True:
+            await self._rate_limiter.acquire()
 
-        try:
-            return await self._circuit_breaker.call(make_request)
-        except Exception as e:
-            if "Circuit breaker" in str(e):
-                raise T3KAPIError(str(e)) from e
-            raise
+            current_page = page
 
-    async def get_models(self, pack_id: str) -> list[T3KModel]:
-        """Fetch all models for a pack from the T3K API.
+            async def make_request(pg: int = current_page) -> dict:
+                headers = await self._get_auth_headers()
+                response = await self._client.get(
+                    f"{self._base_url}/api/v1/models",
+                    params={"tone_id": tone_id, "page": pg, "page_size": 100},
+                    headers=headers,
+                )
+                return self._handle_response(response, lambda d: d)
 
-        Args:
-            pack_id: T3K pack ID
+            data = await self._call_with_retry(make_request)
+            page_models = self._parse_models(data)
+            all_models.extend(page_models)
 
-        Returns:
-            List of T3KModel entities
+            total = data.get("total", 0)
+            if not page_models or len(all_models) >= total or data.get("has_next") is False:
+                break
 
-        Raises:
-            T3KRateLimitError: If rate limit is exceeded (HTTP 429)
-            T3KAPIError: If API returns an error response
+            page += 1
+
+        return all_models
+
+    async def get_users(self, page: int = 1, page_size: int = 50) -> list[T3KUser]:
+        """Fetch a page of users from the T3K API.
+
+        Uses GET /api/v1/users.
         """
-        await self._detail_rate_limiter.acquire()
+        await self._rate_limiter.acquire()
 
-        async def make_request() -> list[T3KModel]:
+        async def make_request() -> list[T3KUser]:
+            headers = await self._get_auth_headers()
             response = await self._client.get(
-                f"{self._base_url}/packs/{pack_id}/models",
-                headers=self._get_auth_headers(),
+                f"{self._base_url}/api/v1/users",
+                params={"page": page, "page_size": page_size},
+                headers=headers,
             )
-            return self._handle_response(response, self._parse_models)
+            return self._handle_response(response, self._parse_users)
 
-        try:
-            return await self._circuit_breaker.call(make_request)
-        except Exception as e:
-            if "Circuit breaker" in str(e):
-                raise T3KAPIError(str(e)) from e
-            raise
+        return await self._call_with_retry(make_request)
 
-    async def get_creators(self, page: int, per_page: int) -> list[T3KCreator]:
-        """Fetch a page of creators from the T3K API.
-
-        Args:
-            page: Page number (1-indexed)
-            per_page: Number of items per page
-
-        Returns:
-            List of T3KCreator entities
-
-        Raises:
-            T3KRateLimitError: If rate limit is exceeded (HTTP 429)
-            T3KAPIError: If API returns an error response
-        """
-        await self._list_rate_limiter.acquire()
-
-        async def make_request() -> list[T3KCreator]:
-            response = await self._client.get(
-                f"{self._base_url}/creators",
-                params={"page": page, "per_page": per_page},
-                headers=self._get_auth_headers(),
-            )
-            return self._handle_response(response, self._parse_creators)
-
-        try:
-            return await self._circuit_breaker.call(make_request)
-        except Exception as e:
-            if "Circuit breaker" in str(e):
-                raise T3KAPIError(str(e)) from e
-            raise
+    async def _call_with_retry(self, make_request: Callable[..., Any]) -> Any:
+        """Call via circuit breaker, with retry on 401, backoff on 429, and Vercel challenge solving."""
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._circuit_breaker.call(make_request)
+            except T3KAuthenticationError:
+                logger.warning("T3K 401 — refreshing token and retrying")
+                self._token_manager._access_token = None
+                return await self._circuit_breaker.call(make_request)
+            except T3KRateLimitError:
+                if attempt >= max_retries:
+                    raise
+                wait = self._retry_base_wait * (2**attempt)
+                logger.warning(
+                    "T3K 429 — backing off %ds (attempt %d/%d)", wait, attempt + 1, max_retries
+                )
+                await asyncio.sleep(wait)
+            except T3KAPIError as e:
+                if "Vercel challenge solved" in str(e) and attempt < max_retries:
+                    logger.info(
+                        "Retrying after Vercel challenge solve (attempt %d/%d)",
+                        attempt + 1,
+                        max_retries,
+                    )
+                    await asyncio.sleep(2)
+                    continue
+                if "Circuit breaker" in str(e):
+                    raise
+                raise
+            except Exception as e:
+                if "Circuit breaker" in str(e):
+                    raise T3KAPIError(str(e)) from e
+                raise
+        raise T3KAPIError("Request failed after retries")
 
     def _handle_response(self, response: Any, parser: Callable[[dict[str, Any]], T]) -> T:
-        """Handle API response and parse data.
+        """Handle API response, raising typed exceptions on errors."""
+        if response.status_code == 401:
+            raise T3KAuthenticationError("T3K API returned 401")
 
-        Args:
-            response: httpx Response object
-            parser: Parser function for response data
-
-        Returns:
-            Parsed data from parser function
-
-        Raises:
-            T3KRateLimitError: If rate limit is exceeded (HTTP 429)
-            T3KAPIError: If API returns an error response or parsing fails
-        """
         if response.status_code == 429:
-            error_msg = "Rate limit exceeded"
-            try:
-                error_data = response.json()
-                if "error" in error_data:
-                    error_msg = error_data["error"]
-            except Exception:
-                pass
-            raise T3KRateLimitError(error_msg)
+            raise T3KRateLimitError("Rate limit exceeded")
 
         if response.status_code >= 400:
+            body = response.text
+            if is_vercel_challenge(response.status_code, body):
+                logger.warning("Vercel challenge detected — attempting headless solve")
+                if solve_challenge(self._base_url):
+                    raise T3KAPIError("Vercel challenge solved — retry request")
+                raise T3KAPIError("Vercel challenge could not be solved")
+
             error_msg = f"API error: {response.status_code}"
             try:
                 error_data = response.json()
                 if "error" in error_data:
                     error_msg = error_data["error"]
+                else:
+                    error_msg = f"API error: {response.status_code} — {error_data}"
             except Exception:
-                pass
+                error_msg = f"API error: {response.status_code} — {body[:200]}"
+            logger.error(
+                "T3K API %d: %s %s",
+                response.status_code,
+                response.request.method,
+                response.request.url,
+            )
             raise T3KAPIError(error_msg)
 
-        try:
-            data = response.json()
-            return parser(data)
-        except Exception as e:
-            raise T3KAPIError(f"Invalid JSON response: {e}") from e
+        data = response.json()
+        return parser(data)
 
-    def _parse_packs(self, data: dict[str, Any]) -> list[T3KPack]:
-        """Parse packs list from API response.
+    # ── Parsers ──────────────────────────────────────────────────────────
 
-        Args:
-            data: API response data
+    def _parse_tones(self, data: dict[str, Any]) -> list[T3KTone]:
+        """Parse tones list — expects {"data": [...]}."""
+        return [self._parse_tone_data(item) for item in data["data"]]
 
-        Returns:
-            List of T3KPack entities
+    def _parse_tone_data(self, d: dict[str, Any]) -> T3KTone:
+        user_data = d.get("user")
+        user = self._parse_user_data(user_data) if user_data else None
 
-        Raises:
-            T3KAPIError: If response structure is invalid
-        """
-        if "items" not in data:
-            raise T3KAPIError("Invalid JSON: missing 'items' field")
-
-        return [self._parse_pack_data(item) for item in data["items"]]
-
-    def _parse_pack(self, data: dict[str, Any]) -> T3KPack:
-        """Parse single pack from API response.
-
-        Args:
-            data: API response data
-
-        Returns:
-            T3KPack entity
-
-        Raises:
-            T3KAPIError: If response structure is invalid
-        """
-        return self._parse_pack_data(data)
-
-    def _parse_pack_data(self, data: dict[str, Any]) -> T3KPack:
-        """Parse pack data from raw dictionary.
-
-        Args:
-            data: Raw pack data
-
-        Returns:
-            T3KPack entity
-
-        Raises:
-            T3KAPIError: If data structure is invalid
-        """
-        try:
-            return T3KPack(
-                id=data["id"],
-                name=data["name"],
-                slug=data["slug"],
-                creator_id=data["creator_id"],
-                description=data["description"],
-                thumbnail_url=data["thumbnail_url"],
-                platform=T3KPlatform(data["platform"]),
-                pack_type=T3KPackType(data["pack_type"]),
-                created_at=datetime.fromisoformat(data["created_at"].replace("Z", "+00:00")),
-                updated_at=datetime.fromisoformat(data["updated_at"].replace("Z", "+00:00")),
-            )
-        except (KeyError, ValueError) as e:
-            raise T3KAPIError(f"Invalid JSON: {e}") from e
+        return T3KTone(
+            id=int(d["id"]),
+            title=d.get("title", ""),
+            description=d.get("description", ""),
+            tags=_extract_names(d.get("tags", [])),
+            makes=_extract_names(d.get("makes", [])),
+            gear=T3KGearKind(d.get("gear", "amp")),
+            platform=T3KPlatform(d.get("platform", "nam")),
+            models_count=d.get("models_count", 0),
+            favorites_count=d.get("favorites_count", 0),
+            downloads_count=d.get("downloads_count", 0),
+            images=d.get("images", []),
+            user_id=str(d.get("user_id", "")),
+            user=user,
+            url=d.get("url", ""),
+            created_at=_parse_datetime(d.get("created_at", "")),
+            updated_at=_parse_datetime(d.get("updated_at", "")),
+        )
 
     def _parse_models(self, data: dict[str, Any]) -> list[T3KModel]:
-        """Parse models list from API response.
+        """Parse models list — expects {"data": [...]}."""
+        return [self._parse_model_data(item) for item in data["data"]]
 
-        Args:
-            data: API response data
+    def _parse_model_data(self, d: dict[str, Any]) -> T3KModel:
+        return T3KModel(
+            id=int(d["id"]),
+            tone_id=int(d.get("tone_id", 0)),
+            user_id=str(d.get("user_id", "")),
+            name=d.get("name", ""),
+            model_url=d.get("model_url", ""),
+            size=d.get("size", "standard"),
+            created_at=_parse_datetime(d.get("created_at", "")),
+            updated_at=_parse_datetime(d.get("updated_at", "")),
+        )
 
-        Returns:
-            List of T3KModel entities
+    def _parse_users(self, data: dict[str, Any]) -> list[T3KUser]:
+        """Parse users list — expects {"data": [...]}."""
+        return [self._parse_user_data(item) for item in data["data"]]
 
-        Raises:
-            T3KAPIError: If response structure is invalid
-        """
-        if "items" not in data:
-            raise T3KAPIError("Invalid JSON: missing 'items' field")
+    def _parse_user_data(self, d: dict[str, Any]) -> T3KUser:
+        return T3KUser(
+            id=str(d["id"]),
+            username=d.get("username", ""),
+            avatar_url=d.get("avatar_url", ""),
+            bio=d.get("bio", ""),
+            url=d.get("url", ""),
+        )
 
-        return [self._parse_model_data(item) for item in data["items"]]
 
-    def _parse_model_data(self, data: dict[str, Any]) -> T3KModel:
-        """Parse model data from raw dictionary.
+def _extract_names(items: list[Any]) -> list[str]:
+    """Extract name strings from API tag/make objects.
 
-        Args:
-            data: Raw model data
+    The T3K API returns tags and makes as [{"name": "foo"}, ...].
+    """
+    return [item["name"] if isinstance(item, dict) else str(item) for item in items]
 
-        Returns:
-            T3KModel entity
 
-        Raises:
-            T3KAPIError: If data structure is invalid
-        """
-        try:
-            return T3KModel(
-                id=data["id"],
-                pack_id=data["pack_id"],
-                name=data["name"],
-                filename=data["filename"],
-                file_size=data["file_size"],
-                download_url=data["download_url"],
-                checksum=data["checksum"],
-                created_at=datetime.fromisoformat(data["created_at"].replace("Z", "+00:00")),
-                updated_at=datetime.fromisoformat(data["updated_at"].replace("Z", "+00:00")),
-            )
-        except (KeyError, ValueError) as e:
-            raise T3KAPIError(f"Invalid JSON: {e}") from e
-
-    def _parse_creators(self, data: dict[str, Any]) -> list[T3KCreator]:
-        """Parse creators list from API response.
-
-        Args:
-            data: API response data
-
-        Returns:
-            List of T3KCreator entities
-
-        Raises:
-            T3KAPIError: If response structure is invalid
-        """
-        if "items" not in data:
-            raise T3KAPIError("Invalid JSON: missing 'items' field")
-
-        return [self._parse_creator_data(item) for item in data["items"]]
-
-    def _parse_creator_data(self, data: dict[str, Any]) -> T3KCreator:
-        """Parse creator data from raw dictionary.
-
-        Args:
-            data: Raw creator data
-
-        Returns:
-            T3KCreator entity
-
-        Raises:
-            T3KAPIError: If data structure is invalid
-        """
-        try:
-            return T3KCreator(
-                id=data["id"],
-                username=data["username"],
-                display_name=data["display_name"],
-                avatar_url=data["avatar_url"],
-                profile_url=data["profile_url"],
-            )
-        except (KeyError, ValueError) as e:
-            raise T3KAPIError(f"Invalid JSON: {e}") from e
+def _parse_datetime(value: str) -> datetime:
+    """Parse ISO 8601 datetime string, handling Z suffix."""
+    if not value:
+        return datetime.min
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
