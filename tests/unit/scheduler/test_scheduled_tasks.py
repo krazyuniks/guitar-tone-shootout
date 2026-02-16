@@ -468,10 +468,11 @@ class TestSchedulerDatabaseIntegration:
         session.add(job_model)
         await session.commit()
 
-        # Run task (should query database)
+        # Run task (should query database via raw SQL)
         await monitor_stale_jobs()
 
-        # Verify database was accessed (job status changed)
+        # Expire ORM cache so refresh re-reads from DB (raw SQL bypasses identity map)
+        session.expire_all()
         result = await session.execute(select(JobModel).where(JobModel.id == job_entity.id))
         updated_job = result.scalar_one()
         assert updated_job.status != JobStatus.RUNNING.value
@@ -498,10 +499,11 @@ class TestSchedulerDatabaseIntegration:
         session.add(job_model)
         await session.commit()
 
-        # Run task (should query database)
+        # Run task (should query database via raw SQL)
         await process_pending_retries()
 
-        # Verify database was accessed (job status changed)
+        # Expire ORM cache so refresh re-reads from DB (raw SQL bypasses identity map)
+        session.expire_all()
         result = await session.execute(select(JobModel).where(JobModel.id == job_entity.id))
         updated_job = result.scalar_one()
         assert updated_job.status == JobStatus.PENDING.value

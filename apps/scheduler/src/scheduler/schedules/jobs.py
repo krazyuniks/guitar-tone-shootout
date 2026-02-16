@@ -7,22 +7,23 @@ This module defines scheduled tasks that run periodically to:
 - Ensure T3K source sync is running
 """
 
+import logging
 import os
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import redis.asyncio as redis
-from sqlalchemy import select, update
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from core.domain.value_objects.job_status import JobStatus
 from scheduler.db import get_session
 from scheduler.lock import DistributedLock
-from webapp.adapters.persistence.models.job import Job as JobModel
-from worker.jobs.source_sync import handle_source_sync
 
 # Test hooks: allows tests to inject a database engine or session
 _test_engine: AsyncEngine | None = None
 _test_session: AsyncSession | None = None
+logger = logging.getLogger(__name__)
 
 
 class _Schedule:
@@ -33,11 +34,6 @@ class _Schedule:
     """
 
     def __init__(self, seconds: int) -> None:
-        """Initialize schedule.
-
-        Args:
-            seconds: Interval in seconds
-        """
         self.seconds = seconds
 
 
@@ -50,112 +46,62 @@ async def monitor_stale_jobs(db_engine: AsyncEngine | None = None) -> None:
     Args:
         db_engine: Optional database engine (for testing). If None, uses registered engine.
     """
-    # Calculate stale threshold (2 minutes ago)
     stale_threshold = datetime.now(UTC) - timedelta(minutes=2)
 
-    async def _do_update(session: AsyncSession) -> None:
-        stmt = (
-            update(JobModel)
-            .where(
-                JobModel.status == JobStatus.RUNNING.value,
-                JobModel.last_heartbeat < stale_threshold,
-            )
-            .values(
-                status=JobStatus.DEAD_LETTERED,
-                error="Stale heartbeat detected: worker failed to update heartbeat within 2 minutes",
-                completed_at=datetime.now(UTC),
-            )
-        )
-        await session.execute(stmt)
+    stmt = text("""
+        UPDATE jobs SET status = :dead_status, error = :error, completed_at = :now
+        WHERE status = :running_status AND last_heartbeat < :threshold
+    """)
+    params = {
+        "dead_status": JobStatus.DEAD_LETTERED.value,
+        "error": "Stale heartbeat detected: worker failed to update heartbeat within 2 minutes",
+        "running_status": JobStatus.RUNNING.value,
+        "threshold": stale_threshold,
+        "now": datetime.now(UTC),
+    }
 
     # Use test session if available (shares same connection as test)
     if _test_session is not None:
-        await _do_update(_test_session)
+        await _test_session.execute(stmt, params)
         return
 
-    # Get database engine
-    engine: AsyncEngine
-    if db_engine is not None:
-        engine = db_engine
-    else:
-        from scheduler.db import get_registered_engine
-
-        registered = get_registered_engine()
-        if registered is not None:
-            engine = registered
-        else:
-            import os
-
-            database_url = os.getenv("DATABASE_URL", "")
-            if not database_url:
-                msg = "DATABASE_URL environment variable not set"
-                raise ValueError(msg)
-
-            from sqlalchemy.ext.asyncio import create_async_engine
-
-            engine = create_async_engine(database_url)
-
+    engine = _resolve_engine(db_engine)
     async with get_session(engine) as session:
-        await _do_update(session)
+        await session.execute(stmt, params)
 
 
 async def process_pending_retries(db_engine: AsyncEngine | None = None) -> None:
     """Process pending retries for FAILED jobs.
 
-    Finds FAILED jobs with:
-    - attempt < max_attempts
-    - next_retry_at <= now
-
-    Resets them to PENDING status for retry.
+    Finds FAILED jobs with attempt < max_attempts and next_retry_at <= now,
+    and resets them to PENDING status for retry.
 
     Args:
         db_engine: Optional database engine (for testing). If None, uses registered engine.
     """
     now = datetime.now(UTC)
 
-    async def _do_retry(session: AsyncSession) -> None:
-        select_stmt = select(JobModel).where(
-            JobModel.status == JobStatus.FAILED.value,
-            JobModel.next_retry_at.isnot(None),
-            JobModel.next_retry_at <= now,
-        )
-        result = await session.execute(select_stmt)
-        jobs = result.scalars().all()
-
-        eligible_jobs = [j for j in jobs if j.attempt < j.max_attempts]
-        for job in eligible_jobs:
-            job.status = JobStatus.PENDING
-        await session.flush()
+    stmt = text("""
+        UPDATE jobs SET status = :pending_status
+        WHERE status = :failed_status
+          AND next_retry_at IS NOT NULL
+          AND next_retry_at <= :now
+          AND attempt < max_attempts
+    """)
+    params = {
+        "pending_status": JobStatus.PENDING.value,
+        "failed_status": JobStatus.FAILED.value,
+        "now": now,
+    }
 
     # Use test session if available (shares same connection as test)
     if _test_session is not None:
-        await _do_retry(_test_session)
+        await _test_session.execute(stmt, params)
         return
 
-    # Get database engine
-    engine: AsyncEngine
-    if db_engine is not None:
-        engine = db_engine
-    else:
-        from scheduler.db import get_registered_engine
-
-        registered = get_registered_engine()
-        if registered is not None:
-            engine = registered
-        else:
-            import os
-
-            database_url = os.getenv("DATABASE_URL", "")
-            if not database_url:
-                msg = "DATABASE_URL environment variable not set"
-                raise ValueError(msg)
-
-            from sqlalchemy.ext.asyncio import create_async_engine
-
-            engine = create_async_engine(database_url)
-
+    engine = _resolve_engine(db_engine)
     async with get_session(engine) as session:
-        await _do_retry(session)
+        await session.execute(stmt, params)
 
 
 async def scheduler_heartbeat(lock: DistributedLock | None = None) -> None:
@@ -164,7 +110,6 @@ async def scheduler_heartbeat(lock: DistributedLock | None = None) -> None:
     Args:
         lock: Optional distributed lock instance (for testing). If None, no lock renewal.
     """
-    # Renew distributed lock if provided
     if lock is not None:
         await lock.renew()
 
@@ -183,81 +128,57 @@ async def ensure_source_sync_running(db_engine: AsyncEngine | None = None) -> No
     Args:
         db_engine: Optional database engine (for testing). If None, uses registered engine.
     """
+    lock_key = "t3k:sync:lock"
     redis_client = get_redis_client()
     try:
-        lock_exists = await redis_client.exists("t3k:sync:lock")
+        lock_exists = await redis_client.exists(lock_key)
+        if lock_exists != 0:
+            return
 
-        if lock_exists == 0:
-            sync_enabled = os.getenv("T3K_SYNC_ENABLED", "true").lower() == "true"
-            if sync_enabled:
-                # Import here to avoid circular dependencies
-                from uuid import uuid7
+        sync_enabled = os.getenv("T3K_SYNC_ENABLED", "true").lower() == "true"
+        if not sync_enabled:
+            return
 
-                from core.domain.value_objects.job_status import JobType
-                from scheduler.db import _engine_cache
-
-                # Get database engine
-                engine: AsyncEngine
-                if db_engine is not None:
-                    engine = db_engine
-                else:
-                    # Check worker.db cache first (for tests that register there)
-                    try:
-                        from worker.db import _engine_cache as worker_cache
-
-                        database_url = os.getenv("DATABASE_URL", "")
-                        if database_url and database_url in worker_cache:
-                            engine = worker_cache[database_url]
-                        elif worker_cache:
-                            # Use first registered engine from worker cache
-                            engine = next(iter(worker_cache.values()))
-                        elif database_url in _engine_cache:
-                            engine = _engine_cache[database_url]
-                        elif _engine_cache:
-                            # Use first registered engine from scheduler cache
-                            engine = next(iter(_engine_cache.values()))
-                        else:
-                            # No registered engine, create new one
-                            if not database_url:
-                                msg = "DATABASE_URL environment variable not set"
-                                raise ValueError(msg)
-
-                            from sqlalchemy.ext.asyncio import create_async_engine
-
-                            engine = create_async_engine(database_url)
-                    except ImportError:
-                        # worker.db not available, use scheduler cache only
-                        from scheduler.db import get_registered_engine
-
-                        registered = get_registered_engine()
-                        if registered is not None:
-                            engine = registered
-                        else:
-                            database_url = os.getenv("DATABASE_URL", "")
-                            if not database_url:
-                                msg = "DATABASE_URL environment variable not set"
-                                raise ValueError(msg)
-
-                            from sqlalchemy.ext.asyncio import create_async_engine
-
-                            engine = create_async_engine(database_url)
-
-                # Create Job record
-                job_id = uuid7()
-                async with get_session(engine) as session:
-                    job = JobModel(
-                        id=job_id,
-                        job_type=JobType.SOURCE_SYNC,
-                        user_id=None,  # System-initiated job
-                        status=JobStatus.PENDING,
-                    )
-                    session.add(job)
-                    await session.flush()
-
-                # Dispatch job
-                await handle_source_sync.kiq(job_id)
+        # Dispatch sync via worker admin API (no worker import needed)
+        worker_url = os.getenv("WORKER_ADMIN_URL", "http://worker:8001")
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{worker_url}/api/admin/sources/t3k/sync",
+                timeout=10.0,
+            )
+            if response.status_code < 300:
+                logger.info("Dispatched T3K source sync via admin API")
+            else:
+                logger.warning(
+                    "Failed to dispatch T3K sync: %d %s",
+                    response.status_code,
+                    response.text[:200],
+                )
+    except Exception:
+        logger.exception("Error in ensure_source_sync_running")
     finally:
         await redis_client.aclose()
+
+
+def _resolve_engine(db_engine: AsyncEngine | None) -> AsyncEngine:
+    """Resolve database engine from argument, test hook, or registry."""
+    if db_engine is not None:
+        return db_engine
+
+    from scheduler.db import get_registered_engine
+
+    registered = get_registered_engine()
+    if registered is not None:
+        return registered
+
+    database_url = os.getenv("DATABASE_URL", "")
+    if not database_url:
+        msg = "DATABASE_URL environment variable not set"
+        raise ValueError(msg)
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    return create_async_engine(database_url)
 
 
 # Attach labels to functions for TaskIQ discovery
