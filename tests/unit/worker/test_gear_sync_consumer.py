@@ -75,9 +75,9 @@ def consumer(
     return GearSyncConsumer(
         core_session=core_session,
         t3k_session=t3k_session,
-        pack_queue_name="gear_pack_sync",
-        model_queue_name="gear_model_sync",
-        dead_letter_queue="sync_dead_letter",
+        pack_queue_name="gear_sync",
+        model_queue_name="gear_sync",
+        dead_letter_queue="gear_sync_dlq",
     )
 
 
@@ -148,9 +148,9 @@ class TestPollQueueParamsBug:
         # Verify params are passed as a positional argument (dict) or via bindparams
         has_dict_param = len(call.args) >= 2
         has_bindparams = "bindparams" in _get_method_source("_poll_queue")
-        assert has_dict_param or has_bindparams, (
-            "_poll_queue must pass params as a dict positional arg or use .bindparams()"
-        )
+        assert (
+            has_dict_param or has_bindparams
+        ), "_poll_queue must pass params as a dict positional arg or use .bindparams()"
 
 
 # ---------------------------------------------------------------------------
@@ -194,9 +194,9 @@ class TestArchiveMessageParamsBug:
         # Must have dict param or bindparams
         has_dict_param = len(call.args) >= 2
         has_bindparams = "bindparams" in _get_method_source("_archive_message")
-        assert has_dict_param or has_bindparams, (
-            "_archive_message must pass params as a dict positional arg or use .bindparams()"
-        )
+        assert (
+            has_dict_param or has_bindparams
+        ), "_archive_message must pass params as a dict positional arg or use .bindparams()"
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +208,7 @@ class TestDeadLetterSQLInjectionBug:
     """_dead_letter must use parameterised SQL, not f-string interpolation.
 
     Current code (buggy):
-        stmt = text(f"SELECT pgmq.send('{self.dead_letter_queue}', :message::jsonb)")
+        stmt = text(f"SELECT pgmq.send('{self.dead_letter_queue}', CAST(:message AS jsonb))")
 
     This is vulnerable to SQL injection via the dead_letter_queue name.
     The queue name must be a bind parameter.
@@ -271,32 +271,21 @@ class TestDeadLetterSQLInjectionBug:
 class TestDeadLetterOnHighReadCount:
     """Consumer must dead-letter messages that have been read more than 5 times."""
 
-    def test_poll_pack_queue_dead_letters_high_read_count(self) -> None:
-        """poll_pack_queue moves messages with read_ct > 5 to dead letter queue.
+    def test_poll_and_process_dead_letters_high_read_count(self) -> None:
+        """_poll_and_process moves messages with read_ct > max_retries to dead letter queue."""
+        source = inspect.getsource(GearSyncConsumer._poll_and_process)
 
-        This verifies the logic exists in the source — the threshold is checked
-        BEFORE processing so bad messages don't block the queue.
-        """
-        source = inspect.getsource(GearSyncConsumer.poll_pack_queue)
-
-        assert "read_ct" in source, "poll_pack_queue must check message read_ct"
-        assert "_dead_letter" in source, "poll_pack_queue must call _dead_letter for retries"
-
-    def test_poll_model_queue_dead_letters_high_read_count(self) -> None:
-        """poll_model_queue moves messages with read_ct > 5 to dead letter queue."""
-        source = inspect.getsource(GearSyncConsumer.poll_model_queue)
-
-        assert "read_ct" in source, "poll_model_queue must check message read_ct"
-        assert "_dead_letter" in source, "poll_model_queue must call _dead_letter for retries"
+        assert "read_ct" in source, "_poll_and_process must check message read_ct"
+        assert "_dead_letter" in source, "_poll_and_process must call _dead_letter for retries"
 
     def test_dead_letter_threshold_is_5(self) -> None:
         """The read count threshold before dead-lettering is > 5."""
-        source = inspect.getsource(GearSyncConsumer.poll_pack_queue)
+        source = inspect.getsource(GearSyncConsumer._poll_and_process)
 
-        # The condition should check read_ct > 5
-        assert "read_ct > 5" in source or "read_ct >= 6" in source, (
-            "Dead letter threshold must be read_ct > 5"
-        )
+        # The condition should check read_ct against retry threshold.
+        assert (
+            "read_ct > self.max_retries" in source or "read_ct > 5" in source
+        ), "Dead letter threshold must be read_ct > 5"
 
 
 # ---------------------------------------------------------------------------
@@ -307,24 +296,12 @@ class TestDeadLetterOnHighReadCount:
 class TestDeadLetterOnSchemaFailure:
     """Consumer must dead-letter messages that fail GearSyncRecord validation."""
 
-    def test_pack_queue_catches_processing_errors(self) -> None:
-        """poll_pack_queue catches exceptions during message processing
-        and sends them to the dead letter queue.
+    def test_poll_and_process_catches_processing_errors(self) -> None:
+        """_poll_and_process catches processing exceptions and dead-letters messages."""
+        source = inspect.getsource(GearSyncConsumer._poll_and_process)
 
-        If GearSyncRecord.from_dict() fails (schema validation), the message
-        must be dead-lettered, not silently dropped or left in the queue.
-        """
-        source = inspect.getsource(GearSyncConsumer.poll_pack_queue)
-
-        assert "except" in source, "poll_pack_queue must catch processing exceptions"
-        assert "_dead_letter" in source, "poll_pack_queue must dead-letter failed messages"
-
-    def test_model_queue_catches_processing_errors(self) -> None:
-        """poll_model_queue catches exceptions during message processing."""
-        source = inspect.getsource(GearSyncConsumer.poll_model_queue)
-
-        assert "except" in source, "poll_model_queue must catch processing exceptions"
-        assert "_dead_letter" in source, "poll_model_queue must dead-letter failed messages"
+        assert "except" in source, "_poll_and_process must catch processing exceptions"
+        assert "_dead_letter" in source, "_poll_and_process must dead-letter failed messages"
 
     def test_dead_letter_archives_original_message(self) -> None:
         """_dead_letter must archive the original message from the source queue.
@@ -334,6 +311,6 @@ class TestDeadLetterOnSchemaFailure:
         """
         source = _get_method_source("_dead_letter")
 
-        assert "_archive_message" in source, (
-            "_dead_letter must archive the original message from the source queue"
-        )
+        assert (
+            "_archive_message" in source
+        ), "_dead_letter must archive the original message from the source queue"

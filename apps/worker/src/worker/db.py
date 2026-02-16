@@ -142,6 +142,29 @@ async def get_session(database_url: str | AsyncEngine) -> AsyncGenerator[AsyncSe
 
 
 @asynccontextmanager
+async def get_session_no_tx(database_url: str | AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session without wrapping it in an implicit transaction.
+
+    Use this for long-running workers/consumers that manage explicit commit/rollback
+    boundaries per message or batch.
+    """
+    if isinstance(database_url, AsyncEngine):
+        factory = async_sessionmaker(
+            database_url,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+    else:
+        factory = async_session_factory(database_url)
+
+    session = factory()
+    try:
+        yield session
+    finally:
+        await session.close()
+
+
+@asynccontextmanager
 async def get_core_session() -> AsyncGenerator[AsyncSession, None]:
     """Get an async database session for the gts_core database.
 
@@ -162,6 +185,16 @@ async def get_core_session() -> AsyncGenerator[AsyncSession, None]:
 
     settings = WorkerSettings()  # type: ignore[call-arg]
     async with get_session(settings.database_url) as session:
+        yield session
+
+
+@asynccontextmanager
+async def get_core_session_no_tx() -> AsyncGenerator[AsyncSession, None]:
+    """Get an async database session for gts_core without implicit transaction."""
+    from worker.config import WorkerSettings
+
+    settings = WorkerSettings()  # type: ignore[call-arg]
+    async with get_session_no_tx(settings.database_url) as session:
         yield session
 
 
@@ -191,20 +224,9 @@ async def get_t3k_session() -> AsyncGenerator[AsyncSession, None]:
 
 @asynccontextmanager
 async def get_t3k_session_no_tx() -> AsyncGenerator[AsyncSession, None]:
-    """Get an async T3K database session without an enclosing transaction.
-
-    Unlike get_t3k_session(), this does NOT wrap the session in begin().
-    Useful for long-running sync jobs that manage their own commits.
-
-    Yields:
-        AsyncSession: Database session connected to gts_t3k_source (no auto-transaction)
-    """
+    """Get an async database session for gts_t3k_source without implicit transaction."""
     from worker.config import WorkerSettings
 
     settings = WorkerSettings()  # type: ignore[call-arg]
-    factory = async_session_factory(settings.t3k_database_url)
-    session = factory()
-    try:
+    async with get_session_no_tx(settings.t3k_database_url) as session:
         yield session
-    finally:
-        await session.close()

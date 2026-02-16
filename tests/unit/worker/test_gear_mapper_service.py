@@ -359,3 +359,122 @@ class TestFullDataFlow:
 
         # Two GearModel rows linked to parent Gear
         assert len(gear.models) == 2
+
+
+class TestAggregateSyncRecord:
+    """Tests for aggregate pack+models sync record processing."""
+
+    async def test_process_sync_record_creates_gear_and_models_atomically(
+        self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
+    ) -> None:
+        """Aggregate sync payload should create parent Gear and child GearModel rows."""
+        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
+        source_model_dir.mkdir(parents=True, exist_ok=True)
+        (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
+
+        record = GearSyncRecord(
+            source_name="t3k",
+            source_record_id="pack-001",
+            source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
+            operation=SyncOperation.CREATE,
+            payload={
+                "name": "Aggregate Pack",
+                "slug": "aggregate-pack",
+                "gear_type": "amp",
+                "platform": "nam",
+                "models": [
+                    {
+                        "source_record_id": "model-001",
+                        "filename": "model-001.nam",
+                        "download_url": "https://example.com/model-001.nam",
+                        "checksum": "abc123",
+                        "platform": "nam",
+                        "size": "standard",
+                    }
+                ],
+            },
+        )
+
+        await mapper.process_sync_record(record)
+        await session.flush()
+
+        result = await session.execute(select(Gear).options(joinedload(Gear.models)))
+        gear = result.unique().scalar_one()
+        assert gear.name == "Aggregate Pack"
+        assert len(gear.models) == 1
+        assert gear.models[0].file_path is not None
+
+    async def test_migrated_model_has_completed_download_status(
+        self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
+    ) -> None:
+        """Model with successfully migrated file should have COMPLETED download status."""
+        from core.domain.value_objects.download_status import DownloadStatus
+
+        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
+        source_model_dir.mkdir(parents=True, exist_ok=True)
+        (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
+
+        record = GearSyncRecord(
+            source_name="t3k",
+            source_record_id="pack-001",
+            source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
+            operation=SyncOperation.CREATE,
+            payload={
+                "name": "Status Check Pack",
+                "slug": "status-check-pack",
+                "gear_type": "amp",
+                "platform": "nam",
+                "models": [
+                    {
+                        "source_record_id": "model-001",
+                        "filename": "model-001.nam",
+                        "download_url": "https://example.com/model-001.nam",
+                        "checksum": "abc123",
+                        "platform": "nam",
+                        "size": "standard",
+                    }
+                ],
+            },
+        )
+
+        await mapper.process_sync_record(record)
+        await session.flush()
+
+        result = await session.execute(select(GearModel))
+        model = result.scalar_one()
+        assert model.download_status == DownloadStatus.COMPLETED
+        assert model.file_path is not None
+
+    async def test_process_sync_record_raises_when_model_file_missing(
+        self, mapper: GearMapperService, tmp_path, monkeypatch
+    ) -> None:
+        """Aggregate sync payload should fail if required model file is missing."""
+        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+
+        record = GearSyncRecord(
+            source_name="t3k",
+            source_record_id="pack-001",
+            source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
+            operation=SyncOperation.CREATE,
+            payload={
+                "name": "Aggregate Pack",
+                "slug": "aggregate-pack",
+                "gear_type": "amp",
+                "platform": "nam",
+                "models": [
+                    {
+                        "source_record_id": "model-404",
+                        "filename": "missing.nam",
+                        "download_url": "https://example.com/missing.nam",
+                        "checksum": "abc123",
+                        "platform": "nam",
+                        "size": "standard",
+                    }
+                ],
+            },
+        )
+
+        with pytest.raises(FileNotFoundError):
+            await mapper.process_sync_record(record)

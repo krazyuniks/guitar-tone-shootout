@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from core.records.gear_sync import GearSyncRecord
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
@@ -19,14 +21,29 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from core.records.gear_sync import GearSyncRecord
-
 
 class GearMapperService:
     """Maps GearSyncRecords to Gear/GearModel entities in gts_core."""
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def process_sync_record(self, record: GearSyncRecord) -> None:
+        """Process a generic sync record.
+
+        Supports both:
+        - Aggregate records (pack + models in payload["models"])
+        - Legacy split records (pack-only or model-only)
+        """
+        if isinstance(record.payload.get("models"), list):
+            await self._process_pack_bundle(record)
+            return
+
+        # Backward compatibility for legacy split-message flows.
+        if "pack_id" in record.payload:
+            await self.process_model_sync(record)
+            return
+        await self.process_pack_sync(record)
 
     async def process_pack_sync(self, record: GearSyncRecord) -> None:
         """Process a gear pack sync record."""
@@ -44,6 +61,72 @@ class GearMapperService:
             await self._update_gear(existing_gear, record)
         else:
             await self._create_gear(record)
+
+    async def _process_pack_bundle(self, record: GearSyncRecord) -> None:
+        """Process a pack sync record containing embedded model payloads."""
+        models_payload = record.payload.get("models")
+        if not isinstance(models_payload, list) or not models_payload:
+            raise ValueError("Aggregate pack sync payload must include non-empty models list")
+
+        existing_gear = await self._lookup_gear_by_source(
+            record.source_name,
+            record.source_record_id,
+        )
+        if (
+            existing_gear
+            and existing_gear.source
+            and record.source_updated_at <= existing_gear.source.source_updated_at
+        ):
+            return
+
+        if existing_gear:
+            await self._update_gear(existing_gear, record)
+            gear = existing_gear
+        else:
+            gear = await self._create_gear(record)
+
+        await self.session.flush()
+        existing_models = await self._lookup_models_for_gear(gear.id)
+        existing_models_by_filename = {
+            model.file_path.rsplit("/", 1)[-1] if model.file_path else "": model
+            for model in existing_models
+        }
+
+        for model_payload in models_payload:
+            filename = str(model_payload.get("filename", ""))
+            if not filename:
+                raise ValueError("Model payload missing filename")
+
+            source_model_id = str(model_payload.get("source_record_id", "")).strip()
+            if not source_model_id:
+                raise ValueError("Model payload missing source_record_id")
+
+            existing_model = existing_models_by_filename.get(filename)
+            if existing_model is not None:
+                update_record = GearSyncRecord(
+                    source_name=record.source_name,
+                    source_record_id=source_model_id,
+                    source_updated_at=record.source_updated_at,
+                    operation=record.operation,
+                    payload=model_payload,
+                )
+                await self._update_model(existing_model, update_record)
+                continue
+
+            create_record = GearSyncRecord(
+                source_name=record.source_name,
+                source_record_id=source_model_id,
+                source_updated_at=record.source_updated_at,
+                operation=record.operation,
+                payload=model_payload,
+            )
+            await self._create_model(gear.id, create_record)
+
+    async def _lookup_models_for_gear(self, gear_id: UUID) -> list[GearModel]:
+        """Get all models currently associated with a gear row."""
+        stmt = select(GearModel).where(GearModel.gear_id == gear_id)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def process_model_sync(self, record: GearSyncRecord) -> None:
         """Process a gear model sync record."""
@@ -100,7 +183,7 @@ class GearMapperService:
         """
         return None
 
-    async def _create_gear(self, record: GearSyncRecord) -> None:
+    async def _create_gear(self, record: GearSyncRecord) -> Gear:
         """Create new Gear and GearSource from sync record."""
         name = record.payload.get("name", "")
         slug = record.payload.get("slug", "")
@@ -126,6 +209,7 @@ class GearMapperService:
         )
         gear_source.gear = gear
         self.session.add(gear_source)
+        return gear
 
     async def _update_gear(self, gear: Gear, record: GearSyncRecord) -> None:
         """Update existing Gear with data from sync record."""
@@ -147,10 +231,15 @@ class GearMapperService:
         checksum = record.payload.get("checksum")
         filename = record.payload.get("filename")
 
+        try:
+            size = ModelSize(size_str)
+        except ValueError:
+            size = ModelSize.STANDARD
+
         model = GearModel(
             gear_id=gear_id,
             platform=Platform(platform_str),
-            size=ModelSize(size_str),
+            size=size,
             download_url=download_url,
             file_hash=checksum,
             download_status=DownloadStatus.PENDING,
@@ -165,6 +254,12 @@ class GearMapperService:
             )
             if file_path:
                 model.file_path = file_path
+                model.download_status = DownloadStatus.COMPLETED
+            else:
+                raise FileNotFoundError(
+                    f"Model file not found for source={record.source_name}, "
+                    f"source_record_id={record.source_record_id}, filename={filename}"
+                )
 
         self.session.add(model)
 
@@ -186,10 +281,9 @@ class GearMapperService:
 
         Returns relative file path if migration succeeded, None otherwise.
         """
-        source_path = Path(
-            f"/app/data/source_downloads/{source_name}/{source_record_id}/{filename}"
-        )
-        dest_path = Path(f"/app/data/models/{model_id}.nam")
+        storage_root = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
+        source_path = storage_root / "source_downloads" / source_name / source_record_id / filename
+        dest_path = storage_root / "models" / f"{model_id}.nam"
 
         dest_path.parent.mkdir(parents=True, exist_ok=True)
 

@@ -5,18 +5,10 @@ from the gts_core database.
 """
 
 import os
-import sys
 from logging.config import fileConfig
-from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
-
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-from source_t3k.adapters.outbound.models import Base  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -34,9 +26,14 @@ if database_url:
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-target_metadata = Base.metadata
+# Model metadata only needed for autogenerate — optional import so that
+# 'upgrade head' can run from any container without source_t3k installed.
+try:
+    from source_t3k.adapters.outbound.models import Base
+
+    target_metadata = Base.metadata
+except ImportError:
+    target_metadata = None
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

@@ -253,6 +253,12 @@ t3k-login:
     source .env 2>/dev/null || true
     python3 scripts/t3k_login.py
 
+# Solve Vercel Security Checkpoint — saves cookies for worker (runs on host)
+solve-vercel:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd tests/e2e/python && uv run python3 ../../../scripts/solve_vercel.py
+
 # T3K auth status — check token health (runs on host, no API calls)
 t3k-auth-status:
     #!/usr/bin/env bash

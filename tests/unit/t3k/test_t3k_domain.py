@@ -4,299 +4,187 @@ from datetime import UTC, datetime
 
 import pytest
 
-from source_t3k.domain.entities import T3KCreator, T3KModel, T3KPack
-from source_t3k.domain.value_objects import T3KPackType, T3KPlatform
+from source_t3k.domain.entities import T3KModel, T3KTone, T3KUser
+from source_t3k.domain.value_objects import T3KGearKind, T3KPlatform
 
 
 class TestT3KPlatform:
     """Test T3KPlatform enum."""
 
-    def test_platform_has_nam_value(self) -> None:
-        """T3KPlatform should have NAM platform."""
+    def test_platform_values(self) -> None:
         assert T3KPlatform.NAM.value == "nam"
-
-    def test_platform_has_aida_x_value(self) -> None:
-        """T3KPlatform should have AIDA-X platform."""
         assert T3KPlatform.AIDA_X.value == "aida_x"
-
-    def test_platform_has_ir_value(self) -> None:
-        """T3KPlatform should have IR platform."""
         assert T3KPlatform.IR.value == "ir"
 
 
-class TestT3KPackType:
-    """Test T3KPackType enum."""
+class TestT3KGearKind:
+    """Test T3KGearKind enum."""
 
-    def test_pack_type_has_amp_value(self) -> None:
-        """T3KPackType should have amp pack type."""
-        assert T3KPackType.AMP.value == "amp"
-
-    def test_pack_type_has_pedal_value(self) -> None:
-        """T3KPackType should have pedal pack type."""
-        assert T3KPackType.PEDAL.value == "pedal"
-
-    def test_pack_type_has_ir_value(self) -> None:
-        """T3KPackType should have IR pack type."""
-        assert T3KPackType.IR.value == "ir"
+    def test_gear_kind_values(self) -> None:
+        assert T3KGearKind.AMP.value == "amp"
+        assert T3KGearKind.PEDAL.value == "pedal"
+        assert T3KGearKind.FULL_RIG.value == "full-rig"
+        assert T3KGearKind.OUTBOARD.value == "outboard"
+        assert T3KGearKind.IR.value == "IR"
 
 
-class TestT3KCreator:
-    """Test T3KCreator dataclass."""
+class TestT3KUser:
+    """Test T3KUser dataclass."""
 
-    def test_creator_creation_with_required_fields(self) -> None:
-        """T3KCreator should be creatable with required fields."""
-        creator_id = "creator-123"
-        username = "testuser"
-        display_name = "Test User"
-        avatar_url = "https://t3k.com/avatar.jpg"
-        profile_url = "https://t3k.com/profile/testuser"
-
-        creator = T3KCreator(
-            id=creator_id,
-            username=username,
-            display_name=display_name,
-            avatar_url=avatar_url,
-            profile_url=profile_url,
-        )
-
-        assert creator.id == creator_id
-        assert creator.username == username
-        assert creator.display_name == display_name
-        assert creator.avatar_url == avatar_url
-        assert creator.profile_url == profile_url
-
-    def test_creator_is_frozen(self) -> None:
-        """T3KCreator should be frozen (immutable)."""
-        creator = T3KCreator(
-            id="creator-123",
+    def test_user_creation(self) -> None:
+        user = T3KUser(
+            id="user-abc",
             username="testuser",
-            display_name="Test User",
             avatar_url="https://t3k.com/avatar.jpg",
-            profile_url="https://t3k.com/profile/testuser",
+            bio="A cool guitarist",
+            url="https://t3k.com/users/testuser",
         )
 
+        assert user.id == "user-abc"
+        assert user.username == "testuser"
+        assert user.bio == "A cool guitarist"
+
+    def test_user_is_frozen(self) -> None:
+        user = T3KUser(id="u1", username="u", avatar_url="", bio="", url="")
         with pytest.raises(AttributeError):
-            creator.username = "newuser"  # type: ignore[misc]
+            user.username = "new"  # type: ignore[misc]
 
-    def test_creator_has_slots(self) -> None:
-        """T3KCreator should use __slots__ for memory efficiency."""
-        creator = T3KCreator(
-            id="creator-123",
-            username="testuser",
-            display_name="Test User",
-            avatar_url="https://t3k.com/avatar.jpg",
-            profile_url="https://t3k.com/profile/testuser",
-        )
-
-        assert hasattr(T3KCreator, "__slots__")
+    def test_user_has_slots(self) -> None:
+        user = T3KUser(id="u1", username="u", avatar_url="", bio="", url="")
+        assert hasattr(T3KUser, "__slots__")
         with pytest.raises(AttributeError):
-            _ = creator.__dict__  # type: ignore[misc]
+            _ = user.__dict__  # type: ignore[misc]
 
 
-class TestT3KPack:
-    """Test T3KPack dataclass."""
+class TestT3KTone:
+    """Test T3KTone dataclass."""
 
-    def test_pack_creation_with_required_fields(self) -> None:
-        """T3KPack should be creatable with required fields."""
-        pack_id = "pack-456"
-        name = "Test Pack"
-        slug = "test-pack"
-        creator_id = "creator-123"
-        description = "A test pack description"
-        thumbnail_url = "https://t3k.com/thumb.jpg"
-        platform = T3KPlatform.NAM
-        pack_type = T3KPackType.AMP
-        created_at = datetime.now(UTC)
-        updated_at = datetime.now(UTC)
-
-        pack = T3KPack(
-            id=pack_id,
-            name=name,
-            slug=slug,
-            creator_id=creator_id,
-            description=description,
-            thumbnail_url=thumbnail_url,
-            platform=platform,
-            pack_type=pack_type,
-            created_at=created_at,
-            updated_at=updated_at,
-        )
-
-        assert pack.id == pack_id
-        assert pack.name == name
-        assert pack.slug == slug
-        assert pack.creator_id == creator_id
-        assert pack.description == description
-        assert pack.thumbnail_url == thumbnail_url
-        assert pack.platform == platform
-        assert pack.pack_type == pack_type
-        assert pack.created_at == created_at
-        assert pack.updated_at == updated_at
-
-    def test_pack_is_frozen(self) -> None:
-        """T3KPack should be frozen (immutable)."""
-        pack = T3KPack(
-            id="pack-456",
-            name="Test Pack",
-            slug="test-pack",
-            creator_id="creator-123",
-            description="A test pack",
-            thumbnail_url="https://t3k.com/thumb.jpg",
+    def test_tone_creation(self) -> None:
+        now = datetime.now(UTC)
+        tone = T3KTone(
+            id=42,
+            title="Awesome Amp",
+            description="A killer tone",
+            tags=["high-gain", "metal"],
+            makes=["Fender"],
+            gear=T3KGearKind.AMP,
             platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            models_count=3,
+            favorites_count=10,
+            downloads_count=100,
+            images=["https://t3k.com/img1.jpg"],
+            user_id="user-abc",
+            user=None,
+            url="https://t3k.com/tones/42",
+            created_at=now,
+            updated_at=now,
         )
 
-        with pytest.raises(AttributeError):
-            pack.name = "New Name"  # type: ignore[misc]
+        assert tone.id == 42
+        assert tone.title == "Awesome Amp"
+        assert tone.tags == ["high-gain", "metal"]
+        assert tone.gear == T3KGearKind.AMP
+        assert tone.platform == T3KPlatform.NAM
 
-    def test_pack_has_slots(self) -> None:
-        """T3KPack should use __slots__ for memory efficiency."""
-        pack = T3KPack(
-            id="pack-456",
-            name="Test Pack",
-            slug="test-pack",
-            creator_id="creator-123",
-            description="A test pack",
-            thumbnail_url="https://t3k.com/thumb.jpg",
+    def test_tone_is_frozen(self) -> None:
+        now = datetime.now(UTC)
+        tone = T3KTone(
+            id=1,
+            title="T",
+            description="",
+            tags=[],
+            makes=[],
+            gear=T3KGearKind.AMP,
             platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            models_count=0,
+            favorites_count=0,
+            downloads_count=0,
+            images=[],
+            user_id="u",
+            user=None,
+            url="",
+            created_at=now,
+            updated_at=now,
         )
-
-        assert hasattr(T3KPack, "__slots__")
         with pytest.raises(AttributeError):
-            _ = pack.__dict__  # type: ignore[misc]
+            tone.title = "New"  # type: ignore[misc]
 
 
 class TestT3KModel:
     """Test T3KModel dataclass."""
 
-    def test_model_creation_with_required_fields(self) -> None:
-        """T3KModel should be creatable with required fields."""
-        model_id = "model-789"
-        pack_id = "pack-456"
-        name = "Test Model"
-        filename = "test-model.nam"
-        file_size = 1024000
-        download_url = "https://t3k.com/download/model.nam"
-        checksum = "abc123def456"
-        created_at = datetime.now(UTC)
-        updated_at = datetime.now(UTC)
-
+    def test_model_creation(self) -> None:
+        now = datetime.now(UTC)
         model = T3KModel(
-            id=model_id,
-            pack_id=pack_id,
-            name=name,
-            filename=filename,
-            file_size=file_size,
-            download_url=download_url,
-            checksum=checksum,
-            created_at=created_at,
-            updated_at=updated_at,
+            id=99,
+            tone_id=42,
+            user_id="user-abc",
+            name="Clean Channel",
+            model_url="https://t3k.com/models/99/clean.nam",
+            size="standard",
+            created_at=now,
+            updated_at=now,
         )
 
-        assert model.id == model_id
-        assert model.pack_id == pack_id
-        assert model.name == name
-        assert model.filename == filename
-        assert model.file_size == file_size
-        assert model.download_url == download_url
-        assert model.checksum == checksum
-        assert model.created_at == created_at
-        assert model.updated_at == updated_at
+        assert model.id == 99
+        assert model.tone_id == 42
+        assert model.model_url == "https://t3k.com/models/99/clean.nam"
 
     def test_model_is_frozen(self) -> None:
-        """T3KModel should be frozen (immutable)."""
+        now = datetime.now(UTC)
         model = T3KModel(
-            id="model-789",
-            pack_id="pack-456",
-            name="Test Model",
-            filename="test-model.nam",
-            file_size=1024000,
-            download_url="https://t3k.com/download/model.nam",
-            checksum="abc123",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            id=1,
+            tone_id=1,
+            user_id="u",
+            name="m",
+            model_url="url",
+            size="standard",
+            created_at=now,
+            updated_at=now,
         )
-
         with pytest.raises(AttributeError):
-            model.name = "New Name"  # type: ignore[misc]
-
-    def test_model_has_slots(self) -> None:
-        """T3KModel should use __slots__ for memory efficiency."""
-        model = T3KModel(
-            id="model-789",
-            pack_id="pack-456",
-            name="Test Model",
-            filename="test-model.nam",
-            file_size=1024000,
-            download_url="https://t3k.com/download/model.nam",
-            checksum="abc123",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-        )
-
-        assert hasattr(T3KModel, "__slots__")
-        with pytest.raises(AttributeError):
-            _ = model.__dict__  # type: ignore[misc]
+            model.name = "New"  # type: ignore[misc]
 
 
 class TestT3KDomainIntegration:
     """Integration tests for T3K domain entities working together."""
 
-    def test_pack_and_creator_relationship(self) -> None:
-        """T3KPack should reference T3KCreator via creator_id."""
-        creator = T3KCreator(
-            id="creator-123",
-            username="testuser",
-            display_name="Test User",
-            avatar_url="https://t3k.com/avatar.jpg",
-            profile_url="https://t3k.com/profile/testuser",
-        )
-
-        pack = T3KPack(
-            id="pack-456",
-            name="Test Pack",
-            slug="test-pack",
-            creator_id=creator.id,
-            description="A test pack",
-            thumbnail_url="https://t3k.com/thumb.jpg",
+    def test_tone_and_user_relationship(self) -> None:
+        user = T3KUser(id="user-abc", username="testuser", avatar_url="", bio="", url="")
+        now = datetime.now(UTC)
+        tone = T3KTone(
+            id=42,
+            title="T",
+            description="",
+            tags=[],
+            makes=[],
+            gear=T3KGearKind.AMP,
             platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            models_count=0,
+            favorites_count=0,
+            downloads_count=0,
+            images=[],
+            user_id=user.id,
+            user=user,
+            url="",
+            created_at=now,
+            updated_at=now,
         )
 
-        assert pack.creator_id == creator.id
+        assert tone.user_id == user.id
+        assert tone.user is user
 
-    def test_model_and_pack_relationship(self) -> None:
-        """T3KModel should reference T3KPack via pack_id."""
-        pack = T3KPack(
-            id="pack-456",
-            name="Test Pack",
-            slug="test-pack",
-            creator_id="creator-123",
-            description="A test pack",
-            thumbnail_url="https://t3k.com/thumb.jpg",
-            platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-        )
-
+    def test_model_and_tone_relationship(self) -> None:
+        now = datetime.now(UTC)
         model = T3KModel(
-            id="model-789",
-            pack_id=pack.id,
-            name="Test Model",
-            filename="test-model.nam",
-            file_size=1024000,
-            download_url="https://t3k.com/download/model.nam",
-            checksum="abc123",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            id=99,
+            tone_id=42,
+            user_id="u",
+            name="m",
+            model_url="url",
+            size="standard",
+            created_at=now,
+            updated_at=now,
         )
 
-        assert model.pack_id == pack.id
+        assert model.tone_id == 42

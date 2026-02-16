@@ -2,7 +2,7 @@
 
 Tests that the admin sync endpoints query real infrastructure instead of
 returning hardcoded stubs. Each endpoint is verified against actual database
-state (SyncCheckpoint, OAuthToken, Job records) and Redis lock keys.
+state (SyncCheckpoint, Job records) and Redis lock keys.
 
 These endpoints run on port 8001 with no authentication.
 """
@@ -19,8 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from source_t3k.adapters.outbound.models import Base as T3KBase
-from source_t3k.adapters.outbound.models import OAuthToken, SyncCheckpoint
+from source_t3k.adapters.outbound.models import SyncCheckpoint
 from webapp.adapters.persistence.models.job import Job
 
 if TYPE_CHECKING:
@@ -35,14 +34,13 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 async def t3k_tables(db_engine: AsyncEngine) -> None:
-    """Create T3K staging tables (SyncCheckpoint, OAuthToken) in the test DB.
+    """Create T3K SyncCheckpoint table in the test DB.
 
-    The shared db_engine fixture already creates CoreBase tables. This fixture
-    additionally creates T3K tables so that endpoints querying SyncCheckpoint
-    and OAuthToken work against real rows.
+    Only creates the SyncCheckpoint table (not all T3K tables) because
+    T3KToneStaging uses PostgreSQL ARRAY columns incompatible with SQLite.
     """
     async with db_engine.begin() as conn:
-        await conn.run_sync(T3KBase.metadata.create_all)
+        await conn.run_sync(SyncCheckpoint.__table__.create)
 
 
 @pytest.fixture
@@ -63,12 +61,12 @@ async def db_session(db_engine: AsyncEngine) -> AsyncSession:
 
 @pytest.fixture
 async def sync_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncCheckpoint:
-    """Create a SyncCheckpoint row for the t3k pack entity type."""
+    """Create a SyncCheckpoint row for the t3k tone entity type."""
     cp = SyncCheckpoint(
         source_name="t3k",
-        entity_type="pack",
+        entity_type="tone",
         last_synced_at=datetime.now(UTC) - timedelta(minutes=5),
-        last_record_id="pack-1234",
+        last_record_id="tone-1234",
         total_synced=42,
     )
     db_session.add(cp)
@@ -91,36 +89,6 @@ async def model_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncCh
     await db_session.commit()
     await db_session.refresh(cp)
     return cp
-
-
-@pytest.fixture
-async def oauth_token(db_session: AsyncSession, t3k_tables: None) -> OAuthToken:
-    """Create an OAuthToken row with a future expiry (valid token)."""
-    token = OAuthToken(
-        access_token_encrypted="enc-access-token",
-        refresh_token_encrypted="enc-refresh-token",
-        expires_at=datetime.now(UTC) + timedelta(hours=1),
-        created_at=datetime.now(UTC),
-    )
-    db_session.add(token)
-    await db_session.commit()
-    await db_session.refresh(token)
-    return token
-
-
-@pytest.fixture
-async def expired_oauth_token(db_session: AsyncSession, t3k_tables: None) -> OAuthToken:
-    """Create an OAuthToken row with a past expiry (expired token)."""
-    token = OAuthToken(
-        access_token_encrypted="enc-access-token-old",
-        refresh_token_encrypted="enc-refresh-token-old",
-        expires_at=datetime.now(UTC) - timedelta(hours=1),
-        created_at=datetime.now(UTC) - timedelta(hours=2),
-    )
-    db_session.add(token)
-    await db_session.commit()
-    await db_session.refresh(token)
-    return token
 
 
 @pytest.fixture
@@ -199,7 +167,7 @@ class TestSyncStatus:
 
             # The real implementation must populate checkpoint from DB
             assert data["checkpoint"] is not None
-            assert data["checkpoint"]["last_pack_id"] == "pack-1234"
+            assert data["checkpoint"]["last_tone_id"] == "tone-1234"
 
     @pytest.mark.asyncio
     async def test_status_idle_when_no_lock(
@@ -493,15 +461,16 @@ class TestErrorsSummary:
 
 
 class TestAuthStatus:
-    """GET .../auth/status must query oauth_tokens table for token validity."""
+    """GET .../auth/status checks T3K_API_KEY env var (no DB query)."""
 
     @pytest.mark.asyncio
-    async def test_valid_token(
+    async def test_valid_when_api_key_set(
         self,
         admin_app: FastAPI,
-        oauth_token: OAuthToken,
+        monkeypatch,
     ) -> None:
-        """Returns valid=True and expires_at when token has future expiry."""
+        """Returns valid=True and method=api_key when T3K_API_KEY is set."""
+        monkeypatch.setenv("T3K_API_KEY", "test-key-123")
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
@@ -510,15 +479,16 @@ class TestAuthStatus:
             data = response.json()
 
             assert data["valid"] is True
-            assert data["expires_at"] is not None
+            assert data["method"] == "api_key"
 
     @pytest.mark.asyncio
-    async def test_expired_token(
+    async def test_invalid_when_no_api_key(
         self,
         admin_app: FastAPI,
-        expired_oauth_token: OAuthToken,
+        monkeypatch,
     ) -> None:
-        """Returns valid=False when token has past expiry."""
+        """Returns valid=False when T3K_API_KEY is not set."""
+        monkeypatch.delenv("T3K_API_KEY", raising=False)
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
@@ -527,23 +497,7 @@ class TestAuthStatus:
             data = response.json()
 
             assert data["valid"] is False
-
-    @pytest.mark.asyncio
-    async def test_no_token_returns_invalid(
-        self,
-        admin_app: FastAPI,
-        t3k_tables: None,
-    ) -> None:
-        """Returns valid=False when no oauth_tokens rows exist."""
-        async with AsyncClient(
-            transport=ASGITransport(app=admin_app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/admin/sources/t3k/auth/status")
-            assert response.status_code == 200
-            data = response.json()
-
-            assert data["valid"] is False
-            assert data["expires_at"] is None
+            assert data["method"] == "api_key"
 
     @pytest.mark.asyncio
     async def test_unknown_source_returns_404(
@@ -690,9 +644,9 @@ class TestEnqueue:
         await db_session.expire_all()
         result = await db_session.execute(select(Job).where(Job.id == job.id))
         updated_job = result.scalar_one()
-        assert updated_job.task_id is not None, (
-            "Enqueue must set task_id from TaskIQ dispatch result"
-        )
+        assert (
+            updated_job.task_id is not None
+        ), "Enqueue must set task_id from TaskIQ dispatch result"
 
     @pytest.mark.asyncio
     async def test_nonexistent_job_returns_404(

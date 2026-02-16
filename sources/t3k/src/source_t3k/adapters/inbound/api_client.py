@@ -20,7 +20,11 @@ from source_t3k.adapters.inbound.exceptions import (
 )
 from source_t3k.adapters.inbound.rate_limiter import RateLimiter
 from source_t3k.adapters.inbound.token_manager import T3KTokenManager
-from source_t3k.adapters.inbound.vercel_solver import is_vercel_challenge, solve_challenge
+from source_t3k.adapters.inbound.vercel_solver import (
+    is_vercel_challenge,
+    load_cookies,
+    solve_challenge,
+)
 from source_t3k.domain.entities import T3KModel, T3KTone, T3KUser
 from source_t3k.domain.value_objects import T3KGearKind, T3KPlatform
 
@@ -47,11 +51,20 @@ class T3KAPIClient:
         self._token_manager = token_manager
         self._base_url = base_url.rstrip("/")
         self._retry_base_wait = retry_base_wait
+
+        # Load Vercel cookies (solved on host, same external IP)
+        vercel_cookies = load_cookies()
+
         self._client = AsyncClient(
             headers={
-                "User-Agent": "GuitarToneShootout/1.0 (sync; +https://github.com/krazyuniks/guitar-tone-shootout)",
-                "Accept": "application/json",
+                "User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/html, */*",
+                "Accept-Language": "en-US,en;q=0.9",
             },
+            cookies=vercel_cookies or None,
         )
 
         self._rate_limiter = RateLimiter(requests_per_second=requests_per_second)

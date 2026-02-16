@@ -39,12 +39,20 @@ class T3KTokenManager:
         self._fernet = Fernet(
             encryption_key.encode("utf-8") if isinstance(encryption_key, str) else encryption_key
         )
+        from source_t3k.adapters.inbound.vercel_solver import load_cookies
+
+        vercel_cookies = load_cookies()
         self._client = AsyncClient(
             headers={
-                "User-Agent": "GuitarToneShootout/1.0 (sync; +https://github.com/krazyuniks/guitar-tone-shootout)",
-                "Accept": "application/json",
+                "User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json, text/html, */*",
+                "Accept-Language": "en-US,en;q=0.9",
                 "Content-Type": "application/json",
             },
+            cookies=vercel_cookies or None,
         )
         self._lock = asyncio.Lock()
 

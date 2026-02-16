@@ -650,6 +650,37 @@ async def trigger_sync(
     return SyncTriggerResponse(message=f"Sync triggered for {source}")
 
 
+@app.post(
+    "/api/admin/sources/{source}/backfill-downloads",
+    response_model=SyncTriggerResponse,
+    status_code=202,
+)
+async def trigger_backfill_downloads(
+    source: str,
+    session: AsyncSession = Depends(get_db_session),
+) -> SyncTriggerResponse:
+    """Download missing NAM files for already-staged models and publish complete tones."""
+    validate_source(source)
+
+    job = Job(
+        id=uuid4(),
+        user_id=None,
+        job_type=JobType.SOURCE_SYNC,
+        status=JobStatus.PENDING,
+        progress=0,
+        attempt=1,
+        max_attempts=3,
+    )
+    session.add(job)
+    await session.flush()
+
+    from worker.jobs.source_sync import handle_backfill_downloads
+
+    await handle_backfill_downloads.kiq(job.id)
+
+    return SyncTriggerResponse(message=f"Backfill downloads triggered for {source}")
+
+
 @app.get("/api/admin/sources/{source}/sync/stats", response_model=SyncStatsResponse)
 async def get_sync_stats(
     source: str,

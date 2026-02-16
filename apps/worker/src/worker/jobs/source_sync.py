@@ -50,14 +50,26 @@ def _build_api_client() -> tuple[T3KTokenManager, T3KAPIClient]:
         base_url=base_url,
         encryption_key=encryption_key,
     )
-    api_client = T3KAPIClient(token_manager=token_manager, base_url=base_url)
+    api_client = T3KAPIClient(
+        token_manager=token_manager, base_url=base_url, requests_per_second=1.0
+    )
     return token_manager, api_client
 
 
-def _build_model_downloader(session) -> ModelDownloader:
-    """Build model downloader rooted under the processed volume."""
+def _build_model_downloader(session, api_client: T3KAPIClient) -> ModelDownloader:
+    """Build model downloader rooted under the processed volume.
+
+    Shares the API client's httpx client so downloads use the same
+    browser-like headers and cookies, avoiding Vercel bot detection.
+    """
     base_path = Path(os.getenv("T3K_SOURCE_DOWNLOADS_PATH", "/app/processed/source_downloads/t3k"))
-    return ModelDownloader(base_path=base_path, session=session)
+    return ModelDownloader(
+        base_path=base_path,
+        session=session,
+        http_client=api_client._client,
+        get_auth_headers=api_client._get_auth_headers,
+        rate_limiter=api_client._rate_limiter,
+    )
 
 
 async def _renew_sync_lock(redis_client: redis.Redis, lock_key: str) -> None:
@@ -83,15 +95,24 @@ async def handle_source_sync(job_id: UUID) -> None:
         ex=SYNC_LOCK_TTL_SECONDS,
     )
     if not acquired:
-        await redis_client.aclose()
-        return
+        # Stale lock from a killed process — force-delete and re-acquire.
+        await redis_client.delete(lock_key)
+        acquired = await redis_client.set(
+            lock_key,
+            lock_value,
+            nx=True,
+            ex=SYNC_LOCK_TTL_SECONDS,
+        )
+        if not acquired:
+            await redis_client.aclose()
+            return
 
     renew_task = asyncio.create_task(_renew_sync_lock(redis_client, lock_key))
     token_manager = None
     try:
         async with get_t3k_session_no_tx() as session:
             token_manager, api_client = _build_api_client()
-            model_downloader = _build_model_downloader(session)
+            model_downloader = _build_model_downloader(session, api_client)
             publisher = GearSyncPublisher(session=session, queue_name="gear_sync")
             sync_service = T3KSyncService(
                 api_client=api_client,
@@ -114,5 +135,123 @@ async def handle_source_sync(job_id: UUID) -> None:
         await redis_client.aclose()
 
 
-# Add task_id attribute for TaskIQ compatibility
+@broker.task
+async def handle_backfill_downloads(job_id: UUID) -> None:
+    """Backfill missing models and NAM files for staged tones, then publish complete tones.
+
+    For each staged tone:
+    1. If staged model count < tone.models_count → fetch models from API
+    2. For each model missing a NAM file on disk → download it
+    3. Once all models staged AND all files present → publish to gear_sync
+    """
+    import logging
+    from pathlib import PurePosixPath
+
+    from sqlalchemy import func, select
+
+    from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
+
+    logger = logging.getLogger(__name__)
+
+    _check_auth_gate()
+    settings = WorkerSettings()  # type: ignore[call-arg]
+    redis_client = redis.from_url(settings.redis_url, decode_responses=True)
+    lock_key = f"{SYNC_SOURCE}:backfill:lock"
+    lock_value = str(job_id)
+
+    acquired = await redis_client.set(lock_key, lock_value, nx=True, ex=SYNC_LOCK_TTL_SECONDS)
+    if not acquired:
+        await redis_client.delete(lock_key)
+        acquired = await redis_client.set(lock_key, lock_value, nx=True, ex=SYNC_LOCK_TTL_SECONDS)
+        if not acquired:
+            await redis_client.aclose()
+            return
+
+    renew_task = asyncio.create_task(_renew_sync_lock(redis_client, lock_key))
+    token_manager = None
+    try:
+        async with get_t3k_session_no_tx() as session:
+            token_manager, api_client = _build_api_client()
+            downloader = _build_model_downloader(session, api_client)
+            publisher = GearSyncPublisher(session=session, queue_name="gear_sync")
+            base_path = downloader._base_path
+
+            # Get all tones with their staged model counts in one query.
+            stmt = (
+                select(
+                    T3KToneStaging,
+                    func.count(T3KModelStaging.id).label("staged_count"),
+                )
+                .outerjoin(T3KModelStaging, T3KModelStaging.tone_id == T3KToneStaging.id)
+                .group_by(T3KToneStaging.id)
+                .order_by(T3KToneStaging.id)
+            )
+            result = await session.execute(stmt)
+            rows = result.all()
+            logger.info("Backfill: %d tones to check", len(rows))
+
+            models_fetched = 0
+            files_downloaded = 0
+            tones_published = 0
+
+            for tone, staged_count in rows:
+                # Step 1: fetch missing models from API if count is short.
+                if staged_count < tone.models_count:
+                    api_models = await api_client.get_models(tone.id)
+                    for api_model in api_models:
+                        existing = await session.execute(
+                            select(T3KModelStaging.id).where(T3KModelStaging.id == api_model.id)
+                        )
+                        if existing.scalar_one_or_none() is None:
+                            staging_model = T3KModelStaging.from_domain(api_model)
+                            session.add(staging_model)
+                            models_fetched += 1
+                    await session.flush()
+
+                # Step 2: get all models for this tone and download missing files.
+                models_result = await session.execute(
+                    select(T3KModelStaging).where(T3KModelStaging.tone_id == tone.id)
+                )
+                models = list(models_result.scalars().all())
+                if not models:
+                    continue
+
+                all_files_present = True
+                for model in models:
+                    filename = PurePosixPath(model.model_url).name or f"{model.id}.nam"
+                    file_path = base_path / str(model.id) / filename
+                    if file_path.exists():
+                        continue
+                    downloaded = await downloader.download_model(model)
+                    if downloaded is not None:
+                        files_downloaded += 1
+                    else:
+                        all_files_present = False
+
+                # Step 3: publish only if ALL models staged and ALL files present.
+                if all_files_present and len(models) >= tone.models_count:
+                    await publisher.publish_tone(tone, models=models)
+                    await session.commit()
+                    tones_published += 1
+
+            logger.info(
+                "Backfill complete: %d models fetched, %d files downloaded, %d tones published",
+                models_fetched,
+                files_downloaded,
+                tones_published,
+            )
+    finally:
+        renew_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await renew_task
+        if token_manager is not None:
+            await token_manager.close()
+        current_lock_value = await redis_client.get(lock_key)
+        if current_lock_value == lock_value:
+            await redis_client.delete(lock_key)
+        await redis_client.aclose()
+
+
+# Add task_id attributes for TaskIQ compatibility
 handle_source_sync.task_id = handle_source_sync.task_name  # type: ignore[attr-defined]
+handle_backfill_downloads.task_id = handle_backfill_downloads.task_name  # type: ignore[attr-defined]

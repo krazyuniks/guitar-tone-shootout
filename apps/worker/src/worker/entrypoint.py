@@ -150,16 +150,16 @@ async def run_pgmq_consumer(manager: ProcessManager) -> None:
     consumer_script = """
 import asyncio
 from worker.consumers.gear_sync import GearSyncConsumer
-from worker.db import get_core_session, get_t3k_session
+from worker.db import get_core_session_no_tx, get_t3k_session_no_tx
 
 async def main():
-    async with get_core_session() as core_session, get_t3k_session() as t3k_session:
+    async with get_core_session_no_tx() as core_session, get_t3k_session_no_tx() as t3k_session:
         consumer = GearSyncConsumer(
             core_session=core_session,
             t3k_session=t3k_session,
-            pack_queue_name="gear_pack_sync",
-            model_queue_name="gear_model_sync",
-            dead_letter_queue="sync_dead_letter",
+            pack_queue_name="gear_sync",
+            model_queue_name="gear_sync",
+            dead_letter_queue="gear_sync_dlq",
         )
         await consumer.run()
 

@@ -6,197 +6,143 @@ Tests the conversion logic from T3K staging models to GearSyncRecord format.
 from datetime import UTC, datetime
 
 from core.records.gear_sync import GearSyncRecord, SyncOperation
-from source_t3k.adapters.outbound.models import T3KModelStaging, T3KPackStaging
+from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
-from source_t3k.domain.value_objects import T3KPackType, T3KPlatform
 
 
-class TestGearSyncPublisherPackConversion:
-    """Tests for converting T3KPackStaging to GearSyncRecord."""
+def _make_tone(**overrides) -> T3KToneStaging:
+    """Build a T3KToneStaging with sensible defaults."""
+    defaults = {
+        "id": 42,
+        "title": "Mesa Boogie Dual Rectifier",
+        "description": "High gain amp",
+        "tags": ["high-gain"],
+        "makes": ["Mesa"],
+        "gear": "amp",
+        "platform": "nam",
+        "models_count": 3,
+        "favorites_count": 10,
+        "downloads_count": 100,
+        "images": ["https://example.com/thumb.jpg"],
+        "user_id": "user-456",
+        "url": "https://t3k.com/tones/42",
+        "created_at": datetime(2024, 1, 1, tzinfo=UTC),
+        "updated_at": datetime(2024, 1, 15, tzinfo=UTC),
+    }
+    defaults.update(overrides)
+    return T3KToneStaging(**defaults)
 
-    def test_creates_gear_sync_record_from_pack(self) -> None:
-        """Test that publish_pack creates a GearSyncRecord with correct structure."""
-        pack = T3KPackStaging(
-            id="pack-123",
-            name="Mesa Boogie Dual Rectifier",
-            slug="mesa-boogie-dual-rectifier",
-            creator_id="creator-456",
-            description="High gain amp pack",
-            thumbnail_url="https://example.com/thumb.jpg",
-            platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 15, tzinfo=UTC),
-        )
 
-        publisher = GearSyncPublisher(session=None, queue_name="gear_pack_sync")
+def _make_model(**overrides) -> T3KModelStaging:
+    """Build a T3KModelStaging with sensible defaults."""
+    defaults = {
+        "id": 99,
+        "tone_id": 42,
+        "user_id": "user-456",
+        "name": "Clean Channel",
+        "model_url": "https://t3k.com/models/99/clean.nam",
+        "size": "standard",
+        "created_at": datetime(2024, 1, 1, tzinfo=UTC),
+        "updated_at": datetime(2024, 1, 20, tzinfo=UTC),
+    }
+    defaults.update(overrides)
+    return T3KModelStaging(**defaults)
 
-        # This should fail because the method doesn't exist yet
-        record = publisher.create_pack_sync_record(pack)
+
+class TestGearSyncPublisherToneConversion:
+    """Tests for converting T3KToneStaging to GearSyncRecord."""
+
+    def test_creates_gear_sync_record_from_tone(self) -> None:
+        tone = _make_tone()
+        publisher = GearSyncPublisher(session=None, queue_name="gear_sync")
+        record = publisher.create_tone_sync_record(tone)
 
         assert isinstance(record, GearSyncRecord)
         assert record.source_name == "t3k"
-        assert record.source_record_id == "pack-123"
+        assert record.source_record_id == "42"
         assert record.source_updated_at == datetime(2024, 1, 15, tzinfo=UTC)
         assert record.operation == SyncOperation.CREATE
 
-    def test_pack_payload_contains_required_fields(self) -> None:
-        """Test that pack payload includes all fields needed for Gear creation."""
-        pack = T3KPackStaging(
-            id="pack-123",
-            name="Mesa Boogie Dual Rectifier",
-            slug="mesa-boogie-dual-rectifier",
-            creator_id="creator-456",
-            description="High gain amp pack",
-            thumbnail_url="https://example.com/thumb.jpg",
-            platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 15, tzinfo=UTC),
-        )
-
-        publisher = GearSyncPublisher(session=None, queue_name="gear_pack_sync")
-        record = publisher.create_pack_sync_record(pack)
-
+    def test_tone_payload_contains_required_fields(self) -> None:
+        tone = _make_tone()
+        publisher = GearSyncPublisher(session=None, queue_name="gear_sync")
+        record = publisher.create_tone_sync_record(tone)
         payload = record.payload
 
-        # Core Gear fields
         assert payload["name"] == "Mesa Boogie Dual Rectifier"
-        assert payload["slug"] == "mesa-boogie-dual-rectifier"
-        assert payload["description"] == "High gain amp pack"
+        assert payload["description"] == "High gain amp"
         assert payload["thumbnail_url"] == "https://example.com/thumb.jpg"
         assert payload["platform"] == "nam"
         assert payload["gear_type"] == "amp"
-        assert payload["creator_id"] == "creator-456"
+        assert payload["creator_id"] == "user-456"
 
-    def test_pack_payload_maps_t3k_enums_to_core_enums(self) -> None:
-        """Test that T3K enum values are mapped to core domain enum values."""
-        pack = T3KPackStaging(
-            id="pack-ir",
-            name="IR Pack",
-            slug="ir-pack",
-            creator_id="creator-456",
-            description="Impulse responses",
-            thumbnail_url="https://example.com/ir.jpg",
-            platform=T3KPlatform.IR,
-            pack_type=T3KPackType.IR,
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 15, tzinfo=UTC),
-        )
+    def test_maps_full_rig_to_full_rig_gear_type(self) -> None:
+        tone = _make_tone(gear="full-rig")
+        publisher = GearSyncPublisher(session=None)
+        record = publisher.create_tone_sync_record(tone)
 
-        publisher = GearSyncPublisher(session=None, queue_name="gear_pack_sync")
-        record = publisher.create_pack_sync_record(pack)
+        assert record.payload["gear_type"] == "full_rig"
 
-        # T3KPlatform.IR -> "ir", T3KPackType.IR -> "ir"
-        assert record.payload["platform"] == "ir"
+    def test_maps_ir_gear_kind(self) -> None:
+        tone = _make_tone(gear="IR", platform="ir")
+        publisher = GearSyncPublisher(session=None)
+        record = publisher.create_tone_sync_record(tone)
+
         assert record.payload["gear_type"] == "ir"
+        assert record.payload["platform"] == "ir"
+
+    def test_empty_images_gives_empty_thumbnail(self) -> None:
+        tone = _make_tone(images=[])
+        publisher = GearSyncPublisher(session=None)
+        record = publisher.create_tone_sync_record(tone)
+
+        assert record.payload["thumbnail_url"] == ""
 
 
 class TestGearSyncPublisherModelConversion:
-    """Tests for converting T3KModelStaging to GearSyncRecord."""
+    """Tests for including models in GearSyncRecord."""
 
-    def test_creates_gear_sync_record_from_model(self) -> None:
-        """Test that publish_model creates a GearSyncRecord with correct structure."""
-        model = T3KModelStaging(
-            id="model-789",
-            pack_id="pack-123",
-            name="Channel 1 Vintage",
-            filename="channel1_vintage.nam",
-            file_size=1024000,
-            download_url="https://example.com/model.nam",
-            checksum="abc123",
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 20, tzinfo=UTC),
-        )
+    def test_tone_record_includes_model_payloads(self) -> None:
+        tone = _make_tone()
+        models = [_make_model()]
 
-        publisher = GearSyncPublisher(session=None, queue_name="gear_model_sync")
+        publisher = GearSyncPublisher(session=None)
+        record = publisher.create_tone_sync_record(tone, models=models)
 
-        # This should fail because the method doesn't exist yet
-        record = publisher.create_model_sync_record(model)
+        assert len(record.payload["models"]) == 1
+        model_payload = record.payload["models"][0]
+        assert model_payload["source_record_id"] == "99"
+        assert model_payload["name"] == "Clean Channel"
+        assert model_payload["filename"] == "clean.nam"
+        assert model_payload["download_url"] == "https://t3k.com/models/99/clean.nam"
+        assert model_payload["size"] == "standard"
+        assert model_payload["platform"] == "nam"
+        assert model_payload["tone_id"] == "42"
 
-        assert isinstance(record, GearSyncRecord)
-        assert record.source_name == "t3k"
-        assert record.source_record_id == "model-789"
-        assert record.source_updated_at == datetime(2024, 1, 20, tzinfo=UTC)
-        assert record.operation == SyncOperation.CREATE
+    def test_source_updated_at_uses_max_of_tone_and_models(self) -> None:
+        tone_time = datetime(2024, 1, 10, tzinfo=UTC)
+        model_time = datetime(2024, 1, 20, tzinfo=UTC)
 
-    def test_model_payload_contains_required_fields(self) -> None:
-        """Test that model payload includes all fields needed for GearModel creation."""
-        model = T3KModelStaging(
-            id="model-789",
-            pack_id="pack-123",
-            name="Channel 1 Vintage",
-            filename="channel1_vintage.nam",
-            file_size=1024000,
-            download_url="https://example.com/model.nam",
-            checksum="abc123",
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 20, tzinfo=UTC),
-        )
+        tone = _make_tone(updated_at=tone_time, created_at=tone_time)
+        models = [_make_model(updated_at=model_time, created_at=model_time)]
 
-        publisher = GearSyncPublisher(session=None, queue_name="gear_model_sync")
-        record = publisher.create_model_sync_record(model)
+        publisher = GearSyncPublisher(session=None)
+        record = publisher.create_tone_sync_record(tone, models=models)
 
-        payload = record.payload
-
-        # Core GearModel fields
-        assert payload["name"] == "Channel 1 Vintage"
-        assert payload["filename"] == "channel1_vintage.nam"
-        assert payload["file_size"] == 1024000
-        assert payload["download_url"] == "https://example.com/model.nam"
-        assert payload["checksum"] == "abc123"
-        assert payload["pack_id"] == "pack-123"
+        assert record.source_updated_at == model_time
 
 
 class TestGearSyncPublisherSerialization:
     """Tests for GearSyncRecord serialization."""
 
-    def test_pack_record_can_serialize_to_dict(self) -> None:
-        """Test that GearSyncRecord from pack can be serialized to dict for pgmq."""
-        pack = T3KPackStaging(
-            id="pack-123",
-            name="Mesa Boogie",
-            slug="mesa-boogie",
-            creator_id="creator-456",
-            description="Amp",
-            thumbnail_url="https://example.com/thumb.jpg",
-            platform=T3KPlatform.NAM,
-            pack_type=T3KPackType.AMP,
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 15, tzinfo=UTC),
-        )
-
-        publisher = GearSyncPublisher(session=None, queue_name="gear_pack_sync")
-        record = publisher.create_pack_sync_record(pack)
-
-        # Should be able to serialize to dict for JSON
-        record_dict = record.to_dict()
-
-        assert record_dict["source_name"] == "t3k"
-        assert record_dict["source_record_id"] == "pack-123"
-        assert record_dict["operation"] == "create"
-        assert isinstance(record_dict["payload"], dict)
-
-    def test_model_record_can_serialize_to_dict(self) -> None:
-        """Test that GearSyncRecord from model can be serialized to dict for pgmq."""
-        model = T3KModelStaging(
-            id="model-789",
-            pack_id="pack-123",
-            name="Channel 1",
-            filename="channel1.nam",
-            file_size=1024000,
-            download_url="https://example.com/model.nam",
-            checksum="abc123",
-            created_at=datetime(2024, 1, 1, tzinfo=UTC),
-            updated_at=datetime(2024, 1, 20, tzinfo=UTC),
-        )
-
-        publisher = GearSyncPublisher(session=None, queue_name="gear_model_sync")
-        record = publisher.create_model_sync_record(model)
+    def test_tone_record_can_serialize_to_dict(self) -> None:
+        tone = _make_tone()
+        publisher = GearSyncPublisher(session=None)
+        record = publisher.create_tone_sync_record(tone)
 
         record_dict = record.to_dict()
 
         assert record_dict["source_name"] == "t3k"
-        assert record_dict["source_record_id"] == "model-789"
+        assert record_dict["source_record_id"] == "42"
         assert record_dict["operation"] == "create"
         assert isinstance(record_dict["payload"], dict)

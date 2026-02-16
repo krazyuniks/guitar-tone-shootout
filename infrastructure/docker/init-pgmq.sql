@@ -12,16 +12,20 @@ CREATE EXTENSION IF NOT EXISTS pgmq;
 -- These queues allow the T3K source adapter to publish sync records
 -- that the worker consumes to update gts_core
 
--- Queue for gear pack sync events
-SELECT pgmq.create('gear_pack_sync');
+-- Unified queue for transactional gear+model sync events
+SELECT pgmq.create('gear_sync');
 
--- Queue for gear model sync events
+-- Dead letter queue for failed sync events
+SELECT pgmq.create('gear_sync_dlq');
+
+-- Legacy split queues kept for compatibility during migration
+SELECT pgmq.create('gear_pack_sync');
 SELECT pgmq.create('gear_model_sync');
 
 -- Queue for preset sync events
 SELECT pgmq.create('preset_sync');
 
--- Queue for dead letter messages (failed processing)
+-- Legacy dead letter queue (kept for compatibility)
 SELECT pgmq.create('sync_dead_letter');
 
 -- Grant queue access to gts user

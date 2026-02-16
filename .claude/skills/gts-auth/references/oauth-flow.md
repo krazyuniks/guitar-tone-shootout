@@ -1,6 +1,8 @@
-# T3K OAuth Flow
+# T3K Authentication
 
-## Passwordless Authentication
+GTS has two separate auth paths for T3K. Do not confuse them.
+
+## Webapp Login (OAuth)
 
 T3K uses passwordless OAuth. Users authenticate via email magic link on T3K's site -- no passwords exist.
 
@@ -12,3 +14,16 @@ GTS integrates via OAuth2:
 4. Tokens stored in `.gts-auth.json` for worktree sharing
 
 **No user credentials are stored or managed by GTS.** Only OAuth access/refresh tokens.
+
+## Source Sync (API Key → JWT)
+
+The T3K source adapter authenticates via API key, not OAuth tokens.
+
+1. `T3K_API_KEY` env var set in worker/scheduler containers
+2. `T3KTokenManager` exchanges API key for JWT via `POST /api/v1/auth/session`
+3. JWT cached in memory, auto-refreshed before expiry (5 min buffer)
+4. No database token storage — purely in-memory lifecycle
+
+**Key files:**
+- `sources/t3k/src/source_t3k/adapters/inbound/token_manager.py` — JWT exchange and refresh
+- `apps/worker/src/worker/jobs/source_sync.py` — creates token manager from env var

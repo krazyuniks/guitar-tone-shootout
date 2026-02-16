@@ -1,138 +1,102 @@
 """Model file downloader for T3K NAM models.
 
-Downloads NAM model files from T3K to local storage with checksum
-verification and retry logic.
+Downloads NAM model files from T3K to local storage with retry logic.
+Filenames are derived from the model_url path.
 """
 
-import hashlib
-from pathlib import Path
+import logging
+from collections.abc import Callable, Coroutine
+from pathlib import Path, PurePosixPath
+from typing import Any
 
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from source_t3k.adapters.inbound.rate_limiter import RateLimiter
 from source_t3k.adapters.outbound.models import T3KModelStaging
+
+logger = logging.getLogger(__name__)
 
 
 class ModelDownloader:
-    """Downloads T3K model files with checksum verification and retry logic."""
+    """Downloads T3K model files with retry logic."""
 
     def __init__(
-        self, base_path: Path, session: AsyncSession, http_client: AsyncClient | None = None
+        self,
+        base_path: Path,
+        session: AsyncSession,
+        http_client: AsyncClient | None = None,
+        get_auth_headers: Callable[[], Coroutine[Any, Any, dict[str, str]]] | None = None,
+        rate_limiter: RateLimiter | None = None,
     ):
-        """Initialize model downloader.
-
-        Args:
-            base_path: Root directory for downloaded models
-            session: Database session for querying models
-            http_client: Optional HTTP client (creates default if None)
-        """
         self._base_path = base_path
         self._session = session
         self._http_client = http_client
+        self._get_auth_headers = get_auth_headers
+        self._rate_limiter = rate_limiter
 
     def _get_model_path(self, model: T3KModelStaging) -> Path:
         """Get local storage path for a model.
 
-        Args:
-            model: Model staging record
-
-        Returns:
-            Path to local file: base_path/model.id/model.filename
+        Derives filename from the model_url path component.
         """
-        return self._base_path / model.id / model.filename
-
-    def _verify_checksum(self, path: Path, expected_checksum: str) -> bool:
-        """Verify file checksum matches expected SHA-256.
-
-        Args:
-            path: Path to file to verify
-            expected_checksum: Expected SHA-256 hex digest
-
-        Returns:
-            True if checksum matches, False otherwise
-        """
-        if not path.exists():
-            return False
-
-        try:
-            sha256 = hashlib.sha256()
-            with path.open("rb") as f:
-                while chunk := f.read(8192):
-                    sha256.update(chunk)
-            return sha256.hexdigest() == expected_checksum
-        except Exception:
-            return False
+        filename = PurePosixPath(model.model_url).name or f"{model.id}.nam"
+        return self._base_path / str(model.id) / filename
 
     async def download_model(self, model: T3KModelStaging) -> Path | None:
         """Download a single model file.
 
-        Skips download if file already exists with correct checksum.
-        Retries up to 3 times on failure. Removes corrupt files after all retries fail.
-
-        Args:
-            model: Model staging record with download URL and checksum
-
-        Returns:
-            Path to downloaded file if successful, None if skipped or failed
+        Skips download if file already exists.
+        Retries up to 3 times on failure.
         """
         path = self._get_model_path(model)
 
-        # Skip if already exists with correct checksum
-        if path.exists() and self._verify_checksum(path, model.checksum):
+        if path.exists():
             return None
 
-        # Create HTTP client if not provided
-        client = self._http_client if self._http_client is not None else AsyncClient()
+        if self._http_client is None:
+            logger.warning("No HTTP client configured — skipping download for model %s", model.id)
+            return None
 
-        # Retry up to 3 times
-        for _attempt in range(3):
+        headers = {}
+        if self._get_auth_headers is not None:
+            headers = await self._get_auth_headers()
+
+        for attempt in range(3):
+            if self._rate_limiter is not None:
+                await self._rate_limiter.acquire()
+
             try:
-                # Download file
-                response = await client.get(model.download_url)
+                response = await self._http_client.get(
+                    model.model_url, headers=headers, follow_redirects=True
+                )
+                response.raise_for_status()
                 content = response.content
 
-                # Create parent directory
                 path.parent.mkdir(parents=True, exist_ok=True)
-
-                # Write file
                 path.write_bytes(content)
-
-                # Verify checksum
-                if self._verify_checksum(path, model.checksum):
-                    return path
-
-                # Checksum failed - remove file and retry
-                if path.exists():
-                    path.unlink()
+                return path
 
             except Exception:
-                # Network error - retry
                 if path.exists():
                     path.unlink()
-                continue
-
-        # All retries exhausted - clean up any partial file
-        if path.exists():
-            path.unlink()
+                if attempt < 2:
+                    logger.debug("Download attempt %d failed for model %s", attempt + 1, model.id)
+                else:
+                    logger.warning("All download attempts exhausted for model %s", model.id)
 
         return None
 
-    async def download_models_for_pack(self, pack_id: str) -> list[Path]:
-        """Download all models for a pack.
+    async def download_models_for_tone(self, tone_id: int) -> list[Path]:
+        """Download all models for a tone.
 
-        Args:
-            pack_id: Pack ID to query models for
-
-        Returns:
-            List of successfully downloaded file paths (excludes skipped models)
+        Returns list of successfully downloaded file paths.
         """
-        # Query models for pack
-        stmt = select(T3KModelStaging).where(T3KModelStaging.pack_id == pack_id)
+        stmt = select(T3KModelStaging).where(T3KModelStaging.tone_id == tone_id)
         result = await self._session.execute(stmt)
         models = result.scalars().all()
 
-        # Download each model
         downloaded_paths = []
         for model in models:
             path = await self.download_model(model)

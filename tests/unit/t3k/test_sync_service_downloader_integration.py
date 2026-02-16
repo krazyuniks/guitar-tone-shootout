@@ -32,7 +32,6 @@ class TestSyncServiceImportsModelDownloader:
         assert module is not None, "T3KSyncService must belong to an importable module"
 
         full_source = inspect.getsource(module)
-        # Parse the AST to check import statements precisely
         tree = ast.parse(full_source)
 
         found_import = False
@@ -53,27 +52,19 @@ class TestSyncServiceImportsModelDownloader:
         )
 
 
-class TestSyncModelsCallsDownloader:
-    """Verify sync_models() calls ModelDownloader.download_models_for_pack()."""
+class TestStageToneCallsDownloader:
+    """Verify _stage_tone_models_and_publish calls download_models_for_tone."""
 
-    def test_sync_models_contains_download_call(self) -> None:
-        """sync_models() source must contain a call to download_models_for_pack."""
-        source = inspect.getsource(T3KSyncService.sync_models)
-        assert "download_models_for_pack" in source, (
-            "sync_models() must call download_models_for_pack() after staging models"
-        )
-
-    def test_sync_models_passes_pack_id_to_downloader(self) -> None:
-        """sync_models() must pass pack_id to download_models_for_pack."""
-        source = inspect.getsource(T3KSyncService.sync_models)
-        # The call should include pack_id as argument
-        assert "pack_id" in source and "download_models_for_pack" in source, (
-            "sync_models() must pass pack_id to download_models_for_pack()"
-        )
+    def test_contains_download_call(self) -> None:
+        """_stage_tone_models_and_publish source must contain a call to download_models_for_tone."""
+        source = inspect.getsource(T3KSyncService._stage_tone_models_and_publish)
+        assert (
+            "download_models_for_tone" in source
+        ), "_stage_tone_models_and_publish must call download_models_for_tone() after staging models"
 
     def test_download_call_appears_after_model_staging(self) -> None:
-        """download_models_for_pack call must appear after model staging loop."""
-        source = inspect.getsource(T3KSyncService.sync_models)
+        """download_models_for_tone call must appear after model staging loop."""
+        source = inspect.getsource(T3KSyncService._stage_tone_models_and_publish)
         lines = source.splitlines()
 
         staging_line = None
@@ -81,13 +72,17 @@ class TestSyncModelsCallsDownloader:
         for i, line in enumerate(lines):
             if "session.add" in line.replace("self._", "") and staging_line is None:
                 staging_line = i
-            if "download_models_for_pack" in line and download_line is None:
+            if "download_models_for_tone" in line and download_line is None:
                 download_line = i
 
-        assert staging_line is not None, "sync_models must stage models via session.add"
-        assert download_line is not None, "sync_models must call download_models_for_pack"
+        assert (
+            staging_line is not None
+        ), "_stage_tone_models_and_publish must stage models via session.add"
+        assert (
+            download_line is not None
+        ), "_stage_tone_models_and_publish must call download_models_for_tone"
         assert download_line > staging_line, (
-            "download_models_for_pack must be called AFTER model staging, "
+            "download_models_for_tone must be called AFTER model staging, "
             f"but staging is at line {staging_line} and download is at line {download_line}"
         )
 
@@ -96,42 +91,27 @@ class TestDownloadErrorHandling:
     """Verify download failures don't crash the sync loop."""
 
     def test_download_call_is_wrapped_in_error_handling(self) -> None:
-        """download_models_for_pack call must be wrapped in try/except or contextlib.suppress."""
-        source = inspect.getsource(T3KSyncService.sync_models)
-
-        # Parse the AST of the method to find error handling around the download call
-        # Dedent the source since it's a method
+        """download_models_for_tone call must be wrapped in try/except."""
+        source = inspect.getsource(T3KSyncService._stage_tone_models_and_publish)
         dedented = textwrap.dedent(source)
         tree = ast.parse(dedented)
 
         download_in_try = False
-        download_in_suppress = False
 
         for node in ast.walk(tree):
-            # Check for try/except wrapping
             if isinstance(node, ast.Try):
                 try_source = ast.get_source_segment(dedented, node)
-                if try_source and "download_models_for_pack" in try_source:
+                if try_source and "download_models_for_tone" in try_source:
                     download_in_try = True
 
-            # Check for contextlib.suppress wrapping
-            if isinstance(node, ast.With):
-                with_source = ast.get_source_segment(dedented, node)
-                if (
-                    with_source
-                    and "download_models_for_pack" in with_source
-                    and "suppress" in with_source
-                ):
-                    download_in_suppress = True
-
-        assert download_in_try or download_in_suppress, (
-            "download_models_for_pack call must be wrapped in try/except or "
-            "contextlib.suppress so download failures don't crash the sync loop"
+        assert download_in_try, (
+            "download_models_for_tone call must be wrapped in try/except "
+            "so download failures don't crash the sync loop"
         )
 
     def test_error_handling_catches_exception(self) -> None:
-        """Error handler must catch Exception (not a narrower type that could miss errors)."""
-        source = inspect.getsource(T3KSyncService.sync_models)
+        """Error handler must catch Exception (broad enough for network/IO errors)."""
+        source = inspect.getsource(T3KSyncService._stage_tone_models_and_publish)
         dedented = textwrap.dedent(source)
         tree = ast.parse(dedented)
 
@@ -140,36 +120,22 @@ class TestDownloadErrorHandling:
         for node in ast.walk(tree):
             if isinstance(node, ast.Try):
                 try_source = ast.get_source_segment(dedented, node)
-                if try_source and "download_models_for_pack" in try_source:
+                if try_source and "download_models_for_tone" in try_source:
                     for handler in node.handlers:
-                        # except Exception or bare except
                         if handler.type is None or (
                             isinstance(handler.type, ast.Name) and handler.type.id == "Exception"
                         ):
                             catches_broad_exception = True
 
-            # contextlib.suppress(Exception) also counts
-            if isinstance(node, ast.With):
-                with_source = ast.get_source_segment(dedented, node)
-                if (
-                    with_source
-                    and "download_models_for_pack" in with_source
-                    and "suppress" in with_source
-                    and "Exception" in with_source
-                ):
-                    catches_broad_exception = True
-
         assert catches_broad_exception, (
-            "Error handling around download_models_for_pack must catch Exception "
+            "Error handling around download_models_for_tone must catch Exception "
             "(broad enough to handle network errors, I/O errors, etc.)"
         )
 
     def test_error_handling_includes_logging(self) -> None:
         """Download errors should be logged, not silently swallowed."""
-        source = inspect.getsource(T3KSyncService.sync_models)
+        source = inspect.getsource(T3KSyncService._stage_tone_models_and_publish)
 
-        # Check the source contains logging in the error handling path
-        # Look for logger or logging usage near the download call
         has_logging = (
             "logger" in source.lower()
             or "logging" in source.lower()
@@ -183,13 +149,12 @@ class TestDownloadErrorHandling:
 
 
 class TestSyncServiceConstructorAcceptsDownloader:
-    """Verify T3KSyncService can be constructed with or receive a ModelDownloader."""
+    """Verify T3KSyncService can be constructed with a ModelDownloader."""
 
     def test_sync_service_has_downloader_attribute_or_creates_one(self) -> None:
         """T3KSyncService must store or create a ModelDownloader instance."""
         source = inspect.getsource(T3KSyncService)
 
-        # The service should either accept a downloader in __init__ or create one
         has_downloader_ref = (
             "model_downloader" in source.lower()
             or "ModelDownloader" in source
@@ -197,5 +162,5 @@ class TestSyncServiceConstructorAcceptsDownloader:
         )
         assert has_downloader_ref, (
             "T3KSyncService must reference ModelDownloader — either as a constructor "
-            "parameter, stored attribute, or locally instantiated in sync_models()"
+            "parameter, stored attribute, or locally instantiated"
         )

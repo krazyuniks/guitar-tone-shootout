@@ -553,6 +553,7 @@ version = "0.1.0"
 source = { editable = "sources/t3k" }
 dependencies = [
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "gts-core" },
     { name = "httpx" },
     { name = "pgmq-sqlalchemy" },
@@ -564,6 +565,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "cryptography", specifier = ">=44.0.0" },
     { name = "gts-core", editable = "libs/core" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "pgmq-sqlalchemy", specifier = ">=0.1.0" },
