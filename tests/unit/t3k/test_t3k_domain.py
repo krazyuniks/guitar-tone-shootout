@@ -13,7 +13,7 @@ class TestT3KPlatform:
 
     def test_platform_values(self) -> None:
         assert T3KPlatform.NAM.value == "nam"
-        assert T3KPlatform.AIDA_X.value == "aida_x"
+        assert T3KPlatform.AIDA_X.value == "aida-x"
         assert T3KPlatform.IR.value == "ir"
 
 
@@ -25,7 +25,7 @@ class TestT3KGearKind:
         assert T3KGearKind.PEDAL.value == "pedal"
         assert T3KGearKind.FULL_RIG.value == "full-rig"
         assert T3KGearKind.OUTBOARD.value == "outboard"
-        assert T3KGearKind.IR.value == "IR"
+        assert T3KGearKind.IR.value == "ir"
 
 
 class TestT3KUser:

@@ -245,6 +245,9 @@ class GearMapperService:
             download_status=DownloadStatus.PENDING,
         )
 
+        self.session.add(model)
+        await self.session.flush()  # generate model.id UUID
+
         if filename:
             file_path = await self._migrate_model_file(
                 record.source_name,
@@ -260,8 +263,6 @@ class GearMapperService:
                     f"Model file not found for source={record.source_name}, "
                     f"source_record_id={record.source_record_id}, filename={filename}"
                 )
-
-        self.session.add(model)
 
     async def _update_model(self, model: GearModel, record: GearSyncRecord) -> None:
         """Update existing GearModel with data from sync record."""

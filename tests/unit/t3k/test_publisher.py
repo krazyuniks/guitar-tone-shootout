@@ -84,7 +84,7 @@ class TestGearSyncPublisherToneConversion:
         assert record.payload["gear_type"] == "full_rig"
 
     def test_maps_ir_gear_kind(self) -> None:
-        tone = _make_tone(gear="IR", platform="ir")
+        tone = _make_tone(gear="ir", platform="ir")
         publisher = GearSyncPublisher(session=None)
         record = publisher.create_tone_sync_record(tone)
 
