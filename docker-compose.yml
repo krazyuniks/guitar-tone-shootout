@@ -192,6 +192,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
+      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
     env_file:
       - path: .env
         required: false
@@ -203,6 +204,7 @@ services:
       - ./libs:/app/libs:ro
       - ./apps/scheduler:/app/apps/scheduler
       - ../backups:/app/backups
+      - ./sources:/app/sources:ro
     depends_on:
       db:
         condition: service_healthy

@@ -62,6 +62,11 @@ services:
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/scheduler:/app/apps/scheduler
+      - ./sources:/app/sources:ro
+      # Parent dir for shared auth file (.gts-auth.json)
+      - ../:/worktrees
+    environment:
+      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
 
   video:
     container_name: {{ worktree.compose_project }}-video
