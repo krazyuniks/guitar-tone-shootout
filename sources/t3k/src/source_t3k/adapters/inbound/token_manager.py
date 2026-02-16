@@ -16,6 +16,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet, InvalidToken
 from httpx import AsyncClient
 
+from core.domain.value_objects.source_auth_status import SourceAuthStatus
 from source_t3k.adapters.inbound.exceptions import T3KAPIError
 from source_t3k.adapters.inbound.vercel_solver import is_vercel_challenge, solve_challenge
 
@@ -112,6 +113,7 @@ class T3KTokenManager:
             # No expiry info — assume valid for 1 hour from now
             self._expires_at = time.time() + 3600
 
+        self._update_auth_status_field(SourceAuthStatus.VALID)
         logger.info("Loaded T3K tokens from auth file")
 
     async def _refresh(self) -> None:
@@ -129,6 +131,7 @@ class T3KTokenManager:
             )
 
             if response.status_code == 401:
+                self._update_auth_status_field(SourceAuthStatus.LOGIN_REQUIRED)
                 raise T3KAPIError("T3K refresh token expired — re-authenticate via browser")
 
             if is_vercel_challenge(response.status_code, response.text):
@@ -177,12 +180,27 @@ class T3KTokenManager:
             "utf-8"
         )
         existing["expires_at"] = expires_at_iso
+        existing["auth_status"] = SourceAuthStatus.VALID.value
         existing["saved_at"] = datetime.now(UTC).isoformat()
 
         with open(path, "w") as f:
             json.dump(existing, f, indent=2)
 
         os.chmod(path, 0o600)
+
+    def _update_auth_status_field(self, status: SourceAuthStatus) -> None:
+        """Update only the auth_status field in the auth file."""
+        path = Path(self._auth_file_path)
+        if not path.exists():
+            return
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            data["auth_status"] = status.value
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2)
+        except (json.JSONDecodeError, OSError):
+            pass  # Best-effort — don't crash on status update failure
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""
