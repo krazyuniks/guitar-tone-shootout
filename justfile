@@ -170,9 +170,10 @@ db-restore file:
 db-export: db-backup
 db-import file: (db-restore file)
 
-# Run migrations
+# Run migrations (core + T3K source)
 migrate:
     docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini upgrade head
+    docker compose exec -T worker alembic -c sources/t3k/alembic.ini upgrade head
 
 # Create a new migration
 migration NAME:
@@ -244,6 +245,37 @@ video-types:
 admin *ARGS:
     # Calls scripts/gts-admin (Python module at scripts/gts_admin.py)
     docker compose exec -T webapp python3 -m scripts.gts_admin {{ARGS}}
+
+# T3K login — authenticate via headless Chromium (runs on host)
+t3k-login:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source .env 2>/dev/null || true
+    python3 scripts/t3k_login.py
+
+# T3K auth status — check token health (runs on host, no API calls)
+t3k-auth-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    AUTH_FILE="${GTS_AUTH_FILE:-$(dirname "$(pwd)")/.gts-auth.json}"
+    if [ ! -f "$AUTH_FILE" ]; then
+        echo "Auth file not found: $AUTH_FILE"
+        echo "Run: just t3k-login"
+        exit 1
+    fi
+    python3 -c "
+    import json, sys
+    data = json.load(open('$AUTH_FILE'))
+    status = data.get('auth_status', 'unknown')
+    expires = data.get('expires_at', 'not set')
+    user = data.get('username', 'unknown')
+    print(f'User:       {user}')
+    print(f'Status:     {status}')
+    print(f'Expires:    {expires}')
+    if status == 'login_required':
+        print()
+        print('Run: just t3k-login')
+    "
 
 # Open a shell in the backend container
 shell:
