@@ -16,6 +16,7 @@ import redis.asyncio as redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from core.domain.auth_gate import check_auth_status
 from core.domain.value_objects.job_status import JobStatus
 from scheduler.db import get_session
 from scheduler.lock import DistributedLock
@@ -128,6 +129,12 @@ async def ensure_source_sync_running(db_engine: AsyncEngine | None = None) -> No
     Args:
         db_engine: Optional database engine (for testing). If None, uses registered engine.
     """
+    # Check auth gate before dispatching sync
+    status = check_auth_status(os.getenv("GTS_AUTH_FILE", "/.gts-auth.json"))
+    if not status.can_proceed():
+        logger.debug("Skipping sync dispatch: auth status is %s", status.value)
+        return
+
     lock_key = "t3k:sync:lock"
     redis_client = get_redis_client()
     try:

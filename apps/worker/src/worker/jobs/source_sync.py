@@ -13,6 +13,7 @@ from uuid import UUID
 
 import redis.asyncio as redis
 
+from core.domain.auth_gate import check_auth_status
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
 from source_t3k.adapters.inbound.token_manager import T3KTokenManager
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
@@ -25,6 +26,18 @@ from worker.main import broker
 SYNC_SOURCE = "t3k"
 SYNC_LOCK_TTL_SECONDS = 120
 SYNC_LOCK_RENEW_SECONDS = 30
+
+
+def _check_auth_gate(auth_file_path: str | None = None) -> None:
+    """Check auth status before making any T3K API calls."""
+    if auth_file_path is None:
+        auth_file_path = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
+    status = check_auth_status(auth_file_path)
+    if not status.can_proceed():
+        msg = f"T3K auth status is {status.value}"
+        if status.needs_login():
+            msg += " — run `just t3k-login`"
+        raise RuntimeError(msg)
 
 
 def _build_api_client() -> tuple[T3KTokenManager, T3KAPIClient]:
@@ -57,6 +70,7 @@ async def _renew_sync_lock(redis_client: redis.Redis, lock_key: str) -> None:
 @broker.task
 async def handle_source_sync(job_id: UUID) -> None:
     """Handle SOURCE_SYNC job by creating T3K sync service and running catalog sync."""
+    _check_auth_gate()  # Fail fast — no API calls if auth unhealthy
     settings = WorkerSettings()  # type: ignore[call-arg]
     redis_client = redis.from_url(settings.redis_url, decode_responses=True)
     lock_key = f"{SYNC_SOURCE}:sync:lock"
