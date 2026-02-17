@@ -13,6 +13,7 @@ from pathlib import Path
 import typer
 from rich.panel import Panel
 
+from ..backup import BackupError, backup_all_databases, get_backups_dir, get_latest_backup
 from ..cli_utils import (
     console,
     get_db_password,
@@ -27,9 +28,7 @@ from ..docker import (
     build_images,
     cleanup_containers,
     collect_container_logs,
-    export_database,
     format_failure_report,
-    get_backups_dir,
     get_main_worktree_path,
     get_orphan_ports_in_use,
     get_service_status,
@@ -480,8 +479,8 @@ def _get_or_create_backup(status, is_main: bool) -> Path | None:
             console.print("[dim]Or use --skip-db-import to start with empty database[/dim]")
             return None
 
-    # For feature worktrees: export main's database
-    status.update("[bold green]Exporting main worktree database (Step 0.5)...")
+    # For feature worktrees: export main's database (all databases)
+    status.update("[bold green]Backing up main worktree databases (Step 0.5)...")
     main_path = get_main_worktree_path()
 
     # Check if main's db is running
@@ -497,12 +496,14 @@ def _get_or_create_backup(status, is_main: bool) -> Path | None:
         return None
 
     try:
-        backup_file = export_database(main_path)
-        console.print(f"  [green]✓[/green] Exported: {backup_file.name}")
-        return backup_file
-    except DockerError as e:
+        backup_files = backup_all_databases(main_path)
+        for bf in backup_files:
+            console.print(f"  [green]✓[/green] Backed up: {bf.name}")
+        # Return first backup (gts_core) for backwards compat with _import_database
+        return backup_files[0] if backup_files else None
+    except BackupError as e:
         status.stop()
-        print_error(f"Database export failed: {e}")
+        print_error(f"Database backup failed: {e}")
         console.print()
         console.print("[dim]Or use --skip-db-import to start with empty database[/dim]")
         return None
@@ -511,21 +512,27 @@ def _get_or_create_backup(status, is_main: bool) -> Path | None:
 def _get_latest_backup() -> Path | None:
     """Get the most recent database backup file.
 
+    Checks for new multi-db naming ({db_name}.{timestamp}.dump) first,
+    falls back to legacy naming (shootout.{timestamp}.dump).
+
     Returns:
-        Path to the latest backup file, or None if no backups exist
+        Path to the latest backup file, or None if no backups exist.
     """
+    # Try new naming convention first
+    backup = get_latest_backup("gts_core")
+    if backup:
+        return backup
+
+    # Fall back to legacy naming: shootout.*.dump → treat as gts_core
     backups_dir = get_backups_dir()
     if not backups_dir.exists():
         return None
 
-    # Find .dump backup files
-    backups = list(backups_dir.glob("shootout.*.dump"))
-    if not backups:
+    legacy_backups = list(backups_dir.glob("shootout.*.dump"))
+    if not legacy_backups:
         return None
 
-    # Sort by modification time, newest first
-    backups = sorted(backups, key=lambda p: p.stat().st_mtime, reverse=True)
-    return backups[0]
+    return sorted(legacy_backups, key=lambda p: p.stat().st_mtime, reverse=True)[0]
 
 
 def _start_and_configure_services(
