@@ -4,6 +4,9 @@ Tests block-by-block sequential processing with proper ordering and constraint
 enforcement (FULL_RIG vs HEAD).
 """
 
+import json
+import sys
+import types
 from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
@@ -11,14 +14,68 @@ from uuid import uuid4
 import numpy as np
 import pytest
 import soundfile as sf
-import torch
 
 from audio.processing.chain_executor import (
     ChainExecutionError,
     execute_signal_chain,
 )
+from audio.processing.nam_loader import clear_model_cache
 from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
+
+
+def _create_minimal_nam_file(path: Path) -> None:
+    """Create a minimal valid .nam file (WaveNet architecture)."""
+    for mod_name in ("nam.train", "nam.train.colab"):
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = types.ModuleType(mod_name)
+
+    from nam.models.wavenet import WaveNet
+
+    layer_config = {
+        "input_size": 1,
+        "condition_size": 1,
+        "head_size": 1,
+        "channels": 1,
+        "kernel_size": 2,
+        "dilations": [1],
+        "activation": "Tanh",
+        "gated": False,
+        "head_bias": False,
+    }
+    wavenet_config = {
+        "layers": [layer_config],
+        "head": None,
+        "head_scale": 0.02,
+    }
+
+    model = WaveNet(
+        layers_configs=wavenet_config["layers"],
+        head_config=wavenet_config["head"],
+        head_scale=wavenet_config["head_scale"],
+        sample_rate=48000,
+    )
+    weights = []
+    for p in model.parameters():
+        weights.extend(p.detach().cpu().numpy().flatten().tolist())
+
+    config = {
+        "version": "0.5.4",
+        "architecture": "WaveNet",
+        "config": wavenet_config,
+        "weights": weights,
+        "sample_rate": 48000,
+        "metadata": {},
+    }
+
+    with open(path, "w") as f:
+        json.dump(config, f)
+
+
+@pytest.fixture(autouse=True)
+def _clear_nam_cache() -> None:
+    """Clear NAM model cache between tests."""
+    clear_model_cache()
 
 
 @pytest.fixture
@@ -32,13 +89,12 @@ def test_audio_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def test_di_file(test_audio_dir: Path) -> Path:
     """Create a test DI audio file."""
-    # Create a simple sine wave test file
     sample_rate = 48000
-    duration = 1.0  # 1 second
-    frequency = 440.0  # A4 note
+    duration = 1.0
+    frequency = 440.0
 
     t = np.linspace(0, duration, int(sample_rate * duration))
-    audio = np.sin(2 * np.pi * frequency * t) * 0.5  # 50% amplitude
+    audio = np.sin(2 * np.pi * frequency * t) * 0.5
 
     di_path = test_audio_dir / "test_di.wav"
     sf.write(di_path, audio, sample_rate)
@@ -47,15 +103,9 @@ def test_di_file(test_audio_dir: Path) -> Path:
 
 @pytest.fixture
 def test_nam_model(test_audio_dir: Path) -> Path:
-    """Create a test NAM model file."""
-    # Create a minimal model checkpoint
-    model_state = {
-        "model": {"weight": torch.randn(1, 1), "bias": torch.randn(1)},
-        "sample_rate": 48000,
-    }
-
+    """Create a test NAM model (.nam JSON format)."""
     model_path = test_audio_dir / "test_model.nam"
-    torch.save(model_state, model_path)
+    _create_minimal_nam_file(model_path)
     return model_path
 
 

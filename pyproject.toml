@@ -26,6 +26,10 @@ dev = [
 
 [tool.uv]
 # CPU-only PyTorch — no GPU on this server, saves ~3GB of NVIDIA CUDA packages
+# neural-amp-modeler pulls in librosa -> numba (Python <3.10 only).
+# We only need NAM inference (nam.models), not training. Override to skip librosa.
+override-dependencies = ["librosa ; python_version < '0'"]
+
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"

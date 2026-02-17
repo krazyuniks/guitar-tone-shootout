@@ -13,7 +13,7 @@ import numpy as np
 from pedalboard import Pedalboard  # type: ignore[attr-defined]
 
 from audio.processing.ir_loader import IRLoadError, load_ir
-from audio.processing.nam_loader import NAMLoadError, load_nam_model
+from audio.processing.nam_loader import NAMLoadError, get_cached_model
 
 if TYPE_CHECKING:
     from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
@@ -159,28 +159,8 @@ async def _process_nam_block(
         ChainExecutionError: If NAM processing fails
     """
     try:
-        # Load NAM model
-        model, _model_sample_rate = load_nam_model(model_path)
-
-        # For now, simple sample-by-sample processing
-        # Production would use batch processing for efficiency
-        model.eval()
-        result = np.zeros_like(audio)
-
-        # Convert to float32 for processing
-        audio_float = audio.astype(np.float32)
-
-        # Process sample by sample
-        import torch
-
-        with torch.no_grad():
-            for i in range(len(audio_float)):
-                sample = torch.tensor([[audio_float[i]]], dtype=torch.float32)
-                output = model(sample)
-                result[i] = output.item()
-
-        return result
-
+        model = get_cached_model(str(model_path))
+        return model.process(audio.astype(np.float32))
     except NAMLoadError as e:
         raise ChainExecutionError(f"Failed to load NAM model: {e}") from e
     except Exception as e:

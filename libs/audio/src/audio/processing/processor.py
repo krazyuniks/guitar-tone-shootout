@@ -11,7 +11,6 @@ from typing import ClassVar
 import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
-import torch
 from pedalboard import HighpassFilter, Pedalboard  # type: ignore[attr-defined]
 from scipy import signal
 
@@ -188,16 +187,16 @@ class PedalboardAudioProcessor:
                 audio = board(audio, sample_rate)
 
             # Load and apply NAM model
-            nam_model, model_sample_rate = load_nam_model(config.nam_model_path)
+            nam_model = load_nam_model(config.nam_model_path)
 
             # Resample for NAM if needed
-            if sample_rate != model_sample_rate:
-                num_samples = int(len(audio) * model_sample_rate / sample_rate)
+            if nam_model.sample_rate and sample_rate != nam_model.sample_rate:
+                num_samples = int(len(audio) * nam_model.sample_rate / sample_rate)
                 audio = signal.resample(audio, num_samples)
-                sample_rate = model_sample_rate
+                sample_rate = int(nam_model.sample_rate)
 
-            # Apply NAM model
-            audio = self._apply_nam_model(nam_model, audio)
+            # Apply NAM model (batch inference)
+            audio = nam_model.process(audio.astype(np.float32))
 
             # Apply IR if configured
             if config.ir_path is not None:
@@ -230,40 +229,3 @@ class PedalboardAudioProcessor:
 
         except Exception as e:
             raise ProcessingError(f"Failed to process DI track: {e}") from e
-
-    def _apply_nam_model(
-        self,
-        model: torch.nn.Module,
-        audio: np.ndarray,
-    ) -> np.ndarray:
-        """Apply NAM model to audio.
-
-        Args:
-            model: Loaded NAM PyTorch model
-            audio: Input audio samples
-
-        Returns:
-            Processed audio samples
-
-        Note:
-            This is a simplified implementation that processes audio sample-by-sample.
-            Real NAM models would use proper buffering and batch processing for efficiency.
-        """
-        # Convert audio to tensor (shape: [num_samples])
-        audio_tensor = torch.from_numpy(audio).float()
-
-        # Process sample-by-sample (simplified approach for testing)
-        # Real NAM models would process in chunks for efficiency
-        processed_samples = []
-
-        with torch.no_grad():
-            for sample in audio_tensor:
-                # Reshape sample to (1, 1) for model input
-                input_sample = sample.view(1, 1)
-                output_sample = model(input_sample)
-                processed_samples.append(output_sample.item())
-
-        # Convert back to numpy array
-        processed = np.array(processed_samples, dtype=np.float32)
-
-        return processed

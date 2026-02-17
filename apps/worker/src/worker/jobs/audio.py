@@ -5,7 +5,6 @@ a single signal chain through the audio pipeline, saves output,
 measures loudness, and tracks progress.
 """
 
-import contextlib
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +12,7 @@ from uuid import UUID
 
 import soundfile as sf
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from audio.processing.chain_executor import execute_signal_chain
@@ -25,8 +25,52 @@ from webapp.adapters.persistence.models.shootout import (
     ShootoutChain,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
+from webapp.adapters.persistence.models.user_gear import UserGear
 from worker.db import get_session
 from worker.main import broker
+
+STORAGE_ROOT = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
+
+
+async def _resolve_gear_paths(
+    session: AsyncSession,
+    signal_chain: SignalChain,
+) -> dict[str, Path]:
+    """Pre-resolve all gear file paths for a signal chain's blocks.
+
+    Queries UserGear -> GearModel -> file_path for each block, returning
+    a dict keyed by str(user_gear_id) -> absolute Path on disk.
+    """
+    paths: dict[str, Path] = {}
+
+    for block in signal_chain.blocks:
+        if block.user_gear_id is None:
+            continue
+        ug_id = str(block.user_gear_id)
+        if ug_id in paths:
+            continue
+
+        stmt = (
+            select(UserGear)
+            .where(UserGear.id == block.user_gear_id)
+            .options(joinedload(UserGear.gear_model))
+        )
+        result = await session.execute(stmt)
+        user_gear = result.unique().scalar_one_or_none()
+
+        if user_gear is None:
+            raise ValueError(f"UserGear {ug_id} not found")
+
+        gear_model = user_gear.gear_model
+        if gear_model.file_path is None:
+            raise ValueError(
+                f"GearModel {gear_model.id} has no file_path "
+                f"(download_status={gear_model.download_status})"
+            )
+
+        paths[ug_id] = STORAGE_ROOT / gear_model.file_path
+
+    return paths
 
 
 @broker.task
@@ -37,14 +81,9 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
     1. Loads the job to get shootout chain ID
     2. Loads shootout chain, signal chain (with blocks), and DI track
     3. Reads DI audio from file
-    4. Updates job progress to 50 (loading complete)
-    5. Processes audio through signal chain
-    6. Updates job progress to 90 (processing complete)
-    7. Saves output as FLAC
-    8. Measures loudness
-    9. Creates AudioSegment record
-    10. Updates job progress to 100
-    11. Updates heartbeat during processing
+    4. Processes audio through signal chain
+    5. Saves output as FLAC
+    6. Measures loudness and creates AudioSegment record
 
     Args:
         job_id: The ID of the SHOOTOUT_AUDIO job
@@ -90,6 +129,7 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             if di_track is None:
                 raise ValueError(f"Shootout {shootout.id} has no DI track")
 
+            # Read DI audio file
             di_audio, sample_rate = sf.read(di_track.file_path)
 
             # Update job progress to 50 (loading complete)
@@ -97,14 +137,13 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             job.last_heartbeat = datetime.now(UTC)
             await session.commit()
 
-            # Process audio through signal chain
-            # Note: gear_path_resolver will be needed for actual processing
-            # For now, pass None as tests mock execute_signal_chain
+            # Pre-resolve all gear file paths, then process
+            gear_paths = await _resolve_gear_paths(session, signal_chain)
             processed_audio = await execute_signal_chain(
                 signal_chain,
                 di_audio,
                 sample_rate,
-                None,  # gear_path_resolver
+                lambda ug_id, _gt: gear_paths[ug_id],
             )
 
             # Update job progress to 90 (processing complete)
@@ -113,14 +152,10 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             await session.commit()
 
             # Save output as FLAC to processed_data volume
-            # Output path: processed/{shootout_id}/{chain_id}.flac
             output_dir = Path("/processed_data") / str(shootout.id)
-            with contextlib.suppress(PermissionError, OSError):
-                output_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / f"{shootout_chain_id}.flac"
-
-            with contextlib.suppress(Exception):
-                sf.write(str(output_path), processed_audio, sample_rate)
+            sf.write(str(output_path), processed_audio, sample_rate)
 
             # Measure loudness
             integrated_lufs, peak_dbfs = measure_loudness(output_path)

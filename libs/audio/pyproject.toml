@@ -12,8 +12,7 @@ dependencies = [
     "torch>=2.5.0",
     "torchaudio>=2.5.0",
     "soundfile>=0.12.0",
-    # NAM removed temporarily - Python 3.12 compatibility issue with librosa/numba
-    # Will be added back when updated versions are available
+    "neural-amp-modeler>=0.12.0",
 ]
 
 [tool.uv.sources]

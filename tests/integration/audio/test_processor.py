@@ -46,21 +46,56 @@ def test_di_file(test_audio_dir: Path) -> Path:
 
 @pytest.fixture
 def test_nam_model(test_audio_dir: Path) -> Path:
-    """Create a test NAM model file.
+    """Create a test NAM model file (.nam JSON format)."""
+    import json
+    import sys
+    import types
 
-    Note: This creates a minimal PyTorch checkpoint for testing.
-    Real NAM models would have more complex architectures.
-    """
-    import torch
+    for mod_name in ("nam.train", "nam.train.colab"):
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = types.ModuleType(mod_name)
 
-    # Create a minimal model checkpoint
-    model_state = {
-        "model": {"weight": torch.randn(1, 1), "bias": torch.randn(1)},
+    from nam.models.wavenet import WaveNet
+
+    layer_config = {
+        "input_size": 1,
+        "condition_size": 1,
+        "head_size": 1,
+        "channels": 1,
+        "kernel_size": 2,
+        "dilations": [1],
+        "activation": "Tanh",
+        "gated": False,
+        "head_bias": False,
+    }
+    wavenet_config = {
+        "layers": [layer_config],
+        "head": None,
+        "head_scale": 0.02,
+    }
+
+    model = WaveNet(
+        layers_configs=wavenet_config["layers"],
+        head_config=wavenet_config["head"],
+        head_scale=wavenet_config["head_scale"],
+        sample_rate=48000,
+    )
+    weights = []
+    for p in model.parameters():
+        weights.extend(p.detach().cpu().numpy().flatten().tolist())
+
+    config = {
+        "version": "0.5.4",
+        "architecture": "WaveNet",
+        "config": wavenet_config,
+        "weights": weights,
         "sample_rate": 48000,
+        "metadata": {},
     }
 
     model_path = test_audio_dir / "test_model.nam"
-    torch.save(model_state, model_path)
+    with open(model_path, "w") as f:
+        json.dump(config, f)
     return model_path
 
 
