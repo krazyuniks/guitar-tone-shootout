@@ -1,6 +1,6 @@
 # Dev Environment Alignment — Host ↔ Docker
 
-> **For Claude:** Continue this work on branch `feat/t3k-login-auto-refresh`. Read this file for context, then work through the items below.
+> **For Claude:** Continue this work on branch `feat/t3k-login-auto-refresh`. Read this file for context, then work through the remaining items below.
 
 **Goal:** Eliminate all divergence between host and Docker development environments. Single source of truth for every tool version. No graceful fallbacks.
 
@@ -8,8 +8,9 @@
 
 ---
 
-## Completed (previous session)
+## Completed
 
+### Previous session (2026-02-17 morning)
 - Unified storage bind mount: `../gts-storage:/app/storage` with `GTS_STORAGE_ROOT`
 - Pre-commit ruff hooks now run inside Docker (see `scripts/ruff-hook.sh`)
 - Host-only code (worktree/, workflow/) uses `uvx ruff@{version}` with version from pyproject.toml
@@ -17,55 +18,45 @@
 - Pinned `ruff==0.15.1` in pyproject.toml
 - Removed graceful fallback from astro-lint.sh
 
-## Open Items (fix in this session)
+### This session (2026-02-17 afternoon)
+1. **Astro whitespace loop** — gitignored `frontend/astro/.astro/`, removed from tracking
+2. **Python dep pinning** — `uv.lock` + `--frozen` is sufficient, no `==` pins needed
+3. **Host Python alignment** — switched from pyenv to uv-only, Python 3.14.3 everywhere:
+   - Host: uv manages `~/.local/bin/python3` → 3.14.3
+   - Docker: pinned `python:3.14.3-slim` in all Dockerfiles
+   - Pyright: `[tool.pyright] pythonVersion = "3.14"` in pyproject.toml
+   - mypy: updated `python_version` from 3.12 to 3.14
+   - Removed pyenv from dotfiles (`~/.dotfiles/source/01_path.sh`, `~/.dotfiles/init/10_runtimes.sh`)
+4. **Node/pnpm alignment** — added `engines` to package.json, pinned `node:24.13.1-alpine`
+5. **Docker base images** — all Dockerfiles pinned to exact versions
+6. **Model backfill** — restored DB from backup, ran archive sync (6,212 tones, 31,548 models, 496 NAM files)
+7. **Update script** — created `scripts/update.sh` for periodic dependency updates
 
-### 1. Astro check trailing whitespace loop (BLOCKING)
-
-`astro check` (run by pre-commit via `scripts/astro-lint.sh`) regenerates `frontend/astro/.astro/*.{d.ts,mjs}` files every time. These generated files have trailing whitespace that the `trailing-whitespace` and `end-of-file-fixer` hooks fix. On next run, astro check regenerates again. Infinite loop.
-
-**Options:**
-- Add `.astro/` to `.gitignore` (if generated files shouldn't be committed)
-- Configure astro to not regenerate on `check`
-- Exclude `.astro/` from whitespace hooks (last resort)
-- Fix astro's code generation to not emit trailing whitespace (upstream)
-
-### 2. Pin ALL Python dependency versions
-
-`pyproject.toml` uses `>=` for most deps. Pin exact versions (`==`) for all packages. Use `uv` equivalent of `npm-check-updates` to manage upgrades.
-
-Research: `uv lock --upgrade` updates all packages to latest compatible versions. The lock file IS the pin. Consider whether `==` in pyproject.toml is needed if uv.lock is committed and `--frozen` is used in Dockerfiles.
-
-### 3. Host Python version alignment
-
-Pyright MCP runs on host Python but the project uses Python 3.14 in Docker. Host may have different Python version, causing false Pyright errors (e.g. `StrEnum` not found).
-
-**Fix:** Install Python 3.14 on host via `uv python install 3.14` and configure Pyright to use it.
-
-### 4. Node/pnpm version alignment
-
-Check if `frontend/astro/package.json` has `engines` field pinning node/pnpm versions. If not, add them. Ensure Docker astro service uses same versions.
-
-### 5. Update ALL Docker base images to latest
-
-Check all Dockerfiles in `infrastructure/docker/` for base image versions. Update to latest stable.
-
-### 6. Model backfill for source_downloads
-
-The 4,778 models in `../gts-storage/models/` were archive-imported and don't have corresponding entries in `source_downloads/t3k/{model_id}/`. When T3K sync runs, it will re-download these (wasting bandwidth + disk).
-
-**Fix:** Write a script that queries the database to map `core_uuid` → `t3k_model_id`, then creates symlinks or empty marker files in `source_downloads/t3k/{model_id}/{filename}.nam` so the downloader's `path.exists()` check passes.
+## Remaining
 
 ### 7. Fix 28 pre-existing test failures
 
-`test_audio_job.py`, `test_master_audio.py`, `test_shootout_orchestrator.py` all fail with `'Job' object has no attribute 'signal_chain'`. These are from epic-112 work and were pre-existing on main. They need to be fixed.
+`test_audio_job.py`, `test_master_audio.py`, `test_shootout_orchestrator.py` all fail because tests mock `session.execute` returning the wrong object type (returns `Job` instead of `ShootoutChain` on second query). Tests also use `unittest.mock` which is banned by project policy.
+
+**Fix:** Rewrite these 28 tests with real DB fixtures (SQLite in-memory or test PostgreSQL), following the project's no-mock testing policy. The production code in `worker/jobs/audio.py` is correct — only the tests are broken.
+
+### 8. Backup automation (NEW)
+
+`worktree.py setup` needs to backup and restore ALL databases (gts_core + gts_t3k_source + any future source DBs). Requirements:
+- Modularise backup/restore in `worktree.py` so it can be called from CLI independently
+- Schedule twice-daily automatic backups (via scheduler or cron)
+- Use same backup method for both `worktree.py setup` and standalone backup
+- Backup all databases, not just gts_core
 
 ---
 
 ## Key Files
 
-- `.pre-commit-config.yaml` — pre-commit config (local hooks, no external repos for ruff)
+- `.pre-commit-config.yaml` — pre-commit config
 - `scripts/ruff-hook.sh` — routes Python files to Docker or host ruff
 - `scripts/astro-lint.sh` — runs astro check in Docker
-- `pyproject.toml` — ruff version pin, all Python deps
-- `docker-compose.yml` — webapp volumes (now RW), service configs
+- `scripts/update.sh` — periodic dependency update script
+- `pyproject.toml` — tool versions, Pyright config, mypy config
+- `docker-compose.yml` — service configs
 - `uv.lock` — locked dependency versions
+- `.python-version` — uv Python pin (3.14.3)
