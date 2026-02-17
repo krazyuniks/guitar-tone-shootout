@@ -167,7 +167,7 @@ class TestGetModels:
 
         assert len(models) == 2
         assert all(isinstance(m, T3KModel) for m in models)
-        assert models[0].id == 1
+        assert models[0].id == "1"
 
     @pytest.mark.asyncio
     async def test_sends_tone_id_param(self) -> None:

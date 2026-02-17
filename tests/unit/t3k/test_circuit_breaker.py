@@ -6,7 +6,6 @@ Tests verify state transitions and failure handling.
 """
 
 import asyncio
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -58,11 +57,16 @@ class TestCircuitBreakerStates:
         assert breaker.state == CircuitBreakerState.OPEN
 
         # Should reject without calling the function
-        mock_call = AsyncMock()
-        with pytest.raises(Exception, match="Circuit breaker is OPEN"):
-            await breaker.call(mock_call)
+        call_count = 0
 
-        mock_call.assert_not_called()
+        async def tracked_call():
+            nonlocal call_count
+            call_count += 1
+
+        with pytest.raises(Exception, match="Circuit breaker is OPEN"):
+            await breaker.call(tracked_call)
+
+        assert call_count == 0
 
     @pytest.mark.asyncio
     async def test_enters_half_open_after_timeout(self) -> None:
