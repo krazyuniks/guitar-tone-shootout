@@ -54,7 +54,7 @@ rebuild *ARGS:
 # =============================================================================
 
 # Run all quality checks (read-only — safe in Docker with :ro mounts)
-check: check-lint check-types check-tests check-imports
+check: check-lint check-types check-tests check-imports test-quality
 
 # Run type checking (strict on core, TypeScript on video)
 check-types:
@@ -157,51 +157,18 @@ tdd PATH:
 # Database
 # =============================================================================
 
-# Export database to timestamped backup in ../backups/
-db-export:
-    ./worktree.py db-export
+# Back up all databases to ../backups/
+db-backup:
+    ./worktree.py backup
 
-# Import database from custom format dump file
-# WARNING: This drops and recreates the database!
-# Usage: just db-import backup.dump
-db-import file:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    file="{{file}}"
+# Restore a database from a dump file
+# Usage: just db-restore path/to/gts_core.20260217_1200.dump
+db-restore file:
+    ./worktree.py restore {{file}}
 
-    # Validate file exists
-    if [ ! -f "$file" ]; then
-        echo "✗ File not found: $file"
-        exit 1
-    fi
-
-    # Validate file extension
-    if [[ ! "$file" == *.dump ]]; then
-        echo "✗ File must have .dump extension (pg_dump -Fc format)"
-        exit 1
-    fi
-
-    # Check if db container is running
-    if ! docker compose ps db 2>/dev/null | grep -q "Up"; then
-        echo "✗ Database container is not running"
-        exit 1
-    fi
-
-    echo "→ Terminating existing connections..."
-    docker compose exec -T db psql -U gts -d postgres -c \
-        "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='gts_core' AND pid <> pg_backend_pid();" \
-        > /dev/null 2>&1 || true
-
-    echo "→ Dropping database..."
-    docker compose exec -T db dropdb -U gts --if-exists gts_core
-
-    echo "→ Creating database..."
-    docker compose exec -T db createdb -U gts gts_core
-
-    echo "→ Restoring from $file..."
-    docker compose exec -T db pg_restore -U gts -d gts_core --no-owner --no-privileges < "$file" 2>&1 || true
-
-    echo "✓ Database imported from $file"
+# Legacy aliases
+db-export: db-backup
+db-import file: (db-restore file)
 
 # Run migrations
 migrate:

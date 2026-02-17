@@ -1,14 +1,13 @@
 """Fixtures for scheduler unit tests.
 
-This conftest.py fixes the mock_redis fixture behavior and provides
-environment variables needed for importing scheduler.main.
+This conftest.py provides environment variables needed for importing
+scheduler.main and registers test database engines for scheduled tasks.
 """
 
 from __future__ import annotations
 
 import os
 from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import event
@@ -71,27 +70,6 @@ def _scheduler_env(request):
         os.environ.pop("REDIS_URL", None)
     else:
         os.environ["REDIS_URL"] = original_value
-
-
-@pytest.fixture(autouse=True)
-def _fix_redis_mock(request):
-    """Auto-fix mock_redis fixture to make methods async-compatible.
-
-    The test file creates AsyncMock(spec=redis.Redis) which doesn't automatically
-    make methods async. This fixture patches the mock after it's created to ensure
-    redis methods (set, delete, expire) are AsyncMocks.
-    """
-    # Only apply if the test uses mock_redis fixture
-    if "mock_redis" not in request.fixturenames:
-        return
-
-    # Get the mock_redis fixture value
-    mock_redis = request.getfixturevalue("mock_redis")
-
-    # Make Redis methods async-compatible
-    mock_redis.set = AsyncMock()
-    mock_redis.delete = AsyncMock()
-    mock_redis.expire = AsyncMock()
 
 
 @pytest.fixture(autouse=True)

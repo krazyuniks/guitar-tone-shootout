@@ -1,12 +1,14 @@
 """Health checking for worktrees."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 
+from .backup import get_latest_backups
 from .config import get_main_worktree_path
 from .docker import (
-    check_webapp_health,
     check_nginx_health,
+    check_webapp_health,
     get_service_status,
 )
 from .registry import get_worktree_by_path
@@ -39,6 +41,8 @@ class HealthCheckResult:
     webapp_responding: bool
     issues: list[str]
     worktree_path: Path | None = None
+    last_backup: dict[str, datetime | None] = field(default_factory=dict)
+    backup_stale: bool = False
 
     @property
     def status_emoji(self) -> str:
@@ -106,6 +110,23 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
     if not webapp_responding:
         issues.append(f"Webapp not responding at {worktree.webapp_url}/health")
 
+    # Check backup status
+    backups = get_latest_backups()
+    now = datetime.now()
+    stale_threshold = now - timedelta(hours=24)
+    backup_stale = False
+
+    last_backup: dict[str, datetime | None] = {}
+    for db_name, backup_path in backups.items():
+        if backup_path:
+            mtime = datetime.fromtimestamp(backup_path.stat().st_mtime)
+            last_backup[db_name] = mtime
+            if mtime < stale_threshold:
+                backup_stale = True
+        else:
+            last_backup[db_name] = None
+            backup_stale = True
+
     healthy = len(issues) == 0
 
     return HealthCheckResult(
@@ -115,6 +136,8 @@ def check_worktree_health(worktree_path: Path) -> HealthCheckResult:
         webapp_responding=webapp_responding,
         issues=issues,
         worktree_path=worktree_path,
+        last_backup=last_backup,
+        backup_stale=backup_stale,
     )
 
 

@@ -83,37 +83,14 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             if shootout_chain is None:
                 raise ValueError(f"ShootoutChain {shootout_chain_id} not found")
 
-            # Get signal chain, shootout, and DI track
-            # Handle test mocks that may return incorrect types or lazy='raise' errors
-            try:
-                if isinstance(shootout_chain, ShootoutChain):
-                    signal_chain = shootout_chain.signal_chain
-                    shootout = shootout_chain.shootout
-                    di_track = shootout.di_track
-                else:
-                    raise AttributeError("Not a ShootoutChain")
-            except (AttributeError, Exception):
-                # For test mocks or lazy='raise' errors, create placeholder objects
-                from unittest.mock import Mock
-
-                signal_chain = Mock()
-                shootout = Mock()
-                shootout.id = shootout_chain_id
-                di_track = Mock()
-                di_track.file_path = "/uploads/di.wav"
+            signal_chain = shootout_chain.signal_chain
+            shootout = shootout_chain.shootout
+            di_track = shootout.di_track
 
             if di_track is None:
                 raise ValueError(f"Shootout {shootout.id} has no DI track")
 
-            # Read DI audio file
-            try:
-                di_audio, sample_rate = sf.read(di_track.file_path)
-            except Exception:
-                # For tests that don't mock sf, create dummy audio
-                import numpy as np
-
-                di_audio = np.zeros(1000, dtype=np.float32)
-                sample_rate = 48000
+            di_audio, sample_rate = sf.read(di_track.file_path)
 
             # Update job progress to 50 (loading complete)
             job.progress = 50

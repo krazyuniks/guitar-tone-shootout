@@ -11,7 +11,6 @@ Tests exception handlers mounted in main.py:
 """
 
 from collections.abc import AsyncGenerator
-from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI
@@ -351,42 +350,46 @@ class TestProductionSanitisation:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_production_mode_strips_stack_traces(self, app_with_handlers: FastAPI) -> None:
+    async def test_production_mode_strips_stack_traces(
+        self, app_with_handlers: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test production mode strips stack traces from responses."""
-        with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
-            async with AsyncClient(
-                transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
-                base_url="http://test",
-            ) as client:
-                response = await client.get("/api/v1/test/unhandled")
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/api/v1/test/unhandled")
 
-                assert response.status_code == 500
-                data = response.json()
-                # Should NOT contain stack trace, file paths, or exception types
-                response_str = str(data)
-                assert "traceback" not in response_str.lower()
-                assert "File " not in response_str
-                assert "line " not in response_str.lower()
-                assert "/apps/" not in response_str
-                assert "/libs/" not in response_str
+            assert response.status_code == 500
+            data = response.json()
+            # Should NOT contain stack trace, file paths, or exception types
+            response_str = str(data)
+            assert "traceback" not in response_str.lower()
+            assert "File " not in response_str
+            assert "line " not in response_str.lower()
+            assert "/apps/" not in response_str
+            assert "/libs/" not in response_str
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_production_mode_strips_internal_paths(self, app_with_handlers: FastAPI) -> None:
+    async def test_production_mode_strips_internal_paths(
+        self, app_with_handlers: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test production mode strips internal paths from responses."""
-        with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
-            async with AsyncClient(
-                transport=ASGITransport(app=app_with_handlers), base_url="http://test"
-            ) as client:
-                response = await client.get("/api/v1/test/sqlalchemy-error")
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_handlers), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/v1/test/sqlalchemy-error")
 
-                assert response.status_code == 500
-                data = response.json()
-                response_str = str(data)
-                # Should NOT contain internal file paths
-                assert "/home/" not in response_str
-                assert "/apps/webapp" not in response_str
-                assert "/libs/core" not in response_str
+            assert response.status_code == 500
+            data = response.json()
+            response_str = str(data)
+            # Should NOT contain internal file paths
+            assert "/home/" not in response_str
+            assert "/apps/webapp" not in response_str
+            assert "/libs/core" not in response_str
 
 
 class TestDevelopmentMode:
@@ -394,16 +397,18 @@ class TestDevelopmentMode:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_development_mode_includes_details(self, app_with_handlers: FastAPI) -> None:
+    async def test_development_mode_includes_details(
+        self, app_with_handlers: FastAPI, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test development mode includes error details and stack traces."""
-        with patch.dict("os.environ", {"ENVIRONMENT": "development"}):
-            async with AsyncClient(
-                transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
-                base_url="http://test",
-            ) as client:
-                response = await client.get("/api/v1/test/unhandled")
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        async with AsyncClient(
+            transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            response = await client.get("/api/v1/test/unhandled")
 
-                assert response.status_code == 500
-                data = response.json()
-                # Development mode SHOULD include details
-                assert "details" in data or "traceback" in str(data).lower()
+            assert response.status_code == 500
+            data = response.json()
+            # Development mode SHOULD include details
+            assert "details" in data or "traceback" in str(data).lower()

@@ -66,10 +66,7 @@ class TestGearSyncPublisherPackPublishing:
         # This should fail because the method doesn't exist yet
         await publisher.publish_pack(pack)
 
-        # Verify message was enqueued
-        # In SQLite we can't actually test pgmq, but we verify the method exists
-        # and doesn't raise an error
-        assert True
+        # In SQLite we can't test pgmq, but verify the method completed without error
 
     async def test_publish_pack_creates_correct_sync_record(
         self, t3k_session: AsyncSession
@@ -130,8 +127,7 @@ class TestGearSyncPublisherModelPublishing:
         # This should fail because the method doesn't exist yet
         await publisher.publish_model(model)
 
-        # Verify method exists and doesn't raise
-        assert True
+        # Verify method completed without error
 
     async def test_publish_model_creates_correct_sync_record(
         self, t3k_session: AsyncSession

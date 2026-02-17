@@ -61,6 +61,19 @@
             "command": ".claude/hooks/adherence-check.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/mock-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/protect-config.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [

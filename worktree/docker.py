@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .config import get_backups_dir, get_main_worktree_path, settings
+from .config import get_main_worktree_path, settings
 from .registry import Worktree
 
 
@@ -684,92 +684,6 @@ def start_single_service(worktree_path: Path, service: str) -> bool:
         return True
     except DockerError:
         return False
-
-
-# =============================================================================
-# Database Backup Directory
-# =============================================================================
-
-
-def ensure_backups_dir() -> Path:
-    """Ensure the backups directory exists with proper .gitignore.
-
-    Creates:
-        - guitar-tone-shootout-worktrees/backups/
-        - guitar-tone-shootout-worktrees/backups/.gitignore
-
-    Returns:
-        Path to the backups directory
-    """
-    backups_dir = get_backups_dir()
-    backups_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create .gitignore to exclude backup files
-    gitignore_path = backups_dir / ".gitignore"
-    if not gitignore_path.exists():
-        gitignore_path.write_text(
-            "# Database backup files\n"
-            "*.dump\n"
-            "*.sql.gz\n"
-            "*.sql\n"
-            "\n"
-            "# Keep this directory (and .gitignore)\n"
-            "!.gitignore\n"
-        )
-
-    return backups_dir
-
-
-def export_database(worktree_path: Path) -> Path:
-    """Export the database to a timestamped dump file in the backups directory.
-
-    Runs pg_dump inside the db container and writes to ../backups/shootout.YYYYMMDD_HHMM.dump.
-
-    Args:
-        worktree_path: Path to the worktree whose db container to use.
-
-    Returns:
-        Path to the created backup file.
-
-    Raises:
-        DockerError: If the db container is not running or the export fails.
-    """
-    # Check db container is running
-    result = subprocess.run(
-        ["docker", "compose", "ps", "--status", "running", "--format", "{{.Service}}", "db"],
-        cwd=worktree_path,
-        capture_output=True,
-        text=True,
-    )
-    if "db" not in result.stdout:
-        raise DockerError("Database container is not running")
-
-    # Create timestamped backup file
-    backups_dir = ensure_backups_dir()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    backup_file = backups_dir / f"shootout.{timestamp}.dump"
-
-    # Run pg_dump
-    with open(backup_file, "wb") as f:
-        proc = subprocess.run(
-            ["docker", "compose", "exec", "-T", "db", "pg_dump", "-Fc", "-U", "gts", "gts_core"],
-            cwd=worktree_path,
-            stdout=f,
-            stderr=subprocess.PIPE,
-            timeout=300,
-        )
-
-    if proc.returncode != 0:
-        backup_file.unlink(missing_ok=True)
-        raise DockerError(f"pg_dump failed: {proc.stderr.decode().strip()}")
-
-    # Verify file has content
-    size = backup_file.stat().st_size
-    if size < 100:
-        backup_file.unlink(missing_ok=True)
-        raise DockerError("Export file is too small (database may be empty)")
-
-    return backup_file
 
 
 # =============================================================================

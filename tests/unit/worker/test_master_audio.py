@@ -8,10 +8,11 @@ the shootout output_path field.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import numpy as np
 import pytest
 
 if TYPE_CHECKING:
@@ -22,9 +23,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
+    DITrack,
     Shootout,
     ShootoutChain,
 )
+from webapp.adapters.persistence.models.signal_chain import SignalChain
 
 
 @pytest.fixture
@@ -47,6 +50,136 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         yield session
 
 
+def _make_fake_get_session(session: AsyncSession):
+    """Create a fake get_session context manager that yields the test session."""
+
+    @contextlib.asynccontextmanager
+    async def fake_get_session(_url=None):
+        yield session
+
+    return fake_get_session
+
+
+async def _create_shootout_fixture(
+    session: AsyncSession,
+    *,
+    num_chains: int = 1,
+    segments_per_chain: int = 1,
+    chain_labels: list[str] | None = None,
+) -> tuple:
+    """Create a Shootout with chains and audio segments.
+
+    Returns:
+        (shootout_id, chain_ids, segment_ids) tuple
+    """
+    user_id = uuid4()
+    shootout_id = uuid4()
+
+    # DITrack needed for Shootout FK
+    di_track = DITrack(
+        id=uuid4(),
+        user_id=user_id,
+        name="Test DI",
+        file_path="/uploads/test.wav",
+        original_filename="test.wav",
+        duration_seconds=10.0,
+        sample_rate=48000,
+    )
+    session.add(di_track)
+
+    shootout = Shootout(
+        id=shootout_id,
+        user_id=user_id,
+        di_track_id=di_track.id,
+        name="Test Shootout",
+    )
+    session.add(shootout)
+
+    # SignalChain needed for ShootoutChain FK
+    signal_chain = SignalChain(
+        id=uuid4(),
+        user_id=user_id,
+        name="Test Chain",
+    )
+    session.add(signal_chain)
+
+    chain_ids = []
+    segment_ids = []
+    labels = chain_labels or [f"Chain {i}" for i in range(num_chains)]
+
+    for i in range(num_chains):
+        chain_id = uuid4()
+        chain = ShootoutChain(
+            id=chain_id,
+            shootout_id=shootout_id,
+            signal_chain_id=signal_chain.id,
+            position=i,
+            label=labels[i] if i < len(labels) else f"Chain {i}",
+        )
+        session.add(chain)
+        chain_ids.append(chain_id)
+
+        for j in range(segments_per_chain):
+            seg_id = uuid4()
+            segment = AudioSegment(
+                id=seg_id,
+                shootout_chain_id=chain_id,
+                file_path=f"/processed/{shootout_id}/chain{i}_seg{j}.flac",
+                duration_seconds=5.0,
+                integrated_lufs=-12.0,
+                peak_dbfs=-3.0,
+            )
+            session.add(segment)
+            segment_ids.append(seg_id)
+
+    await session.flush()
+    return shootout_id, chain_ids, segment_ids
+
+
+# --- Tracking test doubles ---
+
+_normalize_calls: list[dict] = []
+_sf_write_calls: list[dict] = []
+
+
+def _fake_normalize_loudness(input_path, output_path, *, target_lufs=-14.0):
+    """Test double that tracks calls and returns normalised values."""
+    _normalize_calls.append(
+        {"input": str(input_path), "output": str(output_path), "target_lufs": target_lufs}
+    )
+    return (-14.0, -6.0)
+
+
+def _fake_sf_read(_path):
+    """Test double returning 1 second of silence at 48kHz."""
+    return np.zeros(48000, dtype=np.float32), 48000
+
+
+def _fake_sf_write(path, data, samplerate):
+    """Test double that tracks write calls."""
+    _sf_write_calls.append({"path": str(path), "samples": len(data), "samplerate": samplerate})
+
+
+def _apply_master_audio_monkeypatches(
+    monkeypatch: pytest.MonkeyPatch,
+    session: AsyncSession,
+    *,
+    normalize_loudness=None,
+    sf_read=None,
+    sf_write=None,
+) -> None:
+    """Apply monkeypatches for master_audio tests."""
+    monkeypatch.setattr("worker.jobs.master_audio.get_session", _make_fake_get_session(session))
+    monkeypatch.setattr(
+        "worker.jobs.master_audio.normalize_loudness",
+        normalize_loudness or _fake_normalize_loudness,
+    )
+    monkeypatch.setattr("worker.jobs.master_audio.sf.read", sf_read or _fake_sf_read)
+    monkeypatch.setattr("worker.jobs.master_audio.sf.write", sf_write or _fake_sf_write)
+    # Prevent real filesystem operations
+    monkeypatch.setattr("worker.jobs.master_audio.Path.mkdir", lambda *_a, **_kw: None)
+
+
 class TestMasterAudioModule:
     """Test master_audio module exists and provides required function."""
 
@@ -64,528 +197,212 @@ class TestMasterAudioModule:
 class TestCreateMasterAudio:
     """Test create_master_audio function behaviour."""
 
-    async def test_loads_shootout_from_database(self, db_session: AsyncSession) -> None:
-        """Function loads shootout from database to get all chains and segments."""
+    async def test_loads_shootout_from_database(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Function loads shootout from database by ID."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(db_session)
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Mock shootout query
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = None
-            mock_session.execute.return_value = mock_result
+        # If it didn't raise, it found the shootout
+        assert len(_normalize_calls) == 1
 
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            await create_master_audio(shootout_id)
-
-            # Verify database was queried for shootout
-            assert mock_session.execute.called
-
-    async def test_loads_all_shootout_chains_with_segments(self, db_session: AsyncSession) -> None:
-        """Function loads all shootout chains with their audio segments."""
+    async def test_loads_all_shootout_chains_with_segments(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Function loads all shootout chains and processes each segment."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(db_session, num_chains=2)
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Mock shootout with chains
-            chain1 = Mock(spec=ShootoutChain, position=0, label="Chain A")
-            chain1.segments = []
-            chain2 = Mock(spec=ShootoutChain, position=1, label="Chain B")
-            chain2.segments = []
-
-            shootout = Mock(spec=Shootout)
-            shootout.chains = [chain1, chain2]
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            await create_master_audio(shootout_id)
-
-            # Verify query used joinedload for chains and segments
-            assert mock_session.execute.called
+        # 2 chains * 1 segment each = 2 normalize calls
+        assert len(_normalize_calls) == 2
 
     async def test_calls_normalize_loudness_for_each_segment(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Function calls normalize_loudness for each audio segment with target -14.0 LUFS."""
+        """Function calls normalize_loudness for each segment with target -14.0 LUFS."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(
+            db_session, num_chains=1, segments_per_chain=2
+        )
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf"),
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Create segments
-            segment1 = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain1.flac",
-                integrated_lufs=-12.0,
-                peak_dbfs=-3.0,
-            )
-            segment2 = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain2.flac",
-                integrated_lufs=-16.0,
-                peak_dbfs=-5.0,
-            )
-
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment1, segment2]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            await create_master_audio(shootout_id)
-
-            # Verify normalize_loudness called for each segment with target -14.0
-            assert mock_normalize.call_count == 2
-            # Check target_lufs argument
-            for call_item in mock_normalize.call_args_list:
-                assert call_item.kwargs.get("target_lufs") == -14.0
+        assert len(_normalize_calls) == 2
+        for call in _normalize_calls:
+            assert call["target_lufs"] == -14.0
 
     async def test_updates_audio_segment_records_with_normalized_loudness(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Function updates AudioSegment records with post-normalisation loudness values."""
+        from sqlalchemy import select
+
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, segment_ids = await _create_shootout_fixture(db_session)
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf"),
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Create segment
-            segment = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain1.flac",
-                integrated_lufs=-12.0,
-                peak_dbfs=-3.0,
-            )
-
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            # normalize_loudness returns new LUFS and peak
-            normalized_lufs = -14.0
-            normalized_peak = -4.5
-            mock_normalize.return_value = (normalized_lufs, normalized_peak)
-
-            await create_master_audio(shootout_id)
-
-            # Verify segment loudness values were updated
-            assert segment.integrated_lufs == normalized_lufs
-            assert segment.peak_dbfs == normalized_peak
+        # Reload the segment and check updated values
+        result = await db_session.execute(
+            select(AudioSegment).where(AudioSegment.id == segment_ids[0])
+        )
+        segment = result.scalar_one()
+        assert segment.integrated_lufs == -14.0
+        assert segment.peak_dbfs == -6.0
 
     async def test_concatenates_segments_in_chain_position_order(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Function concatenates normalised segments in chain position order."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(db_session, num_chains=2)
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Create segments in different chains with positions
-            segment1 = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain1.flac",
-                duration_seconds=5.0,
-            )
-            segment2 = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain2.flac",
-                duration_seconds=5.0,
-            )
-
-            chain1 = Mock(spec=ShootoutChain, position=1)
-            chain1.segments = [segment2]
-            chain2 = Mock(spec=ShootoutChain, position=0)
-            chain2.segments = [segment1]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain1, chain2]  # Deliberately out of order
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            # Mock soundfile reads
-            import numpy as np
-
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
-
-            await create_master_audio(shootout_id)
-
-            # Verify segments were loaded in position order (chain2 before chain1)
-            # This will be verified by concatenation order in implementation
+        # Position 0 should be processed before position 1
+        assert "chain0" in _normalize_calls[0]["input"]
+        assert "chain1" in _normalize_calls[1]["input"]
 
     async def test_saves_master_audio_as_flac_in_processed_directory(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Function saves master audio as FLAC at processed/{shootout_id}/master.flac."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(db_session)
+        _sf_write_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            segment = Mock(spec=AudioSegment, file_path="/processed/shootout1/chain1.flac")
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment]
+        assert len(_sf_write_calls) == 1
+        assert str(shootout_id) in _sf_write_calls[0]["path"]
+        assert "master.flac" in _sf_write_calls[0]["path"]
 
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            import numpy as np
-
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
-
-            await create_master_audio(shootout_id)
-
-            # Verify soundfile.write was called to save master.flac
-            assert mock_sf.write.called
-
-            # Verify output path includes shootout_id and master.flac
-            write_call_args = mock_sf.write.call_args
-            output_path_arg = str(write_call_args[0][0])
-            assert str(shootout_id) in output_path_arg
-            assert "master.flac" in output_path_arg
-
-    async def test_updates_shootout_output_path_field(self, db_session: AsyncSession) -> None:
-        """Function updates shootout.output_path with master audio file location."""
-        from worker.jobs.master_audio import create_master_audio
-
-        shootout_id = uuid4()
-
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            segment = Mock(spec=AudioSegment, file_path="/processed/shootout1/chain1.flac")
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
-            shootout.output_path = None  # Initially null
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            import numpy as np
-
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
-
-            await create_master_audio(shootout_id)
-
-            # Verify output_path was set
-            assert shootout.output_path is not None
-            assert str(shootout_id) in shootout.output_path
-            assert "master.flac" in shootout.output_path
-
-    async def test_creates_chapter_markers_for_segment_boundaries(
-        self, db_session: AsyncSession
+    async def test_updates_shootout_output_path_field(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Function adds chapter markers at segment boundaries with chain labels."""
+        """Function updates shootout.output_path with master audio file location."""
+        from sqlalchemy import select
+
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(db_session)
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Create segments with durations
-            segment1 = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain1.flac",
-                duration_seconds=5.0,
-            )
-            segment2 = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain2.flac",
-                duration_seconds=7.0,
-            )
+        result = await db_session.execute(select(Shootout).where(Shootout.id == shootout_id))
+        shootout = result.scalar_one()
+        assert shootout.output_path is not None
+        assert str(shootout_id) in shootout.output_path
+        assert "master.flac" in shootout.output_path
 
-            chain1 = Mock(spec=ShootoutChain, position=0, label="Mesa Boogie")
-            chain1.segments = [segment1]
-            chain2 = Mock(spec=ShootoutChain, position=1, label="Fender Twin")
-            chain2.segments = [segment2]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain1, chain2]
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            import numpy as np
-
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
-
-            await create_master_audio(shootout_id)
-
-            # Chapter markers should be created:
-            # Chapter 1: 0.0s - "Mesa Boogie"
-            # Chapter 2: 5.0s - "Fender Twin"
-            # Implementation will verify this through metadata or separate chapter file
-
-    async def test_handles_empty_shootout_gracefully(self, db_session: AsyncSession) -> None:
-        """Function handles shootout with no segments without error."""
+    async def test_handles_empty_shootout_gracefully(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Function handles shootout with no chains without error."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(
+            db_session, num_chains=0, segments_per_chain=0
+        )
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            # Shootout with no chains
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = []
+        assert len(_normalize_calls) == 0
 
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            # Should not raise exception
-            await create_master_audio(shootout_id)
-
-            # normalize_loudness should not be called
-            assert mock_normalize.call_count == 0
-
-    async def test_handles_shootout_not_found(self, db_session: AsyncSession) -> None:
+    async def test_handles_shootout_not_found(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Function raises error when shootout does not exist."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        with pytest.raises(ValueError, match="not found"):
+            await create_master_audio(uuid4())
 
-            # Shootout not found
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = None
-            mock_session.execute.return_value = mock_result
-
-            # Should raise exception
-            with pytest.raises(ValueError, match="not found"):
-                await create_master_audio(shootout_id)
-
-    async def test_creates_output_directory_if_not_exists(self, db_session: AsyncSession) -> None:
-        """Function creates processed/{shootout_id} directory if it does not exist."""
-        from worker.jobs.master_audio import create_master_audio
-
-        shootout_id = uuid4()
-
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path") as mock_path_class,
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            segment = Mock(spec=AudioSegment, file_path="/processed/shootout1/chain1.flac")
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            import numpy as np
-
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
-
-            # Mock Path to track mkdir calls
-            mock_path_instance = Mock()
-            mock_path_class.return_value = mock_path_instance
-
-            await create_master_audio(shootout_id)
-
-            # Verify parent directory mkdir was called with parents=True
-            # This ensures the output directory is created
-
-    async def test_commits_database_changes(self, db_session: AsyncSession) -> None:
-        """Function commits all database changes (segment updates, shootout.output_path)."""
-        from worker.jobs.master_audio import create_master_audio
-
-        shootout_id = uuid4()
-
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            segment = Mock(
-                spec=AudioSegment,
-                file_path="/processed/shootout1/chain1.flac",
-                integrated_lufs=-12.0,
-                peak_dbfs=-3.0,
-            )
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment]
-
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
-            shootout.output_path = None
-
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
-
-            mock_normalize.return_value = (-14.0, -6.0)
-
-            import numpy as np
-
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
-
-            await create_master_audio(shootout_id)
-
-            # Verify session.commit was called
-            assert mock_session.commit.called
-
-    async def test_normalises_temporary_files_not_original_segments(
-        self, db_session: AsyncSession
+    async def test_normalize_uses_different_output_path_than_input(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Function normalises copies of segments, not the original processed audio files."""
+        """Function normalises to a different file, not overwriting the original."""
         from worker.jobs.master_audio import create_master_audio
 
-        shootout_id = uuid4()
+        shootout_id, _, _ = await _create_shootout_fixture(db_session)
+        _normalize_calls.clear()
 
-        with (
-            patch("worker.jobs.master_audio.get_session") as mock_get_session,
-            patch("worker.jobs.master_audio.normalize_loudness") as mock_normalize,
-            patch("worker.jobs.master_audio.Path"),
-            patch("worker.jobs.master_audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            original_file = "/processed/shootout1/chain1.flac"
-            segment = Mock(spec=AudioSegment, file_path=original_file)
-            chain = Mock(spec=ShootoutChain, position=0)
-            chain.segments = [segment]
+        for call in _normalize_calls:
+            assert call["input"] != call["output"]
 
-            shootout = Mock(spec=Shootout, id=shootout_id)
-            shootout.chains = [chain]
+    async def test_commits_database_changes(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Function commits segment updates and shootout.output_path to database."""
+        from sqlalchemy import select
 
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = shootout
-            mock_session.execute.return_value = mock_result
+        from worker.jobs.master_audio import create_master_audio
 
-            mock_normalize.return_value = (-14.0, -6.0)
+        shootout_id, _, segment_ids = await _create_shootout_fixture(db_session)
 
-            import numpy as np
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
 
-            mock_sf.read.return_value = (np.zeros(48000, dtype=np.float32), 48000)
+        # Verify output_path was persisted
+        result = await db_session.execute(select(Shootout).where(Shootout.id == shootout_id))
+        shootout = result.scalar_one()
+        assert shootout.output_path is not None
 
-            await create_master_audio(shootout_id)
+        # Verify segment loudness was persisted
+        result = await db_session.execute(
+            select(AudioSegment).where(AudioSegment.id == segment_ids[0])
+        )
+        segment = result.scalar_one()
+        assert segment.integrated_lufs == -14.0
 
-            # Verify normalize_loudness was NOT called with original file path as output
-            # (Implementation should use temp files or copies)
-            for call_item in mock_normalize.call_args_list:
-                input_path = call_item[0][0]
-                output_path = call_item[0][1]
-                # Output should be different from input (temp file)
-                assert input_path != output_path
+    async def test_creates_chapter_markers_for_segment_boundaries(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Function processes segments from chains with proper labels."""
+        from worker.jobs.master_audio import create_master_audio
+
+        shootout_id, _, _ = await _create_shootout_fixture(
+            db_session, num_chains=2, chain_labels=["Mesa Boogie", "Fender Twin"]
+        )
+        _normalize_calls.clear()
+        _sf_write_calls.clear()
+
+        _apply_master_audio_monkeypatches(monkeypatch, db_session)
+        await create_master_audio(shootout_id)
+
+        # Verify both chains were processed (chapter markers are internal)
+        assert len(_normalize_calls) == 2
+        # Master was written
+        assert len(_sf_write_calls) == 1
+        # Master should contain concatenated audio from both chains
+        assert _sf_write_calls[0]["samples"] == 48000 * 2  # 2 segments of 1s each

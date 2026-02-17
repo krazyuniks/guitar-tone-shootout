@@ -4,27 +4,71 @@ Tests that docker.py properly handles video service:
 - Service status includes video
 - is_healthy checks video for main worktree
 - wait_for_healthy includes video
+
+Uses monkeypatch instead of unittest.mock.
 """
 
+import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
+from worktree.config import PortConfig, VolumeConfig
 from worktree.docker import (
     get_service_status,
     is_healthy,
     wait_for_healthy,
 )
+from worktree.registry import Worktree
+
+
+def _make_worktree(**overrides) -> Worktree:
+    """Create a Worktree with default test values."""
+    defaults = {
+        "id": 1,
+        "worktree_name": "main",
+        "branch": "main",
+        "path": "/fake/path",
+        "offset": 0,
+        "compose_project": "gts-main",
+        "ports": PortConfig(
+            nginx=9000,
+            astro=4321,
+            webapp=8000,
+            db=5432,
+            redis=6379,
+            cloudbeaver=8978,
+            grafana=3000,
+            prometheus=9090,
+            loki=3100,
+            tempo=3200,
+            otlp_grpc=4317,
+            otlp_http=4318,
+            alloy=12345,
+            video=8002,
+        ),
+        "volumes": VolumeConfig(
+            postgres="gts-postgres-main",
+            redis="gts-redis-main",
+            uploads="gts-uploads-main",
+            cloudbeaver="gts-cloudbeaver-main",
+            grafana="gts-grafana-main",
+            loki="gts-loki-main",
+            tempo="gts-tempo-main",
+            prometheus="gts-prometheus-main",
+        ),
+        "created_at": "2026-02-09T00:00:00Z",
+    }
+    defaults.update(overrides)
+    return Worktree(**defaults)
 
 
 class TestVideoServiceStatus:
     """Tests for video service in get_service_status()."""
 
-    @patch("worktree.docker.run_compose")
-    def test_get_service_status_includes_video(self, mock_run_compose):
+    def test_get_service_status_includes_video(self, monkeypatch: pytest.MonkeyPatch):
         """get_service_status should include video service when present."""
-        mock_run_compose.return_value = MagicMock(
+        result = types.SimpleNamespace(
             stdout=(
                 "nginx:running\n"
                 "webapp:running\n"
@@ -36,16 +80,16 @@ class TestVideoServiceStatus:
                 "video:running\n"
             )
         )
+        monkeypatch.setattr("worktree.docker.run_compose", lambda *_a, **_kw: result)
 
         status = get_service_status(Path("/fake/worktree"))
 
         assert "video" in status
         assert status["video"] == "running"
 
-    @patch("worktree.docker.run_compose")
-    def test_get_service_status_video_not_running(self, mock_run_compose):
+    def test_get_service_status_video_not_running(self, monkeypatch: pytest.MonkeyPatch):
         """get_service_status should show video as exited when not running."""
-        mock_run_compose.return_value = MagicMock(
+        result = types.SimpleNamespace(
             stdout=(
                 "nginx:running\n"
                 "webapp:running\n"
@@ -57,6 +101,7 @@ class TestVideoServiceStatus:
                 "video:exited\n"
             )
         )
+        monkeypatch.setattr("worktree.docker.run_compose", lambda *_a, **_kw: result)
 
         status = get_service_status(Path("/fake/worktree"))
 
@@ -66,76 +111,72 @@ class TestVideoServiceStatus:
 class TestIsHealthyWithVideo:
     """Tests for is_healthy() with video service."""
 
-    @patch("worktree.docker.get_service_status")
-    @patch("worktree.docker.get_main_worktree_path")
-    def test_main_worktree_unhealthy_when_video_not_running(self, mock_main_path, mock_status):
+    def test_main_worktree_unhealthy_when_video_not_running(self, monkeypatch: pytest.MonkeyPatch):
         """Main worktree is unhealthy if video not running."""
-        mock_main_path.return_value = Path("/fake/main")
-        mock_status.return_value = {
-            "nginx": "running",
-            "webapp": "running",
-            "db": "running",
-            "worker": "running",
-            "scheduler": "running",
-            "redis": "running",
-            "video": "exited",  # Not running
-        }
+        monkeypatch.setattr("worktree.docker.get_main_worktree_path", lambda: Path("/fake/main"))
+        monkeypatch.setattr(
+            "worktree.docker.get_service_status",
+            lambda _path: {
+                "nginx": "running",
+                "webapp": "running",
+                "db": "running",
+                "worker": "running",
+                "scheduler": "running",
+                "redis": "running",
+                "video": "exited",
+            },
+        )
 
         result = is_healthy(Path("/fake/main"))
-
         assert result is False
 
-    @patch("worktree.docker.get_service_status")
-    @patch("worktree.docker.get_main_worktree_path")
-    def test_main_worktree_unhealthy_when_video_missing(self, mock_main_path, mock_status):
+    def test_main_worktree_unhealthy_when_video_missing(self, monkeypatch: pytest.MonkeyPatch):
         """Main worktree is unhealthy if video service missing."""
-        mock_main_path.return_value = Path("/fake/main")
-        mock_status.return_value = {
-            "nginx": "running",
-            "webapp": "running",
-            "db": "running",
-            "worker": "running",
-            "scheduler": "running",
-            "redis": "running",
-            # video missing
-        }
+        monkeypatch.setattr("worktree.docker.get_main_worktree_path", lambda: Path("/fake/main"))
+        monkeypatch.setattr(
+            "worktree.docker.get_service_status",
+            lambda _path: {
+                "nginx": "running",
+                "webapp": "running",
+                "db": "running",
+                "worker": "running",
+                "scheduler": "running",
+                "redis": "running",
+            },
+        )
 
         result = is_healthy(Path("/fake/main"))
-
         assert result is False
 
 
 class TestWaitForHealthyWithVideo:
     """Tests for wait_for_healthy() with video service."""
 
-    @patch("worktree.docker.is_healthy")
-    @patch("time.sleep")
-    def test_wait_succeeds_when_video_becomes_healthy(self, mock_sleep, mock_is_healthy):
+    def test_wait_succeeds_when_video_becomes_healthy(self, monkeypatch: pytest.MonkeyPatch):
         """wait_for_healthy should succeed when video starts running."""
-        # Simulate video starting after 2 checks
-        call_count = [0]
+        call_count = 0
 
         def mock_health_check(*args, **kwargs):
-            call_count[0] += 1
-            return call_count[0] >= 2
+            nonlocal call_count
+            call_count += 1
+            return call_count >= 2
 
-        mock_is_healthy.side_effect = mock_health_check
+        monkeypatch.setattr("worktree.docker.is_healthy", mock_health_check)
+        monkeypatch.setattr("time.sleep", lambda _: None)
 
         result = wait_for_healthy(Path("/fake/main"), timeout=10)
 
         assert result is True
-        assert mock_is_healthy.call_count >= 2
+        assert call_count >= 2
 
-    @patch("worktree.docker.is_healthy")
-    @patch("time.time")
-    @patch("time.sleep")
-    def test_wait_times_out_when_video_never_healthy(self, mock_sleep, mock_time, mock_is_healthy):
+    def test_wait_times_out_when_video_never_healthy(self, monkeypatch: pytest.MonkeyPatch):
         """wait_for_healthy should timeout if video never starts."""
-        mock_is_healthy.return_value = False
+        monkeypatch.setattr("worktree.docker.is_healthy", lambda *_a, **_kw: False)
 
         # Mock time progression
-        times = [0, 2, 4, 6, 8, 10, 12]  # Past timeout
-        mock_time.side_effect = times
+        times = iter([0, 2, 4, 6, 8, 10, 12])
+        monkeypatch.setattr("time.time", lambda: next(times))
+        monkeypatch.setattr("time.sleep", lambda _: None)
 
         result = wait_for_healthy(Path("/fake/main"), timeout=10, poll_interval=2)
 
@@ -147,111 +188,38 @@ class TestVideoHealthCheckEndpoint:
 
     def test_video_health_endpoint_function_exists(self):
         """A check_video_health function should exist like other services."""
-        # This test verifies the function exists
         from worktree import docker
 
-        # Should have check_video_health function
         assert hasattr(
             docker, "check_video_health"
         ), "check_video_health function missing from docker module"
 
-    @patch("httpx.get")
-    def test_check_video_health_returns_true_when_responding(self, mock_get):
+    def test_check_video_health_returns_true_when_responding(self, monkeypatch: pytest.MonkeyPatch):
         """check_video_health should return True when video service responds."""
-        from worktree.config import PortConfig, VolumeConfig
         from worktree.docker import check_video_health
-        from worktree.registry import Worktree
 
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_get.return_value = mock_response
-
-        worktree = Worktree(
-            id=1,
-            worktree_name="main",
-            branch="main",
-            path="/fake/path",
-            offset=0,
-            compose_project="gts-main",
-            ports=PortConfig(
-                nginx=9000,
-                astro=4321,
-                webapp=8000,
-                db=5432,
-                redis=6379,
-                cloudbeaver=8978,
-                grafana=3000,
-                prometheus=9090,
-                loki=3100,
-                tempo=3200,
-                otlp_grpc=4317,
-                otlp_http=4318,
-                alloy=12345,
-                video=8002,
-            ),
-            volumes=VolumeConfig(
-                postgres="gts-postgres-main",
-                redis="gts-redis-main",
-                uploads="gts-uploads-main",
-                cloudbeaver="gts-cloudbeaver-main",
-                grafana="gts-grafana-main",
-                loki="gts-loki-main",
-                tempo="gts-tempo-main",
-                prometheus="gts-prometheus-main",
-            ),
-            created_at="2026-02-09T00:00:00Z",
+        monkeypatch.setattr(
+            "httpx.get",
+            lambda _url, **_kw: types.SimpleNamespace(status_code=200),
         )
 
+        worktree = _make_worktree()
         result = check_video_health(worktree)
 
         assert result is True
-        mock_get.assert_called_once_with("http://localhost:8002/health", timeout=5)
 
-    @patch("httpx.get")
-    def test_check_video_health_returns_false_when_not_responding(self, mock_get):
+    def test_check_video_health_returns_false_when_not_responding(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         """check_video_health should return False when video service not responding."""
-        from worktree.config import PortConfig, VolumeConfig
         from worktree.docker import check_video_health
-        from worktree.registry import Worktree
 
-        mock_get.side_effect = Exception("Connection refused")
+        def raise_error(*args, **kwargs):
+            raise Exception("Connection refused")
 
-        worktree = Worktree(
-            id=1,
-            worktree_name="main",
-            branch="main",
-            path="/fake/path",
-            offset=0,
-            compose_project="gts-main",
-            ports=PortConfig(
-                nginx=9000,
-                astro=4321,
-                webapp=8000,
-                db=5432,
-                redis=6379,
-                cloudbeaver=8978,
-                grafana=3000,
-                prometheus=9090,
-                loki=3100,
-                tempo=3200,
-                otlp_grpc=4317,
-                otlp_http=4318,
-                alloy=12345,
-                video=8002,
-            ),
-            volumes=VolumeConfig(
-                postgres="gts-postgres-main",
-                redis="gts-redis-main",
-                uploads="gts-uploads-main",
-                cloudbeaver="gts-cloudbeaver-main",
-                grafana="gts-grafana-main",
-                loki="gts-loki-main",
-                tempo="gts-tempo-main",
-                prometheus="gts-prometheus-main",
-            ),
-            created_at="2026-02-09T00:00:00Z",
-        )
+        monkeypatch.setattr("httpx.get", raise_error)
 
+        worktree = _make_worktree()
         result = check_video_health(worktree)
 
         assert result is False

@@ -6,8 +6,8 @@ through the audio pipeline, saves output, measures loudness, and tracks progress
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import numpy as np
@@ -19,13 +19,14 @@ if TYPE_CHECKING:
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import (
     DITrack,
+    Shootout,
     ShootoutChain,
 )
+from webapp.adapters.persistence.models.signal_chain import SignalChain
 
 
 @pytest.fixture
@@ -48,6 +49,116 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         yield session
 
 
+def _make_fake_get_session(session: AsyncSession):
+    """Create a fake get_session context manager that yields the test session."""
+
+    @contextlib.asynccontextmanager
+    async def fake_get_session(url=None):
+        yield session
+
+    return fake_get_session
+
+
+async def _fake_execute_signal_chain(signal_chain, di_audio, sample_rate, resolver):
+    """Test double for execute_signal_chain — returns processed audio."""
+    return np.zeros(len(di_audio), dtype=np.float32)
+
+
+def _fake_measure_loudness(path):
+    """Test double for measure_loudness — returns (LUFS, peak_dBFS)."""
+    return (-14.0, -6.0)
+
+
+def _fake_sf_read(path):
+    """Test double for soundfile.read — returns (audio, sample_rate)."""
+    return (np.zeros(1000, dtype=np.float32), 48000)
+
+
+_sf_write_calls: list[tuple] = []
+
+
+def _fake_sf_write(path, data, samplerate):
+    """Test double for soundfile.write — records calls."""
+    _sf_write_calls.append((path, data, samplerate))
+
+
+@pytest.fixture(autouse=True)
+def _reset_sf_write_calls():
+    _sf_write_calls.clear()
+
+
+async def _create_full_job_fixture(session: AsyncSession):
+    """Create a complete set of related DB objects for audio job tests.
+
+    Returns (job_id, shootout_chain_id).
+    """
+    user_id = uuid4()
+    di_track = DITrack(
+        id=uuid4(),
+        user_id=user_id,
+        name="Test DI",
+        file_path="/uploads/di.wav",
+        original_filename="di.wav",
+        duration_seconds=10.0,
+        sample_rate=48000,
+    )
+    session.add(di_track)
+
+    signal_chain = SignalChain(
+        id=uuid4(),
+        user_id=user_id,
+        name="Test Chain",
+    )
+    session.add(signal_chain)
+
+    shootout = Shootout(
+        id=uuid4(),
+        user_id=user_id,
+        name="Test Shootout",
+        di_track_id=di_track.id,
+    )
+    session.add(shootout)
+
+    shootout_chain = ShootoutChain(
+        id=uuid4(),
+        shootout_id=shootout.id,
+        signal_chain_id=signal_chain.id,
+        position=0,
+        label="Chain A",
+    )
+    session.add(shootout_chain)
+
+    job = Job(
+        id=uuid4(),
+        user_id=user_id,
+        job_type=JobType.SHOOTOUT_AUDIO,
+        entity_id=shootout_chain.id,
+        status=JobStatus.PENDING,
+    )
+    session.add(job)
+    await session.commit()
+
+    return job.id, shootout_chain.id
+
+
+def _apply_audio_monkeypatches(monkeypatch, session, **overrides):
+    """Apply standard monkeypatches for audio job tests."""
+    monkeypatch.setattr(
+        "worker.jobs.audio.get_session",
+        overrides.get("get_session", _make_fake_get_session(session)),
+    )
+    monkeypatch.setattr(
+        "worker.jobs.audio.execute_signal_chain",
+        overrides.get("execute_signal_chain", _fake_execute_signal_chain),
+    )
+    monkeypatch.setattr(
+        "worker.jobs.audio.measure_loudness",
+        overrides.get("measure_loudness", _fake_measure_loudness),
+    )
+    monkeypatch.setattr("worker.jobs.audio.sf.read", overrides.get("sf_read", _fake_sf_read))
+    monkeypatch.setattr("worker.jobs.audio.sf.write", overrides.get("sf_write", _fake_sf_write))
+
+
 class TestAudioJobHandlerModule:
     """Test audio job handler module exists and provides required functions."""
 
@@ -65,514 +176,330 @@ class TestAudioJobHandlerModule:
         """handle_shootout_audio_job is a TaskIQ task."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        # TaskIQ tasks have a kicker attribute
         assert hasattr(handle_shootout_audio_job, "kicker")
 
 
 class TestAudioJobHandler:
     """Test handle_shootout_audio_job processing logic."""
 
-    async def test_loads_job_from_database(self, db_session: AsyncSession) -> None:
+    async def test_loads_job_from_database(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler loads job from database to get shootout chain ID."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        # Create minimal test job
-        job_id = uuid4()
-        shootout_chain_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-        job = Job(
-            id=job_id,
-            user_id=uuid4(),
-            job_type=JobType.SHOOTOUT_AUDIO,
-            entity_id=shootout_chain_id,
-            status=JobStatus.PENDING,
-        )
-        db_session.add(job)
-        await db_session.commit()
+        await handle_shootout_audio_job(job_id)
 
-        # Mock database access
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.Path"),
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        # Verify job was loaded and status updated
+        await db_session.refresh(await db_session.get(Job, job_id))
+        job = await db_session.get(Job, job_id)
+        assert job is not None
+        assert job.status == JobStatus.COMPLETED
 
-            # Mock job query
-            mock_result = Mock()
-            mock_result.unique.return_value.scalar_one_or_none.return_value = job
-            mock_session.execute.return_value = mock_result
-
-            # Mock audio processing
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
-
-            # Call handler
-            await handle_shootout_audio_job(job_id)
-
-            # Verify database was queried
-            assert mock_session.execute.called
-
-    async def test_loads_shootout_chain_with_signal_chain(self, db_session: AsyncSession) -> None:
+    async def test_loads_shootout_chain_with_signal_chain(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler loads shootout chain with signal chain and blocks."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
-        shootout_chain_id = uuid4()
-        signal_chain_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-        job = Job(
-            id=job_id,
-            user_id=uuid4(),
-            job_type=JobType.SHOOTOUT_AUDIO,
-            entity_id=shootout_chain_id,
-            status=JobStatus.PENDING,
-        )
-        db_session.add(job)
+        await handle_shootout_audio_job(job_id)
 
-        shootout_chain = ShootoutChain(
-            id=shootout_chain_id,
-            shootout_id=uuid4(),
-            signal_chain_id=signal_chain_id,
-            position=0,
-            label="Chain A",
-        )
-        db_session.add(shootout_chain)
-        await db_session.commit()
+        job = await db_session.get(Job, job_id)
+        assert job is not None
+        assert job.status == JobStatus.COMPLETED
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
-
-            # Mock queries
-            mock_job_result = Mock()
-            mock_job_result.unique.return_value.scalar_one_or_none.return_value = job
-
-            mock_chain_result = Mock()
-            mock_chain_result.unique.return_value.scalar_one_or_none.return_value = shootout_chain
-
-            mock_session.execute.side_effect = [mock_job_result, mock_chain_result]
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
-
-            await handle_shootout_audio_job(job_id)
-
-            # Verify shootout chain query used joinedload for signal_chain
-            assert mock_session.execute.call_count >= 2
-
-    async def test_loads_di_track_from_shootout(self, db_session: AsyncSession) -> None:
+    async def test_loads_di_track_from_shootout(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler loads DI track from shootout to get audio file path."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
-        di_track_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        job = Job(
-            id=job_id,
-            user_id=uuid4(),
-            job_type=JobType.SHOOTOUT_AUDIO,
-            entity_id=uuid4(),
-            status=JobStatus.PENDING,
-        )
-        db_session.add(job)
+        sf_read_calls = []
 
-        di_track = DITrack(
-            id=di_track_id,
-            user_id=uuid4(),
-            name="Test DI",
-            file_path="/uploads/di.wav",
-            original_filename="di.wav",
-            duration_seconds=10.0,
-            sample_rate=48000,
-        )
-        db_session.add(di_track)
-        await db_session.commit()
+        def tracking_sf_read(path):
+            sf_read_calls.append(path)
+            return (np.zeros(1000, dtype=np.float32), 48000)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_audio_monkeypatches(monkeypatch, db_session, sf_read=tracking_sf_read)
 
-            # Mock execute side effects for all queries
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
+        await handle_shootout_audio_job(job_id)
 
-            # Mock soundfile read
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        # DI track file_path should have been read
+        assert len(sf_read_calls) == 1
+        assert "di.wav" in sf_read_calls[0]
 
-            await handle_shootout_audio_job(job_id)
-
-            # Handler should have loaded the DI track
-            # Verified by checking execute was called (queries run)
-            assert mock_session.execute.called
-
-    async def test_reads_di_audio_file(self, db_session: AsyncSession) -> None:
+    async def test_reads_di_audio_file(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler reads DI audio file from uploads volume."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        sf_read_calls = []
 
-            # Mock database queries to return minimal valid data
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
+        def tracking_sf_read(path):
+            sf_read_calls.append(path)
+            return (np.random.randn(48000).astype(np.float32), 48000)
 
-            # Mock soundfile read
-            di_audio = np.random.randn(48000).astype(np.float32)
-            mock_sf.read.return_value = (di_audio, 48000)
+        _apply_audio_monkeypatches(monkeypatch, db_session, sf_read=tracking_sf_read)
 
-            await handle_shootout_audio_job(job_id)
+        await handle_shootout_audio_job(job_id)
 
-            # Verify soundfile.read was called with DI file path
-            assert mock_sf.read.called
+        assert len(sf_read_calls) == 1
 
     async def test_calls_execute_signal_chain_with_correct_args(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Handler calls execute_signal_chain with DI audio and signal chain."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
-        user_gear_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        # Create signal chain with blocks
-        signal_chain = Mock()
-        signal_chain.blocks = [
-            Mock(
-                position=0,
-                user_gear_id=user_gear_id,
-                gear_type=GearType.AMP,
-            ),
-        ]
+        execute_calls = []
 
-        di_audio = np.random.randn(48000).astype(np.float32)
-        sample_rate = 48000
+        async def tracking_execute(signal_chain, di_audio, sample_rate, resolver):
+            execute_calls.append((signal_chain, di_audio, sample_rate, resolver))
+            return np.zeros(len(di_audio), dtype=np.float32)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        _apply_audio_monkeypatches(monkeypatch, db_session, execute_signal_chain=tracking_execute)
 
-            # Mock all queries
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
+        await handle_shootout_audio_job(job_id)
 
-            # Mock file read
-            mock_sf.read.return_value = (di_audio, sample_rate)
-
-            await handle_shootout_audio_job(job_id)
-
-            # Verify execute_signal_chain was called
-            assert mock_execute.called
+        assert len(execute_calls) == 1
+        _, di_audio, sample_rate, _ = execute_calls[0]
+        assert isinstance(di_audio, np.ndarray)
+        assert sample_rate == 48000
 
     async def test_saves_output_as_flac_to_processed_data_volume(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Handler saves processed audio as FLAC to processed_data volume."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        await handle_shootout_audio_job(job_id)
 
-            # Mock all operations
-            mock_session.execute.return_value = Mock()
+        assert len(_sf_write_calls) == 1
+        output_path, _, _ = _sf_write_calls[0]
+        assert output_path.endswith(".flac")
 
-            processed_audio = np.random.randn(48000).astype(np.float32)
-            mock_execute.return_value = processed_audio
-            mock_loudness.return_value = (-14.0, -6.0)
-
-            # Mock file operations
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
-
-            await handle_shootout_audio_job(job_id)
-
-            # Verify soundfile.write was called to save FLAC
-            assert mock_sf.write.called
-
-            # Verify output path follows pattern: processed/{shootout_id}/{chain_id}.flac
-            # This will be verified by checking write call args in implementation
-
-    async def test_measures_loudness_on_output_file(self, db_session: AsyncSession) -> None:
+    async def test_measures_loudness_on_output_file(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler measures loudness (LUFS + peak dBFS) on output file."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        loudness_calls = []
 
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
+        def tracking_measure_loudness(path):
+            loudness_calls.append(path)
+            return (-12.5, -3.2)
 
-            # Mock loudness measurement
-            expected_lufs = -12.5
-            expected_peak = -3.2
-            mock_loudness.return_value = (expected_lufs, expected_peak)
+        _apply_audio_monkeypatches(
+            monkeypatch, db_session, measure_loudness=tracking_measure_loudness
+        )
 
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        await handle_shootout_audio_job(job_id)
 
-            await handle_shootout_audio_job(job_id)
+        assert len(loudness_calls) == 1
 
-            # Verify measure_loudness was called
-            assert mock_loudness.called
-
-    async def test_creates_audio_segment_record_in_database(self, db_session: AsyncSession) -> None:
+    async def test_creates_audio_segment_record_in_database(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler creates AudioSegment record with file path and loudness metrics."""
+        from webapp.adapters.persistence.models.shootout import AudioSegment
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, shootout_chain_id = await _create_full_job_fixture(db_session)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        await handle_shootout_audio_job(job_id)
 
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(48000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
+        # Verify AudioSegment was created in DB
+        from sqlalchemy import select
 
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        result = await db_session.execute(
+            select(AudioSegment).where(AudioSegment.shootout_chain_id == shootout_chain_id)
+        )
+        segment = result.scalar_one_or_none()
+        assert segment is not None
+        assert segment.file_path is not None
 
-            await handle_shootout_audio_job(job_id)
-
-            # Verify session.add was called to create AudioSegment
-            assert mock_session.add.called
-
-    async def test_updates_job_progress_at_loading_stage(self, db_session: AsyncSession) -> None:
+    async def test_updates_job_progress_at_loading_stage(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler updates job progress to 50 after loading data."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        progress_values = []
 
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        original_commit = db_session.commit
 
-            await handle_shootout_audio_job(job_id)
+        async def tracking_commit():
+            job = await db_session.get(Job, job_id)
+            if job:
+                progress_values.append(job.progress)
+            await original_commit()
 
-            # Handler should update progress: 0 → 50 (loading) → 90 (processing) → 100 (saving)
-            # Verify through job.progress updates (tracked by implementation)
+        monkeypatch.setattr(db_session, "commit", tracking_commit)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-    async def test_updates_job_progress_at_processing_stage(self, db_session: AsyncSession) -> None:
+        await handle_shootout_audio_job(job_id)
+
+        # Progress should go through 50 (loading) → 90 (processing) → 100 (complete)
+        assert 50 in progress_values
+
+    async def test_updates_job_progress_at_processing_stage(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler updates job progress to 90 after audio processing."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        progress_values = []
 
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        original_commit = db_session.commit
 
-            await handle_shootout_audio_job(job_id)
+        async def tracking_commit():
+            job = await db_session.get(Job, job_id)
+            if job:
+                progress_values.append(job.progress)
+            await original_commit()
 
-            # Progress should reach 90 after execute_signal_chain completes
-            # Verified by checking job.progress updates in implementation
+        monkeypatch.setattr(db_session, "commit", tracking_commit)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
+
+        await handle_shootout_audio_job(job_id)
+
+        assert 90 in progress_values
 
     async def test_updates_job_progress_to_100_at_completion(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Handler updates job progress to 100 after saving output."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        await handle_shootout_audio_job(job_id)
 
-            mock_session.execute.return_value = Mock()
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        job = await db_session.get(Job, job_id)
+        assert job is not None
+        assert job.progress == 100
 
-            await handle_shootout_audio_job(job_id)
-
-            # Final progress should be 100 after all operations complete
-
-    async def test_updates_heartbeat_during_processing(self, db_session: AsyncSession) -> None:
+    async def test_updates_heartbeat_during_processing(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler updates job heartbeat timestamp during long operations."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
+        _apply_audio_monkeypatches(monkeypatch, db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        await handle_shootout_audio_job(job_id)
 
-            mock_session.execute.return_value = Mock()
+        job = await db_session.get(Job, job_id)
+        assert job is not None
+        assert job.last_heartbeat is not None
 
-            # Simulate long processing
-            async def slow_execute(*args, **kwargs):
-                # Handler should update heartbeat during this time
-                return np.zeros(1000, dtype=np.float32)
-
-            mock_execute.side_effect = slow_execute
-            mock_loudness.return_value = (-14.0, -6.0)
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
-
-            await handle_shootout_audio_job(job_id)
-
-            # Handler should update last_heartbeat field
-            # Verified by checking job.last_heartbeat updates in implementation
-
-    async def test_marks_job_failed_on_error(self, db_session: AsyncSession) -> None:
+    async def test_marks_job_failed_on_error(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Handler marks job as FAILED and stores error message on exception."""
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, _ = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        async def failing_execute(signal_chain, di_audio, sample_rate, resolver):
+            raise Exception("NAM processing failed")
 
-            mock_session.execute.return_value = Mock()
+        _apply_audio_monkeypatches(monkeypatch, db_session, execute_signal_chain=failing_execute)
 
-            # Simulate processing failure
-            mock_execute.side_effect = Exception("NAM processing failed")
+        with pytest.raises(RuntimeError):
+            await handle_shootout_audio_job(job_id)
 
-            # Handler should catch exception and mark job as failed
-            # (May re-raise or return depending on TaskIQ error handling)
-            with pytest.raises(RuntimeError):
-                await handle_shootout_audio_job(job_id)
+        job = await db_session.get(Job, job_id)
+        assert job is not None
+        assert job.status == JobStatus.FAILED
+        assert "NAM processing failed" in job.error
 
-            # Job status should be updated to FAILED
-            # Job error field should contain error message
-
-    async def test_audio_segment_has_correct_duration(self, db_session: AsyncSession) -> None:
+    async def test_audio_segment_has_correct_duration(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """AudioSegment record has correct duration calculated from audio length."""
+        from webapp.adapters.persistence.models.shootout import AudioSegment
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, shootout_chain_id = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        # 48000 samples at 48kHz = 1.0 second
+        async def execute_returning_1s(signal_chain, di_audio, sample_rate, resolver):
+            return np.zeros(48000, dtype=np.float32)
 
-            mock_session.execute.return_value = Mock()
+        _apply_audio_monkeypatches(
+            monkeypatch,
+            db_session,
+            execute_signal_chain=execute_returning_1s,
+            sf_read=lambda _path: (np.zeros(48000, dtype=np.float32), 48000),
+        )
 
-            # 48000 samples at 48kHz = 1.0 second
-            sample_rate = 48000
-            audio_samples = 48000
+        await handle_shootout_audio_job(job_id)
 
-            mock_execute.return_value = np.zeros(audio_samples, dtype=np.float32)
-            mock_loudness.return_value = (-14.0, -6.0)
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), sample_rate)
+        from sqlalchemy import select
 
-            await handle_shootout_audio_job(job_id)
+        result = await db_session.execute(
+            select(AudioSegment).where(AudioSegment.shootout_chain_id == shootout_chain_id)
+        )
+        segment = result.scalar_one_or_none()
+        assert segment is not None
+        assert segment.duration_seconds == pytest.approx(1.0)
 
-            # AudioSegment.duration_seconds should equal 1.0
-            # Verified by checking AudioSegment creation args
-
-    async def test_audio_segment_has_loudness_metrics(self, db_session: AsyncSession) -> None:
+    async def test_audio_segment_has_loudness_metrics(
+        self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """AudioSegment record stores integrated LUFS and peak dBFS from measurement."""
+        from webapp.adapters.persistence.models.shootout import AudioSegment
         from worker.jobs.audio import handle_shootout_audio_job
 
-        job_id = uuid4()
+        job_id, shootout_chain_id = await _create_full_job_fixture(db_session)
 
-        with (
-            patch("worker.jobs.audio.get_session") as mock_get_session,
-            patch("worker.jobs.audio.execute_signal_chain") as mock_execute,
-            patch("worker.jobs.audio.measure_loudness") as mock_loudness,
-            patch("worker.jobs.audio.sf") as mock_sf,
-        ):
-            mock_session = AsyncMock(spec=AsyncSession)
-            mock_get_session.return_value.__aenter__.return_value = mock_session
+        expected_lufs = -13.2
+        expected_peak = -2.8
 
-            mock_session.execute.return_value = Mock()
+        _apply_audio_monkeypatches(
+            monkeypatch,
+            db_session,
+            measure_loudness=lambda _path: (expected_lufs, expected_peak),
+        )
 
-            expected_lufs = -13.2
-            expected_peak = -2.8
+        await handle_shootout_audio_job(job_id)
 
-            mock_execute.return_value = np.zeros(1000, dtype=np.float32)
-            mock_loudness.return_value = (expected_lufs, expected_peak)
-            mock_sf.read.return_value = (np.zeros(1000, dtype=np.float32), 48000)
+        from sqlalchemy import select
 
-            await handle_shootout_audio_job(job_id)
-
-            # AudioSegment should have:
-            # - integrated_lufs = -13.2
-            # - peak_dbfs = -2.8
+        result = await db_session.execute(
+            select(AudioSegment).where(AudioSegment.shootout_chain_id == shootout_chain_id)
+        )
+        segment = result.scalar_one_or_none()
+        assert segment is not None
+        assert segment.integrated_lufs == pytest.approx(expected_lufs)
+        assert segment.peak_dbfs == pytest.approx(expected_peak)
 
 
 class TestTaskRegistration:
@@ -582,8 +509,5 @@ class TestTaskRegistration:
         """handle_shootout_audio_job task is registered with the broker."""
         from worker.main import broker
 
-        # Get all registered tasks (returns list of task name strings)
         task_names = list(broker.get_all_tasks())
-
-        # Verify audio handler is registered
         assert any("handle_shootout_audio_job" in name for name in task_names)

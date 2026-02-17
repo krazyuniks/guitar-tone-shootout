@@ -7,9 +7,11 @@ Tests end-to-end T3K authentication flow:
 - Custom API URL from environment variable
 """
 
-from collections.abc import AsyncGenerator
-from unittest.mock import MagicMock, patch
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+import httpx
 import pytest
 from httpx import HTTPStatusError, Request, Response
 from sqlalchemy.ext.asyncio import (
@@ -21,6 +23,23 @@ from sqlalchemy.ext.asyncio import (
 
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+
+class FakeHttpxResponse:
+    """Test double for httpx.Response that returns canned JSON."""
+
+    def __init__(self, json_data: dict[str, Any], status_code: int = 200) -> None:
+        self._json_data = json_data
+        self.status_code = status_code
+
+    def json(self) -> dict[str, Any]:
+        return self._json_data
+
+    def raise_for_status(self) -> None:
+        pass
 
 
 @pytest.fixture
@@ -87,125 +106,125 @@ class TestT3KAuthIntegration:
         assert f"redirect_url={callback}" in url
 
     async def test_full_t3k_auth_flow_with_api_key(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test complete T3K auth flow: api_key exchange + user info retrieval."""
         from webapp.auth.providers.t3k import T3KProvider
 
         t3k = T3KProvider()
 
-        # Step 1: Mock api_key exchange
-        mock_token_response = {
+        token_response = {
             "access_token": "t3k_access_abc123",
             "refresh_token": "t3k_refresh_def456",
             "expires_at": "2099-01-01T00:00:00Z",
         }
-
-        # Step 2: Mock user info
-        mock_user_info = {
+        user_info_response = {
             "id": "t3k_user_789",
             "username": "tone_enthusiast",
             "email": "user@tone3000.com",
         }
 
-        with (
-            patch("httpx.AsyncClient.post") as mock_post,
-            patch("httpx.AsyncClient.get") as mock_get,
-        ):
-            # Mock api_key exchange response
-            mock_token_resp = MagicMock()
-            mock_token_resp.json.return_value = mock_token_response
-            mock_token_resp.raise_for_status = MagicMock()
-            mock_post.return_value = mock_token_resp
+        async def fake_post(self_client: Any, *args: Any, **kwargs: Any) -> FakeHttpxResponse:
+            return FakeHttpxResponse(token_response)
 
-            # Mock user info response
-            mock_user_resp = MagicMock()
-            mock_user_resp.json.return_value = mock_user_info
-            mock_user_resp.raise_for_status = MagicMock()
-            mock_get.return_value = mock_user_resp
+        async def fake_get(self_client: Any, *args: Any, **kwargs: Any) -> FakeHttpxResponse:
+            return FakeHttpxResponse(user_info_response)
 
-            # Exchange api_key for tokens
-            tokens = await t3k.exchange_api_key("test_api_key")
-            assert tokens["access_token"] == "t3k_access_abc123"
-            assert tokens["refresh_token"] == "t3k_refresh_def456"
+        monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+        monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
 
-            # Fetch user info using access token
-            user_info = await t3k.get_user_info(access_token=tokens["access_token"])
+        # Exchange api_key for tokens
+        tokens = await t3k.exchange_api_key("test_api_key")
+        assert tokens["access_token"] == "t3k_access_abc123"
+        assert tokens["refresh_token"] == "t3k_refresh_def456"
 
-            assert user_info["id"] == "t3k_user_789"
-            assert user_info["username"] == "tone_enthusiast"
-            assert user_info["email"] == "user@tone3000.com"
+        # Fetch user info using access token
+        user_info = await t3k.get_user_info(access_token=tokens["access_token"])
+
+        assert user_info["id"] == "t3k_user_789"
+        assert user_info["username"] == "tone_enthusiast"
+        assert user_info["email"] == "user@tone3000.com"
 
     async def test_t3k_api_key_exchange_handles_failure(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test T3K api_key exchange handles HTTP errors."""
         from webapp.auth.providers.t3k import T3KProvider
 
         t3k = T3KProvider()
 
-        mock_response = Response(
+        error_response = Response(
             status_code=401,
             json={"error": "invalid_api_key"},
         )
-        mock_request = Request("POST", f"{t3k.base_url}/api/v1/auth/session")
+        error_request = Request("POST", f"{t3k.base_url}/api/v1/auth/session")
 
-        with patch("httpx.AsyncClient.post") as mock_post:
-            mock_post.side_effect = HTTPStatusError(
-                "Unauthorized",
-                request=mock_request,
-                response=mock_response,
-            )
+        async def fake_post(self_client: Any, *args: Any, **kwargs: Any) -> None:
+            raise HTTPStatusError("Unauthorized", request=error_request, response=error_response)
 
-            with pytest.raises(HTTPStatusError):
-                await t3k.exchange_api_key("invalid_key")
+        monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+        with pytest.raises(HTTPStatusError):
+            await t3k.exchange_api_key("invalid_key")
 
     async def test_t3k_user_info_handles_unauthorized(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test T3K provider handles 401 Unauthorized when fetching user info."""
         from webapp.auth.providers.t3k import T3KProvider
 
         t3k = T3KProvider()
 
-        mock_response = Response(
+        error_response = Response(
             status_code=401,
             json={"error": "invalid_token"},
         )
-        mock_request = Request("GET", f"{t3k.base_url}/api/v1/user")
+        error_request = Request("GET", f"{t3k.base_url}/api/v1/user")
 
-        with patch("httpx.AsyncClient.get") as mock_get:
-            mock_get.side_effect = HTTPStatusError(
-                "Unauthorized",
-                request=mock_request,
-                response=mock_response,
-            )
+        async def fake_get(self_client: Any, *args: Any, **kwargs: Any) -> None:
+            raise HTTPStatusError("Unauthorized", request=error_request, response=error_response)
 
-            with pytest.raises(HTTPStatusError):
-                await t3k.get_user_info(access_token="expired_token")
+        monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
 
-    def test_t3k_uses_custom_api_url_from_env(self, t3k_provider: OAuthProvider) -> None:
+        with pytest.raises(HTTPStatusError):
+            await t3k.get_user_info(access_token="expired_token")
+
+    def test_t3k_uses_custom_api_url_from_env(
+        self, t3k_provider: OAuthProvider, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test T3K provider uses custom API URL from environment."""
         from webapp.auth.providers.t3k import T3KProvider
 
         custom_api_url = "https://staging.tone3000.com"
 
-        with patch.dict("os.environ", {"T3K_API_URL": custom_api_url}, clear=False):
-            t3k = T3KProvider()
-            assert t3k.base_url == custom_api_url
+        monkeypatch.setenv("T3K_API_URL", custom_api_url)
+        t3k = T3KProvider()
+        assert t3k.base_url == custom_api_url
 
-            url = t3k.build_login_url("http://localhost/callback")
-            assert custom_api_url in url
+        url = t3k.build_login_url("http://localhost/callback")
+        assert custom_api_url in url
 
     async def test_t3k_provider_returns_complete_user_profile(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test T3K provider returns all user profile fields."""
         from webapp.auth.providers.t3k import T3KProvider
 
         t3k = T3KProvider()
 
-        mock_user_info = {
+        user_info_data = {
             "id": "t3k_12345",
             "username": "guitar_wizard",
             "email": "wizard@tone3000.com",
@@ -213,15 +232,14 @@ class TestT3KAuthIntegration:
             "created_at": "2024-01-15T10:30:00Z",
         }
 
-        with patch("httpx.AsyncClient.get") as mock_get:
-            mock_response = MagicMock()
-            mock_response.json.return_value = mock_user_info
-            mock_response.raise_for_status = MagicMock()
-            mock_get.return_value = mock_response
+        async def fake_get(self_client: Any, *args: Any, **kwargs: Any) -> FakeHttpxResponse:
+            return FakeHttpxResponse(user_info_data)
 
-            user_info = await t3k.get_user_info(access_token="valid_token")
+        monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
 
-            assert user_info["id"] == "t3k_12345"
-            assert user_info["username"] == "guitar_wizard"
-            assert user_info["email"] == "wizard@tone3000.com"
-            assert user_info["avatar_url"] == "https://tone3000.com/avatars/wizard.jpg"
+        user_info = await t3k.get_user_info(access_token="valid_token")
+
+        assert user_info["id"] == "t3k_12345"
+        assert user_info["username"] == "guitar_wizard"
+        assert user_info["email"] == "wizard@tone3000.com"
+        assert user_info["avatar_url"] == "https://tone3000.com/avatars/wizard.jpg"

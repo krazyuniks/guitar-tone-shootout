@@ -4,9 +4,6 @@ Tests that WorkerSettings loads from environment variables and provides
 required configuration for Redis broker and database connections.
 """
 
-import os
-from unittest.mock import patch
-
 import pytest
 
 
@@ -27,7 +24,6 @@ class TestWorkerSettings:
         """WorkerSettings has redis_url field."""
         from worker.config import WorkerSettings
 
-        # Create settings with explicit value
         settings = WorkerSettings(
             redis_url="redis://localhost:6379",
             database_url="postgresql+asyncpg://user:pass@localhost/db",
@@ -60,23 +56,19 @@ class TestWorkerSettings:
         assert hasattr(settings, "t3k_database_url")
         assert settings.t3k_database_url == "postgresql+asyncpg://user:pass@localhost/t3k_db"
 
-    def test_settings_loads_from_environment(self) -> None:
+    def test_settings_loads_from_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """WorkerSettings loads values from environment variables."""
         from worker.config import WorkerSettings
 
-        # Set environment variables
-        env_vars = {
-            "REDIS_URL": "redis://test-redis:6380",
-            "DATABASE_URL": "postgresql+asyncpg://test:pass@testdb/core",
-            "T3K_DATABASE_URL": "postgresql+asyncpg://test:pass@testdb/t3k",
-        }
+        monkeypatch.setenv("REDIS_URL", "redis://test-redis:6380")
+        monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://test:pass@testdb/core")
+        monkeypatch.setenv("T3K_DATABASE_URL", "postgresql+asyncpg://test:pass@testdb/t3k")
 
-        with patch.dict(os.environ, env_vars, clear=True):
-            settings = WorkerSettings()
+        settings = WorkerSettings()
 
-            assert settings.redis_url == "redis://test-redis:6380"
-            assert settings.database_url == "postgresql+asyncpg://test:pass@testdb/core"
-            assert settings.t3k_database_url == "postgresql+asyncpg://test:pass@testdb/t3k"
+        assert settings.redis_url == "redis://test-redis:6380"
+        assert settings.database_url == "postgresql+asyncpg://test:pass@testdb/core"
+        assert settings.t3k_database_url == "postgresql+asyncpg://test:pass@testdb/t3k"
 
     def test_settings_inherits_from_base_settings(self) -> None:
         """WorkerSettings inherits from pydantic_settings.BaseSettings."""
@@ -92,7 +84,6 @@ class TestWorkerSettings:
 
         from worker.config import WorkerSettings
 
-        # Attempt to create settings without redis_url
         with pytest.raises(ValidationError) as exc_info:
             WorkerSettings(
                 database_url="postgresql+asyncpg://user:pass@localhost/db",
@@ -143,9 +134,9 @@ class TestWorkerBrokerConfiguration:
 
         from worker.main import broker
 
-        assert not isinstance(broker, InMemoryBroker), (
-            "Worker should use Redis ListQueueBroker, not InMemoryBroker"
-        )
+        assert not isinstance(
+            broker, InMemoryBroker
+        ), "Worker should use Redis ListQueueBroker, not InMemoryBroker"
 
     @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
     def test_broker_uses_redis_list_queue_broker(self) -> None:
@@ -154,20 +145,17 @@ class TestWorkerBrokerConfiguration:
 
         from worker.main import broker
 
-        assert isinstance(broker, ListQueueBroker), (
-            "Worker broker must be ListQueueBroker from taskiq-redis"
-        )
+        assert isinstance(
+            broker, ListQueueBroker
+        ), "Worker broker must be ListQueueBroker from taskiq-redis"
 
     @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
     def test_broker_connects_to_redis_from_settings(self) -> None:
         """broker connects to Redis using URL from WorkerSettings."""
         from worker.main import broker
 
-        # Check that the broker has a Redis connection configured
-        # ListQueueBroker stores the Redis URL in its redis_url attribute
         assert hasattr(broker, "_redis_url"), "Broker should store Redis URL from settings"
 
-        # Verify it's not using default localhost (should come from settings)
         redis_url = getattr(broker, "_redis_url", None)
         assert redis_url is not None, "Broker must have Redis URL configured"
         assert isinstance(redis_url, str), "Redis URL must be a string"

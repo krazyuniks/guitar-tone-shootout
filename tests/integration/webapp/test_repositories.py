@@ -508,8 +508,7 @@ async def test_audit_log_event(
     )
     await db_session.commit()
 
-    # Verify (check that no exception was raised)
-    assert True
+    # Verify the log_event call completed without error
 
 
 # SignalChainGroupRepository Tests

@@ -7,10 +7,9 @@ It validates checksums, retries on failure, and skips existing files.
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 import pytest
-from httpx import AsyncClient, Request, Response
+from httpx import AsyncClient, MockTransport, Request, Response
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -41,12 +40,6 @@ async def db_session(db_engine: AsyncEngine) -> AsyncSession:
 
 
 @pytest.fixture
-def mock_httpx_client() -> AsyncMock:
-    """Create a mock httpx AsyncClient."""
-    return AsyncMock(spec=AsyncClient)
-
-
-@pytest.fixture
 async def sample_model(db_session: AsyncSession) -> T3KModelStaging:
     """Create a sample T3KModelStaging record."""
     model = T3KModelStaging(
@@ -66,6 +59,11 @@ async def sample_model(db_session: AsyncSession) -> T3KModelStaging:
     return model
 
 
+def _make_transport(handler) -> AsyncClient:
+    """Create an AsyncClient wired to a MockTransport handler."""
+    return AsyncClient(transport=MockTransport(handler))
+
+
 class TestModelDownloaderInit:
     """Test ModelDownloader initialization."""
 
@@ -77,17 +75,14 @@ class TestModelDownloaderInit:
         assert downloader._session is db_session
         assert downloader._http_client is None
 
-    def test_init_with_custom_http_client(
-        self, tmp_path: Path, db_session: AsyncSession, mock_httpx_client: AsyncMock
-    ) -> None:
+    def test_init_with_custom_http_client(self, tmp_path: Path, db_session: AsyncSession) -> None:
         """ModelDownloader should accept custom httpx client."""
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_httpx_client
-        )
+        client = _make_transport(lambda _r: Response(200))
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
 
         assert downloader._base_path == tmp_path
         assert downloader._session is db_session
-        assert downloader._http_client is mock_httpx_client
+        assert downloader._http_client is client
 
     def test_init_creates_base_path_if_missing(
         self, tmp_path: Path, db_session: AsyncSession
@@ -178,17 +173,13 @@ class TestDownloadModel:
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should download file to base_path/source_record_id/filename."""
-        mock_client = AsyncMock(spec=AsyncClient)
         file_content = b""  # Empty content matches sample_model checksum
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=file_content,
-            request=Request("GET", sample_model.download_url),
-        )
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            return Response(200, content=file_content)
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_path = await downloader.download_model(sample_model)
 
         expected_path = tmp_path / "model-123" / "test_model.nam"
@@ -201,16 +192,12 @@ class TestDownloadModel:
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should create parent directory if it doesn't exist."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"",
-            request=Request("GET", sample_model.download_url),
-        )
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_path = await downloader.download_model(sample_model)
 
         assert result_path.parent.exists()
@@ -220,17 +207,12 @@ class TestDownloadModel:
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should validate downloaded file checksum."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        wrong_content = b"wrong content"  # Won't match checksum
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=wrong_content,
-            request=Request("GET", sample_model.download_url),
-        )
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            return Response(200, content=b"wrong content")  # Won't match checksum
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
 
         # Should raise exception or return None on checksum mismatch
         result = await downloader.download_model(sample_model)
@@ -242,21 +224,18 @@ class TestDownloadModel:
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should send GET request to model.download_url."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"",
-            request=Request("GET", sample_model.download_url),
-        )
+        captured_requests: list[Request] = []
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            captured_requests.append(request)
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         await downloader.download_model(sample_model)
 
-        mock_client.get.assert_called_once()
-        call_args = mock_client.get.call_args
-        assert call_args[0][0] == sample_model.download_url
+        assert len(captured_requests) == 1
+        assert str(captured_requests[0].url) == sample_model.download_url
 
 
 class TestSkipExisting:
@@ -272,17 +251,22 @@ class TestSkipExisting:
         model_path.parent.mkdir(parents=True)
         model_path.write_bytes(b"")  # Empty content matches sample_model checksum
 
-        mock_client = AsyncMock(spec=AsyncClient)
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        request_count = 0
+
+        def handler(request: Request) -> Response:
+            nonlocal request_count
+            request_count += 1
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
 
         result_path = await downloader.download_model(sample_model)
 
         # Should return None to indicate skip
         assert result_path is None
         # Should not have called HTTP client
-        mock_client.get.assert_not_called()
+        assert request_count == 0
 
     @pytest.mark.asyncio
     async def test_download_model_redownloads_existing_file_with_wrong_checksum(
@@ -294,21 +278,20 @@ class TestSkipExisting:
         model_path.parent.mkdir(parents=True)
         model_path.write_bytes(b"wrong content")
 
-        mock_client = AsyncMock(spec=AsyncClient)
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"",  # Correct content
-            request=Request("GET", sample_model.download_url),
-        )
+        request_count = 0
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            nonlocal request_count
+            request_count += 1
+            return Response(200, content=b"")  # Correct content
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_path = await downloader.download_model(sample_model)
 
         # Should have downloaded
         assert result_path == model_path
-        mock_client.get.assert_called_once()
+        assert request_count == 1
 
 
 class TestRetryBehaviour:
@@ -319,63 +302,52 @@ class TestRetryBehaviour:
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should retry up to 3 times on network errors."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        # Fail twice, then succeed
-        mock_client.get.side_effect = [
-            Exception("Network error"),
-            Exception("Network error"),
-            Response(
-                status_code=200,
-                content=b"",
-                request=Request("GET", sample_model.download_url),
-            ),
-        ]
+        call_count = 0
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise Exception("Network error")
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_path = await downloader.download_model(sample_model)
 
         assert result_path is not None
-        assert mock_client.get.call_count == 3
+        assert call_count == 3
 
     @pytest.mark.asyncio
     async def test_download_model_fails_after_max_retries(
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should fail after 3 unsuccessful retries."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        # Fail all 3 attempts
-        mock_client.get.side_effect = [
-            Exception("Network error"),
-            Exception("Network error"),
-            Exception("Network error"),
-        ]
+        call_count = 0
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            nonlocal call_count
+            call_count += 1
+            raise Exception("Network error")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result = await downloader.download_model(sample_model)
 
         assert result is None
-        assert mock_client.get.call_count == 3
+        assert call_count == 3
 
     @pytest.mark.asyncio
     async def test_download_model_removes_corrupt_file_after_all_retries_fail(
         self, tmp_path: Path, db_session: AsyncSession, sample_model: T3KModelStaging
     ) -> None:
         """download_model should remove partial/corrupt file after all retries fail."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        # Return wrong content on all attempts
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"corrupt content",
-            request=Request("GET", sample_model.download_url),
-        )
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            return Response(200, content=b"corrupt content")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result = await downloader.download_model(sample_model)
 
         expected_path = tmp_path / "model-123" / "test_model.nam"
@@ -411,36 +383,40 @@ class TestDownloadModelsForPack:
             db_session.add(model)
         await db_session.commit()
 
-        mock_client = AsyncMock(spec=AsyncClient)
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"",
-            request=Request("GET", "https://t3k.com/download/test.nam"),
-        )
+        request_count = 0
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            nonlocal request_count
+            request_count += 1
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_paths = await downloader.download_models_for_pack("pack-999")
 
         assert len(result_paths) == 3
         assert all(isinstance(p, Path) for p in result_paths)
-        assert mock_client.get.call_count == 3
+        assert request_count == 3
 
     @pytest.mark.asyncio
     async def test_download_models_for_pack_returns_empty_list_for_nonexistent_pack(
         self, tmp_path: Path, db_session: AsyncSession
     ) -> None:
         """download_models_for_pack should return empty list for pack with no models."""
-        mock_client = AsyncMock(spec=AsyncClient)
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        request_count = 0
+
+        def handler(request: Request) -> Response:
+            nonlocal request_count
+            request_count += 1
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
 
         result_paths = await downloader.download_models_for_pack("nonexistent-pack")
 
         assert result_paths == []
-        mock_client.get.assert_not_called()
+        assert request_count == 0
 
     @pytest.mark.asyncio
     async def test_download_models_for_pack_queries_by_pack_id(
@@ -474,21 +450,20 @@ class TestDownloadModelsForPack:
         db_session.add(pack_b_model)
         await db_session.commit()
 
-        mock_client = AsyncMock(spec=AsyncClient)
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"",
-            request=Request("GET", "https://t3k.com/download/test.nam"),
-        )
+        request_count = 0
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            nonlocal request_count
+            request_count += 1
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_paths = await downloader.download_models_for_pack("pack-aaa")
 
         # Should only download pack-aaa model, not pack-bbb
         assert len(result_paths) == 1
-        assert mock_client.get.call_count == 1
+        assert request_count == 1
 
     @pytest.mark.asyncio
     async def test_download_models_for_pack_excludes_skipped_models(
@@ -528,20 +503,19 @@ class TestDownloadModelsForPack:
         existing_path.parent.mkdir(parents=True)
         existing_path.write_bytes(b"")
 
-        mock_client = AsyncMock(spec=AsyncClient)
-        mock_client.get.return_value = Response(
-            status_code=200,
-            content=b"",
-            request=Request("GET", "https://t3k.com/download/new.nam"),
-        )
+        request_count = 0
 
-        downloader = ModelDownloader(
-            base_path=tmp_path, session=db_session, http_client=mock_client
-        )
+        def handler(request: Request) -> Response:
+            nonlocal request_count
+            request_count += 1
+            return Response(200, content=b"")
+
+        client = _make_transport(handler)
+        downloader = ModelDownloader(base_path=tmp_path, session=db_session, http_client=client)
         result_paths = await downloader.download_models_for_pack("pack-skip")
 
         # Should only include the newly downloaded model
         assert len(result_paths) == 1
         assert result_paths[0].name == "new.nam"
         # Should only have called HTTP client once (for new model)
-        assert mock_client.get.call_count == 1
+        assert request_count == 1
