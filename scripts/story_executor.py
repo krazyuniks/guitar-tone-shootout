@@ -211,8 +211,7 @@ def _check_upstream_failure(
         # Check if this file path appears in the error text
         if file_path in error_text:
             evidence = (
-                f"Error references '{file_path}' which is owned by "
-                f"completed story '{owning_story}'"
+                f"Error references '{file_path}' which is owned by completed story '{owning_story}'"
             )
             return (evidence, f"File owned by earlier story: {owning_story}")
     return None
@@ -625,7 +624,7 @@ def execute_story(
         if preflight.is_minor:
             # Minor issues -- agent can self-fix. Log and continue.
             logger.info(
-                "Pre-flight found minor issues for story '%s' " "(agent will self-fix): %s",
+                "Pre-flight found minor issues for story '%s' (agent will self-fix): %s",
                 story_id,
                 "; ".join(preflight.issues),
             )
@@ -836,7 +835,7 @@ def _dispatch_and_validate_loop(
             )
 
             logger.warning(
-                "Agent failed for story '%s' (attempt %d): " "category=%s, pattern=%s",
+                "Agent failed for story '%s' (attempt %d): category=%s, pattern=%s",
                 story_id,
                 attempt,
                 classification.category,
@@ -941,7 +940,7 @@ def _dispatch_and_validate_loop(
             )
 
         logger.warning(
-            "Validation failed for story '%s' (attempt %d): " "category=%s, reason=%s",
+            "Validation failed for story '%s' (attempt %d): category=%s, reason=%s",
             story_id,
             attempt,
             classification.category,

@@ -115,10 +115,10 @@ apps/webapp/src/webapp/templates/ — Jinja2 templates
 
     if "--dry-run" in sys.argv:
         print(prompt)
-        print(f"\n--- {len(prompt)} chars, ~{len(prompt)//4} tokens ---")
+        print(f"\n--- {len(prompt)} chars, ~{len(prompt) // 4} tokens ---")
         return
 
-    print(f"Dispatching ({len(prompt)} chars, ~{len(prompt)//4} tokens)...")
+    print(f"Dispatching ({len(prompt)} chars, ~{len(prompt) // 4} tokens)...")
     result = dispatch_with_fallback(
         prompt=prompt,
         primary_model="sonnet",

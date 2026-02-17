@@ -55,13 +55,26 @@ def upgrade() -> None:
         sa.Column("username", sa.String(255), nullable=False),
         sa.Column("avatar_url", sa.String(500), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_user_identities"),
-        sa.ForeignKeyConstraint(["provider_id"], ["oauth_providers.id"], name="fk_user_identities_provider_id_oauth_providers", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_user_identities_user_id_users", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["provider_id"],
+            ["oauth_providers.id"],
+            name="fk_user_identities_provider_id_oauth_providers",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="fk_user_identities_user_id_users", ondelete="CASCADE"
+        ),
     )
-    op.create_index("ix_user_identities_provider_external", "user_identities", ["provider_id", "external_id"])
+    op.create_index(
+        "ix_user_identities_provider_external", "user_identities", ["provider_id", "external_id"]
+    )
     op.create_index("ix_user_identities_user_id", "user_identities", ["user_id"])
 
     op.create_table(
@@ -105,7 +118,9 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_gear_sources"),
     )
-    op.create_index("ix_gear_sources_source_lookup", "gear_sources", ["source_name", "source_record_id"])
+    op.create_index(
+        "ix_gear_sources_source_lookup", "gear_sources", ["source_name", "source_record_id"]
+    )
 
     op.create_table(
         "gear",
@@ -120,11 +135,22 @@ def upgrade() -> None:
         sa.Column("thumbnail_url", sa.String(500), nullable=True),
         sa.Column("is_public", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("source_id", sa.Uuid(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_gear"),
-        sa.ForeignKeyConstraint(["make_id"], ["gear_makes.id"], name="fk_gear_make_id_gear_makes", ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["source_id"], ["gear_sources.id"], name="fk_gear_source_id_gear_sources", ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["make_id"], ["gear_makes.id"], name="fk_gear_make_id_gear_makes", ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_id"],
+            ["gear_sources.id"],
+            name="fk_gear_source_id_gear_sources",
+            ondelete="SET NULL",
+        ),
     )
     op.create_index("ix_gear_type", "gear", ["gear_type"])
     op.create_index("ix_gear_slug", "gear", ["slug"])
@@ -143,7 +169,9 @@ def upgrade() -> None:
         sa.Column("file_hash", sa.String(64), nullable=True),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_gear_models"),
-        sa.ForeignKeyConstraint(["gear_id"], ["gear.id"], name="fk_gear_models_gear_id_gear", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["gear_id"], ["gear.id"], name="fk_gear_models_gear_id_gear", ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_gearmodel_gear_id", "gear_models", ["gear_id"])
     op.create_index("ix_gearmodel_platform", "gear_models", ["platform"])
@@ -161,8 +189,12 @@ def upgrade() -> None:
         sa.Column("gear_id", sa.Uuid(), nullable=False),
         sa.Column("tag_id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint("gear_id", "tag_id", name="pk_gear_tags"),
-        sa.ForeignKeyConstraint(["gear_id"], ["gear.id"], name="fk_gear_tags_gear_id_gear", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["tag_id"], ["tags.id"], name="fk_gear_tags_tag_id_tags", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["gear_id"], ["gear.id"], name="fk_gear_tags_gear_id_gear", ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["tag_id"], ["tags.id"], name="fk_gear_tags_tag_id_tags", ondelete="CASCADE"
+        ),
     )
 
     op.create_table(
@@ -176,8 +208,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_user_gear"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_user_gear_user_id_users", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["gear_id"], ["gear.id"], name="fk_user_gear_gear_id_gear", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="fk_user_gear_user_id_users", ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["gear_id"], ["gear.id"], name="fk_user_gear_gear_id_gear", ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_user_gear_user_id", "user_gear", ["user_id"])
     op.create_index("ix_user_gear_gear_id", "user_gear", ["gear_id"])
@@ -195,7 +231,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_signal_chains"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_signal_chains_user_id_users", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="fk_signal_chains_user_id_users", ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_signal_chains_user_id", "signal_chains", ["user_id"])
 
@@ -220,10 +258,17 @@ def upgrade() -> None:
         sa.Column("params", postgresql.JSON(), nullable=False, server_default="{}"),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_signal_chain_blocks"),
-        sa.ForeignKeyConstraint(["signal_chain_id"], ["signal_chains.id"], name="fk_signal_chain_blocks_signal_chain_id_signal_chains", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["signal_chain_id"],
+            ["signal_chains.id"],
+            name="fk_signal_chain_blocks_signal_chain_id_signal_chains",
+            ondelete="CASCADE",
+        ),
     )
     op.create_index("ix_signal_chain_blocks_chain_id", "signal_chain_blocks", ["signal_chain_id"])
-    op.create_index("ix_signal_chain_blocks_position", "signal_chain_blocks", ["signal_chain_id", "position"])
+    op.create_index(
+        "ix_signal_chain_blocks_position", "signal_chain_blocks", ["signal_chain_id", "position"]
+    )
 
     op.create_table(
         "signal_chain_groups",
@@ -238,8 +283,18 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_signal_chain_groups"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_signal_chain_groups_user_id_users", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["base_chain_id"], ["signal_chains.id"], name="fk_signal_chain_groups_base_chain_id_signal_chains", ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            name="fk_signal_chain_groups_user_id_users",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["base_chain_id"],
+            ["signal_chains.id"],
+            name="fk_signal_chain_groups_base_chain_id_signal_chains",
+            ondelete="SET NULL",
+        ),
     )
     op.create_index("ix_signal_chain_groups_user_id", "signal_chain_groups", ["user_id"])
 
@@ -271,7 +326,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_di_tracks"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_di_tracks_user_id_users", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="fk_di_tracks_user_id_users", ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_di_tracks_user_id", "di_tracks", ["user_id"])
 
@@ -287,7 +344,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_shootouts"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_shootouts_user_id_users", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="fk_shootouts_user_id_users", ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_shootouts_user_id", "shootouts", ["user_id"])
     op.create_index("ix_shootouts_status", "shootouts", ["status"])
@@ -300,8 +359,18 @@ def upgrade() -> None:
         sa.Column("label", sa.String(100), nullable=False, server_default=""),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_shootout_chains"),
-        sa.ForeignKeyConstraint(["shootout_id"], ["shootouts.id"], name="fk_shootout_chains_shootout_id_shootouts", ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["signal_chain_id"], ["signal_chains.id"], name="fk_shootout_chains_signal_chain_id_signal_chains", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["shootout_id"],
+            ["shootouts.id"],
+            name="fk_shootout_chains_shootout_id_shootouts",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["signal_chain_id"],
+            ["signal_chains.id"],
+            name="fk_shootout_chains_signal_chain_id_signal_chains",
+            ondelete="CASCADE",
+        ),
     )
     op.create_index("ix_shootout_chains_shootout_id", "shootout_chains", ["shootout_id"])
     op.create_index("ix_shootout_chains_position", "shootout_chains", ["shootout_id", "position"])
@@ -315,7 +384,12 @@ def upgrade() -> None:
         sa.Column("peak_dbfs", sa.Float(), nullable=False),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_audio_segments"),
-        sa.ForeignKeyConstraint(["shootout_chain_id"], ["shootout_chains.id"], name="fk_audio_segments_shootout_chain_id_shootout_chains", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["shootout_chain_id"],
+            ["shootout_chains.id"],
+            name="fk_audio_segments_shootout_chain_id_shootout_chains",
+            ondelete="CASCADE",
+        ),
     )
     op.create_index("ix_audio_segments_chain_id", "audio_segments", ["shootout_chain_id"])
 
@@ -344,8 +418,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_jobs"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name="fk_jobs_user_id_users", ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["parent_job_id"], ["jobs.id"], name="fk_jobs_parent_job_id_jobs", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name="fk_jobs_user_id_users", ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["parent_job_id"], ["jobs.id"], name="fk_jobs_parent_job_id_jobs", ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_jobs_user_id", "jobs", ["user_id"])
     op.create_index("ix_jobs_status", "jobs", ["status"])

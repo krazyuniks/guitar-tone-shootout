@@ -58,9 +58,9 @@ class TestStageToneCallsDownloader:
     def test_contains_download_call(self) -> None:
         """_stage_tone_models_and_publish source must contain a call to download_models_for_tone."""
         source = inspect.getsource(T3KSyncService._stage_tone_models_and_publish)
-        assert (
-            "download_models_for_tone" in source
-        ), "_stage_tone_models_and_publish must call download_models_for_tone() after staging models"
+        assert "download_models_for_tone" in source, (
+            "_stage_tone_models_and_publish must call download_models_for_tone() after staging models"
+        )
 
     def test_download_call_appears_after_model_staging(self) -> None:
         """download_models_for_tone call must appear after model staging loop."""
@@ -75,12 +75,12 @@ class TestStageToneCallsDownloader:
             if "download_models_for_tone" in line and download_line is None:
                 download_line = i
 
-        assert (
-            staging_line is not None
-        ), "_stage_tone_models_and_publish must stage models via session.add"
-        assert (
-            download_line is not None
-        ), "_stage_tone_models_and_publish must call download_models_for_tone"
+        assert staging_line is not None, (
+            "_stage_tone_models_and_publish must stage models via session.add"
+        )
+        assert download_line is not None, (
+            "_stage_tone_models_and_publish must call download_models_for_tone"
+        )
         assert download_line > staging_line, (
             "download_models_for_tone must be called AFTER model staging, "
             f"but staging is at line {staging_line} and download is at line {download_line}"

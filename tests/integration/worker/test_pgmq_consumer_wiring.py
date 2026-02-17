@@ -31,9 +31,9 @@ class TestPgmqConsumerWiring:
         assert "GearSyncConsumer" in source, "run_pgmq_consumer should instantiate GearSyncConsumer"
 
         # Must NOT contain the old sleep-loop
-        assert (
-            "time.sleep" not in source
-        ), "run_pgmq_consumer should not use time.sleep (no-op loop)"
+        assert "time.sleep" not in source, (
+            "run_pgmq_consumer should not use time.sleep (no-op loop)"
+        )
 
     def test_run_pgmq_consumer_uses_both_sessions(self) -> None:
         """run_pgmq_consumer should obtain both core and T3K database sessions.
@@ -43,28 +43,28 @@ class TestPgmqConsumerWiring:
         """
         source = inspect.getsource(run_pgmq_consumer)
 
-        assert (
-            "get_core_session" in source or "core_session" in source
-        ), "run_pgmq_consumer should use a core database session"
-        assert (
-            "get_t3k_session" in source or "t3k_session" in source
-        ), "run_pgmq_consumer should use a T3K database session"
+        assert "get_core_session" in source or "core_session" in source, (
+            "run_pgmq_consumer should use a core database session"
+        )
+        assert "get_t3k_session" in source or "t3k_session" in source, (
+            "run_pgmq_consumer should use a T3K database session"
+        )
 
     def test_consumer_configured_with_correct_queue_names(self) -> None:
         """Consumer should poll the unified gear_sync queue."""
         source = inspect.getsource(run_pgmq_consumer)
 
-        assert (
-            "gear_sync" in source
-        ), "Consumer should be configured with unified gear_sync queue name"
+        assert "gear_sync" in source, (
+            "Consumer should be configured with unified gear_sync queue name"
+        )
 
     def test_consumer_configured_with_dead_letter_queue(self) -> None:
         """Consumer should have gear_sync_dlq queue for failed messages."""
         source = inspect.getsource(run_pgmq_consumer)
 
-        assert (
-            "gear_sync_dlq" in source
-        ), "Consumer should be configured with gear_sync_dlq queue name"
+        assert "gear_sync_dlq" in source, (
+            "Consumer should be configured with gear_sync_dlq queue name"
+        )
 
     def test_run_pgmq_consumer_calls_consumer_run(self) -> None:
         """run_pgmq_consumer must invoke the consumer's run() method.
@@ -91,9 +91,9 @@ class TestConsumerFailFast:
         sig = inspect.signature(run_pgmq_consumer)
         param_names = list(sig.parameters.keys())
 
-        assert (
-            "manager" in param_names
-        ), "run_pgmq_consumer must accept a 'manager' parameter for fail-fast"
+        assert "manager" in param_names, (
+            "run_pgmq_consumer must accept a 'manager' parameter for fail-fast"
+        )
 
     def test_run_pgmq_consumer_is_async(self) -> None:
         """run_pgmq_consumer should be an async function.
@@ -101,6 +101,6 @@ class TestConsumerFailFast:
         The consumer runs as an async coroutine (GearSyncConsumer.run()
         is async), so the entrypoint function must also be async.
         """
-        assert asyncio.iscoroutinefunction(
-            run_pgmq_consumer
-        ), "run_pgmq_consumer must be an async function"
+        assert asyncio.iscoroutinefunction(run_pgmq_consumer), (
+            "run_pgmq_consumer must be an async function"
+        )

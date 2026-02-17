@@ -190,9 +190,9 @@ class TestVideoHealthCheckEndpoint:
         """A check_video_health function should exist like other services."""
         from worktree import docker
 
-        assert hasattr(
-            docker, "check_video_health"
-        ), "check_video_health function missing from docker module"
+        assert hasattr(docker, "check_video_health"), (
+            "check_video_health function missing from docker module"
+        )
 
     def test_check_video_health_returns_true_when_responding(self, monkeypatch: pytest.MonkeyPatch):
         """check_video_health should return True when video service responds."""

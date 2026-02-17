@@ -516,7 +516,7 @@ def _build_context_md(
     if freshness_warnings:
         parts.append("---\n")
         parts.append(
-            "> **Warning: Stale codebase files detected.** " "Run `just map-codebase` to refresh.\n"
+            "> **Warning: Stale codebase files detected.** Run `just map-codebase` to refresh.\n"
         )
         for w in freshness_warnings:
             parts.append(f"> {w}")
@@ -545,7 +545,7 @@ def _build_context_md(
     if codebase_sections:
         parts.append("\n---\n")
         parts.append("## Codebase Structure\n")
-        parts.append("The following files were selectively loaded from " "`.planning/codebase/`:\n")
+        parts.append("The following files were selectively loaded from `.planning/codebase/`:\n")
         for name, content in codebase_sections.items():
             parts.append(f"\n### {name}\n")
             parts.append(content.strip())
@@ -642,7 +642,7 @@ def main() -> None:
 
     if not epic_dir.is_dir():
         print(
-            f"Error: Epic directory not found: {epic_dir}. " f"Run ingestion first.",
+            f"Error: Epic directory not found: {epic_dir}. Run ingestion first.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -650,7 +650,7 @@ def main() -> None:
     epic_md = epic_dir / "EPIC.md"
     if not epic_md.is_file():
         print(
-            f"Error: EPIC.md not found at {epic_md}. " f"Run epic ingestion first.",
+            f"Error: EPIC.md not found at {epic_md}. Run epic ingestion first.",
             file=sys.stderr,
         )
         sys.exit(1)

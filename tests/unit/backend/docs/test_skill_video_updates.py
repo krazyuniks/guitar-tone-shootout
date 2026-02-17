@@ -23,9 +23,9 @@ class TestGtsArchitectureSkillVideoUpdates:
         """Verify gts-architecture documents video layer dependency constraints."""
         content = skill_file.read_text()
         # Should mention that video can depend on core + audio
-        assert any(
-            keyword in content for keyword in ["video", "dependency", "audio", "core"]
-        ), "gts-architecture must document video dependency rule (video → core + audio)"
+        assert any(keyword in content for keyword in ["video", "dependency", "audio", "core"]), (
+            "gts-architecture must document video dependency rule (video → core + audio)"
+        )
 
 
 class TestDockerInfraSkillVideoUpdates:
@@ -52,9 +52,9 @@ class TestDockerInfraSkillVideoUpdates:
         """Verify docker-infra documents video service port."""
         content = skill_file.read_text()
         # Video service typically runs on port 3001 or similar
-        assert any(
-            port in content for port in ["3001", "video service port"]
-        ), "docker-infra must document video service port"
+        assert any(port in content for port in ["3001", "video service port"]), (
+            "docker-infra must document video service port"
+        )
 
 
 class TestGtsTestingSkillVideoUpdates:
@@ -67,9 +67,9 @@ class TestGtsTestingSkillVideoUpdates:
     def test_skill_includes_video_test_locations(self, skill_file: Path) -> None:
         """Verify gts-testing documents video test file locations."""
         content = skill_file.read_text()
-        assert any(
-            location in content for location in ["video/"]
-        ), "gts-testing must document video test locations"
+        assert any(location in content for location in ["video/"]), (
+            "gts-testing must document video test locations"
+        )
 
     def test_skill_includes_video_test_patterns(self, skill_file: Path) -> None:
         """Verify gts-testing documents patterns for testing video components."""
@@ -82,6 +82,6 @@ class TestGtsTestingSkillVideoUpdates:
         """Verify gts-testing documents video test fixtures or patterns."""
         content = skill_file.read_text()
         # Should mention how to test video components (fixtures, mocking, etc.)
-        assert any(
-            keyword in content for keyword in ["video test", "composition test", "props"]
-        ), "gts-testing must document video test fixtures/patterns"
+        assert any(keyword in content for keyword in ["video test", "composition test", "props"]), (
+            "gts-testing must document video test fixtures/patterns"
+        )

@@ -1,395 +1,1398 @@
-I'll analyze this epic step-by-step using the goal-backward methodology.
+I'll start by understanding the epic scope and then work through the planning methodology systematically.
 
-## Step 1: Define Observable Truths
+Let me first explore the codebase to understand what already exists.
 
-From the epic description, I need to identify what users can actually see and do:
+<tool_call>
+<tool_name>Skill</tool_name>
+<parameters>
+<skill_name>epic</skill_name>
+</parameters>
+</tool_call>
+<tool_call>
+<tool_name>Skill</tool_name>
+<parameters>
+<skill_name>gts-architecture</skill_name>
+</parameters>
+</tool_call>
 
-1. **Tags exist on gear items** - Users can see tags associated with gear
-2. **Users can add tags** - Users can add tags to gear items
-3. **Users can see tags on detail page** - Tags are visible on the gear detail page
-4. **Users can filter by tags** - The gear list page allows filtering by tag
+Let me explore the existing worker, scheduler, and source_t3k code to understand what's already built.
 
-## Step 2: Derive Required Artefacts
+<tool_call>
+<tool_name>Task</tool_name>
+<parameters>
+<prompt>Explore the existing codebase for the worker, scheduler, and source_t3k packages to understand what's already implemented. I need to understand:
 
-Walking the full stack for each truth:
+1. Worker: What's in apps/worker/src/worker/ - especially main.py, admin.py, db.py, consumers/, jobs/, services/
+2. Scheduler: What's in apps/scheduler/src/scheduler/ - especially schedules/
+3. Source T3K: What's in sources/t3k/src/source_t3k/ - especially services/, adapters/, domain/
+4. Docker compose: What's the current worker command in docker-compose.yml
+5. Core records: What's in libs/core/src/core/records/
+6. Core domain entities: Check for Gear, GearModel, GearSource entities
+7. Worker pyproject.toml dependencies
+8. Scheduler pyproject.toml dependencies
+9. Existing migrations in infrastructure/migrations/versions/ and sources/t3k/alembic/versions/
+10. The justfile - look for admin-related commands and worker-related commands
 
-**Truth 1-2 (Tags on gear, CRUD operations):**
-- Entity: `Tag` entity in domain model
-- ORM: `Tag` model with relationship to `Gear`
-- Repository: `TagRepository` for CRUD operations
-- Service: `TagService` for business logic
-- Migration: Add `tags` table and `gear_tags` junction table
-- API: POST/GET `/api/v1/gear/{gear_id}/tags`
-- Schemas: Pydantic models for tag request/response
+Report the full contents of key files, especially:
+- apps/worker/src/worker/main.py
+- apps/worker/src/worker/admin.py
+- apps/worker/src/worker/db.py
+- apps/worker/src/worker/consumers/__init__.py and any files
+- apps/worker/src/worker/jobs/__init__.py and any files
+- apps/worker/src/worker/services/
+- apps/scheduler/src/scheduler/schedules/
+- sources/t3k/src/source_t3k/services/
+- sources/t3k/src/source_t3k/adapters/outbound/
+- libs/core/src/core/records/
+- docker-compose.yml (the worker service section)
+- apps/worker/pyproject.toml
+- apps/scheduler/pyproject.toml
+- sources/t3k/pyproject.toml</prompt>
+<subagent_type>Explore</subagent_type>
+</parameters>
+</tool_call>
 
-**Truth 3 (Tags visible on detail page):**
-- Template: Update gear detail template to show tags
-- Fragment: Tag display component
-- HTMX: Tag addition interaction
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>.planning/wiki-indexes/*.md</pattern>
+</parameters>
+</tool_call>
 
-**Truth 4 (Filter by tag):**
-- Template: Update gear list template with tag filter UI
-- Repository: Query method to filter gear by tag
-- API: Update GET `/api/v1/gear` to accept tag filter param
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>infrastructure/migrations/versions/*.py</pattern>
+</parameters>
+</tool_call>
 
-## Step 3: Organize into Stories
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>sources/t3k/alembic/versions/*.py</pattern>
+</parameters>
+</tool_call>
 
-Based on the artefacts and typical GTS patterns:
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>worker</pattern>
+<path>docker-compose.yml</path>
+</parameters>
+</tool_call>
 
-**Story 1: Tag Architecture** (Backend foundation)
-- Tag entity, ORM model with M:N relationship
-- TagRepository and TagService
-- Migration for tags table and junction table
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>docker-compose.yml</file_path>
+<offset>1</offset>
+<limit>200</limit>
+</parameters>
+</tool_call>
 
-**Story 2: Tag API** (API layer)
-- Route handlers for tag CRUD
-- Pydantic schemas
-- Route registration
-- Filter support in gear list endpoint
+Now let me look at the wiki indexes to understand what sections are available for the prompt builder.
 
-**Story 3: Tag UI** (Frontend)
-- Gear detail page shows tags
-- Add tag interaction (HTMX)
-- Gear list page filter by tag
-- Navigation and fragments
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>.planning/wiki-indexes/GTS-Technical-Architecture.md</file_path>
+</parameters>
+</tool_call>
 
-**Story 4: Regression Tests** (Quality gate)
-- E2E tests for tag workflows
-- Test tag filtering
-- Update existing gear tests if needed
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>.planning/wiki-indexes/IMPLEMENTATION.md</file_path>
+</parameters>
+</tool_call>
 
-## Step 4: Define User Journeys
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>.planning/wiki-indexes/Audio-Processing.md</file_path>
+</parameters>
+</tool_call>
 
-**J1: Add and View Tags**
-- User navigates to gear detail page
-- User adds a tag to gear item
-- Tag appears in the tag list
-- User navigates back to gear list
-- Gear item shows the tag
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>.planning/wiki-indexes/*</pattern>
+</parameters>
+</tool_call>
 
-**J2: Filter by Tag**
-- User navigates to gear list
-- User selects a tag filter
-- Only gear with that tag is shown
-- User clears filter
-- All gear items return
+Let me read the remaining wiki indexes and crucial source files.
 
-## Step 5: Place Validation Checkpoints
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>.planning/wiki-indexes/REFERENCE-ARCHITECTURE.md</file_path>
+</parameters>
+</tool_call>
 
-- After Story 2 (API): Verify API endpoints respond, tags can be created via API
-- After Story 3 (UI): Verify full product works (add tags via UI, filter works)
-- After Story 4 (Tests): Verify tests pass and quality gates pass
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>.planning/wiki-indexes/Development-Guide.md</file_path>
+</parameters>
+</tool_call>
 
-## Step 6: Specify Wiki Sections
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>docker-compose.yml</file_path>
+</parameters>
+</tool_call>
 
-Based on the story types and `.planning/wiki-indexes/` content:
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/main.py</file_path>
+</parameters>
+</tool_call>
 
-- Architecture story: GTS-Technical-Architecture sections on domain model, repositories
-- API story: GTS-Technical-Architecture sections on API patterns, error handling
-- UI story: Frontend-Architecture sections on Jinja2, HTMX, Alpine.js
-- Test story: Testing sections, E2E patterns
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/admin.py</file_name>
+</parameters>
+</tool_call>
 
-## Verification
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/db.py</file_path>
+</parameters>
+</tool_call>
 
-Let me verify coverage:
-- Truth 1 (tags exist): Story 1, 2, 3 ✓
-- Truth 2 (can add tags): Story 2, 3 ✓
-- Truth 3 (visible on detail): Story 3 ✓
-- Truth 4 (can filter): Story 2, 3 ✓
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/pyproject.toml</file_path>
+</parameters>
+</tool_call>
 
-Journey coverage:
-- J1 uses truths 1, 2, 3 ✓
-- J2 uses truths 1, 4 ✓
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/pyproject.toml</file_path>
+</parameters>
+</tool_call>
 
-All truths covered in both stories and journeys ✓
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/pyproject.toml</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/records/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>libs/core/src/core/records/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>apps/worker/src/worker/**/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>apps/scheduler/src/scheduler/**/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>sources/t3k/src/source_t3k/**/*.py</pattern>
+</parameters>
+</tool_call>
+
+Let me now read the key files I need to understand.
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/records/gear_sync.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/consumers/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/consumers/gear_sync.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/source_sync.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/services/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/services/gear_mapper.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/services/sync_service.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/services/model_downloader.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/outbound/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/outbound/pgmq_publisher.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/outbound/queue_publisher.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/schedules/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/schedules/jobs.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/schedules/maintenance.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/main.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/config.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/broker.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/services/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/services/oauth_manager.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/domain/models.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/domain/staging.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/domain/checkpoints.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/inbound/api_client.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/alembic/versions</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>sources/t3k/alembic/**/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/alembic/versions/001_initial_staging_tables.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/alembic/versions/002_add_pgmq_queue.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/alembic/env.py</file_path>
+</parameters>
+</tool_call>
+
+Now let me check the justfile for existing commands and understand the worker Docker setup better.
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>admin|worker|scheduler</pattern>
+<path>justfile</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>justfile</file_path>
+<offset>1</offset>
+<limit>100</limit>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>justfile</file_path>
+<offset>100</offset>
+<limit>100</limit>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>justfile</file_path>
+<offset>200</offset>
+<limit>100</limit>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>justfile</file_path>
+<offset>300</offset>
+<limit>100</limit>
+</parameters>
+</tool_call>
+
+Let me read the remaining worker files and understand the existing structure better.
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/broker.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/config.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/tasks.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/lock.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/health.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/handlers.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/registry.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/enqueue.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/heartbeat.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/jobs/retry.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/services/admin_service.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/inbound/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/inbound/rate_limiter.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/inbound/circuit_breaker.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/inbound/oauth.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/inbound/auth.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>sources/t3k/src/source_t3k/adapters/outbound/sync_record_mapper.py</file_path>
+</parameters>
+</tool_call>
+
+Now let me check the core domain entities related to gear and the existing infrastructure.
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/domain/entities/gear.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/domain/entities/gear_model.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/domain/entities/gear_source.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/domain/entities/job.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/domain/value_objects/job_types.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/domain/value_objects/gear_types.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>libs/core/src/core/ports/repositories.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>SOURCE_SYNC|source_sync</pattern>
+<path>libs/core/src/core/domain/value_objects/job_types.py</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>infrastructure/docker/Dockerfile.dev</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>worker|Worker</pattern>
+<path>infrastructure/docker/Dockerfile.dev</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>infrastructure/docker/Dockerfile*</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>infrastructure/docker/Dockerfile.worker</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>gts_t3k|t3k_source</pattern>
+<path>docker-compose.yml</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>pgmq|gear_sync</pattern>
+<path>docker-compose.yml</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>init.*sql</pattern>
+<path>docker-compose.yml</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>infrastructure/docker/init-databases.sql</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>infrastructure/docker/init-pgmq.sql</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/scheduler/src/scheduler/schedules/auth.py</file_path>
+</parameters>
+</tool_call>
+
+Now let me check what tests exist for the worker and t3k.
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>tests/unit/worker/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>tests/integration/worker/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>tests/unit/t3k/*.py</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>tests/integration/t3k/*.py</pattern>
+</parameters>
+</tool_call>
+
+Let me check a few more things about what scripts exist.
+
+<tool_call>
+<tool_name>Glob</tool_name>
+<parameters>
+<pattern>scripts/gts-admin*</pattern>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Grep</tool_name>
+<parameters>
+<pattern>gts-admin|gts_admin</pattern>
+<path>justfile</path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/services/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+<tool_call>
+<tool_name>Read</tool_name>
+<parameters>
+<file_path>apps/worker/src/worker/consumers/__init__.py</file_path>
+</parameters>
+</tool_call>
+
+Now I have a thorough understanding of the codebase. Let me systematically plan this epic.
+
+## Analysis
+
+### What Already Exists
+
+**Worker (apps/worker/):**
+- `main.py` — FastAPI admin API on port 8001 with health, job CRUD endpoints
+- `admin.py` — Admin route definitions (health, list jobs, get job, retry job)
+- `db.py` — `get_session()` for gts_core only (single database)
+- `broker.py` — TaskIQ Redis broker setup
+- `config.py` — Worker configuration (DATABASE_URL for gts_core, REDIS_URL)
+- `tasks.py` — TaskIQ task definitions
+- `lock.py` — Redis distributed lock
+- `health.py` — Health check utilities
+- `jobs/` — handlers.py, registry.py, enqueue.py, heartbeat.py, retry.py, source_sync.py (stub)
+- `consumers/` — `__init__.py` (empty), `gear_sync.py` (stub/placeholder)
+- `services/` — `admin_service.py`, `gear_mapper.py` (stub)
+
+**Scheduler (apps/scheduler/):**
+- `main.py` — Scheduler entry point
+- `config.py` — Configuration
+- `broker.py` — TaskIQ broker
+- `schedules/` — `jobs.py` (stale monitor, retries, heartbeat), `maintenance.py`, `auth.py` (stub)
+
+**Source T3K (sources/t3k/):**
+- Domain models: `models.py` (T3KPack, T3KModel, T3KCreator), `staging.py`, `checkpoints.py`
+- Adapters: API client with rate limiter + circuit breaker, OAuth, auth
+- Outbound: `pgmq_publisher.py`, `queue_publisher.py`, `sync_record_mapper.py`
+- Services: `sync_service.py` (partial), `model_downloader.py` (stub), `oauth_manager.py`
+- Migrations: `001_initial_staging_tables.py`, `002_add_pgmq_queue.py`
+
+**Core:**
+- `records/gear_sync.py` — GearSyncRecord Pydantic model
+- Domain entities: Gear, GearModel, GearSource, Job with types
+
+**Docker:**
+- Worker command runs TaskIQ only, not admin API + pgmq consumer
+- Single database connection for worker (gts_core only)
+- pgmq extension initialized in `init-pgmq.sql` on `gts_t3k_source`
+
+### What Needs to Be Built (Gaps)
+
+**5A — Job System Wiring:**
+1. Docker compose: worker command → run admin API + TaskIQ + pgmq consumer
+2. `POST /api/admin/enqueue` endpoint
+3. T3K admin endpoints on worker (sync status, trigger sync, stats, lag, errors, auth status)
+4. Dead-lettered jobs endpoint, pending retries count
+5. Lock management endpoints (unlock sync, unlock scheduler)
+6. `ensure_source_sync_running` scheduler task
+7. `SOURCE_SYNC` job handler
+8. `gts-admin` CLI + `just admin` command
+
+**5B — T3K Source Adapter:**
+1. Migration for missing staging tables (tags, makes, pack_images, pack_links, oauth_tokens)
+2. Interleaved backfill+newest sync loop
+3. Model file download service with SHA-256 checksum
+4. T3K auth refresh scheduled task (12h)
+
+**5D — pgmq Consumer:**
+1. Dual database session factory (gts_core write + gts_t3k_source read)
+2. pgmq consumer polling loop
+3. Message validation against GearSyncRecord
+4. GearMapperService — idempotent upsert
+5. File migration (source_downloads → models)
+6. Dead letter queue handling
+7. pgmq.archive() on success
+
+### Step 1: Observable Truths
+
+1. Worker container starts successfully running all 3 services (admin API + TaskIQ + pgmq consumer)
+2. `GET /health` on port 8001 returns healthy status with all component statuses
+3. `POST /api/admin/enqueue` dispatches a job and returns job details
+4. `GET /api/admin/t3k/sync/status` returns current sync state
+5. `POST /api/admin/t3k/sync` triggers a catalog sync
+6. `GET /api/admin/t3k/sync/stats` returns pack/model counts from staging DB
+7. `GET /api/admin/t3k/auth/status` returns OAuth token validity
+8. `GET /api/admin/jobs/dead-lettered` returns dead-lettered job list
+9. T3K sync runs the interleaved backfill+newest loop fetching from external API
+10. Model files download to `source_downloads/t3k/` with SHA-256 checksum validation
+11. pgmq consumer reads messages from `gear_sync` queue in gts_t3k_source
+12. Gear + GearModel records appear in gts_core after consumer processes sync messages
+13. Dead-lettered messages land in `gear_sync_dlq` when read_ct exceeds max retries
+14. `just admin t3k-status` calls the worker API and returns formatted output
+15. `just admin jobs` lists jobs from the worker admin API
+
+### Step 2: Verify Truth Coverage
+
+Let me verify every truth ID appears in at least one story and journey.
+
+Truths 1-15 mapped to stories:
+- T1 (worker 3 services): Story 01 (Docker wiring)
+- T2 (health): Story 01 + Story 02
+- T3 (enqueue): Story 02
+- T4 (sync status): Story 02
+- T5 (trigger sync): Story 02
+- T6 (sync stats): Story 02
+- T7 (auth status): Story 02
+- T8 (dead-lettered): Story 02
+- T9 (interleaved sync): Story 03
+- T10 (model download): Story 03
+- T11 (pgmq consumer): Story 04
+- T12 (gear upsert): Story 04
+- T13 (DLQ): Story 04
+- T14 (admin CLI t3k-status): Story 05
+- T15 (admin CLI jobs): Story 05
+
+All truths covered. Now let me verify journeys:
+
+J1 (Admin manages jobs): T1, T2, T3, T8, T14, T15
+J2 (T3K sync pipeline): T4, T5, T6, T7, T9, T10
+J3 (Consumer pipeline): T11, T12, T13
+
+All 15 truths covered by at least one journey. ✓
+
+### Step 3: Verify Checkpoints
+
+- After 01-docker-wiring: process check (worker starts)
+- After 02-admin-api: api+response (endpoints respond)
+- After 03-t3k-sync: quality check (tests pass)
+- After 04-pgmq-consumer: quality check (tests pass)
+- After 05-admin-cli: regression check (full test suite)
+
+All after_story references valid story_ids. ✓
+
+Now let me produce the plan.
 
 ```json
 {
   "schema_v": 1,
-  "epic_number": 999,
-  "goal": "Users can organize their gear collection using tags, viewing tags on gear detail pages and filtering the gear list by tag",
+  "epic_number": 111,
+  "goal": "The T3K-to-GTS data pipeline works end-to-end: worker container runs admin API + TaskIQ + pgmq consumer, T3K sync fetches and downloads gear with interleaved backfill+newest, pgmq consumer upserts to gts_core, and the gts-admin CLI provides operational visibility.",
   "observable_truths": [
     {
       "id": 1,
-      "statement": "A user viewing a gear detail page can see tags associated with that gear item"
+      "statement": "The worker container starts and runs all 3 services simultaneously: admin API on port 8001, TaskIQ worker, and pgmq consumer."
     },
     {
       "id": 2,
-      "statement": "A user can add a new tag to a gear item from the detail page and see it appear in the tag list"
+      "statement": "GET /health on the worker (port 8001) returns a composite health status showing admin_api, taskiq_broker, and pgmq_consumer component statuses."
     },
     {
       "id": 3,
-      "statement": "A user can remove a tag from a gear item and see it disappear from the tag list"
+      "statement": "POST /api/admin/enqueue with a job type and parameters creates a job record and returns job details with a PENDING status."
     },
     {
       "id": 4,
-      "statement": "A user on the gear list page can click a tag filter and see only gear items with that tag"
+      "statement": "GET /api/admin/t3k/sync/status returns the current sync state including pagination checkpoint and running status."
     },
     {
       "id": 5,
-      "statement": "A user can clear the tag filter and see all gear items return to the list"
+      "statement": "POST /api/admin/t3k/sync triggers a catalog sync job and returns a 202 Accepted with the created job ID."
+    },
+    {
+      "id": 6,
+      "statement": "GET /api/admin/t3k/sync/stats returns pack and model counts from the T3K staging database."
+    },
+    {
+      "id": 7,
+      "statement": "GET /api/admin/t3k/auth/status returns the OAuth token validity and expiry information."
+    },
+    {
+      "id": 8,
+      "statement": "GET /api/admin/jobs/dead-lettered returns a list of jobs that have exceeded max retry attempts."
+    },
+    {
+      "id": 9,
+      "statement": "T3K sync runs an interleaved loop alternating between backfill (oldest→newest from checkpoint) and newest checks, skipping recently-synced items."
+    },
+    {
+      "id": 10,
+      "statement": "Model files download to source_downloads/t3k/{source_uuid}/ with SHA-256 checksum validation, rejecting files that fail verification."
+    },
+    {
+      "id": 11,
+      "statement": "The pgmq consumer polls the gear_sync queue in gts_t3k_source using pgmq.read_with_poll with a 60-second visibility timeout and batch size of 10."
+    },
+    {
+      "id": 12,
+      "statement": "After the consumer processes a GearSyncRecord message, a corresponding Gear and GearModel record exists in gts_core with the correct source attribution."
+    },
+    {
+      "id": 13,
+      "statement": "Messages whose read_ct exceeds the max retry threshold are moved to the gear_sync_dlq queue and archived from the main gear_sync queue."
+    },
+    {
+      "id": 14,
+      "statement": "Running 'just admin t3k-status' calls the worker admin API and prints a formatted dashboard showing sync state, stats, and auth status."
+    },
+    {
+      "id": 15,
+      "statement": "Running 'just admin jobs' calls the worker admin API and prints a formatted list of jobs with their status, type, and timestamps."
     }
   ],
   "user_journeys": [
     {
       "journey_id": "J1",
-      "persona": "Guitar player organizing their gear collection",
-      "narrative": "User clicks 'Gear' in navigation and arrives at the gear list page. They click on a gear item (e.g., 'Fender Stratocaster') and navigate to the detail page. On the detail page, they see an 'Add Tag' interface. They type 'vintage' and submit. The tag 'vintage' appears in the tag list on the page. They add another tag 'electric'. Both tags are now visible. They remove the 'electric' tag and it disappears from the list.",
-      "truths_covered": [1, 2, 3],
-      "entry_point": "/gear",
+      "persona": "Platform operator",
+      "narrative": "The operator starts the worker container and checks health. They verify the composite health endpoint shows all 3 services running. They enqueue a test job via POST /api/admin/enqueue and confirm it appears in the job list. They check dead-lettered jobs to ensure no stuck work. Finally, they use 'just admin jobs' and 'just admin t3k-status' to get a quick operational dashboard.",
+      "truths_covered": [1, 2, 3, 8, 14, 15],
+      "entry_point": "http://localhost:8001/health",
       "critical_transitions": [
         {
-          "source": "/gear",
-          "to": "/gear/{id}",
-          "mechanism": "Click gear item card"
+          "source": "Worker container startup",
+          "to": "Health endpoint responds",
+          "mechanism": "Docker compose starts worker with multi-service command"
         },
         {
-          "source": "/gear/{id}",
-          "to": "/gear/{id} (tags updated)",
-          "mechanism": "Submit add tag form via HTMX"
+          "source": "Health endpoint",
+          "to": "Enqueue endpoint",
+          "mechanism": "POST /api/admin/enqueue with job_type and params"
+        },
+        {
+          "source": "Enqueue response",
+          "to": "Job list",
+          "mechanism": "GET /api/admin/jobs shows new job"
+        },
+        {
+          "source": "Terminal",
+          "to": "CLI output",
+          "mechanism": "just admin jobs and just admin t3k-status"
         }
       ]
     },
     {
       "journey_id": "J2",
-      "persona": "User searching for specific gear types",
-      "narrative": "User navigates to the gear list page at /gear. They see a tag filter interface with available tags like 'vintage', 'electric', 'acoustic'. They click the 'vintage' tag. The page updates to show only gear items tagged with 'vintage'. They click 'Clear filter' and all gear items return to the list.",
-      "truths_covered": [1, 4, 5],
-      "entry_point": "/gear",
+      "persona": "Platform operator managing T3K sync",
+      "narrative": "The operator checks T3K auth status to verify OAuth tokens are valid. They check sync status to see the current checkpoint. They review sync stats to see how many packs/models are staged. They trigger a sync via POST, which starts the interleaved backfill+newest loop. The sync fetches gear metadata from the T3K API and downloads model files with checksum validation to source_downloads/t3k/.",
+      "truths_covered": [4, 5, 6, 7, 9, 10],
+      "entry_point": "http://localhost:8001/api/admin/t3k/auth/status",
       "critical_transitions": [
         {
-          "source": "/gear",
-          "to": "/gear?tag=vintage",
-          "mechanism": "Click tag filter"
+          "source": "Auth status check",
+          "to": "Sync status check",
+          "mechanism": "GET /api/admin/t3k/sync/status"
         },
         {
-          "source": "/gear?tag=vintage",
-          "to": "/gear",
-          "mechanism": "Click clear filter button"
+          "source": "Sync status",
+          "to": "Sync stats",
+          "mechanism": "GET /api/admin/t3k/sync/stats"
+        },
+        {
+          "source": "Sync stats review",
+          "to": "Trigger sync",
+          "mechanism": "POST /api/admin/t3k/sync"
+        },
+        {
+          "source": "Sync triggered",
+          "to": "SOURCE_SYNC job runs",
+          "mechanism": "TaskIQ dispatches job, sync service runs interleaved loop"
+        },
+        {
+          "source": "Sync service fetches metadata",
+          "to": "Model files downloaded",
+          "mechanism": "model_downloader downloads NAM files with SHA-256 check"
+        }
+      ]
+    },
+    {
+      "journey_id": "J3",
+      "persona": "Automated system (pgmq consumer)",
+      "narrative": "After T3K sync stages gear records and publishes GearSyncRecord messages to the gear_sync pgmq queue, the consumer polls the queue. It validates each message against the GearSyncRecord schema, checks that model files exist, then upserts Gear + GearModel into gts_core within a UoW transaction. On success, it archives the message. If a message has been read too many times (read_ct > max_retries), it moves the message to gear_sync_dlq instead.",
+      "truths_covered": [11, 12, 13],
+      "entry_point": "pgmq gear_sync queue in gts_t3k_source",
+      "critical_transitions": [
+        {
+          "source": "gear_sync queue",
+          "to": "Consumer reads message",
+          "mechanism": "pgmq.read_with_poll('gear_sync', vt=60, qty=10)"
+        },
+        {
+          "source": "Message read",
+          "to": "DLQ check",
+          "mechanism": "Check read_ct > max_retries threshold"
+        },
+        {
+          "source": "DLQ check passed",
+          "to": "Gear upsert in gts_core",
+          "mechanism": "GearMapperService upserts with (source_name, source_record_id, source_updated_at)"
+        },
+        {
+          "source": "Successful upsert",
+          "to": "Message archived",
+          "mechanism": "pgmq.archive('gear_sync', msg_id)"
+        },
+        {
+          "source": "DLQ check failed",
+          "to": "Message moved to DLQ",
+          "mechanism": "Insert into gear_sync_dlq, archive from gear_sync"
         }
       ]
     }
   ],
   "stories": [
     {
-      "story_id": "01-tag-architecture",
-      "name": "Tag Domain Model and Data Layer",
-      "purpose": "Establish the Tag entity, ORM models, repository, service, and database migration for the many-to-many relationship between Gear and Tags",
+      "story_id": "01-docker-wiring-and-dual-db",
+      "name": "Worker Docker Wiring & Dual Database",
+      "purpose": "Update worker Docker Compose command to run all 3 services (admin API + TaskIQ + pgmq consumer), add dual database session factory (gts_core write + gts_t3k_source read), add T3K staging migration for missing tables, and update composite health endpoint.",
       "agent": {
         "model": "sonnet",
-        "skills": ["gts-architecture", "repository-patterns", "service-patterns", "gts-backend-dev"],
-        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-        "max_turns": 30,
-        "max_budget_usd": 3.0
-      },
-      "scope": {
-        "create": [
-          "libs/core/src/gts_core/gear/tag.py",
-          "libs/core/src/gts_core/gear/tag_repository.py",
-          "libs/core/src/gts_core/gear/tag_service.py",
-          "apps/webapp/migrations/versions/XXXX_add_gear_tags.py"
-        ],
-        "modify": [
-          "libs/core/src/gts_core/gear/__init__.py",
-          "libs/core/src/gts_core/gear/gear.py"
-        ]
-      },
-      "state_assumption": "cumulative",
-      "implementation_notes": [
-        "Create Tag entity with fields: id, name, created_at",
-        "Use many-to-many relationship via gear_tags junction table",
-        "Tag names should be unique and case-insensitive",
-        "TagRepository should have methods: create, get_by_id, get_by_name, list_all, delete",
-        "Update Gear model to include tags relationship with lazy='raise' and appropriate joinedload strategy",
-        "Migration creates both tags table and gear_tags junction table",
-        "TagService handles business logic including duplicate prevention"
-      ],
-      "truths_addressed": [1, 2, 3, 4],
-      "wiki_sections": [
-        "Domain Model",
-        "Repository Pattern",
-        "Service Layer",
-        "Database Schema",
-        "SQLAlchemy Relationships"
-      ]
-    },
-    {
-      "story_id": "02-tag-api",
-      "name": "Tag API Endpoints and Schemas",
-      "purpose": "Implement REST API endpoints for tag CRUD operations and extend gear list endpoint to support tag filtering",
-      "agent": {
-        "model": "sonnet",
-        "skills": ["gts-backend-dev", "web-handlers", "error-handling", "gts-architecture"],
-        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-        "max_turns": 35,
-        "max_budget_usd": 3.5
-      },
-      "scope": {
-        "create": [
-          "apps/webapp/src/webapp/routes/tags.py",
-          "apps/webapp/src/webapp/schemas/tag.py"
-        ],
-        "modify": [
-          "apps/webapp/src/webapp/main.py",
-          "apps/webapp/src/webapp/routes/gear.py",
-          "apps/webapp/src/webapp/schemas/gear.py"
-        ]
-      },
-      "state_assumption": "cumulative",
-      "implementation_notes": [
-        "POST /api/v1/gear/{gear_id}/tags - Add tag to gear (create tag if doesn't exist)",
-        "GET /api/v1/gear/{gear_id}/tags - List tags for a gear item",
-        "DELETE /api/v1/gear/{gear_id}/tags/{tag_id} - Remove tag from gear",
-        "GET /api/v1/tags - List all tags",
-        "Update GET /api/v1/gear to accept optional ?tag=name query parameter",
-        "Pydantic schemas: TagCreate, TagRead, TagList",
-        "Update GearRead schema to include tags array",
-        "Tag names should be normalized (lowercase, trimmed) before creation",
-        "Return 404 if gear doesn't exist, proper error handling for invalid tag names"
-      ],
-      "truths_addressed": [1, 2, 3, 4, 5],
-      "wiki_sections": [
-        "API Endpoints",
-        "Request/Response Schemas",
-        "Error Handling",
-        "FastAPI Routing",
-        "Query Parameters"
-      ]
-    },
-    {
-      "story_id": "03-tag-ui",
-      "name": "Tag UI Components and Interactions",
-      "purpose": "Add tag display and management to gear detail page, and tag filtering to gear list page",
-      "agent": {
-        "model": "sonnet",
-        "skills": ["gts-frontend-dev", "htmx", "astro-frontend", "gts-architecture"],
+        "skills": ["gts-architecture", "docker-infra", "gts-backend-dev"],
         "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
         "max_turns": 40,
-        "max_budget_usd": 4.0
+        "max_budget_usd": 4.00
       },
       "scope": {
         "create": [
-          "apps/webapp/src/webapp/templates/gear/_tag_list.html",
-          "apps/webapp/src/webapp/templates/gear/_add_tag_form.html"
+          "sources/t3k/alembic/versions/003_add_missing_staging_tables.py"
         ],
         "modify": [
-          "apps/webapp/src/webapp/templates/gear/detail.html",
-          "apps/webapp/src/webapp/templates/gear/list.html"
+          "docker-compose.yml",
+          "apps/worker/src/worker/main.py",
+          "apps/worker/src/worker/db.py",
+          "apps/worker/src/worker/config.py",
+          "apps/worker/src/worker/health.py",
+          "apps/worker/pyproject.toml"
         ]
       },
       "state_assumption": "cumulative",
       "implementation_notes": [
-        "Gear detail page: Display tags as badge-style elements with remove buttons",
-        "Add tag form: Input field + submit button using HTMX to POST without page reload",
-        "Tag removal: Delete button on each tag badge using HTMX DELETE request",
-        "Use hx-target and hx-swap to update only the tag list fragment",
-        "Gear list page: Add tag filter UI showing all available tags as clickable badges",
-        "Tag filter uses query parameter ?tag=name to filter results",
-        "Clear filter button returns to /gear without query params",
-        "All interactive elements must have data-testid attributes for E2E tests",
-        "Use Tailwind utility classes for styling, no inline styles"
+        "Worker command must start 3 processes: uvicorn for admin API, taskiq worker, and the pgmq consumer loop. Use a Python entry point script or supervisord-style approach.",
+        "db.py needs dual session factories: get_core_session() for gts_core (write) and get_t3k_session() for gts_t3k_source (read). Use separate async engines.",
+        "config.py needs T3K_SOURCE_DATABASE_URL in addition to existing DATABASE_URL.",
+        "health.py composite health must report admin_api, taskiq_broker, pgmq_consumer statuses.",
+        "T3K migration 003 adds: t3k_tags, t3k_makes, t3k_pack_images, t3k_pack_links, oauth_tokens tables to gts_t3k_source.",
+        "Worker pyproject.toml may need pgmq/psycopg dependencies for direct pgmq SQL queries.",
+        "Docker compose worker service needs T3K_SOURCE_DATABASE_URL environment variable.",
+        "Use asyncio to run admin API + consumer loop concurrently; TaskIQ worker may need subprocess."
       ],
-      "truths_addressed": [1, 2, 3, 4, 5],
+      "truths_addressed": [1, 2],
       "wiki_sections": [
-        "Jinja2 Templates",
-        "HTMX Patterns",
-        "Template Fragments",
-        "Form Handling",
-        "Tailwind CSS"
+        "GTS-Technical-Architecture :: architecture-layers",
+        "GTS-Technical-Architecture :: data-ingestion",
+        "GTS-Technical-Architecture :: persistence",
+        "GTS-Technical-Architecture :: infrastructure",
+        "IMPLEMENTATION :: phase-5a-job-system",
+        "IMPLEMENTATION :: phase-5d-pgmq-consumer"
       ]
     },
     {
-      "story_id": "04-regression-tests",
-      "name": "Tag Feature E2E Tests",
-      "purpose": "Create comprehensive E2E tests for tag workflows and update existing gear tests to account for tag relationships",
+      "story_id": "02-admin-api-endpoints",
+      "name": "Admin API Endpoints — Enqueue, T3K, Dead Letter, Locks",
+      "purpose": "Extend worker admin API with all Phase 5A endpoints: POST /api/admin/enqueue, T3K sync/auth/error endpoints, dead-lettered jobs, pending retries count, lock management, and ensure_source_sync_running scheduler task.",
       "agent": {
         "model": "sonnet",
-        "skills": ["gts-testing", "playwright", "gts-architecture"],
+        "skills": ["gts-backend-dev", "web-handlers", "gts-architecture", "service-patterns"],
         "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-        "max_turns": 30,
-        "max_budget_usd": 3.0
+        "max_turns": 45,
+        "max_budget_usd": 5.00
       },
       "scope": {
         "create": [
-          "tests/e2e/python/test_gear_tags.py"
+          "apps/worker/src/worker/jobs/source_sync.py"
         ],
-        "modify": []
+        "modify": [
+          "apps/worker/src/worker/admin.py",
+          "apps/worker/src/worker/services/admin_service.py",
+          "apps/worker/src/worker/jobs/registry.py",
+          "apps/worker/src/worker/jobs/handlers.py",
+          "apps/scheduler/src/scheduler/schedules/jobs.py",
+          "apps/scheduler/src/scheduler/schedules/auth.py",
+          "libs/core/src/core/domain/value_objects/job_types.py"
+        ]
       },
       "state_assumption": "cumulative",
       "implementation_notes": [
-        "Test add tag workflow: navigate to detail page, add tag, verify tag appears",
-        "Test remove tag workflow: add tag, remove it, verify it disappears",
-        "Test tag persistence: add tag, navigate away, return, verify tag still present",
-        "Test tag filtering: navigate to list, apply filter, verify only tagged gear shown",
-        "Test clear filter: apply filter, clear it, verify all gear returns",
-        "Test duplicate tag prevention: attempt to add same tag twice",
-        "Use Playwright for browser automation",
-        "Verify database state with raw SQL queries using text()",
-        "All tests must use page.goto() for navigation and assert DOM visibility",
-        "Follow E2E test patterns from existing gear tests"
+        "POST /api/admin/enqueue takes {job_type, params} and creates Job + dispatches via TaskIQ.",
+        "T3K endpoints query gts_t3k_source via the dual session factory from story 01.",
+        "GET /api/admin/t3k/sync/status: query checkpoint table for last sync position + check Redis lock for running status.",
+        "GET /api/admin/t3k/sync/stats: SELECT COUNT(*) from packs, models in gts_t3k_source.",
+        "GET /api/admin/t3k/sync/lag: time delta between now and last checkpoint update.",
+        "GET /api/admin/t3k/auth/status: read OAuth token from gts_t3k_source, check expiry.",
+        "GET /api/admin/t3k/errors/summary: aggregate errors by type from jobs table.",
+        "POST /api/admin/t3k/sync: create SOURCE_SYNC job + dispatch to TaskIQ.",
+        "GET /api/admin/jobs/dead-lettered: filter jobs where status=DEAD.",
+        "GET /api/admin/jobs/pending-retries/count: count jobs where status=RETRY.",
+        "POST /api/admin/t3k/sync/unlock: release Redis sync lock.",
+        "POST /api/admin/scheduler/unlock: release Redis scheduler lock.",
+        "SOURCE_SYNC job handler in source_sync.py: acquires sync lock, instantiates T3K sync service, runs sync, releases lock.",
+        "ensure_source_sync_running scheduler task: check env SYNC_ENABLED, check Redis lock, if not running create SOURCE_SYNC job.",
+        "T3K auth refresh in auth.py: refresh OAuth token every 12h.",
+        "Add SOURCE_SYNC to JobType enum in core value objects if not present."
       ],
-      "truths_addressed": [1, 2, 3, 4, 5],
+      "truths_addressed": [2, 3, 4, 5, 6, 7, 8],
       "wiki_sections": [
-        "E2E Testing",
-        "Playwright Patterns",
-        "Test Database Setup",
-        "Test Data Fixtures"
+        "GTS-Technical-Architecture :: api-design",
+        "GTS-Technical-Architecture :: data-ingestion",
+        "GTS-Technical-Architecture :: auth",
+        "IMPLEMENTATION :: phase-5a-job-system",
+        "IMPLEMENTATION :: phase-5b-t3k-source"
+      ]
+    },
+    {
+      "story_id": "03-t3k-sync-and-download",
+      "name": "T3K Interleaved Sync Loop & Model Downloader",
+      "purpose": "Complete the T3K sync service with interleaved backfill+newest loop and implement the model file download service with SHA-256 checksum validation.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-architecture", "gts-backend-dev", "service-patterns", "error-handling"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 40,
+        "max_budget_usd": 4.00
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "sources/t3k/src/source_t3k/services/sync_service.py",
+          "sources/t3k/src/source_t3k/services/model_downloader.py",
+          "sources/t3k/src/source_t3k/adapters/outbound/sync_record_mapper.py",
+          "sources/t3k/src/source_t3k/adapters/outbound/pgmq_publisher.py",
+          "sources/t3k/src/source_t3k/domain/checkpoints.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "run_catalog_sync() implements the interleaved loop: alternate between backfill_walk() and newest_check().",
+        "Backfill walk: page through catalog oldest→newest from checkpoint, persist each page, update checkpoint.",
+        "Newest check: scan from newest until hitting items already synced within skip threshold (7 days).",
+        "Stale detection: if checkpoint is too old (configurable threshold), reset to page 1.",
+        "Skip recently synced: items with sync timestamp within threshold are skipped.",
+        "After staging each item: map to GearSyncRecord via sync_record_mapper, publish via pgmq_publisher.",
+        "Model downloader: download NAM files to source_downloads/t3k/{source_uuid}/, compute SHA-256 hash of downloaded file, compare against expected hash from API.",
+        "Reject and log files that fail checksum verification.",
+        "GearSyncRecord is published only after files are validated (sync_ready state).",
+        "Use httpx for file downloads with streaming to avoid memory issues on large files.",
+        "Checkpoint updates must be atomic with staging writes (same transaction)."
+      ],
+      "truths_addressed": [9, 10],
+      "wiki_sections": [
+        "GTS-Technical-Architecture :: data-ingestion",
+        "IMPLEMENTATION :: phase-5b-t3k-source",
+        "REFERENCE-ARCHITECTURE :: data-ingestion-pipeline"
+      ]
+    },
+    {
+      "story_id": "04-pgmq-consumer-and-gear-mapper",
+      "name": "pgmq Consumer & GearMapper Service",
+      "purpose": "Implement the pgmq consumer polling loop that reads from gear_sync queue, validates messages, upserts to gts_core via GearMapperService, handles dead letter queue, and archives processed messages.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-architecture", "gts-backend-dev", "service-patterns", "repository-patterns", "error-handling"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 45,
+        "max_budget_usd": 5.00
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "apps/worker/src/worker/consumers/gear_sync.py",
+          "apps/worker/src/worker/services/gear_mapper.py",
+          "apps/worker/src/worker/main.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "Consumer polling loop: async loop calling pgmq.read_with_poll('gear_sync', vt=60, qty=10) using raw SQL via the t3k session.",
+        "For each message: check read_ct > MAX_RETRIES (3). If exceeded, move to gear_sync_dlq and archive from gear_sync.",
+        "Validate message payload against GearSyncRecord Pydantic model.",
+        "Verify model file exists at source_downloads/t3k/{source_uuid}/.",
+        "GearMapperService.upsert(): within a UoW transaction on gts_core: INSERT or UPDATE Gear + GearModel using (source_name, source_record_id, source_updated_at) as idempotency key. Last-write-wins by source_updated_at.",
+        "File migration: move file from source_downloads/{source}/{source_uuid} to models/{core_uuid}.nam within the same transaction scope.",
+        "On success: pgmq.archive('gear_sync', msg_id) in gts_t3k_source.",
+        "Consumer must handle connection errors gracefully with backoff.",
+        "pgmq SQL: SELECT * FROM pgmq.read_with_poll('gear_sync', 60, 10, 1000) — last param is poll_timeout_ms.",
+        "DLQ SQL: SELECT pgmq.send('gear_sync_dlq', msg::jsonb); SELECT pgmq.archive('gear_sync', msg_id);",
+        "The gear_sync_dlq queue must be created — add to init-pgmq.sql or create in consumer startup.",
+        "GearSource record links Gear to source via (source_name, source_record_id, source_updated_at).",
+        "Integrate consumer loop startup into worker main.py (called from story 01's multi-service runner)."
+      ],
+      "truths_addressed": [11, 12, 13],
+      "wiki_sections": [
+        "GTS-Technical-Architecture :: data-ingestion",
+        "GTS-Technical-Architecture :: persistence",
+        "GTS-Technical-Architecture :: design-patterns",
+        "IMPLEMENTATION :: phase-5d-pgmq-consumer",
+        "REFERENCE-ARCHITECTURE :: data-ingestion-pipeline"
+      ]
+    },
+    {
+      "story_id": "05-admin-cli-and-tests",
+      "name": "gts-admin CLI, just Commands & Tests",
+      "purpose": "Create the gts-admin Python CLI that calls worker admin API, register it as 'just admin', and write unit/integration tests for the new worker endpoints, consumer, and sync service.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-backend-dev", "gts-testing", "gts-architecture"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+        "max_turns": 40,
+        "max_budget_usd": 4.00
+      },
+      "scope": {
+        "create": [
+          "scripts/gts-admin"
+        ],
+        "modify": [
+          "justfile",
+          "tests/unit/worker/test_admin_endpoints.py",
+          "tests/unit/worker/test_gear_mapper.py",
+          "tests/unit/worker/test_consumer.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "scripts/gts-admin is a Python CLI (use argparse or typer with PEP 723 inline deps) that calls worker admin API via httpx.",
+        "Commands: t3k-status (calls /api/admin/t3k/sync/status + /stats + /auth/status, formats as dashboard), t3k-sync (POST /api/admin/t3k/sync), jobs (GET /api/admin/jobs), job-health (GET /health), unlock-sync (POST /api/admin/t3k/sync/unlock), unlock-scheduler (POST /api/admin/scheduler/unlock).",
+        "just admin recipe: delegates to scripts/gts-admin with args.",
+        "Make scripts/gts-admin executable with #!/usr/bin/env -S python3 -u shebang.",
+        "Unit tests for admin endpoints: test each route returns correct response codes.",
+        "Unit tests for gear_mapper: test idempotent upsert logic, last-write-wins.",
+        "Unit tests for consumer: test DLQ routing, message validation, archive flow.",
+        "Tests run in Docker via just tdd. Follow existing test patterns.",
+        "Update existing test files if they exist, create new ones if not."
+      ],
+      "truths_addressed": [14, 15],
+      "wiki_sections": [
+        "GTS-Technical-Architecture :: api-design",
+        "GTS-Technical-Architecture :: infrastructure",
+        "IMPLEMENTATION :: phase-5a-job-system",
+        "Development-Guide :: testing"
       ]
     }
   ],
   "validation_checkpoints": [
     {
-      "after_story": "02-tag-api",
+      "after_story": "01-docker-wiring-and-dual-db",
+      "check_type": "process",
+      "checks": [
+        {
+          "criterion": "Worker container starts successfully with all 3 services (admin API, TaskIQ, pgmq consumer)",
+          "evidence_fields": ["process_name", "pid_or_status", "log_excerpt"]
+        },
+        {
+          "criterion": "GET /health on port 8001 returns 200 with composite status showing admin_api, taskiq_broker, and pgmq_consumer",
+          "evidence_fields": ["process_name", "pid_or_status", "log_excerpt"]
+        },
+        {
+          "criterion": "T3K staging migration 003 applies successfully adding missing tables",
+          "evidence_fields": ["process_name", "pid_or_status", "log_excerpt"]
+        }
+      ]
+    },
+    {
+      "after_story": "02-admin-api-endpoints",
       "check_type": "api+response",
       "checks": [
         {
-          "criterion": "POST /api/v1/gear/{gear_id}/tags creates a tag and returns 201",
+          "criterion": "POST /api/admin/enqueue returns 201 with created job details",
           "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
         },
         {
-          "criterion": "GET /api/v1/gear/{gear_id}/tags returns tags array",
+          "criterion": "GET /api/admin/t3k/sync/status returns 200 with sync state",
           "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
         },
         {
-          "criterion": "GET /api/v1/gear?tag=vintage filters gear by tag",
+          "criterion": "GET /api/admin/t3k/auth/status returns 200 with token info",
+          "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
+        },
+        {
+          "criterion": "GET /api/admin/jobs/dead-lettered returns 200 with list",
           "evidence_fields": ["status_code", "url", "method", "response_body_excerpt"]
         }
       ]
     },
     {
-      "after_story": "03-tag-ui",
-      "check_type": "browser+db",
-      "checks": [
-        {
-          "criterion": "User can navigate to gear detail page and see tag list section",
-          "evidence_fields": ["action_performed", "sql_query", "row_count", "sample_row"]
-        },
-        {
-          "criterion": "User can add a tag via the form and see it appear without page reload",
-          "evidence_fields": ["action_performed", "sql_query", "row_count", "sample_row"]
-        },
-        {
-          "criterion": "User can click a tag filter on gear list and see filtered results",
-          "evidence_fields": ["action_performed", "sql_query", "row_count", "sample_row"]
-        }
-      ]
-    },
-    {
-      "after_story": "04-regression-tests",
-      "check_type": "regression",
-      "checks": [
-        {
-          "criterion": "All E2E tests pass including new tag tests",
-          "evidence_fields": ["test_command", "exit_code", "test_count", "failure_count"]
-        }
-      ]
-    },
-    {
-      "after_story": "04-regression-tests",
+      "after_story": "04-pgmq-consumer-and-gear-mapper",
       "check_type": "quality",
       "checks": [
         {
-          "criterion": "Quality gates pass (lint, type check, tests)",
+          "criterion": "just check passes (lint, types, import contracts)",
+          "evidence_fields": ["commands_run", "exit_code", "error_count"]
+        }
+      ]
+    },
+    {
+      "after_story": "05-admin-cli-and-tests",
+      "check_type": "regression",
+      "checks": [
+        {
+          "criterion": "just test-regression passes",
+          "evidence_fields": ["test_command", "exit_code", "test_count", "failure_count"]
+        },
+        {
+          "criterion": "Unit tests for worker admin, consumer, and gear mapper pass",
+          "evidence_fields": ["test_command", "exit_code", "test_count", "failure_count"]
+        },
+        {
+          "criterion": "just check passes (lint, types, import contracts)",
           "evidence_fields": ["commands_run", "exit_code", "error_count"]
         }
       ]

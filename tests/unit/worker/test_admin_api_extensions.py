@@ -521,8 +521,8 @@ class TestUnknownSourceHandling:
             elif method == "POST":
                 response = await client.post(endpoint)
 
-            assert (
-                response.status_code == 404
-            ), f"{method} {endpoint} should return 404 for unknown source"
+            assert response.status_code == 404, (
+                f"{method} {endpoint} should return 404 for unknown source"
+            )
             data = response.json()
             assert "detail" in data, f"{method} {endpoint} should have detail message"

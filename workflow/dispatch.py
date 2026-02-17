@@ -456,8 +456,7 @@ def dispatch_with_fallback(
         return result  # Real failure — don't retry
 
     logger.warning(
-        "Primary dispatch failed with transient error (model=%s). "
-        "Retrying with fallback model=%s",
+        "Primary dispatch failed with transient error (model=%s). Retrying with fallback model=%s",
         primary_model,
         fallback_model,
     )

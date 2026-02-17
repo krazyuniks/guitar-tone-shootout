@@ -8,7 +8,6 @@ from pathlib import Path
 
 from rich.panel import Panel
 
-from ..config import get_worktree_root
 from ..health import check_worktree_health
 from .output import console
 

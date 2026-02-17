@@ -471,8 +471,7 @@ def _check_type_instructions(check_type: str) -> str:
     """Return check-type-specific instructions for validation agents."""
     instructions: dict[str, str] = {
         "http": (
-            "Make HTTP requests and report status codes, URLs, and "
-            "response excerpts as evidence."
+            "Make HTTP requests and report status codes, URLs, and response excerpts as evidence."
         ),
         "http+dom": (
             "Use Chrome DevTools MCP to load the page and inspect the DOM. "

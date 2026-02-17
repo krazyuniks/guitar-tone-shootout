@@ -46,7 +46,7 @@ def _load_plan_schema() -> dict:
     schema_path = SCHEMAS_DIR / "plan.schema.json"
     if not schema_path.is_file():
         raise PlanGenerationError(
-            f"Plan schema not found at {schema_path}. " "Ensure Step 1 schemas are in place."
+            f"Plan schema not found at {schema_path}. Ensure Step 1 schemas are in place."
         )
     return json.loads(schema_path.read_text(encoding="utf-8"))
 

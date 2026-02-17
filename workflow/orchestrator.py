@@ -300,7 +300,7 @@ def build_completion_comment(plan: dict, events: list[dict]) -> str:
 
 **Stories completed:** {len(completed_ids)}/{len(stories)}
 **Total cost:** ${total_cost:.2f}
-**Commits:** {', '.join(commits)}
+**Commits:** {", ".join(commits)}
 
 All stories passed their validation checkpoints. Please verify the results and close this issue when satisfied.
 """
@@ -837,7 +837,7 @@ def run_pipeline(epic_number: int) -> None:
         run_epic(epic_number, resume=False)
     else:
         logger.info(
-            "Planning did not result in a committed plan. " "Re-run ./wf epic %d when ready.",
+            "Planning did not result in a committed plan. Re-run ./wf epic %d when ready.",
             epic_number,
         )
 

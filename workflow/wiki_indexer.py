@@ -242,11 +242,7 @@ def _build_index(wiki_file: Path) -> str | None:
     entries: list[str] = []
     for section in sections:
         tokens = _round_tokens(_estimate_tokens(section["char_count"]))
-        entry = (
-            f"{section['name']}"
-            f":L{section['start_line']}-L{section['end_line']}"
-            f":~{tokens}tok"
-        )
+        entry = f"{section['name']}:L{section['start_line']}-L{section['end_line']}:~{tokens}tok"
         entries.append(entry)
 
     return "|".join(entries)

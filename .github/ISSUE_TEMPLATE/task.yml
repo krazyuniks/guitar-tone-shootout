@@ -43,7 +43,7 @@ body:
         **Create:**
         - `src/lib/contact.ts` - validation and submission logic
         - `src/components/ContactForm.tsx` - form component
-        
+
         **Modify:**
         - `src/routes/contact/+page.svelte` - add form to page
         - `prisma/schema.prisma` - add ContactSubmission model

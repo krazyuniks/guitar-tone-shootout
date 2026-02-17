@@ -54,7 +54,7 @@ def main() -> None:
 
     try:
         path = assemble_context(epic_dir, PROJECT_ROOT)
-        print(f"Assembled context for epic #{epic_number} at " f"{path.relative_to(PROJECT_ROOT)}")
+        print(f"Assembled context for epic #{epic_number} at {path.relative_to(PROJECT_ROOT)}")
     except AssemblyError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

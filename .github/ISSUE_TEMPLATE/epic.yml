@@ -42,7 +42,7 @@ body:
         - Form validation
         - Database storage
         - Email notifications
-        
+
         **Out of scope:**
         - Admin dashboard (separate epic)
         - Auto-response emails (future enhancement)

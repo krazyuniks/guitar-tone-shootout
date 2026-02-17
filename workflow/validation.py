@@ -336,7 +336,7 @@ def validate_evidence(
         for field_name in required_fields:
             if field_name not in evidence:
                 errors.append(
-                    f"Criterion '{criterion}': missing required evidence " f"field '{field_name}'"
+                    f"Criterion '{criterion}': missing required evidence field '{field_name}'"
                 )
             elif _is_generic_evidence(evidence[field_name]):
                 errors.append(
@@ -425,7 +425,7 @@ def run_validation_checkpoint(
 
     if not checks:
         logger.warning(
-            "Validation checkpoint for story '%s' has no checks; " "treating as pass",
+            "Validation checkpoint for story '%s' has no checks; treating as pass",
             story_id,
         )
         result = ValidationResult(
@@ -483,7 +483,7 @@ def run_validation_checkpoint(
 
     # Dispatch the validation agent
     logger.info(
-        "Dispatching %s validation agent for story '%s' " "(model=%s, check_type=%s, checks=%d)",
+        "Dispatching %s validation agent for story '%s' (model=%s, check_type=%s, checks=%d)",
         config.model,
         story_id,
         config.model,
@@ -552,7 +552,7 @@ def _process_agent_result(
             passed=False,
             check_type=check_type,
             results=[],
-            failure_reason=(f"Validation agent failed with exit code " f"{agent_result.exit_code}"),
+            failure_reason=(f"Validation agent failed with exit code {agent_result.exit_code}"),
             failure_category="env",
             raw_output=agent_result.output,
         )

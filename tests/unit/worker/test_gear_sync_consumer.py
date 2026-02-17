@@ -151,9 +151,9 @@ class TestPollQueueParamsBug:
         # Verify params are passed as a positional argument (dict) or via bindparams
         has_dict_param = len(call.args) >= 2
         has_bindparams = "bindparams" in _get_method_source("_poll_queue")
-        assert (
-            has_dict_param or has_bindparams
-        ), "_poll_queue must pass params as a dict positional arg or use .bindparams()"
+        assert has_dict_param or has_bindparams, (
+            "_poll_queue must pass params as a dict positional arg or use .bindparams()"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +222,9 @@ class TestArchiveMessageParamsBug:
         # Must have dict param or bindparams
         has_dict_param = len(call.args) >= 2
         has_bindparams = "bindparams" in _get_method_source("_archive_message")
-        assert (
-            has_dict_param or has_bindparams
-        ), "_archive_message must pass params as a dict positional arg or use .bindparams()"
+        assert has_dict_param or has_bindparams, (
+            "_archive_message must pass params as a dict positional arg or use .bindparams()"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -311,9 +311,9 @@ class TestDeadLetterOnHighReadCount:
         source = inspect.getsource(GearSyncConsumer._poll_and_process)
 
         # The condition should check read_ct against retry threshold.
-        assert (
-            "read_ct > self.max_retries" in source or "read_ct > 5" in source
-        ), "Dead letter threshold must be read_ct > 5"
+        assert "read_ct > self.max_retries" in source or "read_ct > 5" in source, (
+            "Dead letter threshold must be read_ct > 5"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -339,9 +339,9 @@ class TestDeadLetterOnSchemaFailure:
         """
         source = _get_method_source("_dead_letter")
 
-        assert (
-            "_archive_message" in source
-        ), "_dead_letter must archive the original message from the source queue"
+        assert "_archive_message" in source, (
+            "_dead_letter must archive the original message from the source queue"
+        )
 
 
 class TestRetryableErrorHandling:

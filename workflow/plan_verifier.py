@@ -221,7 +221,7 @@ def _parse_verifier_result(result_output: str) -> dict:
         data = json.loads(text)
     except json.JSONDecodeError as exc:
         raise PlanVerificationError(
-            f"Verifier did not return valid JSON: {exc}\n" f"Output (first 500 chars): {text[:500]}"
+            f"Verifier did not return valid JSON: {exc}\nOutput (first 500 chars): {text[:500]}"
         ) from exc
     if not isinstance(data, dict) or "status" not in data:
         raise PlanVerificationError(

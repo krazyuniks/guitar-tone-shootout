@@ -347,8 +347,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
             errors=[
                 ValidationError(
                     check="file_exists",
-                    message=f"plan.json not found at {plan_json_path}. "
-                    "Run plan generation first.",
+                    message=f"plan.json not found at {plan_json_path}. Run plan generation first.",
                 )
             ],
         )
