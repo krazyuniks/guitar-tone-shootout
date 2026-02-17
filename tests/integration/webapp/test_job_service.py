@@ -99,7 +99,7 @@ async def test_get_jobs_by_user_id_filters_by_owner(
     )
     job2 = Job(
         user_id=test_user.id,
-        job_type=JobType.VIDEO_COMPOSITION,
+        job_type=JobType.VIDEO_COMPOSE,
         entity_id=uuid4(),
     )
 
@@ -182,7 +182,7 @@ async def test_get_jobs_by_user_id_filters_by_job_type(
     )
     video_job = Job(
         user_id=test_user.id,
-        job_type=JobType.VIDEO_COMPOSITION,
+        job_type=JobType.VIDEO_COMPOSE,
     )
 
     async with db_session.begin():

@@ -283,14 +283,14 @@ class TestProcessingTriggerEndpoint:
         assert response.status_code == 400
         assert "already" in response.json()["detail"].lower()
 
-    async def test_returns_400_for_running_shootout(
+    async def test_returns_400_for_processing_shootout(
         self,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
     ) -> None:
-        """Test endpoint returns 400 when shootout is already RUNNING."""
-        draft_shootout_with_chains.status = ShootoutStatus.RUNNING
+        """Test endpoint returns 400 when shootout is already PROCESSING."""
+        draft_shootout_with_chains.status = ShootoutStatus.PROCESSING
         await db_session.commit()
 
         response = await authenticated_client.post(

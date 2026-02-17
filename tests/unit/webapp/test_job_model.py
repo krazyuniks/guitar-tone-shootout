@@ -67,7 +67,7 @@ async def test_job_parent_child_relationship(db_session: AsyncSession) -> None:
     """Test parent/child job relationships."""
     # Create parent job
     parent = Job(
-        job_type=JobType.VIDEO_COMPOSITION,
+        job_type=JobType.VIDEO_COMPOSE,
         status=JobStatus.RUNNING,
     )
     db_session.add(parent)

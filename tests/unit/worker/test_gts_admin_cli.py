@@ -453,9 +453,9 @@ class TestJustfileRegistration:
         justfile_content = justfile_path.read_text()
 
         admin_recipe_pattern = r"^admin\s+.*:.*\n.*gts-admin"
-        assert re.search(
-            admin_recipe_pattern, justfile_content, re.MULTILINE
-        ), "justfile must have 'admin' recipe that calls scripts/gts-admin"
+        assert re.search(admin_recipe_pattern, justfile_content, re.MULTILINE), (
+            "justfile must have 'admin' recipe that calls scripts/gts-admin"
+        )
 
     def test_justfile_admin_recipe_accepts_arguments(self) -> None:
         """Justfile admin recipe accepts variable arguments."""
@@ -466,9 +466,9 @@ class TestJustfileRegistration:
         justfile_content = justfile_path.read_text()
 
         admin_args_pattern = r"^admin\s+[+*]"
-        assert re.search(
-            admin_args_pattern, justfile_content, re.MULTILINE
-        ), "justfile admin recipe must accept variable arguments (+ARGS or *ARGS)"
+        assert re.search(admin_args_pattern, justfile_content, re.MULTILINE), (
+            "justfile admin recipe must accept variable arguments (+ARGS or *ARGS)"
+        )
 
 
 class TestGtsAdminMainEntryPoint:
@@ -549,6 +549,6 @@ class TestGtsAdminMainEntryPoint:
             routed_commands.clear()
             monkeypatch.setattr("sys.argv", argv)
             await main()
-            assert routed_commands == [
-                expected_command
-            ], f"Expected {expected_command}, got {routed_commands}"
+            assert routed_commands == [expected_command], (
+                f"Expected {expected_command}, got {routed_commands}"
+            )

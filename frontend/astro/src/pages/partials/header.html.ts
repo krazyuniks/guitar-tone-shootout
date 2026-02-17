@@ -22,7 +22,7 @@ export const GET: APIRoute = () => {
 
 <header
   class="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-  {% if user %}data-user-id="{{ user.id }}"{% if ws_token %} data-ws-token="{{ ws_token }}"{% endif %}{% endif %}
+  {% if user %}data-user-id="{{ user.id }}"{% endif %}
   x-data="{ mobileMenuOpen: false }"
 >
   <nav class="container mx-auto flex h-20 items-center px-4">

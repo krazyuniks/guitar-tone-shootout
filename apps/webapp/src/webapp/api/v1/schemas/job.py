@@ -18,7 +18,7 @@ class JobResponse(BaseModel):
     user_id: UUID | None
     job_type: Literal[
         "audio_processing",
-        "video_composition",
+        "video_compose",
         "gear_sync",
         "model_download",
         "ir_download",

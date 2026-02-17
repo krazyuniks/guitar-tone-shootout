@@ -80,7 +80,7 @@ class JobType(str, Enum):
     """
 
     AUDIO_PROCESSING = "audio_processing"  # Process DI track through signal chain
-    VIDEO_COMPOSITION = "video_composition"  # Compose shootout video
+    VIDEO_COMPOSE = "video_compose"  # Compose shootout video
     GEAR_SYNC = "gear_sync"  # Sync gear from source
     MODEL_DOWNLOAD = "model_download"  # Download NAM model file
     IR_DOWNLOAD = "ir_download"  # Download IR file

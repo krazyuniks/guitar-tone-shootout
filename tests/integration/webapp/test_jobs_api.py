@@ -176,7 +176,7 @@ async def test_list_user_jobs_returns_users_jobs(
     )
     job2 = Job(
         user_id=test_user.id,
-        job_type=JobType.VIDEO_COMPOSITION,
+        job_type=JobType.VIDEO_COMPOSE,
     )
 
     async with db_session.begin():
@@ -271,7 +271,7 @@ async def test_list_user_jobs_filters_by_job_type(
 
     # Create jobs with different types
     audio = Job(user_id=test_user.id, job_type=JobType.AUDIO_PROCESSING)
-    video = Job(user_id=test_user.id, job_type=JobType.VIDEO_COMPOSITION)
+    video = Job(user_id=test_user.id, job_type=JobType.VIDEO_COMPOSE)
 
     async with db_session.begin():
         await repo.save(audio)

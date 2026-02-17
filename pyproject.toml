@@ -109,6 +109,13 @@ type = "forbidden"
 source_modules = ["scheduler"]
 forbidden_modules = ["video"]
 
+# Scheduler must not depend on source adapters (only core; worker bridges sources)
+[[tool.importlinter.contracts]]
+name = "scheduler-no-sources"
+type = "forbidden"
+source_modules = ["scheduler"]
+forbidden_modules = ["source_t3k", "audio"]
+
 # =============================================================================
 # Ruff Configuration
 # =============================================================================

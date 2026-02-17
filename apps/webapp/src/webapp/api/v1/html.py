@@ -60,14 +60,6 @@ def _format_duration(seconds: float | None) -> str:
     return f"{mins}:{secs:02d}"
 
 
-def _shootout_status_value(status_value: object) -> str:
-    """Convert shootout status to canonical template value."""
-    value = status_value.value if hasattr(status_value, "value") else str(status_value)
-    if value == "running":
-        return "processing"
-    return value
-
-
 def _build_shootout_detail_context(shootout: Shootout) -> dict[str, object]:
     """Build template context for shootout detail fragment."""
     chains = sorted(shootout.chains, key=lambda chain: chain.position)
@@ -92,13 +84,13 @@ def _build_shootout_detail_context(shootout: Shootout) -> dict[str, object]:
         else None
     )
 
-    output_path = shootout.output_path or shootout.video_path
     shootout_context = {
         "id": str(shootout.id),
         "name": shootout.name,
         "description": shootout.description,
-        "status": _shootout_status_value(shootout.status),
-        "output_path": output_path,
+        "status": shootout.status.value,
+        "output_path": shootout.output_path,
+        "video_path": shootout.video_path,
     }
 
     creator = (

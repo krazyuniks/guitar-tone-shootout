@@ -8,13 +8,19 @@ ARG UID=1000
 ARG GID=1000
 
 # Install system dependencies for development
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# PostgreSQL 18 client from official repo (Debian trixie only ships 17.x)
+RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
+    && echo "deb http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" \
+       > /etc/apt/sources.list.d/pgdg.list \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+       | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
     libsndfile1 \
     ffmpeg \
     git \
-    postgresql-client \
+    postgresql-client-18 \
     # Chrome dependencies for Remotion headless rendering
     libnss3 \
     libnspr4 \

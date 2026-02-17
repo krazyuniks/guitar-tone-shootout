@@ -30,7 +30,6 @@ class ShootoutStatus(str, Enum):
 
     DRAFT = "draft"
     PENDING = "pending"
-    RUNNING = "running"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -142,7 +141,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     status: Mapped[ShootoutStatus] = mapped_column(
         EnumByValue(ShootoutStatus),
         nullable=False,
-        default=ShootoutStatus.PENDING,
+        default=ShootoutStatus.DRAFT,
     )
     video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     video_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -264,6 +263,7 @@ class AudioSegment(UUIDMixin, Base):
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     integrated_lufs: Mapped[float] = mapped_column(Float, nullable=False)
     peak_dbfs: Mapped[float] = mapped_column(Float, nullable=False)
+    waveform: Mapped[Any] = mapped_column(WaveformDataType(), nullable=True)
 
     # Relationship
     shootout_chain: Mapped[ShootoutChain] = relationship(

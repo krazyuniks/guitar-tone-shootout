@@ -5,8 +5,8 @@ to pgmq queues in gts_t3k_source database. Transactional: staging record
 update + enqueue happen in the same database transaction.
 """
 
-import contextlib
 import json
+import logging
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -15,6 +15,8 @@ from sqlalchemy.sql import text
 
 from core.records.gear_sync import GearSyncRecord, SyncOperation
 from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
+
+logger = logging.getLogger(__name__)
 
 # Map T3K gear values to core GearType enum values.
 _GEAR_KIND_TO_GEAR_TYPE = {
@@ -103,8 +105,8 @@ class GearSyncPublisher:
 
         message = record.to_dict()
 
-        with contextlib.suppress(Exception):
-            await self.session.execute(
-                text("SELECT pgmq.send(:queue_name, CAST(:message AS jsonb))"),
-                {"queue_name": self.queue_name, "message": json.dumps(message)},
-            )
+        logger.debug("Enqueuing message to queue %s: %s", self.queue_name, message)
+        await self.session.execute(
+            text("SELECT pgmq.send(:queue_name, CAST(:message AS jsonb))"),
+            {"queue_name": self.queue_name, "message": json.dumps(message)},
+        )

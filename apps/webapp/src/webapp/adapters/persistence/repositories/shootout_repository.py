@@ -202,7 +202,7 @@ class SQLAlchemyShootoutRepository:
 
         if existing is None:
             # Create new shootout
-            status = ShootoutStatus.COMPLETED if shootout.is_processed else ShootoutStatus.PENDING
+            status = ShootoutStatus.COMPLETED if shootout.is_processed else ShootoutStatus.DRAFT
             orm_shootout = Shootout(
                 id=shootout.id,
                 user_id=shootout.user_id,
@@ -232,7 +232,7 @@ class SQLAlchemyShootoutRepository:
             # Refresh to ensure fresh state
             await self.session.refresh(existing, ["chains"])
 
-            status = ShootoutStatus.COMPLETED if shootout.is_processed else ShootoutStatus.PENDING
+            status = ShootoutStatus.COMPLETED if shootout.is_processed else ShootoutStatus.DRAFT
             existing.name = shootout.name
             existing.di_track_id = shootout.di_track_id
             existing.description = shootout.description

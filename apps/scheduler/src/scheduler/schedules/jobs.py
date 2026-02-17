@@ -27,17 +27,6 @@ _test_session: AsyncSession | None = None
 logger = logging.getLogger(__name__)
 
 
-class _Schedule:
-    """Schedule configuration for TaskIQ.
-
-    Attributes:
-        seconds: Interval in seconds
-    """
-
-    def __init__(self, seconds: int) -> None:
-        self.seconds = seconds
-
-
 async def monitor_stale_jobs(db_engine: AsyncEngine | None = None) -> None:
     """Monitor for stale jobs and mark them as DEAD_LETTERED.
 
@@ -188,8 +177,8 @@ def _resolve_engine(db_engine: AsyncEngine | None) -> AsyncEngine:
     return create_async_engine(database_url)
 
 
-# Attach labels to functions for TaskIQ discovery
-monitor_stale_jobs.labels = {"schedule": [_Schedule(120)]}  # type: ignore[attr-defined]
-process_pending_retries.labels = {"schedule": [_Schedule(120)]}  # type: ignore[attr-defined]
-scheduler_heartbeat.labels = {"schedule": [_Schedule(60)]}  # type: ignore[attr-defined]
-ensure_source_sync_running.labels = {"schedule": [_Schedule(300)]}  # type: ignore[attr-defined]
+# Schedule labels — discovered by InProcessScheduleSource
+monitor_stale_jobs.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
+process_pending_retries.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
+scheduler_heartbeat.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]
+ensure_source_sync_running.labels = {"schedule": [{"interval": 300}]}  # type: ignore[attr-defined]

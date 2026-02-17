@@ -51,7 +51,6 @@ def _make_worktree(**overrides) -> Worktree:
         "volumes": VolumeConfig(
             postgres="gts-postgres-main",
             redis="gts-redis-main",
-            uploads="gts-uploads-main",
             cloudbeaver="gts-cloudbeaver-main",
             grafana="gts-grafana-main",
             loki="gts-loki-main",

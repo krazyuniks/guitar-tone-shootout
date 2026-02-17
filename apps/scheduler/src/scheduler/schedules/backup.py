@@ -5,14 +5,12 @@ dumps each to /app/backups/{db_name}.{timestamp}.dump using pg_dump.
 Cleans up backups older than BACKUP_RETENTION_DAYS (default: 7).
 """
 
+import asyncio
 import logging
 import os
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
-
-from scheduler.schedules.jobs import _Schedule
 
 logger = logging.getLogger(__name__)
 
@@ -35,32 +33,38 @@ def _parse_db_connection() -> tuple[str, str, str]:
     return parsed.hostname or "db", parsed.username or "gts", parsed.password or ""
 
 
-def _discover_databases(host: str, user: str, password: str) -> list[str]:
+async def _discover_databases(host: str, user: str, password: str) -> list[str]:
     """Discover application databases from PostgreSQL catalog."""
     env = {**os.environ, "PGPASSWORD": password}
-    result = subprocess.run(
-        [
-            "psql",
-            "-h",
-            host,
-            "-U",
-            user,
-            "-d",
-            "postgres",
-            "-t",
-            "-A",
-            "-c",
-            "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres' ORDER BY datname",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
+    proc = await asyncio.create_subprocess_exec(
+        "psql",
+        "-h",
+        host,
+        "-U",
+        user,
+        "-d",
+        "postgres",
+        "-t",
+        "-A",
+        "-c",
+        "SELECT datname FROM pg_database WHERE datistemplate = false"
+        " AND datname != 'postgres' ORDER BY datname",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
         env=env,
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"Database discovery failed: {result.stderr.strip()}")
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+        msg = "Database discovery timed out"
+        raise RuntimeError(msg)
 
-    return [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    if proc.returncode != 0:
+        raise RuntimeError(f"Database discovery failed: {stderr.decode().strip()}")
+
+    return [line.strip() for line in stdout.decode().strip().splitlines() if line.strip()]
 
 
 def _cleanup_old_backups(retention_days: int) -> None:
@@ -83,7 +87,7 @@ async def backup_all_databases() -> None:
     Cleans up old backups after successful run.
     """
     host, user, password = _parse_db_connection()
-    databases = _discover_databases(host, user, password)
+    databases = await _discover_databases(host, user, password)
 
     if not databases:
         logger.warning("No databases found to back up")
@@ -97,17 +101,37 @@ async def backup_all_databases() -> None:
         backup_file = _BACKUPS_DIR / f"{db_name}.{timestamp}.dump"
         try:
             with open(backup_file, "wb") as f:
-                proc = subprocess.run(
-                    ["pg_dump", "-h", host, "-U", user, "-Fc", db_name],
+                proc = await asyncio.create_subprocess_exec(
+                    "pg_dump",
+                    "-h",
+                    host,
+                    "-U",
+                    user,
+                    "-Fc",
+                    db_name,
                     stdout=f,
-                    stderr=subprocess.PIPE,
-                    timeout=300,
+                    stderr=asyncio.subprocess.PIPE,
                     env=env,
                 )
+                try:
+                    _, stderr_data = await asyncio.wait_for(
+                        proc.communicate(),
+                        timeout=300,
+                    )
+                except TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    backup_file.unlink(missing_ok=True)
+                    logger.error("pg_dump timed out for %s", db_name)
+                    continue
 
             if proc.returncode != 0:
                 backup_file.unlink(missing_ok=True)
-                logger.error("pg_dump failed for %s: %s", db_name, proc.stderr.decode().strip())
+                logger.error(
+                    "pg_dump failed for %s: %s",
+                    db_name,
+                    stderr_data.decode().strip(),
+                )
                 continue
 
             size = backup_file.stat().st_size
@@ -129,4 +153,4 @@ async def backup_all_databases() -> None:
 
 
 # 12 hours = 43200 seconds
-backup_all_databases.labels = {"schedule": [_Schedule(43200)]}  # type: ignore[attr-defined]
+backup_all_databases.labels = {"schedule": [{"interval": 43200}]}  # type: ignore[attr-defined]

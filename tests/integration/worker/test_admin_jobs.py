@@ -69,7 +69,7 @@ async def running_job(db_session: AsyncSession) -> Job:
     job = Job(
         id=uuid4(),
         user_id=None,
-        job_type=JobType.VIDEO_COMPOSITION,
+        job_type=JobType.VIDEO_COMPOSE,
         status=JobStatus.RUNNING,
         progress=50,
         message="Processing video",

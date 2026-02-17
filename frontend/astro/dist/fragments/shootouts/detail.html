@@ -18,16 +18,27 @@
   </a>
 
   {# Video Player / Processing Placeholder #}
-  {% if shootout.status == 'completed' and shootout.output_path %}
+  {% if shootout.status == 'completed' and shootout.video_path %}
     <div class="aspect-video bg-[var(--color-bg-surface)] rounded-lg mb-6 border border-[var(--border)] overflow-hidden" data-testid="video-container">
       <video
         controls
         class="w-full h-full"
-        src="{{ shootout.output_path }}"
+        src="{{ shootout.video_path }}"
         data-testid="video-player"
       >
         Your browser does not support the video tag.
       </video>
+    </div>
+  {% elif shootout.status == 'completed' and shootout.output_path %}
+    <div class="bg-[var(--color-bg-surface)] rounded-lg mb-6 border border-[var(--border)] p-4" data-testid="audio-container">
+      <audio
+        controls
+        class="w-full"
+        src="{{ shootout.output_path }}"
+        data-testid="audio-player"
+      >
+        Your browser does not support the audio element.
+      </audio>
     </div>
   {% else %}
     <div class="aspect-video bg-[var(--color-bg-surface)] rounded-lg flex items-center justify-center mb-6 border border-[var(--border)]" data-testid="processing-placeholder">
@@ -78,6 +89,18 @@
               <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/>
             </svg>
           </button>
+          {% if shootout.status == 'draft' and chains %}
+            <button
+              data-testid="process-shootout-btn"
+              hx-post="/api/v1/shootouts/{{ shootout.id }}/process"
+              hx-swap="none"
+              hx-on::after-request="window.location.reload()"
+              class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium transition-colors"
+              title="Process shootout"
+            >
+              Process Shootout
+            </button>
+          {% endif %}
           <button
             class="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
             data-testid="delete-shootout-btn"

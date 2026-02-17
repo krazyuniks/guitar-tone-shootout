@@ -416,22 +416,21 @@ class TestTaskScheduleConfiguration:
         from scheduler.schedules.jobs import monitor_stale_jobs
 
         schedule = monitor_stale_jobs.labels["schedule"][0]
-        # TaskIQ cron schedule format: check interval is 120 seconds
-        assert schedule.seconds == 120
+        assert schedule["interval"] == 120
 
     def test_process_pending_retries_schedule_interval(self) -> None:
         """process_pending_retries runs every 2 minutes."""
         from scheduler.schedules.jobs import process_pending_retries
 
         schedule = process_pending_retries.labels["schedule"][0]
-        assert schedule.seconds == 120
+        assert schedule["interval"] == 120
 
     def test_scheduler_heartbeat_schedule_interval(self) -> None:
         """scheduler_heartbeat runs every 1 minute."""
         from scheduler.schedules.jobs import scheduler_heartbeat
 
         schedule = scheduler_heartbeat.labels["schedule"][0]
-        assert schedule.seconds == 60
+        assert schedule["interval"] == 60
 
 
 class TestSchedulerDatabaseIntegration:

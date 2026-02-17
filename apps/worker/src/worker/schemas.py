@@ -116,3 +116,18 @@ class UnlockResponse(BaseModel):
     """Response for unlock endpoints."""
 
     message: str
+
+
+class TokenRefreshRequest(BaseModel):
+    """Request to refresh T3K OAuth token."""
+
+    auth_file_path: str
+    base_url: str
+    encryption_key: str
+
+
+class TokenRefreshResponse(BaseModel):
+    """Response from token refresh endpoint."""
+
+    auth_status: str
+    message: str

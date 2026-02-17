@@ -365,7 +365,7 @@ class TestEnsureSourceSyncScheduleConfig:
         from scheduler.schedules.jobs import ensure_source_sync_running
 
         schedule = ensure_source_sync_running.labels["schedule"][0]
-        assert schedule.seconds == 300
+        assert schedule["interval"] == 300
 
 
 # ---------------------------------------------------------------------------

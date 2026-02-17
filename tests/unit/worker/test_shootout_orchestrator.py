@@ -232,7 +232,7 @@ class TestShootoutJobHandler:
     async def test_updates_shootout_status_to_running(
         self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Handler updates shootout status from PENDING to RUNNING on start."""
+        """Handler updates shootout status from PENDING to PROCESSING on start."""
         from worker.jobs.shootout import handle_shootout_job
 
         parent_job_id, shootout_id, _ = await _create_shootout_with_chains(db_session)
@@ -242,7 +242,7 @@ class TestShootoutJobHandler:
 
         result = await db_session.execute(select(Shootout).where(Shootout.id == shootout_id))
         shootout = result.scalar_one()
-        assert shootout.status == ShootoutStatus.RUNNING
+        assert shootout.status == ShootoutStatus.PROCESSING
 
     async def test_updates_parent_progress_when_children_complete(
         self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
@@ -283,14 +283,14 @@ class TestShootoutJobHandler:
         parent_job = result.scalar_one()
         assert parent_job.progress == 50  # 1 of 2 completed
 
-    async def test_marks_shootout_completed_when_all_children_complete(
+    async def test_enqueues_master_job_when_all_audio_children_complete(
         self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """_update_parent_progress marks shootout COMPLETED when all children complete."""
+        """_update_parent_progress enqueues a SHOOTOUT_MASTER job when all audio children complete."""
         from worker.jobs.shootout import _update_parent_progress
 
         parent_job_id, shootout_id, chain_ids = await _create_shootout_with_chains(
-            db_session, num_chains=2, status=ShootoutStatus.RUNNING
+            db_session, num_chains=2, status=ShootoutStatus.PROCESSING
         )
 
         user_id = (
@@ -317,11 +317,27 @@ class TestShootoutJobHandler:
         await db_session.flush()
 
         monkeypatch.setattr("worker.jobs.shootout.get_session", _make_fake_get_session(db_session))
+
+        async def _noop_dispatch(*a: object, **kw: object) -> None:
+            pass
+
+        monkeypatch.setattr("worker.jobs.shootout._dispatch_master_job", _noop_dispatch)
         await _update_parent_progress(parent_job_id, "unused")
 
+        # All audio children complete → MASTER job should be created; shootout stays PROCESSING
+        master_result = await db_session.execute(
+            select(Job).where(
+                Job.parent_job_id == parent_job_id,
+                Job.job_type == JobType.SHOOTOUT_MASTER,
+            )
+        )
+        master_job = master_result.scalar_one_or_none()
+        assert master_job is not None, (
+            "SHOOTOUT_MASTER job should be created when all audio children complete"
+        )
         result = await db_session.execute(select(Shootout).where(Shootout.id == shootout_id))
         shootout = result.scalar_one()
-        assert shootout.status == ShootoutStatus.COMPLETED
+        assert shootout.status == ShootoutStatus.PROCESSING
 
     async def test_marks_shootout_failed_when_any_child_fails(
         self, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
@@ -330,7 +346,7 @@ class TestShootoutJobHandler:
         from worker.jobs.shootout import _update_parent_progress
 
         parent_job_id, shootout_id, chain_ids = await _create_shootout_with_chains(
-            db_session, num_chains=2, status=ShootoutStatus.RUNNING
+            db_session, num_chains=2, status=ShootoutStatus.PROCESSING
         )
 
         user_id = (

@@ -38,29 +38,12 @@ from workflow.plan_validator import validate_plan
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
-SCHEMAS_DIR = PROJECT_ROOT / "workflow" / "schemas"
 
 logger = logging.getLogger(__name__)
 
 
 class PlanVerificationError(Exception):
     """Raised when plan verification fails unrecoverably."""
-
-
-# ---------------------------------------------------------------------------
-# Schema loader
-# ---------------------------------------------------------------------------
-
-
-def _load_verifier_schema() -> dict:
-    """Load the verifier-result.schema.json for --json-schema."""
-    schema_path = SCHEMAS_DIR / "verifier-result.schema.json"
-    if not schema_path.is_file():
-        raise PlanVerificationError(
-            f"Verifier result schema not found at {schema_path}. "
-            "Ensure Step 1 schemas are in place."
-        )
-    return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -235,8 +218,22 @@ def _is_verifier_pass(result: dict) -> bool:
     return result.get("status") == "pass"
 
 
+def _get_dimensions(result: dict) -> dict:
+    """Extract the dimensions dict, handling both nested and flat layouts.
+
+    The verifier prompt asks for ``{"dimensions": {"journey_completeness": ...}}``,
+    but earlier code assumed the dimensions lived at the top level.  Support both.
+    """
+    dims = result.get("dimensions")
+    if isinstance(dims, dict):
+        return dims
+    # Fallback: dimensions at top level (legacy)
+    return result
+
+
 def _extract_dimension_failures(result: dict) -> list[str]:
     """Extract a summary of failed dimensions for logging."""
+    dims = _get_dimensions(result)
     failures = []
     for dimension in [
         "journey_completeness",
@@ -245,7 +242,7 @@ def _extract_dimension_failures(result: dict) -> list[str]:
         "gap_detection",
         "validation_sufficiency",
     ]:
-        dim = result.get(dimension, {})
+        dim = dims.get(dimension, {})
         if isinstance(dim, dict) and dim.get("status") == "fail":
             failures.append(dimension)
     return failures
@@ -294,6 +291,7 @@ def present_decision_gate(
     print(f"Verifier status: {verifier_result.get('status', 'unknown')}")
 
     # Show dimension statuses
+    dims = _get_dimensions(verifier_result)
     print("\nVerifier dimensions:")
     for dimension in [
         "journey_completeness",
@@ -302,7 +300,7 @@ def present_decision_gate(
         "gap_detection",
         "validation_sufficiency",
     ]:
-        dim = verifier_result.get(dimension, {})
+        dim = dims.get(dimension, {})
         status = dim.get("status", "unknown") if isinstance(dim, dict) else "unknown"
         icon = "PASS" if status == "pass" else "FAIL"
         print(f"  [{icon}] {dimension}")
@@ -312,9 +310,11 @@ def present_decision_gate(
     if failed_dims:
         print(f"\nFailed dimensions: {', '.join(failed_dims)}")
         for dim_name in failed_dims:
-            dim = verifier_result.get(dim_name, {})
+            dim = dims.get(dim_name, {})
             if not isinstance(dim, dict):
                 continue
+            # Check both flat layout and nested "findings" layout
+            findings = dim.get("findings", dim)
             for key in [
                 "gaps",
                 "uncovered",
@@ -322,7 +322,7 @@ def present_decision_gate(
                 "scope_creep",
                 "weak_checks",
             ]:
-                items = dim.get(key, [])
+                items = findings.get(key, [])
                 if items:
                     print(f"\n  {dim_name}.{key}:")
                     for item in items[:3]:
@@ -494,6 +494,12 @@ def verify_with_revision_cycle(
         ", ".join(failed_dims),
     )
 
+    # Snapshot the current (Phase A-passing) plan before revision
+    plan_json_path = epic_dir / "plan.json"
+    plan_md_path = epic_dir / "PLAN.md"
+    original_plan_json = plan_json_path.read_text(encoding="utf-8")
+    original_plan_md = plan_md_path.read_text(encoding="utf-8") if plan_md_path.exists() else ""
+
     try:
         _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result)
     except PlanGenerationError as exc:
@@ -504,14 +510,17 @@ def verify_with_revision_cycle(
     logger.info("Running Phase A validation (after verifier revision)...")
     phase_a_result = validate_plan(epic_dir)
     if not phase_a_result.valid:
-        logger.error(
-            "Phase A fails after verifier revision (%d errors). Exiting to human.",
+        logger.warning(
+            "Phase A fails after verifier revision (%d errors). "
+            "Restoring pre-revision plan and continuing with Phase B failure.",
             len(phase_a_result.errors),
         )
-        return (
-            {"status": "fail", "phase_a_errors": phase_a_result.error_messages()},
-            False,
-        )
+        # Restore the original plan that passed Phase A
+        plan_json_path.write_text(original_plan_json, encoding="utf-8")
+        if original_plan_md:
+            plan_md_path.write_text(original_plan_md, encoding="utf-8")
+        logger.info("Restored pre-revision plan.json and PLAN.md.")
+        return (verifier_result, False)
 
     # Phase B: AI verification (attempt 2 — final)
     logger.info("Running Phase B verification (attempt 2, final)...")

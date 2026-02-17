@@ -61,7 +61,7 @@ class HttpVideoRenderClient:
         try:
             async with AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
-                    f"{self.base_url}/api/v1/render/submit",
+                    f"{self.base_url}/render",
                     json=request.model_dump(),
                 )
                 response.raise_for_status()
@@ -89,7 +89,7 @@ class HttpVideoRenderClient:
         try:
             async with AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/render/status/{job_id}",
+                    f"{self.base_url}/render/{job_id}",
                 )
 
                 if response.status_code == 404:

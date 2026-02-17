@@ -712,54 +712,48 @@ async def shootout_detail_page(
 
     Protected page showing shootout details and chains.
     """
-    from webapp.adapters.persistence.models.di_track import DITrack
-    from webapp.adapters.persistence.models.signal_chain import (
-        SignalChain as SignalChainModel,
+    from webapp.adapters.persistence.models.shootout import ShootoutChain
+
+    stmt = (
+        select(Shootout)
+        .where(Shootout.id == UUID(shootout_id))
+        .options(
+            joinedload(Shootout.di_track),
+            joinedload(Shootout.chains).joinedload(ShootoutChain.signal_chain),
+        )
     )
+    result = await db.execute(stmt)
+    shootout_model = result.unique().scalar_one_or_none()
 
-    service = ShootoutService(db)
-
-    shootout = await service.get_by_id(UUID(shootout_id))
-    if not shootout or shootout.user_id != current_user.id:
+    if not shootout_model or shootout_model.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",
         )
 
-    di_track_result = await db.execute(select(DITrack).where(DITrack.id == shootout.di_track_id))
-    di_track = di_track_result.scalar_one_or_none()
-
-    chain_items = []
-    for shootout_chain in shootout.chains:
-        chain_result = await db.execute(
-            select(SignalChainModel).where(SignalChainModel.id == shootout_chain.signal_chain_id)
-        )
-        chain = chain_result.scalar_one_or_none()
-        if chain:
-            chain_items.append(
-                {
-                    "signal_chain_id": str(shootout_chain.signal_chain_id),
-                    "position": shootout_chain.position,
-                    "label": shootout_chain.label,
-                    "chain_name": chain.name,
-                }
-            )
-
-    chain_items.sort(
-        key=lambda x: int(x["position"]) if isinstance(x["position"], int | str) else 0
-    )
+    di_track = shootout_model.di_track
+    chains_sorted = sorted(shootout_model.chains, key=lambda c: c.position)
+    chain_items = [
+        {
+            "signal_chain_id": str(chain.signal_chain_id),
+            "position": chain.position,
+            "label": chain.label,
+            "chain_name": chain.signal_chain.name if chain.signal_chain else chain.label,
+        }
+        for chain in chains_sorted
+        if chain.signal_chain is not None
+    ]
 
     return templates.TemplateResponse(
         request,
         "pages/shootout_detail.html",
         {
             "shootout": {
-                "id": str(shootout.id),
-                "name": shootout.name,
-                "description": shootout.description,
-                "chain_count": shootout.chain_count,
-                "is_processed": shootout.is_processed,
-                "output_path": shootout.output_path,
+                "id": str(shootout_model.id),
+                "name": shootout_model.name,
+                "description": shootout_model.description,
+                "status": shootout_model.status.value,
+                "output_path": shootout_model.output_path,
             },
             "di_track": {
                 "id": str(di_track.id) if di_track else None,
@@ -962,5 +956,81 @@ async def settings_account_page(
         {
             "user": current_user,
             "providers": providers,
+        },
+    )
+
+
+@router.get("/jobs", response_class=HTMLResponse)
+async def jobs_list_page(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
+) -> HTMLResponse:
+    """Render jobs list page showing user's active and recent jobs."""
+    from webapp.services.job_service import JobService
+
+    service = JobService(db)
+    jobs = await service.get_by_user_id(current_user.id, limit=50)
+
+    job_items = [
+        {
+            "id": str(job.id),
+            "job_type": job.job_type.value,
+            "status": job.status.value,
+            "progress": job.progress,
+            "message": job.message,
+            "error": job.error,
+            "entity_id": str(job.entity_id) if job.entity_id else None,
+            "created_at": job.created_at,
+            "relative_time": _relative_time(job.created_at),
+        }
+        for job in jobs
+    ]
+
+    return templates.TemplateResponse(
+        request,
+        "pages/jobs.html",
+        {
+            "jobs": job_items,
+            "user": current_user,
+        },
+    )
+
+
+@router.get("/jobs/{job_id}", response_class=HTMLResponse)
+async def job_detail_page(
+    request: Request,
+    job_id: str,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user_page)],
+) -> HTMLResponse:
+    """Render job detail page with progress display."""
+    from webapp.services.job_service import JobService
+
+    service = JobService(db)
+    job = await service.get_by_id(UUID(job_id))
+
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "pages/job_detail.html",
+        {
+            "job": {
+                "id": str(job.id),
+                "job_type": job.job_type.value,
+                "status": job.status.value,
+                "progress": job.progress,
+                "message": job.message,
+                "error": job.error,
+                "entity_id": str(job.entity_id) if job.entity_id else None,
+                "created_at": job.created_at,
+                "relative_time": _relative_time(job.created_at),
+            },
+            "user": current_user,
         },
     )

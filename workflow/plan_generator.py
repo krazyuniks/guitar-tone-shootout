@@ -356,6 +356,13 @@ def build_verifier_revision_prompt(
     Appends the structured verifier output so the planner can address
     specific gaps: journey incompleteness, uncovered transitions, intent
     misalignment, logical gaps, and weak validations.
+
+    Handles both flat and nested verifier output layouts:
+    - Nested: ``{"dimensions": {"journey_completeness": {"findings": {"gaps": [...]}}}}``
+    - Flat: ``{"journey_completeness": {"gaps": [...]}}``
+
+    Also handles findings items as either plain strings or dicts with
+    structured keys (the verifier is not constrained to one format).
     """
     feedback_lines = [
         "",
@@ -368,58 +375,70 @@ def build_verifier_revision_prompt(
         "",
     ]
 
+    # Resolve dimensions dict (nested under "dimensions" key or flat at top level)
+    dims = verifier_result.get("dimensions")
+    if not isinstance(dims, dict):
+        dims = verifier_result
+
+    def _get_finding_items(dim_data: dict, key: str) -> list:
+        """Get finding items from either nested or flat layout."""
+        # Nested: dim_data["findings"][key]
+        findings = dim_data.get("findings")
+        if isinstance(findings, dict):
+            items = findings.get(key, [])
+            if items:
+                return items
+        # Flat: dim_data[key]
+        return dim_data.get(key, [])
+
+    def _format_item(item) -> str:
+        """Format a finding item, handling both str and dict."""
+        if isinstance(item, str):
+            return item
+        if isinstance(item, dict):
+            return json.dumps(item, ensure_ascii=False)
+        return str(item)
+
     # Journey completeness
-    jc = verifier_result.get("journey_completeness", {})
-    if jc.get("status") == "fail":
+    jc = dims.get("journey_completeness", {})
+    if isinstance(jc, dict) and jc.get("status") == "fail":
         feedback_lines.append("### Journey Completeness Gaps")
-        for gap in jc.get("gaps", []):
-            feedback_lines.append(
-                f"- Journey {gap.get('journey_id', '?')}: "
-                f"step '{gap.get('step', '?')}' — {gap.get('missing', '?')}"
-            )
+        for gap in _get_finding_items(jc, "gaps"):
+            feedback_lines.append(f"- {_format_item(gap)}")
         feedback_lines.append("")
 
     # Transition coverage
-    tc = verifier_result.get("transition_coverage", {})
-    if tc.get("status") == "fail":
+    tc = dims.get("transition_coverage", {})
+    if isinstance(tc, dict) and tc.get("status") == "fail":
         feedback_lines.append("### Uncovered Transitions")
-        for uc in tc.get("uncovered", []):
-            feedback_lines.append(
-                f"- Journey {uc.get('journey_id', '?')}: "
-                f"{uc.get('from', '?')} -> {uc.get('to', '?')} "
-                f"({uc.get('mechanism', '?')})"
-            )
+        for uc in _get_finding_items(tc, "uncovered"):
+            feedback_lines.append(f"- {_format_item(uc)}")
         feedback_lines.append("")
 
     # Intent alignment
-    ia = verifier_result.get("intent_alignment", {})
-    if ia.get("status") == "fail":
+    ia = dims.get("intent_alignment", {})
+    if isinstance(ia, dict) and ia.get("status") == "fail":
         feedback_lines.append("### Intent Alignment Issues")
-        for req in ia.get("unaddressed_requirements", []):
-            feedback_lines.append(f"- Unaddressed requirement: {req}")
-        for creep in ia.get("scope_creep", []):
-            feedback_lines.append(f"- Scope creep: {creep}")
+        for req in _get_finding_items(ia, "unaddressed_requirements"):
+            feedback_lines.append(f"- Unaddressed requirement: {_format_item(req)}")
+        for creep in _get_finding_items(ia, "scope_creep"):
+            feedback_lines.append(f"- Scope creep: {_format_item(creep)}")
         feedback_lines.append("")
 
     # Gap detection
-    gd = verifier_result.get("gap_detection", {})
-    if gd.get("status") == "fail":
+    gd = dims.get("gap_detection", {})
+    if isinstance(gd, dict) and gd.get("status") == "fail":
         feedback_lines.append("### Logical Gaps Between Stories")
-        for gap in gd.get("gaps", []):
-            between = gap.get("between", [])
-            between_str = " and ".join(between) if between else "?"
-            feedback_lines.append(f"- Between {between_str}: {gap.get('missing', '?')}")
+        for gap in _get_finding_items(gd, "gaps"):
+            feedback_lines.append(f"- {_format_item(gap)}")
         feedback_lines.append("")
 
     # Validation sufficiency
-    vs = verifier_result.get("validation_sufficiency", {})
-    if vs.get("status") == "fail":
+    vs = dims.get("validation_sufficiency", {})
+    if isinstance(vs, dict) and vs.get("status") == "fail":
         feedback_lines.append("### Weak Validation Checks")
-        for wc in vs.get("weak_checks", []):
-            feedback_lines.append(
-                f"- Checkpoint '{wc.get('checkpoint', '?')}', "
-                f"criterion '{wc.get('criterion', '?')}': {wc.get('risk', '?')}"
-            )
+        for wc in _get_finding_items(vs, "weak_checks"):
+            feedback_lines.append(f"- {_format_item(wc)}")
         feedback_lines.append("")
 
     feedback_lines.append(

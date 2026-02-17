@@ -73,17 +73,16 @@ class TestSchedulerConfiguration:
 
         assert isinstance(scheduler, TaskiqScheduler), "scheduler must be TaskiqScheduler instance"
 
-    def test_scheduler_uses_label_schedule_source(self) -> None:
-        """scheduler uses LabelScheduleSource for task discovery."""
-        from taskiq.schedule_sources import LabelScheduleSource
-
+    def test_scheduler_uses_in_process_schedule_source(self) -> None:
+        """scheduler uses InProcessScheduleSource for task discovery."""
         from scheduler.main import scheduler
+        from scheduler.source import InProcessScheduleSource
 
         # Check that scheduler has sources configured
         assert hasattr(scheduler, "sources"), "Scheduler must have sources configured"
         sources = scheduler.sources
         assert len(sources) > 0, "Scheduler must have at least one schedule source"
 
-        # Verify at least one source is LabelScheduleSource
-        has_label_source = any(isinstance(source, LabelScheduleSource) for source in sources)
-        assert has_label_source, "Scheduler must use LabelScheduleSource for task discovery"
+        # Verify at least one source is InProcessScheduleSource
+        has_source = any(isinstance(source, InProcessScheduleSource) for source in sources)
+        assert has_source, "Scheduler must use InProcessScheduleSource for task discovery"

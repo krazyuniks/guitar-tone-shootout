@@ -84,67 +84,6 @@ const J = {
 
   <Fragment set:html={J.footer} />
 
-  <!-- WebSocket connection for notifications -->
-  <script is:inline>
-    (function() {
-      // Only connect WebSocket if user is authenticated
-      var userElement = document.querySelector('[data-user-id]');
-      if (!userElement) return;
-
-      var wsToken = userElement.dataset.wsToken;
-      if (!wsToken) return;
-
-      // Get WebSocket URL from current location
-      var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      var wsUrl = protocol + '//' + window.location.host + '/api/v1/ws/notifications?token=' + wsToken;
-
-      var ws = null;
-      var reconnectAttempts = 0;
-      var maxReconnectAttempts = 5;
-      var reconnectDelay = 3000;
-
-      function connect() {
-        if (reconnectAttempts >= maxReconnectAttempts) {
-          console.log('Max WebSocket reconnection attempts reached');
-          return;
-        }
-
-        ws = new WebSocket(wsUrl);
-
-        ws.onopen = function() {
-          console.log('WebSocket connected for notifications');
-          reconnectAttempts = 0;
-        };
-
-        ws.onmessage = function(event) {
-          try {
-            var data = JSON.parse(event.data);
-            // Dispatch custom event for notification handling
-            window.dispatchEvent(new CustomEvent('gts:notification', { detail: data }));
-          } catch (e) {
-            console.error('Failed to parse WebSocket message:', e);
-          }
-        };
-
-        ws.onclose = function() {
-          console.log('WebSocket disconnected');
-          reconnectAttempts++;
-          setTimeout(connect, reconnectDelay);
-        };
-
-        ws.onerror = function(error) {
-          console.error('WebSocket error:', error);
-        };
-      }
-
-      // Start connection
-      connect();
-
-      // Expose for external use
-      window.gtsNotificationWs = { getSocket: function() { return ws; } };
-    })();
-  </script>
-
   <!-- Toast Notification Container (STORY-005) -->
   <div
     id="toast-container"

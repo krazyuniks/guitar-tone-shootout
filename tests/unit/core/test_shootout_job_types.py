@@ -44,7 +44,7 @@ class TestShootoutJobTypes:
         """Test that existing JobType values are still present."""
         # Verify all existing types from acceptance criteria
         assert JobType.AUDIO_PROCESSING.value == "audio_processing"
-        assert JobType.VIDEO_COMPOSITION.value == "video_composition"
+        assert JobType.VIDEO_COMPOSE.value == "video_compose"
         assert JobType.GEAR_SYNC.value == "gear_sync"
         assert JobType.MODEL_DOWNLOAD.value == "model_download"
         assert JobType.IR_DOWNLOAD.value == "ir_download"
@@ -54,7 +54,7 @@ class TestShootoutJobTypes:
         """Test that all required JobType values are present."""
         required_values = {
             "audio_processing",
-            "video_composition",
+            "video_compose",
             "gear_sync",
             "model_download",
             "ir_download",
@@ -259,7 +259,7 @@ class TestORMJobWithShootoutTypes:
             status=JobStatus.QUEUED,
         )
         other_job = ORMJob(
-            job_type=JobType.VIDEO_COMPOSITION,
+            job_type=JobType.VIDEO_COMPOSE,
             status=JobStatus.PENDING,
         )
         db_session.add_all([shootout_job, audio_job, other_job])

@@ -37,6 +37,8 @@ from worker.schemas import (
     SyncStatsResponse,
     SyncStatusResponse,
     SyncTriggerResponse,
+    TokenRefreshRequest,
+    TokenRefreshResponse,
     UnlockResponse,
 )
 
@@ -853,3 +855,44 @@ async def unlock_scheduler(
     await redis.delete(lock_key)
 
     return UnlockResponse(message="Scheduler lock released")
+
+
+@app.post("/api/admin/auth/refresh-t3k", response_model=TokenRefreshResponse)
+async def refresh_t3k_token(request: TokenRefreshRequest) -> TokenRefreshResponse:
+    """Refresh T3K OAuth access token using the stored refresh token.
+
+    Called by the scheduler, which cannot import source_t3k directly.
+    Uses T3KTokenManager from the source_t3k BC to perform the refresh.
+
+    Note:
+        No authentication required - access controlled at network level.
+    """
+    from source_t3k.adapters.inbound.exceptions import T3KAPIError
+    from source_t3k.adapters.inbound.token_manager import T3KTokenManager
+
+    token_manager = T3KTokenManager(
+        auth_file_path=request.auth_file_path,
+        base_url=request.base_url,
+        encryption_key=request.encryption_key,
+    )
+    try:
+        await token_manager.get_access_token()
+        return TokenRefreshResponse(auth_status="valid", message="Token refreshed successfully")
+    except T3KAPIError as e:
+        error_msg = str(e)
+        if "expired" in error_msg.lower() or "re-authenticate" in error_msg.lower():
+            return TokenRefreshResponse(
+                auth_status="login_required",
+                message="Refresh token expired — run `just t3k-login`",
+            )
+        return TokenRefreshResponse(
+            auth_status="refresh_failed",
+            message=f"Token refresh failed: {error_msg}",
+        )
+    except Exception as e:
+        return TokenRefreshResponse(
+            auth_status="refresh_failed",
+            message=f"Unexpected error during token refresh: {e}",
+        )
+    finally:
+        await token_manager.close()

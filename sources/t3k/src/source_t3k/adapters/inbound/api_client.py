@@ -259,12 +259,11 @@ class T3KAPIClient:
     def _parse_model_data(self, d: dict[str, Any]) -> T3KModel:
         return T3KModel(
             id=str(d["id"]),
-            pack_id=str(d.get("tone_id", "")),
+            tone_id=int(d.get("tone_id", 0)),
+            user_id=str(d.get("user_id", "")),
             name=d.get("name", ""),
-            filename=d.get("model_url", "").rsplit("/", 1)[-1] if d.get("model_url") else "",
-            file_size=int(d.get("file_size", 0)),
-            download_url=d.get("model_url", ""),
-            checksum=d.get("checksum", ""),
+            model_url=d.get("model_url", ""),
+            size=d.get("size", ""),
             created_at=_parse_datetime(d.get("created_at", "")),
             updated_at=_parse_datetime(d.get("updated_at", "")),
         )

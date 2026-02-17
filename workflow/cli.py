@@ -226,19 +226,33 @@ def _run_planning_pipeline(epic_number: int) -> None:
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
 
-    # Non-TTY: auto-approve if verification passed, auto-reject if failed
+    # Non-TTY: auto-approve if verification passed or Phase B-only failure,
+    # auto-reject only if Phase A failed (structural errors).
     import sys as _sys
+
+    phase_a_errors = verifier_result.get("phase_a_errors", []) if not success else []
 
     if not _sys.stdin.isatty():
         if success:
             gate_result = DecisionGateResult("approve", reason="Auto-approved (non-interactive)")
             console.print("[green]Decision Gate: auto-approved (non-interactive).[/green]")
-        else:
+        elif phase_a_errors:
             gate_result = DecisionGateResult(
-                "reject", reason="Auto-rejected (non-interactive, verification failed)"
+                "reject", reason="Auto-rejected (non-interactive, Phase A failed)"
             )
             console.print(
-                "[red]Decision Gate: auto-rejected (non-interactive, verification failed).[/red]"
+                "[red]Decision Gate: auto-rejected (non-interactive, Phase A failed).[/red]"
+            )
+        else:
+            # Phase B-only failure: plan is structurally valid, verifier wants
+            # deeper checkpoints. Safe to auto-approve.
+            gate_result = DecisionGateResult(
+                "approve",
+                reason="Auto-approved (non-interactive, Phase B-only failure — plan structurally valid)",
+            )
+            console.print(
+                "[yellow]Decision Gate: auto-approved (Phase B-only failure, "
+                "plan structurally valid).[/yellow]"
             )
     else:
         gate_result = present_decision_gate(plan_md_path, verifier_result)

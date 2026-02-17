@@ -4,12 +4,15 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.job_status import JobStatus, JobType
+from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.job import JobResponse
 from webapp.services.job_service import JobService
+from webapp.services.processing_service import enqueue_to_worker
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -160,4 +163,68 @@ async def get_job(
         entity_id=job.entity_id,
         created_at=job.created_at,
         updated_at=job.updated_at,
+    )
+
+
+@router.post("/{job_id}/retry", response_model=JobResponse)
+async def retry_job(
+    job_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> JobResponse:
+    """Retry a failed job.
+
+    Protected endpoint - requires authentication.
+    Only FAILED jobs owned by the current user can be retried.
+    Transitions job to PENDING and re-enqueues it.
+
+    Args:
+        job_id: Job ID to retry
+        db: Database session
+        current_user: Currently authenticated user
+
+    Returns:
+        Updated job details
+
+    Raises:
+        HTTPException: 404 if job not found or not owned by user
+        HTTPException: 409 if job is not in FAILED status
+    """
+    stmt = select(JobModel).where(JobModel.id == job_id)
+    result = await db.execute(stmt)
+    job_model = result.scalar_one_or_none()
+
+    if not job_model or job_model.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found",
+        )
+
+    if job_model.status != JobStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only failed jobs can be retried",
+        )
+
+    job_model.status = JobStatus.PENDING
+    job_model.progress = 0
+    job_model.error = None
+    job_model.message = "Queued for retry"
+    await db.commit()
+    await db.refresh(job_model)
+
+    await enqueue_to_worker(job_model.id)
+
+    return JobResponse(
+        id=job_model.id,
+        user_id=job_model.user_id,
+        job_type=job_model.job_type.value,
+        status=job_model.status.value,
+        progress=job_model.progress,
+        message=job_model.message,
+        error=job_model.error,
+        result_path=job_model.result_path,
+        entity_id=job_model.entity_id,
+        created_at=job_model.created_at,
+        updated_at=job_model.updated_at,
     )
