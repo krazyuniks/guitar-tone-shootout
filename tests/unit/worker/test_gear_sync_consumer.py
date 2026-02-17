@@ -417,3 +417,48 @@ class TestRetryableErrorHandling:
         process_mock.assert_not_awaited()
         dead_letter_mock.assert_awaited_once_with(message, "gear_sync")
         t3k_commit_mock.assert_awaited_once()
+
+
+class TestStaleDlqCleanup:
+    """Successful processing should cleanup stale DLQ entries for same source record."""
+
+    async def test_successful_process_archives_stale_dlq_entries(
+        self,
+        consumer: GearSyncConsumer,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        message = SimpleNamespace(
+            read_ct=1,
+            msg_id=103,
+            message={
+                "source_name": "t3k",
+                "source_record_id": "pack-42",
+                "source_updated_at": "2026-02-17T00:00:00+00:00",
+                "operation": "create",
+                "payload": {"name": "Pack 42", "slug": "pack-42", "gear_type": "amp"},
+            },
+        )
+
+        monkeypatch.setattr(consumer, "_poll_queue", AsyncMock(return_value=[message]))
+        process_mock = AsyncMock(return_value=None)
+        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_mock)
+        cleanup_mock = AsyncMock()
+        archive_mock = AsyncMock()
+        monkeypatch.setattr(consumer, "_archive_stale_dlq_for_record", cleanup_mock)
+        monkeypatch.setattr(consumer, "_archive_message", archive_mock)
+
+        core_commit_mock = AsyncMock()
+        t3k_commit_mock = AsyncMock()
+        monkeypatch.setattr(consumer.core_session, "commit", core_commit_mock)
+        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_mock)
+
+        await consumer._poll_and_process("gear_sync")
+
+        process_mock.assert_awaited_once()
+        cleanup_mock.assert_awaited_once()
+        record = cleanup_mock.await_args.args[0]
+        assert record.source_name == "t3k"
+        assert record.source_record_id == "pack-42"
+        archive_mock.assert_awaited_once_with("gear_sync", 103)
+        core_commit_mock.assert_awaited_once()
+        t3k_commit_mock.assert_awaited_once()

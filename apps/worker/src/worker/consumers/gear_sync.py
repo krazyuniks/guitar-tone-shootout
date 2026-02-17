@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import TYPE_CHECKING
 
 from sqlalchemy import text
@@ -72,6 +73,7 @@ class GearSyncConsumer:
                 record = GearSyncRecord.from_dict(message.message)
                 await self.mapper.process_sync_record(record)
                 await self.core_session.commit()
+                await self._archive_stale_dlq_for_record(record)
                 await self._archive_message(queue_name, message.msg_id)
                 await self.t3k_session.commit()
             except RetryableGearSyncError:
@@ -90,6 +92,55 @@ class GearSyncConsumer:
                 logger.exception("Error processing sync message %s", message.msg_id)
                 await self._dead_letter(message, queue_name)
                 await self.t3k_session.commit()
+
+    async def _archive_stale_dlq_for_record(self, record: GearSyncRecord) -> None:
+        """Archive stale DLQ entries for a record that just processed successfully.
+
+        When a newer re-publish succeeds, older DLQ entries for the same
+        source record are no longer actionable and can be safely archived.
+        """
+        if not re.fullmatch(r"[A-Za-z0-9_]+", self.dead_letter_queue):
+            logger.warning(
+                "Skipping DLQ cleanup due to invalid queue name: %s", self.dead_letter_queue
+            )
+            return
+
+        dlq_table = f"pgmq.q_{self.dead_letter_queue}"
+        try:
+            stmt = text(
+                f"""
+                SELECT msg_id
+                FROM {dlq_table}
+                WHERE (message->>'source_name') = :source_name
+                  AND (message->>'source_record_id') = :source_record_id
+                """
+            )
+            result = await self.t3k_session.execute(
+                stmt,
+                {
+                    "source_name": record.source_name,
+                    "source_record_id": record.source_record_id,
+                },
+            )
+            msg_ids = [row[0] for row in result]
+            if not msg_ids:
+                return
+
+            for msg_id in msg_ids:
+                await self._archive_message(self.dead_letter_queue, msg_id)
+
+            logger.info(
+                "Archived %d stale DLQ messages for %s:%s",
+                len(msg_ids),
+                record.source_name,
+                record.source_record_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to cleanup stale DLQ messages for %s:%s",
+                record.source_name,
+                record.source_record_id,
+            )
 
     async def _poll_queue(self, queue_name: str) -> list:
         """Poll a pgmq queue for messages."""
