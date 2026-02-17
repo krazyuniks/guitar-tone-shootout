@@ -161,6 +161,25 @@ def register_info_commands(app: typer.Typer) -> None:
 
         content += "\n\n[bold]Services:[/bold]\n"
         content += "\n".join(f"  {svc}: {state}" for svc, state in health.services.items())
+
+        if health.last_backup:
+            content += "\n\n[bold cyan]Backups:[/bold cyan]"
+            for db_name, mtime in health.last_backup.items():
+                if mtime:
+                    from datetime import datetime
+
+                    age = datetime.now() - mtime
+                    if age.total_seconds() < 3600:
+                        age_str = f"{int(age.total_seconds() / 60)}m ago"
+                    elif age.total_seconds() < 86400:
+                        age_str = f"{int(age.total_seconds() / 3600)}h ago"
+                    else:
+                        age_str = f"{age.days}d ago"
+                    stale = " [yellow](stale)[/yellow]" if age.days >= 1 else ""
+                    content += f"\n  {db_name}: {age_str}{stale}"
+                else:
+                    content += f"\n  {db_name}: [red]no backup[/red]"
+
         if health.issues:
             content += "\n\n[bold]Issues:[/bold]\n" + "\n".join(f"  - {i}" for i in health.issues)
 
