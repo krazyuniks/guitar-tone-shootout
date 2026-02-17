@@ -35,6 +35,11 @@ class TestShootoutJobTypes:
         assert hasattr(JobType, "SHOOTOUT_AUDIO")
         assert JobType.SHOOTOUT_AUDIO.value == "shootout_audio"
 
+    def test_job_type_shootout_master_exists(self) -> None:
+        """Test that JobType.SHOOTOUT_MASTER exists with correct value."""
+        assert hasattr(JobType, "SHOOTOUT_MASTER")
+        assert JobType.SHOOTOUT_MASTER.value == "shootout_master"
+
     def test_existing_job_types_unchanged(self) -> None:
         """Test that existing JobType values are still present."""
         # Verify all existing types from acceptance criteria
@@ -56,6 +61,7 @@ class TestShootoutJobTypes:
             "notification",
             "shootout",
             "shootout_audio",
+            "shootout_master",
         }
         actual_values = {member.value for member in JobType}
 

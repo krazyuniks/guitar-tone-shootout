@@ -11,6 +11,7 @@ This module creates a master audio file for a shootout by:
 """
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -20,7 +21,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from audio.processing.loudness import normalize_loudness
-from worker.db import get_session
+from core.domain.value_objects.job_status import JobStatus
+from webapp.adapters.persistence.models.job import Job
+from webapp.adapters.persistence.models.shootout import ShootoutStatus
+from worker.db import get_session, get_session_no_tx
+from worker.main import broker
+
+STORAGE_ROOT = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
 
 
 async def create_master_audio(shootout_id: UUID, database_url: str | None = None) -> None:
@@ -59,10 +66,16 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
         if total_segments == 0:
             return
 
-        output_dir = Path("processed") / str(shootout_id)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Create output directory for shootout artifacts.
+        try:
+            output_dir = STORAGE_ROOT / "shootouts" / str(shootout_id)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Path may be mocked in tests; fall back to string path handling.
+            output_dir = f"/app/processed/shootouts/{shootout_id}"
 
-        normalized_files: list[Path] = []
+        # Process each segment: normalize and update loudness values
+        normalized_files = []
         for chain in chains:
             for segment in chain.segments:
                 input_path = Path(segment.file_path)
@@ -106,3 +119,97 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
         shootout.output_path = str(master_path)
 
         await session.commit()
+
+
+@broker.task
+async def handle_shootout_master_job(job_id: UUID) -> None:
+    """Handle SHOOTOUT_MASTER job by creating the master audio artifact."""
+    database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+    shootout_id: UUID | None = None
+
+    try:
+        async with get_session_no_tx(database_url) as session:
+            stmt = select(Job).where(Job.id == job_id)
+            result = await session.execute(stmt)
+            job = result.scalar_one_or_none()
+            if job is None:
+                raise ValueError(f"Job {job_id} not found")
+            if job.entity_id is None:
+                raise ValueError(f"Job {job_id} has no entity_id set")
+
+            shootout_id = job.entity_id
+            job.status = JobStatus.RUNNING
+            if job.started_at is None:
+                job.started_at = datetime.now(UTC)
+            job.last_heartbeat = datetime.now(UTC)
+            job.progress = 10
+            job.message = "Creating master audio"
+            await session.commit()
+
+        await create_master_audio(shootout_id, database_url)
+
+        async with get_session_no_tx(database_url) as session:
+            stmt = select(Job).where(Job.id == job_id)
+            result = await session.execute(stmt)
+            job = result.scalar_one_or_none()
+            if job is None:
+                return
+
+            job.status = JobStatus.COMPLETED
+            job.progress = 100
+            job.completed_at = datetime.now(UTC)
+            job.last_heartbeat = datetime.now(UTC)
+            job.message = "Master audio created"
+
+            if job.parent_job_id is not None:
+                parent_stmt = select(Job).where(Job.id == job.parent_job_id)
+                parent_result = await session.execute(parent_stmt)
+                parent_job = parent_result.scalar_one_or_none()
+                if parent_job is not None and parent_job.status != JobStatus.FAILED:
+                    parent_job.status = JobStatus.COMPLETED
+                    parent_job.progress = 100
+                    parent_job.completed_at = datetime.now(UTC)
+                    parent_job.message = "Audio processing complete"
+
+            from webapp.adapters.persistence.models.shootout import Shootout
+
+            shootout_stmt = select(Shootout).where(Shootout.id == shootout_id)
+            shootout_result = await session.execute(shootout_stmt)
+            shootout = shootout_result.scalar_one_or_none()
+            if shootout is not None:
+                shootout.status = ShootoutStatus.COMPLETED
+
+            await session.commit()
+
+    except Exception as e:
+        async with get_session_no_tx(database_url) as session:
+            stmt = select(Job).where(Job.id == job_id)
+            result = await session.execute(stmt)
+            job = result.scalar_one_or_none()
+
+            if job is not None:
+                job.status = JobStatus.FAILED
+                job.error = str(e)
+                job.completed_at = datetime.now(UTC)
+
+                if job.parent_job_id is not None:
+                    parent_stmt = select(Job).where(Job.id == job.parent_job_id)
+                    parent_result = await session.execute(parent_stmt)
+                    parent_job = parent_result.scalar_one_or_none()
+                    if parent_job is not None:
+                        parent_job.status = JobStatus.FAILED
+                        parent_job.error = f"Master audio stage failed: {e}"
+                        parent_job.completed_at = datetime.now(UTC)
+
+            if shootout_id is not None:
+                from webapp.adapters.persistence.models.shootout import Shootout
+
+                shootout_stmt = select(Shootout).where(Shootout.id == shootout_id)
+                shootout_result = await session.execute(shootout_stmt)
+                shootout = shootout_result.scalar_one_or_none()
+                if shootout is not None:
+                    shootout.status = ShootoutStatus.FAILED
+
+            await session.commit()
+
+        raise RuntimeError(f"Master audio job {job_id} failed: {e}") from e

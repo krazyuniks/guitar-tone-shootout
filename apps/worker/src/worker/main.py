@@ -60,7 +60,11 @@ async def example_task(message: str) -> str:
 
 
 # Import job handlers to register them with the broker
-from worker.jobs import handle_shootout_audio_job, handle_shootout_job  # noqa: E402, F401
+from worker.jobs import (  # noqa: E402, F401
+    handle_shootout_audio_job,
+    handle_shootout_job,
+    handle_shootout_master_job,
+)
 from worker.jobs.source_sync import (  # noqa: E402, F401
     handle_backfill_downloads,
     handle_source_sync,

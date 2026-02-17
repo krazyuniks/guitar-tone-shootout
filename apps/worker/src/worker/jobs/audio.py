@@ -7,6 +7,7 @@ measures loudness, and tracks progress.
 
 import os
 from datetime import UTC, datetime
+from logging import getLogger
 from pathlib import Path
 from uuid import UUID
 
@@ -30,6 +31,17 @@ from worker.db import get_session_no_tx as get_session
 from worker.main import broker
 
 STORAGE_ROOT = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
+logger = getLogger(__name__)
+
+
+async def _reconcile_parent(parent_job_id: UUID, database_url: str) -> None:
+    """Best-effort parent reconciliation after child completion/failure."""
+    try:
+        from worker.jobs.shootout import reconcile_parent_after_audio
+
+        await reconcile_parent_after_audio(parent_job_id, database_url)
+    except Exception:
+        logger.exception("Failed to reconcile parent shootout job %s", parent_job_id)
 
 
 async def _resolve_gear_paths(
@@ -92,6 +104,7 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
         RuntimeError: If job processing fails
     """
     database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+    parent_job_id: UUID | None = None
 
     try:
         async with get_session(database_url) as session:
@@ -106,6 +119,7 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             shootout_chain_id = job.entity_id
             if shootout_chain_id is None:
                 raise ValueError(f"Job {job_id} has no entity_id set")
+            parent_job_id = job.parent_job_id
 
             # Mark job as running before loading and processing assets.
             job.status = JobStatus.RUNNING
@@ -157,10 +171,10 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             job.last_heartbeat = datetime.now(UTC)
             await session.commit()
 
-            # Save output as FLAC to processed_data volume
-            output_dir = Path("/processed_data") / str(shootout.id)
+            # Save output as FLAC under the canonical shootout artifact directory.
+            output_dir = STORAGE_ROOT / "shootouts" / str(shootout.id) / "segments"
             output_dir.mkdir(parents=True, exist_ok=True)
-            output_path = output_dir / f"{shootout_chain_id}.flac"
+            output_path = output_dir / f"{shootout_chain.position:02d}_{shootout_chain_id}.flac"
             sf.write(str(output_path), processed_audio, sample_rate)
 
             # Measure loudness
@@ -169,15 +183,29 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             # Calculate duration
             duration_seconds = len(processed_audio) / sample_rate
 
-            # Create AudioSegment record
-            audio_segment = AudioSegment(
-                shootout_chain_id=shootout_chain_id,
-                file_path=str(output_path),
-                duration_seconds=duration_seconds,
-                integrated_lufs=integrated_lufs,
-                peak_dbfs=peak_dbfs,
+            # Idempotent upsert of AudioSegment per shootout_chain_id.
+            segment_stmt = select(AudioSegment).where(
+                AudioSegment.shootout_chain_id == shootout_chain_id
             )
-            session.add(audio_segment)
+            segment_result = await session.execute(segment_stmt)
+            existing_segments = segment_result.scalars().all()
+            if existing_segments:
+                audio_segment = existing_segments[0]
+                audio_segment.file_path = str(output_path)
+                audio_segment.duration_seconds = duration_seconds
+                audio_segment.integrated_lufs = integrated_lufs
+                audio_segment.peak_dbfs = peak_dbfs
+                for duplicate in existing_segments[1:]:
+                    await session.delete(duplicate)
+            else:
+                audio_segment = AudioSegment(
+                    shootout_chain_id=shootout_chain_id,
+                    file_path=str(output_path),
+                    duration_seconds=duration_seconds,
+                    integrated_lufs=integrated_lufs,
+                    peak_dbfs=peak_dbfs,
+                )
+                session.add(audio_segment)
 
             # Update job progress to 100 (complete)
             job.progress = 100
@@ -187,8 +215,12 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
 
             await session.commit()
 
+        if parent_job_id is not None:
+            await _reconcile_parent(parent_job_id, database_url)
+
     except Exception as e:
         # Mark job as failed
+        failed_parent_job_id: UUID | None = None
         async with get_session(database_url) as session:
             stmt = select(Job).where(Job.id == job_id)
             result = await session.execute(stmt)
@@ -197,6 +229,10 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             if job is not None:
                 job.status = JobStatus.FAILED
                 job.error = str(e)
+                failed_parent_job_id = job.parent_job_id
                 await session.commit()
+
+        if failed_parent_job_id is not None:
+            await _reconcile_parent(failed_parent_job_id, database_url)
 
         raise RuntimeError(f"Audio job {job_id} failed: {e}") from e

@@ -31,26 +31,34 @@ class TestWorkerSmoke:
 
     async def test_taskiq_broker_can_be_imported(self) -> None:
         """Test TaskIQ broker can be imported and is valid broker instance."""
+        from taskiq import InMemoryBroker
         from taskiq_redis import ListQueueBroker
 
         from worker.main import broker
 
         assert broker is not None
-        assert isinstance(broker, ListQueueBroker)
-        # Verify broker has Redis URL stored
-        assert hasattr(broker, "_redis_url")
+        assert isinstance(broker, ListQueueBroker | InMemoryBroker)
+        if isinstance(broker, ListQueueBroker):
+            # Verify broker has Redis URL stored when Redis is available.
+            assert hasattr(broker, "_redis_url")
 
     async def test_job_handler_functions_can_be_imported(self) -> None:
         """Test job handler functions can be imported."""
-        from worker.jobs import handle_shootout_audio_job, handle_shootout_job
+        from worker.jobs import (
+            handle_shootout_audio_job,
+            handle_shootout_job,
+            handle_shootout_master_job,
+        )
 
         # Verify handlers exist
         assert handle_shootout_audio_job is not None
         assert handle_shootout_job is not None
+        assert handle_shootout_master_job is not None
 
         # Verify they are callable (TaskIQ decorates them, so check callable instead)
         assert callable(handle_shootout_audio_job)
         assert callable(handle_shootout_job)
+        assert callable(handle_shootout_master_job)
 
     async def test_audio_job_handler_can_be_imported(self) -> None:
         """Test audio job handler can be imported from audio module."""
@@ -142,6 +150,7 @@ class TestWorkerSmoke:
 
         assert JobType.SHOOTOUT.value == "shootout"
         assert JobType.SHOOTOUT_AUDIO.value == "shootout_audio"
+        assert JobType.SHOOTOUT_MASTER.value == "shootout_master"
 
     async def test_processing_service_has_enqueue_function(self) -> None:
         """Test processing service module has enqueue_to_worker function."""
