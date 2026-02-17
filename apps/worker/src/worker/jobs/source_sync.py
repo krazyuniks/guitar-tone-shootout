@@ -225,8 +225,7 @@ async def handle_backfill_downloads(job_id: UUID) -> None:
                     tones_need_download.append((tone, staged_count))
 
             logger.warning(
-                "Backfill phase 1: %d tones published (already complete), "
-                "%d tones need downloads",
+                "Backfill phase 1: %d tones published (already complete), %d tones need downloads",
                 tones_published,
                 len(tones_need_download),
             )
@@ -294,7 +293,7 @@ async def handle_backfill_downloads(job_id: UUID) -> None:
                 break
 
             logger.warning(
-                "Backfill complete: %d tones published, %d models fetched, " "%d files downloaded",
+                "Backfill complete: %d tones published, %d models fetched, %d files downloaded",
                 tones_published,
                 models_fetched,
                 files_downloaded,
