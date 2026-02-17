@@ -5,6 +5,7 @@ Fragments are used by HTMX for dynamic page updates without full page reloads.
 All fragments return HTMLResponse with Jinja2 templates.
 """
 
+from html import escape
 from math import ceil
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -15,10 +16,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from core.domain.value_objects.job_status import JobStatus
 from core.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
-from webapp.adapters.persistence.models.shootout import DITrack, Shootout
+from webapp.adapters.persistence.models.job import Job
+from webapp.adapters.persistence.models.shootout import DITrack, Shootout, ShootoutChain
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.adapters.persistence.repositories.gear_repository import (
@@ -55,6 +58,67 @@ def _format_duration(seconds: float | None) -> str:
     mins = int(seconds // 60)
     secs = int(seconds % 60)
     return f"{mins}:{secs:02d}"
+
+
+def _shootout_status_value(status_value: object) -> str:
+    """Convert shootout status to canonical template value."""
+    value = status_value.value if hasattr(status_value, "value") else str(status_value)
+    if value == "running":
+        return "processing"
+    return value
+
+
+def _build_shootout_detail_context(shootout: Shootout) -> dict[str, object]:
+    """Build template context for shootout detail fragment."""
+    chains = sorted(shootout.chains, key=lambda chain: chain.position)
+    chain_items = [
+        {
+            "id": str(chain.id),
+            "position": chain.position + 1,  # Display is 1-indexed in UI labels.
+            "label": chain.label,
+            "chain_name": chain.signal_chain.name if chain.signal_chain else chain.label,
+        }
+        for chain in chains
+    ]
+
+    duration = _format_duration(shootout.di_track.duration_seconds) if shootout.di_track else None
+    di_track = (
+        {
+            "id": str(shootout.di_track.id),
+            "name": shootout.di_track.name,
+            "duration": duration,
+        }
+        if shootout.di_track
+        else None
+    )
+
+    output_path = shootout.output_path or shootout.video_path
+    shootout_context = {
+        "id": str(shootout.id),
+        "name": shootout.name,
+        "description": shootout.description,
+        "status": _shootout_status_value(shootout.status),
+        "output_path": output_path,
+    }
+
+    creator = (
+        {
+            "id": str(shootout.user.id),
+            "username": shootout.user.username,
+        }
+        if shootout.user
+        else None
+    )
+
+    return {
+        "shootout": shootout_context,
+        "creator": creator,
+        "relative_time": _relative_time(shootout.created_at),
+        "tone_count": len(chain_items),
+        "di_track": di_track,
+        "chains": chain_items,
+        "is_owner": True,
+    }
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -1161,6 +1225,106 @@ async def shootouts_sections_fragment(
     )
 
 
+# Shootout Detail + Actions
+
+
+@router.get("/shootouts/{shootout_id}", response_class=HTMLResponse)
+async def shootout_detail_fragment(
+    request: Request,
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render shootout detail fragment for owned shootouts."""
+    stmt = (
+        select(Shootout)
+        .where(Shootout.id == shootout_id)
+        .options(
+            joinedload(Shootout.user),
+            joinedload(Shootout.di_track),
+            joinedload(Shootout.chains).joinedload(ShootoutChain.signal_chain),
+        )
+    )
+    result = await db.execute(stmt)
+    shootout = result.unique().scalar_one_or_none()
+
+    if shootout is None or shootout.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/detail.html",
+        _build_shootout_detail_context(shootout),
+    )
+
+
+@router.delete("/shootouts/{shootout_id}", response_class=HTMLResponse)
+async def shootout_delete_fragment(
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Delete an owned shootout and redirect back to shootout list."""
+    stmt = select(Shootout).where(Shootout.id == shootout_id)
+    result = await db.execute(stmt)
+    shootout = result.scalar_one_or_none()
+
+    if shootout is None or shootout.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
+
+    await db.delete(shootout)
+    await db.commit()
+
+    response = HTMLResponse(content="", status_code=status.HTTP_200_OK)
+    response.headers["HX-Redirect"] = "/shootouts"
+    return response
+
+
+@router.patch("/shootouts/{shootout_id}/title", response_class=HTMLResponse)
+async def shootout_title_update_fragment(
+    request: Request,
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Update an owned shootout title and return refreshed detail fragment."""
+    form = await request.form()
+    new_name = str(form.get("name", "")).strip()
+    if not new_name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Shootout name cannot be empty",
+        )
+
+    stmt = (
+        select(Shootout)
+        .where(Shootout.id == shootout_id)
+        .options(
+            joinedload(Shootout.user),
+            joinedload(Shootout.di_track),
+            joinedload(Shootout.chains).joinedload(ShootoutChain.signal_chain),
+        )
+    )
+    result = await db.execute(stmt)
+    shootout = result.unique().scalar_one_or_none()
+
+    if shootout is None or shootout.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
+
+    shootout.name = new_name
+    await db.commit()
+    refreshed_result = await db.execute(stmt)
+    refreshed_shootout = refreshed_result.unique().scalar_one_or_none()
+    if refreshed_shootout is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
+
+    return templates.TemplateResponse(
+        request,
+        "fragments/shootouts/detail.html",
+        _build_shootout_detail_context(refreshed_shootout),
+    )
+
+
 # Shootout Comments
 
 
@@ -1198,6 +1362,50 @@ async def shootout_comments_fragment(
             "current_user": current_user,
         },
     )
+
+
+# Job Fragments
+
+
+@router.get("/jobs/{job_id}", response_class=HTMLResponse)
+async def job_status_fragment(
+    job_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> HTMLResponse:
+    """Render an HTMX fragment with current job status for the owner."""
+    stmt = select(Job).where(Job.id == job_id)
+    result = await db.execute(stmt)
+    job = result.scalar_one_or_none()
+
+    if job is None or job.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    status_value = job.status.value if hasattr(job.status, "value") else str(job.status)
+    should_poll = job.status in JobStatus.active_states()
+    message = escape(job.message or "")
+    error = escape(job.error or "")
+    job_type = escape(job.job_type.value if hasattr(job.job_type, "value") else str(job.job_type))
+
+    html = [
+        '<div class="container mx-auto px-4 py-8 max-w-2xl">',
+        '<div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-6" '
+        f'data-polling="{str(should_poll).lower()}">',
+        f'<h1 class="text-xl font-semibold text-[var(--color-text-primary)] mb-2">Job {escape(str(job.id))}</h1>',
+        f'<p class="text-sm text-[var(--color-text-secondary)] mb-1">Type: {job_type}</p>',
+        f'<p class="text-sm text-[var(--color-text-secondary)] mb-1">Status: {escape(status_value)}</p>',
+        f'<p class="text-sm text-[var(--color-text-secondary)] mb-4">Progress: {job.progress}%</p>',
+    ]
+
+    if message:
+        html.append(
+            f'<p class="text-sm text-[var(--color-text-primary)] mb-2" data-testid="job-message">{message}</p>'
+        )
+    if error:
+        html.append(f'<p class="text-sm text-red-400" data-testid="job-error">Error: {error}</p>')
+
+    html.append("</div></div>")
+    return HTMLResponse(content="".join(html), status_code=status.HTTP_200_OK)
 
 
 # Gear Model Toggle (save/unsave)
