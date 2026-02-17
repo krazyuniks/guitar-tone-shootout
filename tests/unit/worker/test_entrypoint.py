@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import signal
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -25,6 +24,30 @@ from worker.entrypoint import (
     run_taskiq_worker,
     start_all_processes,
 )
+
+
+class FakeProcess:
+    """Test double for asyncio.subprocess.Process."""
+
+    def __init__(self, pid: int = 100, exit_code: int = 0) -> None:
+        self.pid = pid
+        self._exit_code = exit_code
+        self.terminated = False
+        self._wait_called = False
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    async def wait(self) -> int:
+        self._wait_called = True
+        return self._exit_code
+
+
+class FakeProcessRaisesOnTerminate(FakeProcess):
+    """FakeProcess that raises ProcessLookupError on terminate."""
+
+    def terminate(self) -> None:
+        raise ProcessLookupError
 
 
 class TestProcessManager:
@@ -42,10 +65,8 @@ class TestProcessManager:
 
     def test_add_process(self, manager: ProcessManager) -> None:
         """ProcessManager can track a subprocess."""
-        mock_process = MagicMock()
-        mock_process.pid = 12345
-
-        manager.add_process(mock_process)
+        process = FakeProcess(pid=12345)
+        manager.add_process(process)
 
         assert len(manager.processes) == 1
         assert manager.processes[0].pid == 12345
@@ -53,115 +74,86 @@ class TestProcessManager:
     def test_signal_shutdown(self, manager: ProcessManager) -> None:
         """signal_shutdown sets the shutdown event."""
         assert manager.shutdown_event.is_set() is False
-
         manager.signal_shutdown()
-
         assert manager.shutdown_event.is_set() is True
 
     async def test_wait_for_shutdown(self, manager: ProcessManager) -> None:
         """wait_for_shutdown blocks until shutdown_event is set."""
-        # Start waiting in background
         wait_task = asyncio.create_task(manager.wait_for_shutdown())
 
-        # Should not complete immediately
         await asyncio.sleep(0.01)
         assert not wait_task.done()
 
-        # Signal shutdown
         manager.signal_shutdown()
-
-        # Should complete now
         await asyncio.wait_for(wait_task, timeout=0.1)
         assert wait_task.done()
 
     async def test_terminate_all_processes(self, manager: ProcessManager) -> None:
         """terminate_all sends SIGTERM to all tracked processes."""
-        mock_process_1 = MagicMock()
-        mock_process_1.pid = 100
-        mock_process_1.terminate = MagicMock()
-        mock_process_1.wait = AsyncMock(return_value=0)
+        proc1 = FakeProcess(pid=100)
+        proc2 = FakeProcess(pid=101)
 
-        mock_process_2 = MagicMock()
-        mock_process_2.pid = 101
-        mock_process_2.terminate = MagicMock()
-        mock_process_2.wait = AsyncMock(return_value=0)
-
-        manager.add_process(mock_process_1)
-        manager.add_process(mock_process_2)
+        manager.add_process(proc1)
+        manager.add_process(proc2)
 
         await manager.terminate_all()
 
-        # Both processes should be terminated
-        mock_process_1.terminate.assert_called_once()
-        mock_process_2.terminate.assert_called_once()
-
-        # Both processes should be waited on
-        mock_process_1.wait.assert_called_once()
-        mock_process_2.wait.assert_called_once()
+        assert proc1.terminated is True
+        assert proc2.terminated is True
+        assert proc1._wait_called is True
+        assert proc2._wait_called is True
 
     async def test_terminate_all_with_process_exception(self, manager: ProcessManager) -> None:
         """terminate_all handles ProcessLookupError gracefully."""
-        mock_process = MagicMock()
-        mock_process.pid = 100
-        mock_process.terminate = MagicMock(side_effect=ProcessLookupError)
-        mock_process.wait = AsyncMock(return_value=0)
-
-        manager.add_process(mock_process)
+        proc = FakeProcessRaisesOnTerminate(pid=100)
+        manager.add_process(proc)
 
         # Should not raise exception
         await manager.terminate_all()
-
-        mock_process.terminate.assert_called_once()
 
 
 class TestProcessRunners:
     """Tests for individual process runner functions."""
 
-    async def test_run_admin_api_starts_uvicorn(self) -> None:
+    async def test_run_admin_api_starts_uvicorn(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """run_admin_api spawns uvicorn process with correct arguments."""
         manager = ProcessManager()
+        fake_process = FakeProcess(pid=200)
 
-        mock_process = MagicMock()
-        mock_process.pid = 200
+        async def fake_subprocess(*_args, **_kwargs):
+            return fake_process
 
-        with patch(
-            "asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process
-        ):
-            await run_admin_api(manager)
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess)
+        await run_admin_api(manager)
 
-        # Process should be tracked by manager
         assert len(manager.processes) == 1
         assert manager.processes[0].pid == 200
 
-    async def test_run_taskiq_worker_starts_worker(self) -> None:
+    async def test_run_taskiq_worker_starts_worker(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """run_taskiq_worker spawns taskiq worker process."""
         manager = ProcessManager()
+        fake_process = FakeProcess(pid=201)
 
-        mock_process = MagicMock()
-        mock_process.pid = 201
+        async def fake_subprocess(*_args, **_kwargs):
+            return fake_process
 
-        with patch(
-            "asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process
-        ):
-            await run_taskiq_worker(manager)
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess)
+        await run_taskiq_worker(manager)
 
-        # Process should be tracked by manager
         assert len(manager.processes) == 1
         assert manager.processes[0].pid == 201
 
-    async def test_run_pgmq_consumer_starts_consumer(self) -> None:
+    async def test_run_pgmq_consumer_starts_consumer(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """run_pgmq_consumer spawns pgmq consumer process."""
         manager = ProcessManager()
+        fake_process = FakeProcess(pid=202)
 
-        mock_process = MagicMock()
-        mock_process.pid = 202
+        async def fake_subprocess(*_args, **_kwargs):
+            return fake_process
 
-        with patch(
-            "asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process
-        ):
-            await run_pgmq_consumer(manager)
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess)
+        await run_pgmq_consumer(manager)
 
-        # Process should be tracked by manager
         assert len(manager.processes) == 1
         assert manager.processes[0].pid == 202
 
@@ -172,38 +164,20 @@ class TestFailFast:
     async def test_process_exit_zero_triggers_shutdown(self) -> None:
         """Process exiting with code 0 triggers graceful shutdown."""
         manager = ProcessManager()
+        proc = FakeProcess(pid=100, exit_code=0)
+        manager.add_process(proc)
 
-        # Simulate a process that exits cleanly
-        mock_process = MagicMock()
-        mock_process.pid = 100
-        mock_process.wait = AsyncMock(return_value=0)
-        mock_process.terminate = MagicMock()
-
-        manager.add_process(mock_process)
-
-        # Wait for process to exit
-        exit_code = await mock_process.wait()
-
+        exit_code = await proc.wait()
         assert exit_code == 0
-        # In the real implementation, this should trigger manager.signal_shutdown()
 
     async def test_process_exit_nonzero_triggers_shutdown(self) -> None:
         """Process exiting with non-zero code triggers shutdown."""
         manager = ProcessManager()
+        proc = FakeProcess(pid=100, exit_code=1)
+        manager.add_process(proc)
 
-        # Simulate a process that crashes
-        mock_process = MagicMock()
-        mock_process.pid = 100
-        mock_process.wait = AsyncMock(return_value=1)
-        mock_process.terminate = MagicMock()
-
-        manager.add_process(mock_process)
-
-        # Wait for process to exit
-        exit_code = await mock_process.wait()
-
+        exit_code = await proc.wait()
         assert exit_code == 1
-        # In the real implementation, this should trigger manager.signal_shutdown()
 
 
 class TestSignalHandling:
@@ -212,94 +186,81 @@ class TestSignalHandling:
     def test_handle_shutdown_sets_shutdown_event(self) -> None:
         """handle_shutdown callback sets the shutdown event."""
         manager = ProcessManager()
-
         assert manager.shutdown_event.is_set() is False
 
-        # Simulate signal handler invocation
         handle_shutdown(manager, signal.SIGTERM, None)
-
         assert manager.shutdown_event.is_set() is True
 
     def test_handle_shutdown_accepts_sigint(self) -> None:
         """handle_shutdown handles SIGINT as well as SIGTERM."""
         manager = ProcessManager()
-
         assert manager.shutdown_event.is_set() is False
 
-        # Simulate SIGINT (Ctrl+C)
         handle_shutdown(manager, signal.SIGINT, None)
-
         assert manager.shutdown_event.is_set() is True
 
 
 class TestEntrypointIntegration:
     """Integration tests for the full entrypoint orchestration."""
 
-    async def test_start_all_processes_launches_three_processes(self) -> None:
+    async def test_start_all_processes_launches_three_processes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """start_all_processes launches admin API, worker, and consumer."""
-        mock_process = MagicMock()
-        mock_process.pid = 300
-        mock_process.wait = AsyncMock(side_effect=asyncio.CancelledError)
-        mock_process.terminate = MagicMock()
 
-        with patch(
-            "asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_process
-        ):
-            # start_all_processes runs forever; launch and cancel quickly
-            task = asyncio.create_task(start_all_processes())
-            await asyncio.sleep(0.05)
-            task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
+        class HangingProcess(FakeProcess):
+            """Process whose wait() hangs until terminated."""
 
-        # Should have created 3 subprocess calls (admin, worker, consumer)
-        # Exact count depends on implementation but at least 2 processes tracked
+            def __init__(self, **kwargs) -> None:
+                super().__init__(**kwargs)
+                self._done = asyncio.Event()
+
+            def terminate(self) -> None:
+                self.terminated = True
+                self._done.set()
+
+            async def wait(self) -> int:
+                await self._done.wait()
+                return 0
+
+        async def fake_subprocess(*_args, **_kwargs):
+            return HangingProcess(pid=300)
+
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_subprocess)
+
+        task = asyncio.create_task(start_all_processes())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
 
     async def test_graceful_shutdown_on_sigterm(self) -> None:
         """SIGTERM triggers graceful shutdown of all processes."""
         manager = ProcessManager()
+        proc = FakeProcess(pid=301)
+        manager.add_process(proc)
 
-        mock_process = MagicMock()
-        mock_process.pid = 301
-        mock_process.terminate = MagicMock()
-        mock_process.wait = AsyncMock(return_value=0)
-
-        manager.add_process(mock_process)
-
-        # Simulate SIGTERM
         handle_shutdown(manager, signal.SIGTERM, None)
-
         assert manager.shutdown_event.is_set() is True
 
-        # Graceful shutdown should terminate all processes
         await manager.terminate_all()
-        mock_process.terminate.assert_called_once()
+        assert proc.terminated is True
 
     async def test_fail_fast_on_child_exit(self) -> None:
         """If any child exits non-zero, all processes terminate."""
         manager = ProcessManager()
 
-        # Process that exits with error
-        failing_process = MagicMock()
-        failing_process.pid = 302
-        failing_process.wait = AsyncMock(return_value=1)
-        failing_process.terminate = MagicMock()
+        failing_proc = FakeProcess(pid=302, exit_code=1)
+        healthy_proc = FakeProcess(pid=303, exit_code=0)
 
-        # Process still running
-        healthy_process = MagicMock()
-        healthy_process.pid = 303
-        healthy_process.terminate = MagicMock()
-        healthy_process.wait = AsyncMock(return_value=0)
+        manager.add_process(failing_proc)
+        manager.add_process(healthy_proc)
 
-        manager.add_process(failing_process)
-        manager.add_process(healthy_process)
-
-        # When a child exits, shutdown should be signalled
-        exit_code = await failing_process.wait()
+        exit_code = await failing_proc.wait()
         assert exit_code != 0
 
         manager.signal_shutdown()
         assert manager.shutdown_event.is_set() is True
 
         await manager.terminate_all()
-        healthy_process.terminate.assert_called_once()
+        assert healthy_proc.terminated is True
