@@ -62,7 +62,7 @@ def _build_model_downloader(session, api_client: T3KAPIClient) -> ModelDownloade
     Shares the API client's httpx client so downloads use the same
     browser-like headers and cookies, avoiding Vercel bot detection.
     """
-    base_path = Path(os.getenv("T3K_SOURCE_DOWNLOADS_PATH", "/app/processed/source_downloads/t3k"))
+    base_path = Path(os.environ["GTS_STORAGE_ROOT"]) / "source_downloads" / "t3k"
     return ModelDownloader(
         base_path=base_path,
         session=session,

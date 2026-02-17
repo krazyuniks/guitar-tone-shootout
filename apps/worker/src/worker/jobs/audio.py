@@ -30,7 +30,7 @@ from webapp.adapters.persistence.models.user_gear import UserGear
 from worker.db import get_session_no_tx as get_session
 from worker.main import broker
 
-STORAGE_ROOT = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
+STORAGE_ROOT = Path(os.environ["GTS_STORAGE_ROOT"])
 logger = getLogger(__name__)
 
 
@@ -172,7 +172,7 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             await session.commit()
 
             # Save output as FLAC under the canonical shootout artifact directory.
-            output_dir = STORAGE_ROOT / "shootouts" / str(shootout.id) / "segments"
+            output_dir = STORAGE_ROOT / "audio" / str(shootout.id) / "segments"
             output_dir.mkdir(parents=True, exist_ok=True)
             output_path = output_dir / f"{shootout_chain.position:02d}_{shootout_chain_id}.flac"
             sf.write(str(output_path), processed_audio, sample_rate)

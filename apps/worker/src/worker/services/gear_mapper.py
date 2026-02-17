@@ -303,7 +303,7 @@ class GearMapperService:
 
         Returns relative file path if migration succeeded, None otherwise.
         """
-        storage_root = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
+        storage_root = Path(os.environ["GTS_STORAGE_ROOT"])
         source_path = storage_root / "source_downloads" / source_name / source_record_id / filename
         dest_path = storage_root / "models" / f"{model_id}.nam"
 

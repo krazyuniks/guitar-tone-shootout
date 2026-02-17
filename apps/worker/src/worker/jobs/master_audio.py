@@ -27,7 +27,7 @@ from webapp.adapters.persistence.models.shootout import ShootoutStatus
 from worker.db import get_session, get_session_no_tx
 from worker.main import broker
 
-STORAGE_ROOT = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
+STORAGE_ROOT = Path(os.environ["GTS_STORAGE_ROOT"])
 
 
 async def create_master_audio(shootout_id: UUID, database_url: str | None = None) -> None:
@@ -57,6 +57,7 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
         if shootout is None:
             raise ValueError(f"Shootout {shootout_id} not found")
 
+        # Handle empty shootout (no chains)
         if not shootout.chains:
             return
 
@@ -67,12 +68,8 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
             return
 
         # Create output directory for shootout artifacts.
-        try:
-            output_dir = STORAGE_ROOT / "shootouts" / str(shootout_id)
-            output_dir.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            # Path may be mocked in tests; fall back to string path handling.
-            output_dir = f"/app/processed/shootouts/{shootout_id}"
+        output_dir = STORAGE_ROOT / "audio" / str(shootout_id)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # Process each segment: normalize and update loudness values
         normalized_files = []
@@ -81,6 +78,7 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
                 input_path = Path(segment.file_path)
                 normalized_path = output_dir / f"normalized_{input_path.name}"
 
+                # Normalize loudness to -14.0 LUFS
                 result_lufs, result_peak_dbfs = normalize_loudness(
                     input_path, normalized_path, target_lufs=-14.0
                 )
@@ -113,6 +111,7 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
                 )
                 current_time += duration
 
+        # Save master audio as FLAC
         master_path = output_dir / "master.flac"
         sf.write(master_path, master_audio, sample_rate)
 
