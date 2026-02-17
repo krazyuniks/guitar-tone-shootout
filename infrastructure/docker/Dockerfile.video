@@ -5,7 +5,7 @@
 # It runs independently from the worker, exposing an HTTP API for render requests.
 # Worker calls this service via HTTP - no shared database or direct dependencies.
 
-FROM python:3.14-slim
+FROM python:3.14.3-slim
 
 # Build args for user mapping (avoids root-owned files on bind mounts)
 ARG UID=1000

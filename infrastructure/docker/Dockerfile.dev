@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # GTS Development - Unified dev container with hot reload
 
-FROM python:3.14-slim
+FROM python:3.14.3-slim
 
 # Build args for user mapping (avoids root-owned files on bind mounts)
 ARG UID=1000

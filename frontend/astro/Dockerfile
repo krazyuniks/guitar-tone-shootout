@@ -1,4 +1,4 @@
-FROM node:24-alpine
+FROM node:24.13.1-alpine
 
 # Build args for user mapping (avoids root-owned files on bind mounts)
 ARG UID=1000
