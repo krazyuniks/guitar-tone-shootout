@@ -54,7 +54,7 @@ rebuild *ARGS:
 # =============================================================================
 
 # Run all quality checks (read-only — safe in Docker with :ro mounts)
-check: check-lint check-types check-tests check-imports
+check: check-lint check-types check-tests check-imports test-quality
 
 # Run type checking (strict on core, TypeScript on video)
 check-types:
