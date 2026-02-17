@@ -11,7 +11,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,7 @@ console = Console()
 PENDING_TIMEOUT_SECONDS = 120  # 2 minutes
 
 
-class OperationStatus(str, Enum):
+class OperationStatus(StrEnum):
     """Status of a lifecycle operation."""
 
     PENDING = "pending"

@@ -16,7 +16,7 @@
  *   />
  */
 import React from 'react';
-import { Player, PlayerRef } from '@remotion/player';
+import { Player, type PlayerRef } from '@remotion/player';
 
 export interface RemotionPlayerProps {
   /** The Remotion composition component to render */

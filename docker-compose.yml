@@ -76,34 +76,25 @@ services:
       - path: .env.secrets
         required: false
     volumes:
-      - ./libs:/app/libs:ro
-      # libs/video needs to be writable for integration tests (temp files)
-      - ./libs/video:/app/libs/video
+      - ./libs:/app/libs
       - ./apps/webapp:/app/apps/webapp
-      - ./apps/scheduler:/app/apps/scheduler:ro
-      - ./apps/worker:/app/apps/worker:ro
-      - ./frontend/astro/dist:/app/static:ro
-      - ./frontend/astro:/app/frontend/astro:ro
+      - ./apps/scheduler:/app/apps/scheduler
+      - ./apps/worker:/app/apps/worker
+      - ./frontend/astro/dist:/app/static
+      - ./frontend/astro:/app/frontend/astro
       - ../gts-storage:/app/storage
-      # Source code for execution
-      - ./src:/app/src:ro
-      - ./sources:/app/sources:ro
-      - ./tests:/app/tests:ro
-      # Infrastructure (migrations, docker configs, nginx error pages)
-      - ./infrastructure/migrations:/app/infrastructure/migrations:ro
-      - ./infrastructure/docker:/app/infrastructure/docker:ro
-      - ./infrastructure/nginx:/app/infrastructure/nginx:ro
-      # Claude skills (for documentation tests)
-      - ./.claude:/app/.claude:ro
-      # Worktree templates for integration tests
-      - ./worktree:/app/worktree:ro
-      # Docker compose files for integration tests
-      - ./docker-compose.yml:/app/docker-compose.yml:ro
-      # Tooling files for integration tests
-      - ./justfile:/app/justfile:ro
-      - ./pyproject.toml:/app/pyproject.toml:ro
-      # Scripts (CLI tools)
-      - ./scripts:/app/scripts:ro
+      - ./src:/app/src
+      - ./sources:/app/sources
+      - ./tests:/app/tests
+      - ./infrastructure/migrations:/app/infrastructure/migrations
+      - ./infrastructure/docker:/app/infrastructure/docker
+      - ./infrastructure/nginx:/app/infrastructure/nginx
+      - ./.claude:/app/.claude
+      - ./worktree:/app/worktree
+      - ./docker-compose.yml:/app/docker-compose.yml
+      - ./justfile:/app/justfile
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./scripts:/app/scripts
     depends_on:
       db:
         condition: service_healthy

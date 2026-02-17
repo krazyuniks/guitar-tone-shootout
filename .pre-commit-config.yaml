@@ -4,6 +4,7 @@
 # Install: prek install
 #
 # Auto-fixes lint/format issues on commit. Review changes in git diff.
+# Python linting runs inside Docker (single source of truth for ruff version).
 
 repos:
   # Built-in Rust-native hooks (instant execution, no environment setup)
@@ -18,17 +19,21 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-  # Ruff linting and formatting (auto-fix enabled)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.14
-    hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
-
-  # Local hooks (all via just or scripts/)
+  # All project hooks run via Docker — no host Python tools
   - repo: local
     hooks:
+      - id: ruff
+        name: ruff
+        entry: scripts/ruff-hook.sh check
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: ruff format
+        entry: scripts/ruff-hook.sh format
+        language: system
+        types: [python]
+
       - id: check-dev-docs
         name: Validate dev-docs exist
         entry: scripts/check-dev-docs.sh
@@ -37,7 +42,7 @@ repos:
         pass_filenames: false
 
       - id: astro-lint
-        name: Astro lint (graceful if Docker not running)
+        name: Astro lint
         entry: scripts/astro-lint.sh
         language: system
         files: \.(ts|tsx|astro|css)$
