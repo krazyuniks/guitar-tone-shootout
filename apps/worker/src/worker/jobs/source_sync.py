@@ -139,16 +139,19 @@ async def handle_source_sync(job_id: UUID) -> None:
 async def handle_backfill_downloads(job_id: UUID) -> None:
     """Backfill missing models and NAM files for staged tones, then publish complete tones.
 
-    For each staged tone:
-    1. If staged model count < tone.models_count → fetch models from API
-    2. For each model missing a NAM file on disk → download it
-    3. Once all models staged AND all files present → publish to gear_sync
+    Phase 1 (no API calls): publish tones that already have all models staged
+    and all files on disk.
+
+    Phase 2 (API calls): for tones needing downloads, fetch models and files.
+    Stops immediately on first API error (Vercel challenge, rate limit, auth)
+    to avoid hammering the upstream.
     """
     import logging
     from pathlib import PurePosixPath
 
     from sqlalchemy import func, select
 
+    from source_t3k.adapters.inbound.exceptions import T3KAPIError
     from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
 
     logger = logging.getLogger(__name__)
@@ -188,27 +191,71 @@ async def handle_backfill_downloads(job_id: UUID) -> None:
             )
             result = await session.execute(stmt)
             rows = result.all()
-            logger.info("Backfill: %d tones to check", len(rows))
+            logger.warning("Backfill: %d tones to check", len(rows))
 
+            tones_published = 0
+            tones_need_download = []
+
+            # Phase 1: publish tones that are already complete (no API calls).
+            for tone, staged_count in rows:
+                if staged_count < tone.models_count:
+                    tones_need_download.append((tone, staged_count))
+                    continue
+
+                models_result = await session.execute(
+                    select(T3KModelStaging).where(T3KModelStaging.tone_id == tone.id)
+                )
+                models = list(models_result.scalars().all())
+                if not models:
+                    continue
+
+                all_files_present = True
+                for model in models:
+                    filename = PurePosixPath(model.model_url).name or f"{model.id}.nam"
+                    file_path = base_path / str(model.id) / filename
+                    if not file_path.exists():
+                        all_files_present = False
+                        break
+
+                if all_files_present and len(models) >= tone.models_count:
+                    await publisher.publish_tone(tone, models=models)
+                    await session.commit()
+                    tones_published += 1
+                else:
+                    tones_need_download.append((tone, staged_count))
+
+            logger.warning(
+                "Backfill phase 1: %d tones published (already complete), "
+                "%d tones need downloads",
+                tones_published,
+                len(tones_need_download),
+            )
+
+            # Phase 2: fetch missing models/files. Stop on first API error.
             models_fetched = 0
             files_downloaded = 0
-            tones_published = 0
 
-            for tone, staged_count in rows:
-                # Step 1: fetch missing models from API if count is short.
-                if staged_count < tone.models_count:
-                    api_models = await api_client.get_models(tone.id)
-                    for api_model in api_models:
-                        existing = await session.execute(
-                            select(T3KModelStaging.id).where(T3KModelStaging.id == api_model.id)
-                        )
-                        if existing.scalar_one_or_none() is None:
-                            staging_model = T3KModelStaging.from_domain(api_model)
-                            session.add(staging_model)
-                            models_fetched += 1
-                    await session.flush()
+            for tone, staged_count in tones_need_download:
+                try:
+                    if staged_count < tone.models_count:
+                        api_models = await api_client.get_models(tone.id)
+                        for api_model in api_models:
+                            existing = await session.execute(
+                                select(T3KModelStaging.id).where(T3KModelStaging.id == api_model.id)
+                            )
+                            if existing.scalar_one_or_none() is None:
+                                staging_model = T3KModelStaging.from_domain(api_model)
+                                session.add(staging_model)
+                                models_fetched += 1
+                        await session.flush()
+                except T3KAPIError as exc:
+                    logger.error(
+                        "Backfill stopping: API error fetching models for tone %s: %s",
+                        tone.id,
+                        exc,
+                    )
+                    break
 
-                # Step 2: get all models for this tone and download missing files.
                 models_result = await session.execute(
                     select(T3KModelStaging).where(T3KModelStaging.tone_id == tone.id)
                 )
@@ -222,23 +269,35 @@ async def handle_backfill_downloads(job_id: UUID) -> None:
                     file_path = base_path / str(model.id) / filename
                     if file_path.exists():
                         continue
-                    downloaded = await downloader.download_model(model)
+                    try:
+                        downloaded = await downloader.download_model(model)
+                    except T3KAPIError as exc:
+                        logger.error(
+                            "Backfill stopping: API error downloading model %s: %s",
+                            model.id,
+                            exc,
+                        )
+                        all_files_present = False
+                        break
                     if downloaded is not None:
                         files_downloaded += 1
                     else:
                         all_files_present = False
+                else:
+                    # Only publish if the inner loop completed without break.
+                    if all_files_present and len(models) >= tone.models_count:
+                        await publisher.publish_tone(tone, models=models)
+                        await session.commit()
+                        tones_published += 1
+                    continue
+                # Inner loop broke — stop processing further tones.
+                break
 
-                # Step 3: publish only if ALL models staged and ALL files present.
-                if all_files_present and len(models) >= tone.models_count:
-                    await publisher.publish_tone(tone, models=models)
-                    await session.commit()
-                    tones_published += 1
-
-            logger.info(
-                "Backfill complete: %d models fetched, %d files downloaded, %d tones published",
+            logger.warning(
+                "Backfill complete: %d tones published, %d models fetched, " "%d files downloaded",
+                tones_published,
                 models_fetched,
                 files_downloaded,
-                tones_published,
             )
     finally:
         renew_task.cancel()

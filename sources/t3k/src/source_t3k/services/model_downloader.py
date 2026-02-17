@@ -48,8 +48,12 @@ class ModelDownloader:
         """Download a single model file.
 
         Skips download if file already exists.
-        Retries up to 3 times on failure.
+        Retries up to 3 times on transient failure.
+        Raises T3KAPIError immediately on Vercel challenge or rate limit.
         """
+        from source_t3k.adapters.inbound.exceptions import T3KAPIError
+        from source_t3k.adapters.inbound.vercel_solver import is_vercel_challenge
+
         path = self._get_model_path(model)
 
         if path.exists():
@@ -71,6 +75,12 @@ class ModelDownloader:
                 response = await self._http_client.get(
                     model.model_url, headers=headers, follow_redirects=True
                 )
+                if response.status_code == 429:
+                    raise T3KAPIError("Rate limit exceeded during model download")
+                if response.status_code >= 400:
+                    body = response.text
+                    if is_vercel_challenge(response.status_code, body):
+                        raise T3KAPIError("Vercel challenge during model download")
                 response.raise_for_status()
                 content = response.content
 
@@ -78,6 +88,8 @@ class ModelDownloader:
                 path.write_bytes(content)
                 return path
 
+            except T3KAPIError:
+                raise
             except Exception:
                 if path.exists():
                     path.unlink()
