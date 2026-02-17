@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -196,14 +195,16 @@ class TestProcessingTriggerEndpoint:
     async def test_returns_404_for_nonexistent_shootout(
         self,
         authenticated_client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint returns 404 when shootout does not exist."""
         nonexistent_id = uuid4()
 
-        with patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock):
-            response = await authenticated_client.post(
-                f"/api/v1/shootouts/{nonexistent_id}/process"
-            )
+        async def fake_enqueue(_job_id):
+            pass
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+        response = await authenticated_client.post(f"/api/v1/shootouts/{nonexistent_id}/process")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -214,19 +215,24 @@ class TestProcessingTriggerEndpoint:
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
         other_user: User,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint returns 404 when shootout is owned by different user."""
         from webapp.api.v1.shootouts import set_session_override, set_user_override
+
+        async def fake_enqueue(_job_id):
+            pass
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         # Set up client authenticated as other_user
         set_session_override(db_session)
         set_user_override(other_user)
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            with patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock):
-                response = await client.post(
-                    f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
-                )
+            response = await client.post(
+                f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            )
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -311,16 +317,22 @@ class TestProcessingTriggerEndpoint:
         assert response.status_code == 400
         assert "already" in response.json()["detail"].lower()
 
-    @patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock)
     async def test_creates_job_record(
         self,
-        mock_enqueue: AsyncMock,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
         test_user: User,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint creates a Job record in the database."""
+        enqueue_calls: list[UUID] = []
+
+        async def fake_enqueue(job_id):
+            enqueue_calls.append(job_id)
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+
         response = await authenticated_client.post(
             f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -340,15 +352,20 @@ class TestProcessingTriggerEndpoint:
         assert job.user_id == test_user.id
         assert job.status == JobStatus.PENDING.value
 
-    @patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock)
     async def test_updates_shootout_status_to_pending(
         self,
-        mock_enqueue: AsyncMock,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint updates shootout status to PENDING."""
+
+        async def fake_enqueue(_job_id):
+            pass
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+
         response = await authenticated_client.post(
             f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -359,14 +376,20 @@ class TestProcessingTriggerEndpoint:
         await db_session.refresh(draft_shootout_with_chains)
         assert draft_shootout_with_chains.status == ShootoutStatus.PENDING
 
-    @patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock)
     async def test_calls_worker_admin_api(
         self,
-        mock_enqueue: AsyncMock,
         authenticated_client: AsyncClient,
         draft_shootout_with_chains: ShootoutModel,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint sends HTTP POST to worker admin API."""
+        enqueue_calls: list[UUID] = []
+
+        async def fake_enqueue(job_id):
+            enqueue_calls.append(job_id)
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+
         response = await authenticated_client.post(
             f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -374,20 +397,23 @@ class TestProcessingTriggerEndpoint:
         assert response.status_code == 202
 
         # Verify enqueue_to_worker was called with a UUID
-        assert mock_enqueue.called
-        call_args = mock_enqueue.call_args
-        job_id = call_args[0][0]
-        assert isinstance(job_id, UUID)
+        assert len(enqueue_calls) == 1
+        assert isinstance(enqueue_calls[0], UUID)
 
-    @patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock)
     async def test_returns_202_with_job_id(
         self,
-        mock_enqueue: AsyncMock,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint returns 202 with job_id in response body."""
+
+        async def fake_enqueue(_job_id):
+            pass
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+
         response = await authenticated_client.post(
             f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -399,16 +425,21 @@ class TestProcessingTriggerEndpoint:
         assert "job_id" in body
         assert UUID(body["job_id"])  # Validates it's a valid UUID
 
-    @patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock)
     async def test_job_id_in_response_matches_created_job(
         self,
-        mock_enqueue: AsyncMock,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
         test_user: User,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test job_id returned in response matches the Job created in DB."""
+
+        async def fake_enqueue(_job_id):
+            pass
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+
         response = await authenticated_client.post(
             f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -426,15 +457,21 @@ class TestProcessingTriggerEndpoint:
         assert db_job.user_id == test_user.id
         assert db_job.entity_id == draft_shootout_with_chains.id
 
-    @patch("webapp.api.v1.shootouts.enqueue_to_worker", new_callable=AsyncMock)
     async def test_worker_api_receives_correct_job_id(
         self,
-        mock_enqueue: AsyncMock,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test worker admin API receives the correct job_id in payload."""
+        enqueue_calls: list[UUID] = []
+
+        async def fake_enqueue(job_id):
+            enqueue_calls.append(job_id)
+
+        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
+
         response = await authenticated_client.post(
             f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -444,5 +481,4 @@ class TestProcessingTriggerEndpoint:
         returned_job_id = UUID(body["job_id"])
 
         # Verify enqueue_to_worker was called with the same job_id
-        enqueued_job_id = mock_enqueue.call_args[0][0]
-        assert enqueued_job_id == returned_job_id
+        assert enqueue_calls[0] == returned_job_id

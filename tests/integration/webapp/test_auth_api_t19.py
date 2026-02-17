@@ -8,8 +8,12 @@ Tests for authentication API endpoints:
 - GET /api/v1/auth/status - Auth file status
 """
 
-from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, patch
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -24,6 +28,32 @@ from sqlalchemy.ext.asyncio import (
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider, User, UserIdentity
 from webapp.auth.token import JWT_COOKIE_NAME, create_access_token
+
+
+class FakeT3KProvider:
+    """Test double for T3KProvider with configurable responses."""
+
+    def __init__(
+        self,
+        token_response: dict[str, Any] | None = None,
+        user_info: dict[str, Any] | None = None,
+        exchange_error: Exception | None = None,
+    ) -> None:
+        self.token_response = token_response or {}
+        self.user_info_response = user_info or {}
+        self.exchange_error = exchange_error
+        self.base_url = "https://www.tone3000.com"
+
+    def build_login_url(self, callback_url: str) -> str:
+        return f"{self.base_url}/api/v1/auth?redirect_url={callback_url}"
+
+    async def exchange_api_key(self, api_key: str) -> dict[str, Any]:
+        if self.exchange_error:
+            raise self.exchange_error
+        return self.token_response
+
+    async def get_user_info(self, access_token: str) -> dict[str, Any]:
+        return self.user_info_response
 
 
 @pytest.fixture
@@ -142,7 +172,10 @@ class TestAuthCallbackEndpoint:
     """Test suite for GET /api/v1/auth/callback endpoint."""
 
     async def test_callback_with_api_key_creates_user(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test /api/v1/auth/callback processes T3K api_key and creates user."""
         from fastapi import FastAPI
@@ -152,36 +185,32 @@ class TestAuthCallbackEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        mock_token_response = {
-            "access_token": "test_access_token",
-            "refresh_token": "test_refresh_token",
-            "expires_at": "2099-01-01T00:00:00Z",
-        }
-        mock_user_info = {
-            "id": "t3k_user_789",
-            "username": "callback_user",
-            "email": "callback@tone3000.com",
-        }
+        fake_provider = FakeT3KProvider(
+            token_response={
+                "access_token": "test_access_token",
+                "refresh_token": "test_refresh_token",
+                "expires_at": "2099-01-01T00:00:00Z",
+            },
+            user_info={
+                "id": "t3k_user_789",
+                "username": "callback_user",
+                "email": "callback@tone3000.com",
+            },
+        )
+        monkeypatch.setattr("webapp.api.v1.auth.T3KProvider", lambda: fake_provider)
 
-        with patch("webapp.api.v1.auth.T3KProvider") as MockProvider:
-            instance = MockProvider.return_value
-            instance.exchange_api_key = AsyncMock(return_value=mock_token_response)
-            instance.get_user_info = AsyncMock(return_value=mock_user_info)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/v1/auth/callback?api_key=test_key",
+                follow_redirects=False,
+            )
 
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                response = await client.get(
-                    "/api/v1/auth/callback?api_key=test_key",
-                    follow_redirects=False,
-                )
-
-                # Should redirect after successful callback
-                assert response.status_code == 302
-                # Should set JWT cookie
-                assert JWT_COOKIE_NAME in response.cookies or any(
-                    JWT_COOKIE_NAME in str(h) for h in response.headers.raw
-                )
+            # Should redirect after successful callback
+            assert response.status_code == 302
+            # Should set JWT cookie
+            assert JWT_COOKIE_NAME in response.cookies or any(
+                JWT_COOKIE_NAME in str(h) for h in response.headers.raw
+            )
 
         # Verify user was created
         result = await db_session.execute(select(User))
@@ -211,7 +240,10 @@ class TestAuthCallbackEndpoint:
             assert "error" in response.headers["location"]
 
     async def test_callback_creates_user_identity(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test /api/v1/auth/callback creates UserIdentity for new user."""
         from fastapi import FastAPI
@@ -221,28 +253,24 @@ class TestAuthCallbackEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        mock_token_response = {
-            "access_token": "test_token",
-            "refresh_token": "test_refresh",
-        }
-        mock_user_info = {
-            "id": "t3k_identity_user",
-            "username": "identity_test",
-            "email": "identity@test.com",
-        }
+        fake_provider = FakeT3KProvider(
+            token_response={
+                "access_token": "test_token",
+                "refresh_token": "test_refresh",
+            },
+            user_info={
+                "id": "t3k_identity_user",
+                "username": "identity_test",
+                "email": "identity@test.com",
+            },
+        )
+        monkeypatch.setattr("webapp.api.v1.auth.T3KProvider", lambda: fake_provider)
 
-        with patch("webapp.api.v1.auth.T3KProvider") as MockProvider:
-            instance = MockProvider.return_value
-            instance.exchange_api_key = AsyncMock(return_value=mock_token_response)
-            instance.get_user_info = AsyncMock(return_value=mock_user_info)
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                await client.get(
-                    "/api/v1/auth/callback?api_key=test_key",
-                    follow_redirects=False,
-                )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.get(
+                "/api/v1/auth/callback?api_key=test_key",
+                follow_redirects=False,
+            )
 
         # Verify UserIdentity was created
         result = await db_session.execute(select(UserIdentity))
@@ -252,7 +280,10 @@ class TestAuthCallbackEndpoint:
         assert identities[0].provider_id == t3k_provider.id
 
     async def test_callback_returns_existing_user(
-        self, db_session: AsyncSession, t3k_provider: OAuthProvider
+        self,
+        db_session: AsyncSession,
+        t3k_provider: OAuthProvider,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test /api/v1/auth/callback returns existing user on repeat login."""
         from fastapi import FastAPI
@@ -280,28 +311,24 @@ class TestAuthCallbackEndpoint:
         app = FastAPI()
         app.include_router(router)
 
-        mock_token_response = {
-            "access_token": "test_token",
-            "refresh_token": "test_refresh",
-        }
-        mock_user_info = {
-            "id": "existing_external_id",
-            "username": "existing_user",
-            "email": "existing@test.com",
-        }
+        fake_provider = FakeT3KProvider(
+            token_response={
+                "access_token": "test_token",
+                "refresh_token": "test_refresh",
+            },
+            user_info={
+                "id": "existing_external_id",
+                "username": "existing_user",
+                "email": "existing@test.com",
+            },
+        )
+        monkeypatch.setattr("webapp.api.v1.auth.T3KProvider", lambda: fake_provider)
 
-        with patch("webapp.api.v1.auth.T3KProvider") as MockProvider:
-            instance = MockProvider.return_value
-            instance.exchange_api_key = AsyncMock(return_value=mock_token_response)
-            instance.get_user_info = AsyncMock(return_value=mock_user_info)
-
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                await client.get(
-                    "/api/v1/auth/callback?api_key=test_key",
-                    follow_redirects=False,
-                )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.get(
+                "/api/v1/auth/callback?api_key=test_key",
+                follow_redirects=False,
+            )
 
         # Should still only have one user
         result = await db_session.execute(select(User))
