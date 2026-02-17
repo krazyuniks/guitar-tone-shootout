@@ -13,7 +13,9 @@ from __future__ import annotations
 import ast
 import inspect
 import textwrap
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -27,6 +29,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from worker.consumers.gear_sync import GearSyncConsumer
+from worker.services.gear_mapper import RetryableGearSyncError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -151,6 +154,31 @@ class TestPollQueueParamsBug:
         assert (
             has_dict_param or has_bindparams
         ), "_poll_queue must pass params as a dict positional arg or use .bindparams()"
+
+
+# ---------------------------------------------------------------------------
+# Bug 1b: _poll_queue must rollback poisoned sessions on polling errors
+# ---------------------------------------------------------------------------
+
+
+class TestPollQueueSessionRecovery:
+    """_poll_queue must rollback session state when polling raises."""
+
+    async def test_poll_queue_rolls_back_on_poll_error(
+        self,
+        consumer: GearSyncConsumer,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Polling errors should trigger rollback so next poll can recover."""
+        execute_mock = AsyncMock(side_effect=RuntimeError("simulated poll error"))
+        rollback_mock = AsyncMock()
+        monkeypatch.setattr(consumer.t3k_session, "execute", execute_mock)
+        monkeypatch.setattr(consumer.t3k_session, "rollback", rollback_mock)
+
+        messages = await consumer._poll_queue("gear_sync")
+
+        assert messages == []
+        rollback_mock.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -314,3 +342,78 @@ class TestDeadLetterOnSchemaFailure:
         assert (
             "_archive_message" in source
         ), "_dead_letter must archive the original message from the source queue"
+
+
+class TestRetryableErrorHandling:
+    """Retryable failures should stay in main queue until retry budget is exhausted."""
+
+    async def test_retryable_error_does_not_dead_letter(
+        self,
+        consumer: GearSyncConsumer,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        message = SimpleNamespace(
+            read_ct=1,
+            msg_id=101,
+            message={
+                "source_name": "t3k",
+                "source_record_id": "pack-1",
+                "source_updated_at": "2026-02-17T00:00:00+00:00",
+                "operation": "create",
+                "payload": {"name": "Pack 1", "slug": "pack-1", "gear_type": "amp"},
+            },
+        )
+
+        monkeypatch.setattr(consumer, "_poll_queue", AsyncMock(return_value=[message]))
+        dead_letter_mock = AsyncMock()
+        archive_mock = AsyncMock()
+        monkeypatch.setattr(consumer, "_dead_letter", dead_letter_mock)
+        monkeypatch.setattr(consumer, "_archive_message", archive_mock)
+        monkeypatch.setattr(
+            consumer.mapper,
+            "process_sync_record",
+            AsyncMock(side_effect=RetryableGearSyncError("model file not ready")),
+        )
+
+        core_commit_mock = AsyncMock()
+        core_rollback_mock = AsyncMock()
+        t3k_commit_mock = AsyncMock()
+        t3k_rollback_mock = AsyncMock()
+        monkeypatch.setattr(consumer.core_session, "commit", core_commit_mock)
+        monkeypatch.setattr(consumer.core_session, "rollback", core_rollback_mock)
+        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_mock)
+        monkeypatch.setattr(consumer.t3k_session, "rollback", t3k_rollback_mock)
+
+        await consumer._poll_and_process("gear_sync")
+
+        dead_letter_mock.assert_not_awaited()
+        archive_mock.assert_not_awaited()
+        core_commit_mock.assert_not_awaited()
+        t3k_commit_mock.assert_not_awaited()
+        core_rollback_mock.assert_awaited_once()
+        t3k_rollback_mock.assert_awaited_once()
+
+    async def test_retryable_error_is_dead_lettered_after_max_retries(
+        self,
+        consumer: GearSyncConsumer,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        message = SimpleNamespace(
+            read_ct=consumer.max_retries + 1,
+            msg_id=102,
+            message={"source_name": "t3k"},
+        )
+
+        monkeypatch.setattr(consumer, "_poll_queue", AsyncMock(return_value=[message]))
+        dead_letter_mock = AsyncMock()
+        monkeypatch.setattr(consumer, "_dead_letter", dead_letter_mock)
+        process_mock = AsyncMock()
+        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_mock)
+        t3k_commit_mock = AsyncMock()
+        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_mock)
+
+        await consumer._poll_and_process("gear_sync")
+
+        process_mock.assert_not_awaited()
+        dead_letter_mock.assert_awaited_once_with(message, "gear_sync")
+        t3k_commit_mock.assert_awaited_once()

@@ -27,7 +27,11 @@ from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
-from worker.services.gear_mapper import GearMapperService
+from worker.services.gear_mapper import (
+    GearMapperService,
+    ModelFileNotReadyError,
+    ParentGearNotReadyError,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -259,10 +263,10 @@ class TestModelSyncCreatesGearModel:
     async def test_model_sync_without_parent_raises(
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
-        """Model sync for non-existent parent gear must raise ValueError."""
+        """Model sync for non-existent parent gear must raise retryable error."""
         model_record = _model_record(pack_id="nonexistent-pack")
 
-        with pytest.raises(ValueError, match="Parent gear not found"):
+        with pytest.raises(ParentGearNotReadyError, match="Parent gear not found"):
             await mapper.process_model_sync(model_record)
 
     async def test_model_sync_without_pack_id_raises(
@@ -447,10 +451,14 @@ class TestAggregateSyncRecord:
         assert model.download_status == DownloadStatus.COMPLETED
         assert model.file_path is not None
 
-    async def test_process_sync_record_raises_when_model_file_missing(
-        self, mapper: GearMapperService, tmp_path, monkeypatch
+    async def test_process_sync_record_raises_retryable_error_when_model_file_missing(
+        self,
+        mapper: GearMapperService,
+        session: AsyncSession,
+        tmp_path,
+        monkeypatch,
     ) -> None:
-        """Aggregate sync payload should fail if required model file is missing."""
+        """Missing model files should fail atomically and be retried by consumer."""
         monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
 
         record = GearSyncRecord(
@@ -476,5 +484,65 @@ class TestAggregateSyncRecord:
             },
         )
 
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ModelFileNotReadyError, match="Model file not ready"):
             await mapper.process_sync_record(record)
+
+        # Consumer rolls back on retryable errors; emulate that to verify
+        # aggregate creation is atomic and idempotent.
+        await session.rollback()
+
+        gear_count = (await session.execute(select(Gear))).scalars().all()
+        model_count = (await session.execute(select(GearModel))).scalars().all()
+        assert len(gear_count) == 0
+        assert len(model_count) == 0
+
+    async def test_process_sync_record_rolls_back_bundle_when_one_file_missing(
+        self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
+    ) -> None:
+        """A mixed bundle retries as a unit; no partial models should persist."""
+
+        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
+        source_model_dir.mkdir(parents=True, exist_ok=True)
+        (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
+
+        record = GearSyncRecord(
+            source_name="t3k",
+            source_record_id="pack-001",
+            source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
+            operation=SyncOperation.CREATE,
+            payload={
+                "name": "Mixed Bundle Pack",
+                "slug": "mixed-bundle-pack",
+                "gear_type": "amp",
+                "platform": "nam",
+                "models": [
+                    {
+                        "source_record_id": "model-001",
+                        "filename": "model-001.nam",
+                        "download_url": "https://example.com/model-001.nam",
+                        "checksum": "abc123",
+                        "platform": "nam",
+                        "size": "standard",
+                    },
+                    {
+                        "source_record_id": "model-404",
+                        "filename": "missing.nam",
+                        "download_url": "https://example.com/missing.nam",
+                        "checksum": "def456",
+                        "platform": "nam",
+                        "size": "standard",
+                    },
+                ],
+            },
+        )
+
+        with pytest.raises(ModelFileNotReadyError, match="Model file not ready"):
+            await mapper.process_sync_record(record)
+
+        await session.rollback()
+
+        gear_count = (await session.execute(select(Gear))).scalars().all()
+        model_count = (await session.execute(select(GearModel))).scalars().all()
+        assert len(gear_count) == 0
+        assert len(model_count) == 0

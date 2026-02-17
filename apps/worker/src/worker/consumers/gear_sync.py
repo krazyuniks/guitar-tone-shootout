@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import text
 
 from core.records.gear_sync import GearSyncRecord
-from worker.services.gear_mapper import GearMapperService
+from worker.services.gear_mapper import GearMapperService, RetryableGearSyncError
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,6 +74,17 @@ class GearSyncConsumer:
                 await self.core_session.commit()
                 await self._archive_message(queue_name, message.msg_id)
                 await self.t3k_session.commit()
+            except RetryableGearSyncError:
+                await self.core_session.rollback()
+                await self.t3k_session.rollback()
+                logger.warning(
+                    "Retryable sync error for message %s on queue %s (read_ct=%s/%s)",
+                    message.msg_id,
+                    queue_name,
+                    message.read_ct,
+                    self.max_retries,
+                    exc_info=True,
+                )
             except Exception:
                 await self.core_session.rollback()
                 logger.exception("Error processing sync message %s", message.msg_id)
@@ -91,6 +102,12 @@ class GearSyncConsumer:
             return result.fetchall()
         except Exception:
             logger.exception("Error polling queue %s", queue_name)
+            # Recover poisoned session state (e.g. PendingRollbackError) so
+            # subsequent poll attempts can continue without process restart.
+            try:
+                await self.t3k_session.rollback()
+            except Exception:
+                logger.exception("Error rolling back after poll failure for queue %s", queue_name)
             return []
 
     async def _archive_message(self, queue_name: str, msg_id: int) -> None:

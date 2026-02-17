@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -20,6 +21,20 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
+
+
+class RetryableGearSyncError(RuntimeError):
+    """Base error for transient sync failures that should be retried."""
+
+
+class ParentGearNotReadyError(RetryableGearSyncError):
+    """Model record arrived before its parent gear is present."""
+
+
+class ModelFileNotReadyError(RetryableGearSyncError):
+    """Model file not yet available on disk for migration."""
 
 
 class GearMapperService:
@@ -140,7 +155,7 @@ class GearMapperService:
         )
 
         if not parent_gear:
-            raise ValueError(f"Parent gear not found for pack_id={pack_id}")
+            raise ParentGearNotReadyError(f"Parent gear not found for pack_id={pack_id}")
 
         existing_model = await self._lookup_model_by_source(
             parent_gear.id,
@@ -259,9 +274,15 @@ class GearMapperService:
                 model.file_path = file_path
                 model.download_status = DownloadStatus.COMPLETED
             else:
-                raise FileNotFoundError(
-                    f"Model file not found for source={record.source_name}, "
-                    f"source_record_id={record.source_record_id}, filename={filename}"
+                logger.warning(
+                    "Model file not ready: source=%s source_record_id=%s filename=%s",
+                    record.source_name,
+                    record.source_record_id,
+                    filename,
+                )
+                raise ModelFileNotReadyError(
+                    f"Model file not ready for source={record.source_name} "
+                    f"source_record_id={record.source_record_id} filename={filename}"
                 )
 
     async def _update_model(self, model: GearModel, record: GearSyncRecord) -> None:
