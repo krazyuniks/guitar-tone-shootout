@@ -20,6 +20,17 @@ class T3KPlatform(str, Enum):
     IR = "ir"
 
 
+class T3KGearKind(str, Enum):
+    """Gear kind classification in the T3K system.
+
+    Categorises tones by the type of gear they model.
+    """
+
+    AMP = "amp"
+    PEDAL = "pedal"
+    IR = "ir"
+
+
 class T3KPackType(str, Enum):
     """Pack type classification in the T3K system.
 

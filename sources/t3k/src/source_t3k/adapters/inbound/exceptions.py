@@ -14,6 +14,15 @@ class T3KAPIError(Exception):
     pass
 
 
+class T3KAuthenticationError(T3KAPIError):
+    """Exception raised when T3K API authentication fails.
+
+    Raised when the API returns HTTP 401 (Unauthorized).
+    """
+
+    pass
+
+
 class T3KRateLimitError(T3KAPIError):
     """Exception raised when T3K API rate limit is exceeded.
 

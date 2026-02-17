@@ -10,7 +10,7 @@ and immutability.
 from dataclasses import dataclass
 from datetime import datetime
 
-from source_t3k.domain.value_objects import T3KPackType, T3KPlatform
+from source_t3k.domain.value_objects import T3KGearKind, T3KPackType, T3KPlatform
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,5 +91,44 @@ class T3KModel:
     file_size: int
     download_url: str
     checksum: str
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class T3KUser:
+    """T3K user entity.
+
+    Represents a user on the Tone3000 platform.
+    """
+
+    id: str
+    username: str
+    avatar_url: str
+    bio: str
+    url: str
+
+
+@dataclass(frozen=True, slots=True)
+class T3KTone:
+    """T3K tone entity.
+
+    Represents a tone (collection of models) on the Tone3000 platform.
+    """
+
+    id: int
+    title: str
+    description: str
+    tags: list[str]
+    makes: list[str]
+    gear: T3KGearKind
+    platform: T3KPlatform
+    models_count: int
+    favorites_count: int
+    downloads_count: int
+    images: list[str]
+    user_id: str
+    user: T3KUser | None
+    url: str
     created_at: datetime
     updated_at: datetime
