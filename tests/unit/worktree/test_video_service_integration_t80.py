@@ -134,7 +134,6 @@ class TestEnvLocalGeneration:
             volumes=VolumeConfig(
                 postgres="gts-postgres-42-video-feature",
                 redis="gts-redis-42-video-feature",
-                uploads="gts-uploads-42-video-feature",
                 cloudbeaver="gts-cloudbeaver-42-video-feature",
                 grafana="gts-grafana-42-video-feature",
                 loki="gts-loki-42-video-feature",

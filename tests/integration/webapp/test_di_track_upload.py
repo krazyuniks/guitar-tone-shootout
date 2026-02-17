@@ -190,7 +190,7 @@ class TestDITrackUploadEndpoint:
         test_user: User,
         tmp_path: Path,
     ) -> None:
-        """Test file is saved to /app/uploads/di-tracks/{user_id}/{uuid}.{ext}."""
+        """Test file is saved to /app/storage/uploads/di_tracks/{user_id}/{uuid}.{ext}."""
         from fastapi import FastAPI
 
         audio_file = tmp_path / "test.wav"
@@ -221,8 +221,8 @@ class TestDITrackUploadEndpoint:
         assert "file_path" in json
         file_path = json["file_path"]
 
-        # Path should be: /app/uploads/di-tracks/{user_id}/{uuid}.wav
-        assert file_path.startswith("/app/uploads/di-tracks/")
+        # Path should be: /app/storage/uploads/di_tracks/{user_id}/{uuid}.wav
+        assert file_path.startswith("/app/storage/uploads/di_tracks/")
         assert str(test_user.id) in file_path
         assert file_path.endswith(".wav")
 

@@ -372,7 +372,7 @@ class TestAggregateSyncRecord:
         self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
     ) -> None:
         """Aggregate sync payload should create parent Gear and child GearModel rows."""
-        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
         source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
         source_model_dir.mkdir(parents=True, exist_ok=True)
         (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
@@ -415,7 +415,7 @@ class TestAggregateSyncRecord:
         """Model with successfully migrated file should have COMPLETED download status."""
         from core.domain.value_objects.download_status import DownloadStatus
 
-        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
         source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
         source_model_dir.mkdir(parents=True, exist_ok=True)
         (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
@@ -459,7 +459,7 @@ class TestAggregateSyncRecord:
         monkeypatch,
     ) -> None:
         """Missing model files should fail atomically and be retried by consumer."""
-        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
 
         record = GearSyncRecord(
             source_name="t3k",
@@ -501,7 +501,7 @@ class TestAggregateSyncRecord:
     ) -> None:
         """A mixed bundle retries as a unit; no partial models should persist."""
 
-        monkeypatch.setenv("WORKER_STORAGE_ROOT", str(tmp_path))
+        monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
         source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
         source_model_dir.mkdir(parents=True, exist_ok=True)
         (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
