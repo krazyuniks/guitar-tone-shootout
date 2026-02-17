@@ -1,6 +1,7 @@
 ---
 name: epic
 description: Epic lifecycle -- ingest, plan, execute, status. Behavioural validation workflow.
+argument-hint: "<epic-number> [run|status|validate-plan]"
 context: fork
 ---
 
@@ -14,15 +15,19 @@ context: fork
 
 ## Dispatch (EXECUTE IMMEDIATELY)
 
-Parse the user's args and run the matching command. Do NOT ask clarifying questions. Do NOT search for commands.
+The user's arguments are provided as the input to this skill. Parse them and run the matching command. Do NOT ask clarifying questions. Do NOT search for commands.
 
-| User says | Run this immediately |
+**Argument matching rules** (args may arrive as just the number, or with the full `/epic` prefix):
+
+| Args pattern | Run this immediately |
 |-----------|---------------------|
-| `/epic run <N>`, `/epic <N>` | `yes \| just epic <N>` |
-| `/epic status <N>` | `just epic-status <N>` |
-| `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
+| `<N>`, `run <N>`, `/epic <N>`, `/epic run <N>` | `yes \| just epic <N>` |
+| `status <N>`, `/epic status <N>` | `just epic-status <N>` |
+| `validate-plan <N>`, `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
 
-If no args provided, ask which epic number. That is the ONLY question you may ask.
+Where `<N>` is a number (the epic/issue number). A bare number like `112` means **run** that epic.
+
+If no args provided (empty input), ask which epic number. That is the ONLY question you may ask.
 
 ---
 
