@@ -666,40 +666,44 @@ def _start_and_configure_services(
 
 
 def _import_database(status, worktree_path: Path, backup_file: Path, is_main: bool = False) -> None:
-    """Import database from backup file using just db-import.
+    """Restore databases from backup files.
 
-    This drops and recreates the database, then restores from the backup.
-    Safe because it's atomic: drop + create + restore happens together.
+    Restores the given backup_file, plus any other database backups from the same
+    timestamp found in the backups directory (for multi-database support).
     """
-    import subprocess
+    from ..backup import restore_database as _restore_db
 
-    status.update("[bold green]Importing database...")
+    status.update("[bold green]Restoring databases...")
 
-    try:
-        result = subprocess.run(
-            ["just", "db-import", str(backup_file)],
-            cwd=worktree_path,
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-        if result.returncode != 0:
+    # Collect all backup files to restore. The backup_file passed is always gts_core.
+    # Look for sibling backups with the same timestamp.
+    backup_files = [backup_file]
+    parts = backup_file.stem.rsplit(".", 1)
+    if len(parts) == 2:
+        timestamp = parts[1]
+        for sibling in backup_file.parent.glob(f"*.{timestamp}.dump"):
+            if sibling != backup_file:
+                backup_files.append(sibling)
+
+    for bf in sorted(backup_files):
+        bf_parts = bf.stem.rsplit(".", 1)
+        db_name = bf_parts[0] if len(bf_parts) == 2 else "gts_core"
+        # Handle legacy shootout.*.dump naming
+        if db_name == "shootout":
+            db_name = "gts_core"
+
+        status.update(f"[bold green]Restoring {db_name}...")
+        try:
+            _restore_db(worktree_path, bf, db_name)
+            console.print(f"  [green]✓[/green] Restored {db_name} from {bf.name}")
+        except BackupError as e:
             status.stop()
-            print_error(f"Database import failed: {result.stderr}")
+            print_error(f"Restore failed for {db_name}: {e}")
             console.print()
-            console.print("[yellow]The worktree has been created but has no data.[/yellow]")
-            raise typer.Exit(1)
-
-        console.print(f"  [green]✓[/green] Database imported from {backup_file.name}")
-
-    except subprocess.TimeoutExpired:
-        status.stop()
-        print_error("Database import timed out")
-        raise typer.Exit(1) from None
-    except Exception as e:
-        status.stop()
-        print_error(f"Database import failed: {e}")
-        raise typer.Exit(1) from None
+            console.print(
+                "[yellow]The worktree has been created but may have incomplete data.[/yellow]"
+            )
+            raise typer.Exit(1) from None
 
 
 def _run_migrations(status, worktree_path: Path) -> None:
