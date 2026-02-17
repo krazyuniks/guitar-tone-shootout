@@ -167,6 +167,7 @@ services:
       - ./sources:/app/sources:ro
       - upload_data:/app/uploads
       - processed_data:/app/processed
+      - processed_data:/processed_data
     depends_on:
       db:
         condition: service_healthy

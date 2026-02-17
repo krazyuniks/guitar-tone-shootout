@@ -26,7 +26,7 @@ from webapp.adapters.persistence.models.shootout import (
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user_gear import UserGear
-from worker.db import get_session
+from worker.db import get_session_no_tx as get_session
 from worker.main import broker
 
 STORAGE_ROOT = Path(os.getenv("WORKER_STORAGE_ROOT", "/app/processed"))
@@ -107,6 +107,12 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             if shootout_chain_id is None:
                 raise ValueError(f"Job {job_id} has no entity_id set")
 
+            # Mark job as running before loading and processing assets.
+            job.status = JobStatus.RUNNING
+            job.started_at = datetime.now(UTC)
+            job.last_heartbeat = datetime.now(UTC)
+            await session.commit()
+
             # Load shootout chain with signal chain and blocks
             stmt = (
                 select(ShootoutChain)
@@ -176,6 +182,7 @@ async def handle_shootout_audio_job(job_id: UUID) -> None:
             # Update job progress to 100 (complete)
             job.progress = 100
             job.status = JobStatus.COMPLETED
+            job.completed_at = datetime.now(UTC)
             job.last_heartbeat = datetime.now(UTC)
 
             await session.commit()

@@ -516,7 +516,7 @@ async def enqueue_job(
         task_result = await handle_shootout_job.kiq(job.id)
         job.task_id = task_result.task_id
     elif job.job_type == JobType.SHOOTOUT_AUDIO:
-        from worker.jobs.shootout_audio import handle_shootout_audio_job
+        from worker.jobs.audio import handle_shootout_audio_job
 
         task_result = await handle_shootout_audio_job.kiq(job.id)
         job.task_id = task_result.task_id
