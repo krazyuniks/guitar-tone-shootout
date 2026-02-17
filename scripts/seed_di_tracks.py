@@ -18,9 +18,9 @@ import hashlib
 import os
 import shutil
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class SeedDITracks:
     """Bulk importer for DI track audio files."""
 
     # Supported audio formats (must match DITrackService)
-    SUPPORTED_FORMATS = {".wav", ".flac", ".ogg", ".mp3"}
+    SUPPORTED_FORMATS: ClassVar[set[str]] = {".wav", ".flac", ".ogg", ".mp3"}
 
     def __init__(
         self,
@@ -66,7 +66,7 @@ class SeedDITracks:
             directory: Directory to scan for audio files
             user_id: User ID to assign ownership to imported tracks
             session: Database session for persistence
-            storage_path: Optional custom storage path (defaults to /app/uploads/di-tracks/)
+            storage_path: Optional custom storage path (defaults to $GTS_STORAGE_ROOT/uploads/di_tracks/)
 
         Raises:
             ValueError: If user_id is not a valid UUID
@@ -79,7 +79,9 @@ class SeedDITracks:
         self.directory = directory
         self.user_id = user_id
         self.session = session
-        self.storage_path = storage_path or Path("/app/uploads/di-tracks/")
+        self.storage_path = (
+            storage_path or Path(os.environ["GTS_STORAGE_ROOT"]) / "uploads" / "di_tracks"
+        )
         self.service = DITrackService(session)
 
     def find_audio_files(self) -> list[Path]:
@@ -126,7 +128,6 @@ class SeedDITracks:
 
         for file_path in unique_files:
             try:
-
                 # Generate name from filename (without extension)
                 name = file_path.stem
 
@@ -244,7 +245,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--storage-path",
-        help="Custom storage path (defaults to /app/uploads/di-tracks/)",
+        help="Custom storage path (defaults to $GTS_STORAGE_ROOT/uploads/di_tracks/)",
     )
 
     args = parser.parse_args()
