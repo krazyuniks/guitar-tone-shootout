@@ -193,7 +193,6 @@ PUBLIC_URL={public_url}
 # Volume names (isolated per worktree)
 POSTGRES_VOLUME={worktree.volumes.postgres}
 REDIS_VOLUME={worktree.volumes.redis}
-UPLOADS_VOLUME={worktree.volumes.uploads}
 CLOUDBEAVER_VOLUME={worktree.volumes.cloudbeaver}
 
 # =============================================================================
@@ -254,8 +253,8 @@ services:
       - ./sources:/app/sources:ro
       - ./tests:/app/tests:ro
       - ./infrastructure/migrations:/app/infrastructure/migrations:ro
-      # Data volumes
-      - {volumes.uploads}:/app/uploads
+      # Shared storage bind mount
+      - ../gts-storage:/app/storage
       # Parent dir for shared auth file (.gts-auth.json)
       - ../:/worktrees
     environment:
@@ -264,6 +263,7 @@ services:
       - PUBLIC_URL={public_url}
       - CORS_ORIGINS={public_url}
       - GTS_AUTH_FILE=/worktrees/.gts-auth.json
+      - GTS_STORAGE_ROOT=/app/storage
 
   # Astro is build-only (--profile build) - nginx serves pre-committed dist/ directly
   astro:
@@ -279,11 +279,13 @@ services:
       - ./libs:/app/libs:ro
       - ./apps/worker:/app/apps/worker
       - ./sources:/app/sources:ro
-      - {volumes.uploads}:/app/uploads
+      # Shared storage bind mount
+      - ../gts-storage:/app/storage
       # Parent dir for shared auth file (.gts-auth.json)
       - ../:/worktrees
     environment:
       - GTS_AUTH_FILE=/worktrees/.gts-auth.json
+      - GTS_STORAGE_ROOT=/app/storage
 
   scheduler:
     container_name: {worktree.compose_project}-scheduler
@@ -317,7 +319,6 @@ services:
 volumes:
   {volumes.postgres}:
   {volumes.redis}:
-  {volumes.uploads}:
   {volumes.cloudbeaver}:
 
 # Override subnet to avoid conflicts between worktrees

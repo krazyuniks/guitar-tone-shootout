@@ -149,7 +149,7 @@ class NoAvailableOffsetError(RegistryError):
     """No available port offset found."""
 
 
-SCHEMA_VERSION = "1.3"
+SCHEMA_VERSION = "1.4"
 
 SCHEMA_SQL = """
 -- Schema versioning
@@ -176,7 +176,6 @@ CREATE TABLE IF NOT EXISTS worktrees (
     port_nginx INTEGER NOT NULL DEFAULT 9000,
     volume_postgres TEXT NOT NULL,
     volume_redis TEXT NOT NULL,
-    volume_uploads TEXT NOT NULL,
     volume_cloudbeaver TEXT NOT NULL DEFAULT ''
 );
 
@@ -283,9 +282,71 @@ def _migrate_1_2_to_1_3(conn: sqlite3.Connection) -> None:
         SET
             volume_postgres = 'gts-postgres-' || LOWER(REPLACE(worktree_name, '/', '-')),
             volume_redis = 'gts-redis-' || LOWER(REPLACE(worktree_name, '/', '-')),
-            volume_uploads = 'gts-uploads-' || LOWER(REPLACE(worktree_name, '/', '-')),
             volume_cloudbeaver = 'gts-cloudbeaver-' || LOWER(REPLACE(worktree_name, '/', '-'))
         """
+    )
+
+
+def _migrate_1_3_to_1_4(conn: sqlite3.Connection) -> None:
+    """Migrate schema from 1.3 to 1.4 (remove volume_uploads column).
+
+    Uploads are now served via a shared bind mount (../gts-storage:/app/storage)
+    instead of per-worktree named volumes.
+    """
+    # SQLite doesn't support DROP COLUMN before 3.35.0, so we recreate the table
+    cursor = conn.execute("PRAGMA table_info(worktrees)")
+    columns = {row[1] for row in cursor.fetchall()}
+
+    if "volume_uploads" not in columns:
+        return  # Already migrated
+
+    # Recreate table without volume_uploads
+    conn.execute(
+        """
+        CREATE TABLE worktrees_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            branch TEXT NOT NULL UNIQUE,
+            worktree_name TEXT NOT NULL UNIQUE,
+            worktree_path TEXT NOT NULL,
+            compose_project TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            offset INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            port_frontend INTEGER NOT NULL,
+            port_backend INTEGER NOT NULL,
+            port_db INTEGER NOT NULL,
+            port_redis INTEGER NOT NULL,
+            port_cloudbeaver INTEGER NOT NULL DEFAULT 8978,
+            port_nginx INTEGER NOT NULL DEFAULT 9000,
+            volume_postgres TEXT NOT NULL,
+            volume_redis TEXT NOT NULL,
+            volume_cloudbeaver TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO worktrees_new
+            (id, branch, worktree_name, worktree_path, compose_project,
+             status, offset, created_at,
+             port_frontend, port_backend, port_db, port_redis, port_cloudbeaver, port_nginx,
+             volume_postgres, volume_redis, volume_cloudbeaver)
+        SELECT
+            id, branch, worktree_name, worktree_path, compose_project,
+            status, offset, created_at,
+            port_frontend, port_backend, port_db, port_redis, port_cloudbeaver, port_nginx,
+            volume_postgres, volume_redis, volume_cloudbeaver
+        FROM worktrees
+        """
+    )
+    conn.execute("DROP TABLE worktrees")
+    conn.execute("ALTER TABLE worktrees_new RENAME TO worktrees")
+
+    # Recreate indexes
+    conn.execute("CREATE INDEX idx_worktrees_status ON worktrees(status)")
+    conn.execute("CREATE INDEX idx_worktrees_offset ON worktrees(offset)")
+    conn.execute(
+        "CREATE UNIQUE INDEX idx_worktrees_offset_active ON worktrees(offset) WHERE status = 'active'"
     )
 
 
@@ -323,6 +384,10 @@ def init_registry(registry_path: Path | None = None) -> None:
 
         if current_version == "1.2":
             _migrate_1_2_to_1_3(conn)
+            current_version = "1.3"
+
+        if current_version == "1.3":
+            _migrate_1_3_to_1_4(conn)
 
         # Insert or update schema version
         now = datetime.now(UTC).isoformat()
@@ -405,8 +470,8 @@ def register_worktree(
                     branch, worktree_name, worktree_path, compose_project,
                     status, offset, created_at,
                     port_frontend, port_backend, port_db, port_redis, port_cloudbeaver, port_nginx,
-                    volume_postgres, volume_redis, volume_uploads, volume_cloudbeaver
-                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    volume_postgres, volume_redis, volume_cloudbeaver
+                ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     branch,
@@ -423,7 +488,6 @@ def register_worktree(
                     ports.nginx,
                     volumes.postgres,
                     volumes.redis,
-                    volumes.uploads,
                     volumes.cloudbeaver,
                 ),
             )
@@ -715,7 +779,6 @@ def _row_to_worktree(row: sqlite3.Row) -> Worktree:
         volumes=VolumeConfig(
             postgres=row["volume_postgres"],
             redis=row["volume_redis"],
-            uploads=row["volume_uploads"],
             cloudbeaver=row["volume_cloudbeaver"],
             # Observability volumes are calculated from worktree name (not stored in DB)
             grafana=f"{prefix}-{safe_name}-grafana",

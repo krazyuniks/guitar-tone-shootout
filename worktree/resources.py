@@ -41,7 +41,6 @@ PUBLIC_URL=http://localhost:{worktree.ports.webapp}
 # Volume names (isolated per worktree)
 POSTGRES_VOLUME={worktree.volumes.postgres}
 REDIS_VOLUME={worktree.volumes.redis}
-UPLOADS_VOLUME={worktree.volumes.uploads}
 """
     output_path.write_text(content)
 
@@ -71,7 +70,7 @@ def generate_compose_override(worktree: Worktree, output_path: Path) -> None:
                 "volumes": [
                     "./webapp:/app",
                     "./pipeline:/pipeline:ro",
-                    f"{volumes.uploads}:/data/uploads",
+                    "../gts-storage:/app/storage",
                 ],
                 "environment": [
                     f"PUBLIC_URL=http://localhost:{ports.webapp}",
@@ -109,7 +108,6 @@ def generate_compose_override(worktree: Worktree, output_path: Path) -> None:
         "volumes": {
             volumes.postgres: None,
             volumes.redis: None,
-            volumes.uploads: None,
         },
     }
 
@@ -198,5 +196,5 @@ def format_volumes_display(volumes: VolumeConfig) -> str:
     """
     return (
         f"pg:{volumes.postgres}, redis:{volumes.redis}, "
-        f"uploads:{volumes.uploads}, cb:{volumes.cloudbeaver}"
+        f"storage:../gts-storage/ (bind), cb:{volumes.cloudbeaver}"
     )

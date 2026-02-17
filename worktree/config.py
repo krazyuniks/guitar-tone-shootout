@@ -33,7 +33,6 @@ class VolumeConfig(NamedTuple):
 
     postgres: str
     redis: str
-    uploads: str
     cloudbeaver: str
     # Observability stack (--profile observability)
     grafana: str
@@ -217,7 +216,6 @@ def calculate_volumes(worktree_name: str) -> VolumeConfig:
     return VolumeConfig(
         postgres=f"{prefix}-postgres-{safe_name}",
         redis=f"{prefix}-redis-{safe_name}",
-        uploads=f"{prefix}-uploads-{safe_name}",
         cloudbeaver=f"{prefix}-cloudbeaver-{safe_name}",
         # Observability stack volumes
         grafana=f"{prefix}-grafana-{safe_name}",

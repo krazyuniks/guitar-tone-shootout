@@ -134,7 +134,7 @@ def register_info_commands(app: typer.Typer) -> None:
 
 [bold]Volumes:[/bold]
   PostgreSQL:  {worktree.volumes.postgres}
-  Uploads:     {worktree.volumes.uploads}
+  Storage:     ../gts-storage/ (bind mount)
   CloudBeaver: {worktree.volumes.cloudbeaver}"""
 
         # Add jobs profile sections for main worktree only
