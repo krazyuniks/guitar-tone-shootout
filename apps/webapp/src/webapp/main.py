@@ -1,6 +1,9 @@
 """GTS Web Application - FastAPI entrypoint."""
 
+import logging
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -40,7 +43,29 @@ from webapp.exception_handlers import (
 )
 from webapp.exceptions import AppException
 from webapp.middleware import RequestIDMiddleware, TimingMiddleware
-from webapp.shutdown import ShutdownMiddleware, create_lifespan
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan — startup and shutdown hooks.
+
+    Startup: log ready.
+    Shutdown: dispose database engine so connections are returned to the pool.
+    Docker/uvicorn handle SIGTERM natively; no custom signal handlers needed.
+    """
+    from webapp.dependencies import _session_factory
+
+    logger.info("FastAPI startup complete")
+    yield
+    # Shutdown: dispose DB engine if one was initialised
+    if _session_factory is not None:
+        engine = _session_factory.kw.get("bind")
+        if engine is not None:
+            logger.info("Closing database connection pool")
+            await engine.dispose()
+            logger.info("Database connections closed")
 
 
 def create_app() -> FastAPI:
@@ -49,7 +74,7 @@ def create_app() -> FastAPI:
         title="Guitar Tone Shootout",
         description="Compare guitar tones with scientific precision",
         version="0.1.0",
-        lifespan=create_lifespan(),
+        lifespan=lifespan,
     )
 
     # Initialize database (for tests, DATABASE_URL can be set externally)
@@ -57,7 +82,7 @@ def create_app() -> FastAPI:
     if database_url:
         init_db(database_url)
 
-    # Middleware order: outermost first (RequestID -> Timing -> Shutdown -> CORS)
+    # Middleware order: outermost first (RequestID -> Timing -> CORS)
     # CORS must be added last so it's innermost (FastAPI reverses order)
     cors_origins_env = os.getenv("CORS_ORIGINS", "http://localhost:9000")
     cors_origins = [o.strip() for o in cors_origins_env.split(",")]
@@ -72,10 +97,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    # Shutdown middleware accesses shutdown_manager from request.app.state,
-    # which is set during lifespan startup. This is safe because lifespan
-    # startup runs before any requests are handled.
-    app.add_middleware(ShutdownMiddleware)
     app.add_middleware(TimingMiddleware)
     app.add_middleware(RequestIDMiddleware)
 
