@@ -110,4 +110,9 @@ default_modes:
 
 # initial prompt for the project. It will always be given to the LLM upon activating the project
 # (contrary to the memories, which are loaded on demand).
-initial_prompt: ""
+initial_prompt: |
+  GTS (Guitar Tone Shootout) - web app for comparing guitar tones.
+  Stack: FastAPI + SQLAlchemy 2.0 + PostgreSQL backend, Astro SSG + Jinja2 SSR + HTMX + Alpine.js frontend.
+  Key directories: src/gts_core/ (domain), src/gts_webapp/ (web app), frontend/astro/ (Astro SSG),
+  templates/ (Jinja2), tests/ (pytest + e2e). Docker-based dev via `just` commands.
+  Serena provides semantic code intelligence and AST-aware editing (symbol replace, insert, rename).
