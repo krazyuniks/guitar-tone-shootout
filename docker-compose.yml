@@ -189,6 +189,7 @@ services:
     command: ["taskiq", "scheduler", "scheduler.main:scheduler"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
+      DB_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
     env_file:
@@ -201,6 +202,7 @@ services:
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/scheduler:/app/apps/scheduler
+      - ../backups:/app/backups
     depends_on:
       db:
         condition: service_healthy

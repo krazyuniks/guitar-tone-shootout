@@ -8,6 +8,7 @@ from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_redis import ListQueueBroker
 
 from scheduler.config import SchedulerSettings
+from scheduler.schedules import backup as _backup_schedules  # noqa: F401
 
 # Load settings
 # In production, REDIS_URL env var will be set by docker-compose
