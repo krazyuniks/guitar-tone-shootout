@@ -64,7 +64,7 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 
 # Create directories for file processing
-RUN mkdir -p /app/uploads /app/processed && \
+RUN mkdir -p /app/storage && \
     chown -R gts:gts /app
 
 # Add venv to PATH
