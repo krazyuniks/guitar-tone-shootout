@@ -67,6 +67,7 @@ services:
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       GTS_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       ENV: ${ENV:-development}
+      GTS_STORAGE_ROOT: /app/storage
     env_file:
       - path: .env
         required: false
@@ -83,7 +84,7 @@ services:
       - ./apps/worker:/app/apps/worker:ro
       - ./frontend/astro/dist:/app/static:ro
       - ./frontend/astro:/app/frontend/astro:ro
-      - upload_data:/app/uploads
+      - ../gts-storage:/app/storage
       # Source code for execution
       - ./src:/app/src:ro
       - ./sources:/app/sources:ro
@@ -153,6 +154,7 @@ services:
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
+      GTS_STORAGE_ROOT: /app/storage
     env_file:
       - path: .env
         required: false
@@ -165,9 +167,7 @@ services:
       - ./apps/worker:/app/apps/worker
       - ./apps/webapp:/app/apps/webapp:ro
       - ./sources:/app/sources:ro
-      - upload_data:/app/uploads
-      - processed_data:/app/processed
-      - processed_data:/processed_data
+      - ../gts-storage:/app/storage
     depends_on:
       db:
         condition: service_healthy
@@ -245,6 +245,7 @@ services:
         GID: ${GID:-1000}
     environment:
       ENV: ${ENV:-development}
+      GTS_STORAGE_ROOT: /app/storage
     env_file:
       - path: .env
         required: false
@@ -255,8 +256,7 @@ services:
     volumes:
       - ./libs/core:/app/libs/core:ro
       - ./libs/video:/app/libs/video
-      - upload_data:/app/uploads
-      - processed_data:/app/processed
+      - ../gts-storage:/app/storage
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 10s
@@ -282,7 +282,3 @@ volumes:
     name: gts-postgres-${GTS_WORKTREE:-main}
   redis_data:
     name: gts-redis-${GTS_WORKTREE:-main}
-  upload_data:
-    name: gts-uploads-${GTS_WORKTREE:-main}
-  processed_data:
-    name: gts-processed-${GTS_WORKTREE:-main}

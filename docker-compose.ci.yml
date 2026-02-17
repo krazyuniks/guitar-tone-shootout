@@ -37,6 +37,9 @@ services:
     container_name: gts-webapp-ci-${CI_JOB_ID:-local}
     environment:
       ENV: test
+      GTS_STORAGE_ROOT: /app/storage
+    volumes:
+      - ci_storage:/app/storage
     healthcheck:
       interval: 5s
       timeout: 3s
@@ -51,6 +54,9 @@ services:
     container_name: gts-worker-ci-${CI_JOB_ID:-local}
     environment:
       ENV: test
+      GTS_STORAGE_ROOT: /app/storage
+    volumes:
+      - ci_storage:/app/storage
     restart: "no"
 
   scheduler:
@@ -63,5 +69,4 @@ services:
 volumes:
   postgres_data_ci:
   redis_data_ci:
-  upload_data:
-  processed_data:
+  ci_storage:
