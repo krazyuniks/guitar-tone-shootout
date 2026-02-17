@@ -159,7 +159,7 @@ class TestShootoutJobHandler:
         """Handler loads shootout from database with all chains."""
         from worker.jobs.shootout import handle_shootout_job
 
-        parent_job_id, _, chain_ids = await _create_shootout_with_chains(db_session, num_chains=2)
+        parent_job_id, _, _chain_ids = await _create_shootout_with_chains(db_session, num_chains=2)
 
         monkeypatch.setattr("worker.jobs.shootout.get_session", _make_fake_get_session(db_session))
         await handle_shootout_job(parent_job_id)
@@ -175,7 +175,7 @@ class TestShootoutJobHandler:
         """Handler creates one SHOOTOUT_AUDIO child job per chain."""
         from worker.jobs.shootout import handle_shootout_job
 
-        parent_job_id, _, chain_ids = await _create_shootout_with_chains(db_session, num_chains=3)
+        parent_job_id, _, _chain_ids = await _create_shootout_with_chains(db_session, num_chains=3)
 
         monkeypatch.setattr("worker.jobs.shootout.get_session", _make_fake_get_session(db_session))
         await handle_shootout_job(parent_job_id)
@@ -250,7 +250,7 @@ class TestShootoutJobHandler:
         """_update_parent_progress calculates progress from child job completion."""
         from worker.jobs.shootout import _update_parent_progress
 
-        parent_job_id, shootout_id, chain_ids = await _create_shootout_with_chains(
+        parent_job_id, _shootout_id, chain_ids = await _create_shootout_with_chains(
             db_session, num_chains=2
         )
 
