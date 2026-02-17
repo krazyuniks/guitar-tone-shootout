@@ -4,9 +4,6 @@ Tests that SchedulerSettings loads from environment variables and provides
 required configuration for Redis broker connection.
 """
 
-import os
-from unittest.mock import patch
-
 import pytest
 
 
@@ -32,19 +29,15 @@ class TestSchedulerSettings:
         assert hasattr(settings, "redis_url")
         assert settings.redis_url == "redis://localhost:6379"
 
-    def test_settings_loads_from_environment(self) -> None:
+    def test_settings_loads_from_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """SchedulerSettings loads redis_url from environment variable."""
         from scheduler.config import SchedulerSettings
 
-        # Set environment variable
-        env_vars = {
-            "REDIS_URL": "redis://test-redis:6380",
-        }
+        monkeypatch.setenv("REDIS_URL", "redis://test-redis:6380")
 
-        with patch.dict(os.environ, env_vars, clear=True):
-            settings = SchedulerSettings()
+        settings = SchedulerSettings()
 
-            assert settings.redis_url == "redis://test-redis:6380"
+        assert settings.redis_url == "redis://test-redis:6380"
 
     def test_settings_inherits_from_base_settings(self) -> None:
         """SchedulerSettings inherits from pydantic_settings.BaseSettings."""

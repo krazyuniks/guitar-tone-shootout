@@ -5,19 +5,67 @@ and graceful release. The lock ensures only one scheduler instance runs
 scheduled tasks at a time.
 """
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
-from unittest.mock import AsyncMock
+from dataclasses import dataclass
+from typing import Any
 
 import pytest
 import redis.asyncio as redis
 
 
+@dataclass
+class SetCall:
+    """Recorded call to FakeRedis.set()."""
+
+    key: str
+    value: Any
+    nx: bool
+    ex: int | None
+
+
+class FakeRedis:
+    """Test double for redis.asyncio.Redis that tracks calls."""
+
+    def __init__(self) -> None:
+        self.set_calls: list[SetCall] = []
+        self.set_return: bool = True
+        self.set_error: Exception | None = None
+
+        self.delete_calls: list[str] = []
+        self.delete_return: int = 1
+
+        self.expire_calls: list[tuple[str, int]] = []
+        self.expire_return: bool = True
+        self.expire_errors: list[Exception | None] = []
+
+    async def set(
+        self, key: str, value: Any = None, *, nx: bool = False, ex: int | None = None
+    ) -> bool:
+        if self.set_error:
+            raise self.set_error
+        self.set_calls.append(SetCall(key=key, value=value, nx=nx, ex=ex))
+        return self.set_return
+
+    async def delete(self, key: str) -> int:
+        self.delete_calls.append(key)
+        return self.delete_return
+
+    async def expire(self, key: str, ttl: int) -> bool:
+        if self.expire_errors:
+            err = self.expire_errors.pop(0)
+            if err is not None:
+                raise err
+        self.expire_calls.append((key, ttl))
+        return self.expire_return
+
+
 @pytest.fixture
-async def mock_redis() -> AsyncMock:
-    """Mock Redis client for testing lock operations."""
-    mock = AsyncMock(spec=redis.Redis)
-    return mock
+def mock_redis() -> FakeRedis:
+    """Fake Redis client for testing lock operations."""
+    return FakeRedis()
 
 
 class TestDistributedLock:
@@ -29,67 +77,64 @@ class TestDistributedLock:
 
         assert DistributedLock is not None
 
-    async def test_lock_can_be_acquired(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_can_be_acquired(self, mock_redis: FakeRedis) -> None:
         """Lock can be acquired when not held by another instance."""
         from scheduler.lock import DistributedLock
 
-        # Configure mock to return True (lock acquired)
-        mock_redis.set.return_value = True
+        mock_redis.set_return = True
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         acquired = await lock.acquire()
 
         assert acquired is True
         # Verify SET NX was called with TTL
-        mock_redis.set.assert_called_once()
-        call_args = mock_redis.set.call_args
-        assert call_args.kwargs.get("nx") is True
-        assert call_args.kwargs.get("ex") == 60  # 60 second TTL
+        assert len(mock_redis.set_calls) == 1
+        call = mock_redis.set_calls[0]
+        assert call.nx is True
+        assert call.ex == 60  # 60 second TTL
 
-    async def test_lock_cannot_be_acquired_when_held(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_cannot_be_acquired_when_held(self, mock_redis: FakeRedis) -> None:
         """Lock cannot be acquired when already held by another instance."""
         from scheduler.lock import DistributedLock
 
-        # Configure mock to return False (lock already held)
-        mock_redis.set.return_value = False
+        mock_redis.set_return = False
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         acquired = await lock.acquire()
 
         assert acquired is False
 
-    async def test_lock_uses_60_second_ttl(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_uses_60_second_ttl(self, mock_redis: FakeRedis) -> None:
         """Lock uses 60 second TTL via SET EX parameter."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
+        mock_redis.set_return = True
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         await lock.acquire()
 
         # Verify TTL is 60 seconds
-        call_args = mock_redis.set.call_args
-        assert call_args.kwargs.get("ex") == 60
+        assert mock_redis.set_calls[0].ex == 60
 
-    async def test_lock_can_be_released(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_can_be_released(self, mock_redis: FakeRedis) -> None:
         """Lock can be released by the holder."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.delete.return_value = 1  # Key was deleted
+        mock_redis.set_return = True
+        mock_redis.delete_return = 1  # Key was deleted
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         await lock.acquire()
         released = await lock.release()
 
         assert released is True
-        mock_redis.delete.assert_called_once_with("test:scheduler:lock")
+        assert mock_redis.delete_calls == ["test:scheduler:lock"]
 
-    async def test_lock_release_returns_false_when_not_held(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_release_returns_false_when_not_held(self, mock_redis: FakeRedis) -> None:
         """Lock release returns False when lock is not held."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.delete.return_value = 0  # Key did not exist
+        mock_redis.delete_return = 0  # Key did not exist
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         released = await lock.release()
@@ -100,12 +145,11 @@ class TestDistributedLock:
 class TestDistributedLockHeartbeat:
     """Test lock heartbeat renewal mechanism."""
 
-    async def test_heartbeat_renews_lock_every_30_seconds(self, mock_redis: AsyncMock) -> None:
+    async def test_heartbeat_renews_lock_every_30_seconds(self, mock_redis: FakeRedis) -> None:
         """Heartbeat task renews lock TTL every 30 seconds."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.expire.return_value = True
+        mock_redis.set_return = True
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -126,14 +170,13 @@ class TestDistributedLockHeartbeat:
         # Verify expire was called (heartbeat renewal)
         # Note: This test will need the actual implementation to have a shorter
         # interval in test mode, or we need to mock asyncio.sleep
-        assert mock_redis.expire.call_count >= 0  # May be 0 if sleep wasn't mocked
+        assert len(mock_redis.expire_calls) >= 0  # May be 0 if sleep wasn't mocked
 
-    async def test_heartbeat_renews_with_60_second_ttl(self, mock_redis: AsyncMock) -> None:
+    async def test_heartbeat_renews_with_60_second_ttl(self, mock_redis: FakeRedis) -> None:
         """Heartbeat renews lock with 60 second TTL."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.expire.return_value = True
+        mock_redis.set_return = True
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -141,15 +184,14 @@ class TestDistributedLockHeartbeat:
         await lock._renew_lock()
 
         # Verify EXPIRE was called with 60 seconds
-        mock_redis.expire.assert_called_once_with("test:scheduler:lock", 60)
+        assert mock_redis.expire_calls == [("test:scheduler:lock", 60)]
 
-    async def test_heartbeat_stops_on_lock_release(self, mock_redis: AsyncMock) -> None:
+    async def test_heartbeat_stops_on_lock_release(self, mock_redis: FakeRedis) -> None:
         """Heartbeat stops when lock is released."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.delete.return_value = 1
-        mock_redis.expire.return_value = True
+        mock_redis.set_return = True
+        mock_redis.delete_return = 1
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -166,13 +208,12 @@ class TestDistributedLockHeartbeat:
         assert heartbeat_task.cancelled() or heartbeat_task.done()
 
     async def test_heartbeat_continues_until_explicitly_stopped(
-        self, mock_redis: AsyncMock
+        self, mock_redis: FakeRedis
     ) -> None:
         """Heartbeat continues running until stop_heartbeat is called."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.expire.return_value = True
+        mock_redis.set_return = True
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -195,19 +236,19 @@ class TestDistributedLockHeartbeat:
 class TestDistributedLockIntegration:
     """Test lock integration with scheduler."""
 
-    async def test_only_lock_holder_executes_tasks(self, mock_redis: AsyncMock) -> None:
+    async def test_only_lock_holder_executes_tasks(self, mock_redis: FakeRedis) -> None:
         """Only the lock holder should execute scheduled tasks."""
         from scheduler.lock import DistributedLock
 
         # First instance acquires lock
-        mock_redis.set.return_value = True
+        mock_redis.set_return = True
         lock1 = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         acquired1 = await lock1.acquire()
 
         assert acquired1 is True
 
         # Second instance fails to acquire lock
-        mock_redis.set.return_value = False
+        mock_redis.set_return = False
         lock2 = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         acquired2 = await lock2.acquire()
 
@@ -217,12 +258,12 @@ class TestDistributedLockIntegration:
         assert lock1._is_leader() is True
         assert lock2._is_leader() is False
 
-    async def test_graceful_release_on_shutdown(self, mock_redis: AsyncMock) -> None:
+    async def test_graceful_release_on_shutdown(self, mock_redis: FakeRedis) -> None:
         """Lock is gracefully released on scheduler shutdown."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.delete.return_value = 1
+        mock_redis.set_return = True
+        mock_redis.delete_return = 1
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -240,9 +281,9 @@ class TestDistributedLockIntegration:
             await heartbeat_task
 
         # Verify lock was released
-        mock_redis.delete.assert_called_once_with("test:scheduler:lock")
+        assert mock_redis.delete_calls == ["test:scheduler:lock"]
 
-    def test_lock_key_is_configurable(self, mock_redis: AsyncMock) -> None:
+    def test_lock_key_is_configurable(self, mock_redis: FakeRedis) -> None:
         """Lock key can be configured via constructor."""
         from scheduler.lock import DistributedLock
 
@@ -250,29 +291,28 @@ class TestDistributedLockIntegration:
 
         assert lock.lock_key == "custom:scheduler:lock"
 
-    async def test_lock_uses_redis_set_nx_semantics(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_uses_redis_set_nx_semantics(self, mock_redis: FakeRedis) -> None:
         """Lock uses Redis SET with NX (only set if not exists)."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
+        mock_redis.set_return = True
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
         await lock.acquire()
 
         # Verify SET was called with NX flag
-        call_args = mock_redis.set.call_args
-        assert call_args.kwargs.get("nx") is True
+        assert mock_redis.set_calls[0].nx is True
 
 
 class TestDistributedLockEdgeCases:
     """Test edge cases and error handling."""
 
-    async def test_lock_handles_redis_connection_error(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_handles_redis_connection_error(self, mock_redis: FakeRedis) -> None:
         """Lock handles Redis connection errors gracefully."""
         from scheduler.lock import DistributedLock
 
         # Simulate connection error
-        mock_redis.set.side_effect = redis.ConnectionError("Connection refused")
+        mock_redis.set_error = redis.ConnectionError("Connection refused")
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -280,13 +320,13 @@ class TestDistributedLockEdgeCases:
         with pytest.raises(redis.ConnectionError):
             await lock.acquire()
 
-    async def test_heartbeat_handles_renewal_failure(self, mock_redis: AsyncMock) -> None:
+    async def test_heartbeat_handles_renewal_failure(self, mock_redis: FakeRedis) -> None:
         """Heartbeat handles renewal failures (Redis down, key deleted)."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        # First renewal succeeds, second fails
-        mock_redis.expire.side_effect = [True, redis.ConnectionError("Connection lost")]
+        mock_redis.set_return = True
+        # First renewal succeeds (no error), second fails
+        mock_redis.expire_errors = [None, redis.ConnectionError("Connection lost")]
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 
@@ -294,18 +334,18 @@ class TestDistributedLockEdgeCases:
 
         # First renewal should succeed
         await lock._renew_lock()
-        assert mock_redis.expire.call_count == 1
+        assert len(mock_redis.expire_calls) == 1
 
         # Second renewal should handle error
         with pytest.raises(redis.ConnectionError):
             await lock._renew_lock()
 
-    async def test_lock_can_be_reacquired_after_release(self, mock_redis: AsyncMock) -> None:
+    async def test_lock_can_be_reacquired_after_release(self, mock_redis: FakeRedis) -> None:
         """Lock can be reacquired after being released."""
         from scheduler.lock import DistributedLock
 
-        mock_redis.set.return_value = True
-        mock_redis.delete.return_value = 1
+        mock_redis.set_return = True
+        mock_redis.delete_return = 1
 
         lock = DistributedLock(redis_client=mock_redis, lock_key="test:scheduler:lock")
 

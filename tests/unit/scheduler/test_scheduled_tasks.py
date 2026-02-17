@@ -356,18 +356,22 @@ class TestSchedulerHeartbeatLogic:
 
     async def test_renews_distributed_lock(self) -> None:
         """scheduler_heartbeat renews the distributed lock TTL."""
-        from unittest.mock import AsyncMock
-
         from scheduler.schedules.jobs import scheduler_heartbeat
 
-        # Mock the lock renewal (actual lock tested in test_distributed_lock.py)
-        # This test verifies the heartbeat task calls the renewal method
-        mock_lock = AsyncMock()
+        class FakeLock:
+            """Test double for DistributedLock that tracks renewal calls."""
 
-        await scheduler_heartbeat(lock=mock_lock)
+            def __init__(self) -> None:
+                self.renew_calls: int = 0
+
+            async def renew(self) -> None:
+                self.renew_calls += 1
+
+        fake_lock = FakeLock()
+        await scheduler_heartbeat(lock=fake_lock)
 
         # Verify lock renewal was called
-        mock_lock.renew.assert_called_once()
+        assert fake_lock.renew_calls == 1
 
     async def test_updates_scheduler_health_record(self) -> None:
         """scheduler_heartbeat updates scheduler health timestamp."""
