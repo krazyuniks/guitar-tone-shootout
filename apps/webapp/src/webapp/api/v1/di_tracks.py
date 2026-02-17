@@ -1,5 +1,6 @@
 """DI Tracks API endpoints."""
 
+import os
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -58,8 +59,8 @@ async def upload_di_track(
             detail="No file provided",
         )
 
-    # Create upload directory structure: /app/uploads/di-tracks/{user_id}/
-    upload_base = Path("/app/uploads/di-tracks")
+    # Create upload directory structure: {storage}/uploads/di_tracks/{user_id}/
+    upload_base = Path(os.environ["GTS_STORAGE_ROOT"]) / "uploads" / "di_tracks"
     user_dir = upload_base / str(current_user.id)
     user_dir.mkdir(parents=True, exist_ok=True)
 

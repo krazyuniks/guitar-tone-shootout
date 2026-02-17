@@ -31,7 +31,7 @@ def get_upload_base() -> Path:
     """
     if _upload_base_override is not None:
         return _upload_base_override
-    return Path("/app/uploads")
+    return Path(os.environ["GTS_STORAGE_ROOT"]) / "uploads"
 
 
 def set_secret_key_override(key: str | None) -> None:
