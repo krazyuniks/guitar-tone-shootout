@@ -235,8 +235,7 @@ services:
     volumes:
       - ./libs/core:/app/libs/core:ro
       - ./libs/video:/app/libs/video
-      - upload_data:/app/uploads
-      - processed_data:/app/processed
+      - ../gts-storage:/app/storage
 ```
 
 **Profile:** `jobs` — video service does NOT run by default. Start with:
@@ -412,7 +411,7 @@ just remotion render ShootoutVideo output.mp4 --width=1920 --height=1080 --fps=3
 1. Check job status: `GET /render/{job_id}`
 2. View container logs: `docker compose logs video`
 3. Reproduce in Studio: `just video-studio`
-4. Check FFmpeg logs: `/app/processed/{job_id}/ffmpeg.log`
+4. Check FFmpeg logs: `/app/storage/audio/{job_id}/ffmpeg.log`
 
 ## Dependencies
 

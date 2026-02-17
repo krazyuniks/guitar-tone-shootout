@@ -192,18 +192,20 @@ Worktree offsets apply: main uses 8001, worktree with offset 10 uses 8011.
 
 ## File Storage
 
-Docker volume (`gts-storage`) -- existing from archive with synced T3K files.
+Shared bind mount (`../gts-storage/`) — all worktrees share one storage directory on the host, mapped to `/app/storage/` in containers.
 
 ### Storage Layout
 
 ```
 /app/storage/
-├── models/          # Downloaded gear models (NAM, IR files)
+├── models/              # Core gear models ({uuid}.nam)
 ├── uploads/
-│   ├── di_tracks/   # User-uploaded guitar recordings
-│   └── irs/         # User-uploaded impulse responses
-├── audio/           # Processed audio segments
-└── videos/          # Generated shootout comparison videos
+│   ├── di_tracks/       # User-uploaded guitar recordings
+│   └── irs/             # User-uploaded impulse responses
+├── audio/               # Processed shootout audio segments
+├── videos/              # Generated shootout comparison videos
+└── source_downloads/    # Raw source adapter downloads
+    └── t3k/             # T3K models ({model_id}/{filename}.nam)
 ```
 
 **Audio segments** are the processed output from running a DI track through a signal chain with a preset. Files are named by UUIDv7 from the audio table.
