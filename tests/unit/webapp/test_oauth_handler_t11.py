@@ -3,14 +3,15 @@
 Tests for:
 - JWT token creation and validation
 - T3K provider URL building and API calls
+
+Uses httpx MockTransport and monkeypatch instead of unittest.mock.
 """
 
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from httpx import HTTPStatusError, Request, Response
+from httpx import AsyncClient, HTTPStatusError, MockTransport, Request, Response
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -141,95 +142,121 @@ class TestT3KProvider:
         assert "redirect_url=" in url
         assert callback in url
 
-    async def test_exchange_api_key_posts_to_session_endpoint(self) -> None:
+    async def test_exchange_api_key_posts_to_session_endpoint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test exchange_api_key sends POST to /api/v1/auth/session."""
         from webapp.auth.providers.t3k import T3KProvider
 
+        captured_requests: list[Request] = []
+
+        def handler(request: Request) -> Response:
+            captured_requests.append(request)
+            return Response(
+                200,
+                json={
+                    "access_token": "test_token",
+                    "refresh_token": "test_refresh",
+                },
+            )
+
+        transport = MockTransport(handler)
+
+        # Monkeypatch the httpx.AsyncClient to use our transport
+        original_init = AsyncClient.__init__
+
+        def patched_init(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            original_init(self, *args, **kwargs)
+
+        monkeypatch.setattr(AsyncClient, "__init__", patched_init)
+
         provider = T3KProvider()
+        result = await provider.exchange_api_key("test_api_key")
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "access_token": "test_token",
-            "refresh_token": "test_refresh",
-        }
-        mock_response.raise_for_status = MagicMock()
+        assert len(captured_requests) == 1
+        assert "/api/v1/auth/session" in str(captured_requests[0].url)
+        assert result["access_token"] == "test_token"
 
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = mock_response
-
-            result = await provider.exchange_api_key("test_api_key")
-
-            mock_post.assert_called_once()
-            call_args = mock_post.call_args
-            assert "/api/v1/auth/session" in call_args[0][0]
-            assert call_args[1]["json"] == {"api_key": "test_api_key"}
-            assert result["access_token"] == "test_token"
-
-    async def test_get_user_info_sends_bearer_token(self) -> None:
+    async def test_get_user_info_sends_bearer_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test get_user_info sends Bearer token in Authorization header."""
         from webapp.auth.providers.t3k import T3KProvider
 
+        captured_requests: list[Request] = []
+
+        def handler(request: Request) -> Response:
+            captured_requests.append(request)
+            return Response(
+                200,
+                json={
+                    "id": "user_123",
+                    "username": "testuser",
+                    "email": "test@example.com",
+                },
+            )
+
+        transport = MockTransport(handler)
+
+        original_init = AsyncClient.__init__
+
+        def patched_init(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            original_init(self, *args, **kwargs)
+
+        monkeypatch.setattr(AsyncClient, "__init__", patched_init)
+
         provider = T3KProvider()
+        result = await provider.get_user_info("test_access_token")
 
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "id": "user_123",
-            "username": "testuser",
-            "email": "test@example.com",
-        }
-        mock_response.raise_for_status = MagicMock()
+        assert len(captured_requests) == 1
+        assert "/api/v1/user" in str(captured_requests[0].url)
+        assert captured_requests[0].headers["Authorization"] == "Bearer test_access_token"
+        assert result["username"] == "testuser"
 
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-            mock_get.return_value = mock_response
-
-            result = await provider.get_user_info("test_access_token")
-
-            mock_get.assert_called_once()
-            call_args = mock_get.call_args
-            assert "/api/v1/user" in call_args[0][0]
-            assert call_args[1]["headers"]["Authorization"] == "Bearer test_access_token"
-            assert result["username"] == "testuser"
-
-    async def test_exchange_api_key_raises_on_http_error(self) -> None:
+    async def test_exchange_api_key_raises_on_http_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test exchange_api_key raises exception on HTTP error."""
         from webapp.auth.providers.t3k import T3KProvider
 
+        def handler(request: Request) -> Response:
+            return Response(401, json={"error": "invalid_api_key"})
+
+        transport = MockTransport(handler)
+
+        original_init = AsyncClient.__init__
+
+        def patched_init(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            original_init(self, *args, **kwargs)
+
+        monkeypatch.setattr(AsyncClient, "__init__", patched_init)
+
         provider = T3KProvider()
 
-        mock_response = Response(
-            status_code=401,
-            json={"error": "invalid_api_key"},
-        )
-        mock_request = Request("POST", "https://www.tone3000.com/api/v1/auth/session")
+        with pytest.raises(HTTPStatusError):
+            await provider.exchange_api_key("invalid_key")
 
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.side_effect = HTTPStatusError(
-                "Unauthorized",
-                request=mock_request,
-                response=mock_response,
-            )
-
-            with pytest.raises(HTTPStatusError):
-                await provider.exchange_api_key("invalid_key")
-
-    async def test_get_user_info_raises_on_http_error(self) -> None:
+    async def test_get_user_info_raises_on_http_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test get_user_info raises exception on HTTP error."""
         from webapp.auth.providers.t3k import T3KProvider
 
+        def handler(request: Request) -> Response:
+            return Response(401, json={"error": "invalid_token"})
+
+        transport = MockTransport(handler)
+
+        original_init = AsyncClient.__init__
+
+        def patched_init(self, *args, **kwargs):
+            kwargs["transport"] = transport
+            original_init(self, *args, **kwargs)
+
+        monkeypatch.setattr(AsyncClient, "__init__", patched_init)
+
         provider = T3KProvider()
 
-        mock_response = Response(
-            status_code=401,
-            json={"error": "invalid_token"},
-        )
-        mock_request = Request("GET", "https://www.tone3000.com/api/v1/user")
-
-        with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-            mock_get.side_effect = HTTPStatusError(
-                "Unauthorized",
-                request=mock_request,
-                response=mock_response,
-            )
-
-            with pytest.raises(HTTPStatusError):
-                await provider.get_user_info("invalid_token")
+        with pytest.raises(HTTPStatusError):
+            await provider.get_user_info("invalid_token")

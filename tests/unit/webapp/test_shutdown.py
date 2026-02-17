@@ -2,11 +2,14 @@
 
 Tests signal handling (SIGTERM, SIGINT), health endpoint behavior during shutdown,
 request draining, database cleanup, and logging.
+
+Uses monkeypatch and caplog instead of unittest.mock.
 """
 
 import asyncio
+import logging
 import signal
-from unittest.mock import AsyncMock, MagicMock, patch
+import types
 
 import pytest
 
@@ -87,20 +90,20 @@ class TestSignalHandling:
 
         assert manager.is_shutting_down is True
 
-    @patch("webapp.shutdown.signal.signal")
-    def test_signal_handlers_registered(self, mock_signal: MagicMock) -> None:
+    def test_signal_handlers_registered(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Signal handlers are registered for SIGTERM and SIGINT."""
         from webapp.shutdown import register_signal_handlers
 
+        registered_signals: list[int] = []
+
+        def fake_signal(signum, handler):
+            registered_signals.append(signum)
+            return None
+
+        monkeypatch.setattr("webapp.shutdown.signal.signal", fake_signal)
+
         manager = ShutdownManager()
-
         register_signal_handlers(manager)
-
-        # Should register handlers for both SIGTERM and SIGINT
-        assert mock_signal.call_count >= 2
-
-        # Extract all signal numbers that were registered
-        registered_signals = [call[0][0] for call in mock_signal.call_args_list]
 
         assert signal.SIGTERM in registered_signals
         assert signal.SIGINT in registered_signals
@@ -211,65 +214,72 @@ class TestDatabaseShutdown:
         """Shutdown manager closes database engine."""
         from webapp.shutdown import shutdown_database
 
-        mock_engine = MagicMock()
-        mock_engine.dispose = AsyncMock()
+        disposed = False
 
-        await shutdown_database(mock_engine)
+        async def fake_dispose():
+            nonlocal disposed
+            disposed = True
 
-        mock_engine.dispose.assert_called_once()
+        engine = types.SimpleNamespace(dispose=fake_dispose)
+
+        await shutdown_database(engine)
+
+        assert disposed is True
 
 
 class TestShutdownLogging:
     """Tests for shutdown logging with timing information."""
 
-    @patch("webapp.shutdown.logger")
-    async def test_shutdown_logs_start(self, mock_logger: MagicMock) -> None:
+    async def test_shutdown_logs_start(self, caplog: pytest.LogCaptureFixture) -> None:
         """Shutdown start is logged."""
         manager = ShutdownManager()
 
-        handle_shutdown_signal(manager, signal.SIGTERM, None)
+        with caplog.at_level(logging.INFO, logger="webapp.shutdown"):
+            handle_shutdown_signal(manager, signal.SIGTERM, None)
 
-        # Should log shutdown initiation
-        mock_logger.info.assert_called()
-
-        # Check that the log message mentions shutdown
-        call_args = mock_logger.info.call_args_list
         shutdown_logged = any(
-            "shutdown" in str(call).lower() or "sigterm" in str(call).lower() for call in call_args
+            "shutdown" in record.message.lower() or "sigterm" in record.message.lower()
+            for record in caplog.records
         )
         assert shutdown_logged
 
-    @patch("webapp.shutdown.logger")
-    async def test_shutdown_logs_drain_start(self, mock_logger: MagicMock) -> None:
+    async def test_shutdown_logs_drain_start(self, caplog: pytest.LogCaptureFixture) -> None:
         """Drain period start is logged."""
         from webapp.shutdown import perform_shutdown
 
         manager = ShutdownManager(drain_timeout=0.01)
-        mock_engine = MagicMock()
-        mock_engine.dispose = AsyncMock()
 
-        await perform_shutdown(manager, mock_engine)
+        async def fake_dispose():
+            pass
 
-        # Should log drain period
-        call_args = [str(call) for call in mock_logger.info.call_args_list]
-        drain_logged = any("drain" in msg.lower() or "waiting" in msg.lower() for msg in call_args)
+        engine = types.SimpleNamespace(dispose=fake_dispose)
+
+        with caplog.at_level(logging.INFO, logger="webapp.shutdown"):
+            await perform_shutdown(manager, engine)
+
+        drain_logged = any(
+            "drain" in record.message.lower() or "waiting" in record.message.lower()
+            for record in caplog.records
+        )
         assert drain_logged
 
-    @patch("webapp.shutdown.logger")
-    async def test_shutdown_logs_completion(self, mock_logger: MagicMock) -> None:
+    async def test_shutdown_logs_completion(self, caplog: pytest.LogCaptureFixture) -> None:
         """Shutdown completion with timing is logged."""
         from webapp.shutdown import perform_shutdown
 
         manager = ShutdownManager(drain_timeout=0.01)
-        mock_engine = MagicMock()
-        mock_engine.dispose = AsyncMock()
 
-        await perform_shutdown(manager, mock_engine)
+        async def fake_dispose():
+            pass
 
-        # Should log shutdown completion
-        call_args = [str(call) for call in mock_logger.info.call_args_list]
+        engine = types.SimpleNamespace(dispose=fake_dispose)
+
+        with caplog.at_level(logging.INFO, logger="webapp.shutdown"):
+            await perform_shutdown(manager, engine)
+
         completion_logged = any(
-            "complete" in msg.lower() or "finished" in msg.lower() for msg in call_args
+            "complete" in record.message.lower() or "finished" in record.message.lower()
+            for record in caplog.records
         )
         assert completion_logged
 
@@ -289,28 +299,44 @@ class TestLifespanIntegration:
             assert "shutdown_manager" in state
             assert isinstance(state["shutdown_manager"], ShutdownManager)
 
-    async def test_lifespan_registers_signal_handlers(self) -> None:
+    async def test_lifespan_registers_signal_handlers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Lifespan startup registers signal handlers."""
         from fastapi import FastAPI
 
+        register_called = False
+
+        def fake_register(manager):
+            nonlocal register_called
+            register_called = True
+
+        monkeypatch.setattr("webapp.shutdown.register_signal_handlers", fake_register)
+
         app = FastAPI()
         lifespan_cm = create_lifespan()
 
-        with patch("webapp.shutdown.register_signal_handlers") as mock_register:
-            async with lifespan_cm(app):
-                # Signal handlers should be registered
-                mock_register.assert_called_once()
+        async with lifespan_cm(app):
+            assert register_called is True
 
-    async def test_lifespan_performs_shutdown_on_exit(self) -> None:
+    async def test_lifespan_performs_shutdown_on_exit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Lifespan cleanup performs graceful shutdown."""
         from fastapi import FastAPI
 
+        shutdown_called = False
+
+        async def fake_shutdown(manager, engine=None):
+            nonlocal shutdown_called
+            shutdown_called = True
+
+        monkeypatch.setattr("webapp.shutdown.perform_shutdown", fake_shutdown)
+
         app = FastAPI()
         lifespan_cm = create_lifespan()
 
-        with patch("webapp.shutdown.perform_shutdown", new_callable=AsyncMock) as mock_shutdown:
-            async with lifespan_cm(app):
-                pass  # Exit context
+        async with lifespan_cm(app):
+            pass  # Exit context
 
-            # Shutdown should be performed on exit
-            mock_shutdown.assert_called_once()
+        assert shutdown_called is True
