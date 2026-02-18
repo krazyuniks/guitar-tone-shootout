@@ -114,6 +114,22 @@ class T3KSyncService:
 
     # ── Staging helpers ──────────────────────────────────────────────────
 
+    async def _upsert_model(self, model: Any) -> T3KModelStaging:
+        """Upsert a model to staging, preserving file_synced_at."""
+        existing = await self._session.get(T3KModelStaging, model.id)
+        if existing is not None:
+            existing.tone_id = model.tone_id
+            existing.user_id = model.user_id
+            existing.name = model.name
+            existing.model_url = model.model_url
+            existing.size = model.size
+            existing.created_at = model.created_at
+            existing.updated_at = model.updated_at
+            return existing
+        staging = T3KModelStaging.from_domain(model)
+        self._session.add(staging)
+        return staging
+
     async def _stage_tone_models_and_publish(
         self,
         tone: Any,
@@ -131,8 +147,7 @@ class T3KSyncService:
         models = await self._api_client.get_models(tone.id)
         staging_models: list[T3KModelStaging] = []
         for model in models:
-            staging_model = T3KModelStaging.from_domain(model)
-            await self._session.merge(staging_model)
+            staging_model = await self._upsert_model(model)
             staging_models.append(staging_model)
 
         if not staging_models:
@@ -174,8 +189,7 @@ class T3KSyncService:
         models = await self._api_client.get_models(tone_id)
         staging_models: list[T3KModelStaging] = []
         for model in models:
-            staging_model = T3KModelStaging.from_domain(model)
-            await self._session.merge(staging_model)
+            staging_model = await self._upsert_model(model)
             staging_models.append(staging_model)
 
         if not staging_models:
@@ -228,7 +242,7 @@ class T3KSyncService:
         when it reaches tones we already have.
         """
         page = 1
-        page_size = 100
+        page_size = 25
 
         while True:
             tones = await self._api_client.get_tones(page=page, page_size=page_size, sort="newest")
@@ -285,7 +299,7 @@ class T3KSyncService:
             source_name="t3k", entity_type=BACKFILL_CHECKPOINT_TYPE
         )
         page = int(backfill_cp.last_record_id) if backfill_cp else 1
-        page_size = 100
+        page_size = 25
 
         tones = await self._api_client.get_tones(page=page, page_size=page_size, sort="oldest")
 

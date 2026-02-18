@@ -58,6 +58,8 @@ class ModelDownloader:
         path = self._get_model_path(model)
 
         if path.exists():
+            if model.file_synced_at is None:
+                model.file_synced_at = datetime.now(UTC)
             return None
 
         if self._http_client is None:
