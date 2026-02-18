@@ -13,6 +13,16 @@ passwordless OAuth flow, refreshed via `POST /api/v1/auth/session/refresh`.
 100 requests per minute (default). We run at ~0.75 req/s (~45/min) to stay
 well under the limit with headroom for bursts.
 
+## Max page_size per Resource
+
+| Resource | Endpoint | Max page_size |
+|----------|----------|---------------|
+| Search Tones | `/api/v1/tones/search` | 25 |
+| Models | `/api/v1/models` | 100 |
+| Users | `/api/v1/users` | 10 |
+| Created Tones | `/api/v1/users/{id}/tones` | 100 |
+| Favorited Tones | `/api/v1/users/{id}/favorites` | 100 |
+
 ## Endpoints
 
 ### GET /api/v1/tones/search

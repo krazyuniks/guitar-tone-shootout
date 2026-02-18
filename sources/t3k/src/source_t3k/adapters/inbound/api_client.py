@@ -80,7 +80,7 @@ class T3KAPIClient:
         return {"Authorization": f"Bearer {token}"}
 
     async def get_tones(
-        self, page: int = 1, page_size: int = 50, sort: str = "newest"
+        self, page: int = 1, page_size: int = 25, sort: str = "newest"
     ) -> list[T3KTone]:
         """Fetch a page of tones from the T3K API.
 
@@ -133,7 +133,7 @@ class T3KAPIClient:
 
         return all_models
 
-    async def get_users(self, page: int = 1, page_size: int = 50) -> list[T3KUser]:
+    async def get_users(self, page: int = 1, page_size: int = 10) -> list[T3KUser]:
         """Fetch a page of users from the T3K API.
 
         Uses GET /api/v1/users.
