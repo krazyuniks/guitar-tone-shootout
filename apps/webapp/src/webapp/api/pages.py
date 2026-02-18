@@ -720,6 +720,7 @@ async def shootout_detail_page(
         .options(
             joinedload(Shootout.di_track),
             joinedload(Shootout.chains).joinedload(ShootoutChain.signal_chain),
+            joinedload(Shootout.chains).joinedload(ShootoutChain.segments),
         )
     )
     result = await db.execute(stmt)
@@ -735,6 +736,7 @@ async def shootout_detail_page(
     chains_sorted = sorted(shootout_model.chains, key=lambda c: c.position)
     chain_items = [
         {
+            "id": str(chain.id),
             "signal_chain_id": str(chain.signal_chain_id),
             "position": chain.position,
             "label": chain.label,
