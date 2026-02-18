@@ -7,7 +7,7 @@
  * ensures the Jinja2 base layout always references the correct file.
  */
 
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, globSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -56,4 +56,14 @@ if (replaced === content) {
 } else {
   writeFileSync(baseHtml, replaced);
   console.log(`Injected CSS hash: /_astro/${cssFilename}`);
+}
+
+// Normalise trailing newlines to exactly one (matches pre-commit
+// end-of-file-fixer so rebuilds don't produce noisy diffs).
+for (const file of globSync(join(distDir, '**/*.html'))) {
+  const text = readFileSync(file, 'utf-8');
+  const trimmed = text.replace(/\n+$/, '');
+  if (trimmed.length > 0 && trimmed + '\n' !== text) {
+    writeFileSync(file, trimmed + '\n');
+  }
 }
