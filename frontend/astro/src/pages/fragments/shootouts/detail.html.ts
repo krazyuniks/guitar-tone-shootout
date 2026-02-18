@@ -247,7 +247,29 @@ export const GET: APIRoute = () => {
 
     {# Analytics Section with Alpine.js Tabs #}
     {% if shootout.status == 'completed' %}
-      <div class="mb-8" data-testid="analytics-section" x-data="{ activeTab: 'metrics' }">
+      <div
+        class="mb-8"
+        data-testid="analytics-section"
+        x-data="{
+          activeTab: 'playback',
+          comparison: null,
+          metadata: null,
+          loading: true,
+          chainA: 0,
+          chainB: 1,
+          async init() {
+            const sid = '{{ shootout.id }}';
+            const [compResp, metaResp] = await Promise.all([
+              fetch('/api/v1/shootouts/' + sid + '/comparison', { credentials: 'same-origin' }),
+              fetch('/api/v1/shootouts/' + sid + '/metadata', { credentials: 'same-origin' }),
+            ]);
+            if (compResp.ok) this.comparison = await compResp.json();
+            if (metaResp.ok) this.metadata = await metaResp.json();
+            this.loading = false;
+          },
+          swapChains() { [this.chainA, this.chainB] = [this.chainB, this.chainA]; },
+        }"
+      >
         <h2 class="text-lg font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-amber-500">
             <path fill-rule="evenodd" d="M2.25 13.5a8.25 8.25 0 018.25-8.25.75.75 0 01.75.75v6.75H18a.75.75 0 01.75.75 8.25 8.25 0 01-16.5 0z" clip-rule="evenodd" />
@@ -259,28 +281,28 @@ export const GET: APIRoute = () => {
         {# Tab Navigation #}
         <div class="flex gap-1 mb-4 bg-[var(--color-bg-surface)] rounded-lg p-1 border border-[var(--border)]">
           <button
-            x-on:click="activeTab = 'metrics'"
-            x-bind:class="activeTab === 'metrics' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
+            x-on:click="activeTab = 'playback'"
+            x-bind:class="activeTab === 'playback' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
             class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
-            data-testid="tab-metrics"
+            data-testid="tab-playback"
           >
-            Metrics
-          </button>
-          <button
-            x-on:click="activeTab = 'evaluation'"
-            x-bind:class="activeTab === 'evaluation' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
-            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
-            data-testid="tab-evaluation"
-          >
-            AI Evaluation
+            Playback
           </button>
           <button
             x-on:click="activeTab = 'comparison'"
             x-bind:class="activeTab === 'comparison' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
             class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
-            data-testid="tab-comparison"
+            data-testid="comparison-tab"
           >
             Compare
+          </button>
+          <button
+            x-on:click="activeTab = 'metrics'"
+            x-bind:class="activeTab === 'metrics' ? 'bg-amber-500 text-white' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)]'"
+            class="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
+            data-testid="metrics-tab"
+          >
+            Metrics
           </button>
           <button
             x-on:click="activeTab = 'technical'"
@@ -294,45 +316,205 @@ export const GET: APIRoute = () => {
 
         {# Tab Content #}
         <div class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-6">
-          {# Metrics Tab #}
-          <div x-show="activeTab === 'metrics'" data-testid="metrics-content">
+          {# Loading state #}
+          <template x-if="loading">
             <div class="text-center py-8 text-[var(--color-text-muted)]">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
-                <path fill-rule="evenodd" d="M2.25 13.5a8.25 8.25 0 018.25-8.25.75.75 0 01.75.75v6.75H18a.75.75 0 01.75.75 8.25 8.25 0 01-16.5 0z" clip-rule="evenodd" />
-                <path fill-rule="evenodd" d="M12.75 3a.75.75 0 01.75-.75 8.25 8.25 0 018.25 8.25.75.75 0 01-.75.75h-7.5a.75.75 0 01-.75-.75V3z" clip-rule="evenodd" />
-              </svg>
-              <p>Metrics feature deferred to future story</p>
+              <div class="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p>Loading analysis data...</p>
+            </div>
+          </template>
+
+          {# Playback Tab — audio player per chain + downloads #}
+          <div x-show="activeTab === 'playback' && !loading" data-testid="playback-content">
+            <div class="space-y-4">
+              {% for chain in chains %}
+                <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-[var(--color-text-primary)]">
+                      {{ chain.chain_name or chain.label }}
+                    </span>
+                    <a
+                      href="/api/v1/shootouts/{{ shootout.id }}/chains/{{ chain.id }}/audio"
+                      download
+                      class="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                      data-testid="download-segment-btn"
+                    >
+                      Download
+                    </a>
+                  </div>
+                  <audio
+                    controls
+                    preload="metadata"
+                    class="w-full"
+                    src="/api/v1/shootouts/{{ shootout.id }}/chains/{{ chain.id }}/audio"
+                    data-testid="audio-player"
+                  >
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              {% endfor %}
+              {% if shootout.output_path %}
+                <div class="pt-4 border-t border-[var(--border)]">
+                  <a
+                    href="/api/v1/shootouts/{{ shootout.id }}/audio/master"
+                    download
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium transition-colors"
+                    data-testid="download-master-btn"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                      <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
+                      <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+                    </svg>
+                    Download Master FLAC
+                  </a>
+                </div>
+              {% endif %}
             </div>
           </div>
 
-          {# AI Evaluation Tab #}
-          <div x-show="activeTab === 'evaluation'" data-testid="evaluation-content">
-            <div class="text-center py-8 text-[var(--color-text-muted)]">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
-              </svg>
-              <p>AI Evaluation feature deferred to future story</p>
-            </div>
+          {# Comparison Tab — A/B selectors + synchronised playback #}
+          <div x-show="activeTab === 'comparison' && !loading" data-testid="comparison-content">
+            <template x-if="comparison && comparison.segments.length >= 2">
+              <div>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label class="block text-xs text-[var(--color-text-muted)] mb-1">Chain A</label>
+                    <select
+                      x-model.number="chainA"
+                      class="w-full bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      data-testid="chain-a-selector"
+                    >
+                      <template x-for="(seg, idx) in comparison.segments" :key="idx">
+                        <option :value="idx" x-text="seg.chain_label + ' (Position ' + seg.chain_position + ')'"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-[var(--color-text-muted)] mb-1">Chain B</label>
+                    <select
+                      x-model.number="chainB"
+                      class="w-full bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)]"
+                      data-testid="chain-b-selector"
+                    >
+                      <template x-for="(seg, idx) in comparison.segments" :key="idx">
+                        <option :value="idx" x-text="seg.chain_label + ' (Position ' + seg.chain_position + ')'"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
+                <div class="flex justify-center mb-4">
+                  <button
+                    x-on:click="swapChains()"
+                    class="px-4 py-2 rounded-lg bg-[var(--color-bg-elevated)] hover:bg-amber-500/20 text-[var(--color-text-secondary)] hover:text-amber-400 text-sm font-medium transition-all"
+                    data-testid="ab-switch-btn"
+                  >
+                    Swap A/B
+                  </button>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                    <p class="text-xs text-[var(--color-text-muted)] mb-2">Chain A</p>
+                    <p class="text-sm font-medium text-[var(--color-text-primary)] mb-2"
+                       x-text="comparison.segments[chainA]?.chain_label"></p>
+                    <div class="text-xs text-[var(--color-text-secondary)] space-y-1">
+                      <p>LUFS: <span x-text="comparison.segments[chainA]?.integrated_lufs.toFixed(1)"></span></p>
+                      <p>Peak: <span x-text="comparison.segments[chainA]?.peak_dbfs.toFixed(1)"></span> dBFS</p>
+                      <p>Duration: <span x-text="comparison.segments[chainA]?.duration_seconds.toFixed(1)"></span>s</p>
+                    </div>
+                  </div>
+                  <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4">
+                    <p class="text-xs text-[var(--color-text-muted)] mb-2">Chain B</p>
+                    <p class="text-sm font-medium text-[var(--color-text-primary)] mb-2"
+                       x-text="comparison.segments[chainB]?.chain_label"></p>
+                    <div class="text-xs text-[var(--color-text-secondary)] space-y-1">
+                      <p>LUFS: <span x-text="comparison.segments[chainB]?.integrated_lufs.toFixed(1)"></span></p>
+                      <p>Peak: <span x-text="comparison.segments[chainB]?.peak_dbfs.toFixed(1)"></span> dBFS</p>
+                      <p>Duration: <span x-text="comparison.segments[chainB]?.duration_seconds.toFixed(1)"></span>s</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template x-if="!comparison || comparison.segments.length < 2">
+              <p class="text-center py-8 text-[var(--color-text-muted)]">Need at least 2 chains for comparison.</p>
+            </template>
           </div>
 
-          {# Comparison Tab #}
-          <div x-show="activeTab === 'comparison'" data-testid="comparison-content">
-            <div class="text-center py-8 text-[var(--color-text-muted)]">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
-                <path d="M18.375 2.25c-1.035 0-1.875.84-1.875 1.875v15.75c0 1.035.84 1.875 1.875 1.875h.75c1.035 0 1.875-.84 1.875-1.875V4.125c0-1.036-.84-1.875-1.875-1.875h-.75zM9.75 8.625c0-1.036.84-1.875 1.875-1.875h.75c1.036 0 1.875.84 1.875 1.875v11.25c0 1.035-.84 1.875-1.875 1.875h-.75a1.875 1.875 0 01-1.875-1.875V8.625zM3 13.125c0-1.036.84-1.875 1.875-1.875h.75c1.036 0 1.875.84 1.875 1.875v6.75c0 1.035-.84 1.875-1.875 1.875h-.75A1.875 1.875 0 013 19.875v-6.75z" />
-              </svg>
-              <p>Comparison feature deferred to future story</p>
-            </div>
+          {# Metrics Tab — per-chain metrics table #}
+          <div x-show="activeTab === 'metrics' && !loading" data-testid="metrics-content">
+            <template x-if="comparison">
+              <div>
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-[var(--color-text-muted)] border-b border-[var(--border)]">
+                      <th class="pb-3 font-medium">Chain</th>
+                      <th class="pb-3 font-medium">Duration</th>
+                      <th class="pb-3 font-medium">LUFS</th>
+                      <th class="pb-3 font-medium">Peak dBFS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="seg in comparison.segments" :key="seg.chain_id">
+                      <tr class="border-b border-[var(--border)]/50">
+                        <td class="py-3 text-[var(--color-text-primary)] font-medium" x-text="seg.chain_label"></td>
+                        <td class="py-3 text-[var(--color-text-secondary)]" x-text="seg.duration_seconds.toFixed(1) + 's'"></td>
+                        <td class="py-3 text-[var(--color-text-secondary)]" x-text="seg.integrated_lufs.toFixed(1)"></td>
+                        <td class="py-3 text-[var(--color-text-secondary)]" x-text="seg.peak_dbfs.toFixed(1)"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                  <tfoot>
+                    <tr class="text-amber-400 font-medium">
+                      <td class="pt-3">Average</td>
+                      <td class="pt-3" x-text="comparison.averages.avg_duration_seconds.toFixed(1) + 's'"></td>
+                      <td class="pt-3" x-text="comparison.averages.avg_integrated_lufs.toFixed(1)"></td>
+                      <td class="pt-3" x-text="comparison.averages.avg_peak_dbfs.toFixed(1)"></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </template>
+            <template x-if="!comparison">
+              <p class="text-center py-8 text-[var(--color-text-muted)]">No metrics data available.</p>
+            </template>
           </div>
 
-          {# Technical Tab #}
-          <div x-show="activeTab === 'technical'" data-testid="technical-content">
-            <div class="text-center py-8 text-[var(--color-text-muted)]">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-3 opacity-50">
-                <path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 00-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 00-2.282.819l-.922 1.597a1.875 1.875 0 00.432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 000 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 00-.432 2.385l.922 1.597a1.875 1.875 0 002.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 002.28-.819l.923-1.597a1.875 1.875 0 00-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 000-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 00-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 00-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 00-1.85-1.567h-1.843zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" clip-rule="evenodd" />
-              </svg>
-              <p>Technical details feature deferred to future story</p>
-            </div>
+          {# Technical Tab — metadata from /metadata endpoint #}
+          <div x-show="activeTab === 'technical' && !loading" data-testid="technical-content">
+            <template x-if="metadata">
+              <div class="space-y-6">
+                <div>
+                  <h3 class="text-sm font-medium text-[var(--color-text-primary)] mb-2">Audio Settings</h3>
+                  <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-[var(--color-bg-elevated)] rounded-lg p-3">
+                      <span class="text-[var(--color-text-muted)]">Format:</span>
+                      <span class="text-[var(--color-text-primary)] ml-2" x-text="metadata.audio_settings.output_format.toUpperCase()"></span>
+                    </div>
+                    <div class="bg-[var(--color-bg-elevated)] rounded-lg p-3">
+                      <span class="text-[var(--color-text-muted)]">Sample Rate:</span>
+                      <span class="text-[var(--color-text-primary)] ml-2" x-text="(metadata.audio_settings.sample_rate / 1000) + ' kHz'"></span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="text-sm font-medium text-[var(--color-text-primary)] mb-2">Chain Configurations</h3>
+                  <div class="space-y-2">
+                    <template x-for="chain in metadata.chains" :key="chain.chain_id">
+                      <div class="bg-[var(--color-bg-elevated)] rounded-lg p-3 flex items-center justify-between text-sm">
+                        <div>
+                          <span class="text-[var(--color-text-primary)] font-medium" x-text="chain.label"></span>
+                          <span class="text-[var(--color-text-muted)] ml-2" x-text="'(' + chain.signal_chain_name + ')'"></span>
+                        </div>
+                        <span class="text-xs text-[var(--color-text-muted)]" x-text="'Position ' + chain.position"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template x-if="!metadata">
+              <p class="text-center py-8 text-[var(--color-text-muted)]">No metadata available.</p>
+            </template>
           </div>
         </div>
       </div>
