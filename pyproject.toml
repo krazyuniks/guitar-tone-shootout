@@ -23,6 +23,10 @@ dev = [
     "aiosqlite>=0.22.1",
     "jsonschema>=4.20.0",
 ]
+host = [
+    "cryptography>=44.0.0",
+    "playwright>=1.49.0",
+]
 
 [tool.uv]
 # CPU-only PyTorch — no GPU on this server, saves ~3GB of NVIDIA CUDA packages

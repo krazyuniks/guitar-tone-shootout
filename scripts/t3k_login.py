@@ -6,6 +6,9 @@ Usage: just t3k-login
 Launches headless Chromium, navigates to T3K login page, fills email,
 prompts for 6-digit code, completes auth, saves encrypted tokens to
 .gts-auth.json.
+
+Token extraction: intercepts API responses during the login flow to capture
+the access_token and refresh_token directly from the auth endpoint response.
 """
 
 import json
@@ -43,7 +46,7 @@ def main() -> None:
         from playwright.sync_api import sync_playwright
     except ImportError as e:
         print(f"Missing dependency: {e}")
-        print("Install: pip install cryptography playwright")
+        print("Install: uv sync --group host")
         sys.exit(1)
 
     encryption_key = get_encryption_key()
@@ -53,6 +56,29 @@ def main() -> None:
     print(f"Auth file: {AUTH_FILE}")
     print()
 
+    # Capture tokens from API responses during login
+    captured_tokens: dict[str, str] = {}
+
+    def handle_response(response):
+        """Intercept API responses to capture auth tokens."""
+        url = response.url
+        if response.status not in range(200, 300):
+            return
+        # Look for auth-related API responses
+        if "/api/" not in url or "/auth/" not in url:
+            return
+        try:
+            body = response.json()
+        except Exception:
+            return
+        if "access_token" in body:
+            captured_tokens["access_token"] = body["access_token"]
+            if "refresh_token" in body:
+                captured_tokens["refresh_token"] = body["refresh_token"]
+            if "expires_in" in body:
+                captured_tokens["expires_in"] = body["expires_in"]
+            print(f"  Captured tokens from {url}")
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             executable_path="/usr/bin/chromium",
@@ -60,6 +86,7 @@ def main() -> None:
             args=["--no-sandbox", "--disable-gpu"],
         )
         page = browser.new_page()
+        page.on("response", handle_response)
 
         # Navigate to T3K login
         print("Opening T3K login page...")
@@ -83,69 +110,105 @@ def main() -> None:
             browser.close()
             sys.exit(1)
 
-        # Fill code
-        code_input = page.locator('input[name="code"], input[type="text"]')
-        code_input.fill(code)
+        # Fill code — T3K uses 6 individual digit inputs
+        for i, digit in enumerate(code):
+            digit_input = page.get_by_role("textbox", name=f"Digit {i + 1} of 6")
+            digit_input.fill(digit)
 
         # Submit code
         submit_button = page.locator('button[type="submit"]')
         submit_button.click()
 
-        # Wait for redirect / auth completion
+        # Wait for auth API response
         print("Waiting for authentication...")
         page.wait_for_load_state("networkidle")
-        time.sleep(2)
+        time.sleep(3)
 
-        # Extract tokens from cookies/storage
-        cookies = page.context.cookies()
-        access_token = None
-        refresh_token = None
+        # Fallback: extract from Supabase auth cookie
+        if "access_token" not in captured_tokens:
+            print("  No tokens captured from API responses, checking Supabase cookie...")
+            from urllib.parse import unquote
 
-        for cookie in cookies:
-            if not access_token and (
-                "access" in cookie["name"].lower() or "token" in cookie["name"].lower()
-            ):
-                access_token = cookie["value"]
-            if "refresh" in cookie["name"].lower():
-                refresh_token = cookie["value"]
+            cookies = page.context.cookies()
+            for cookie in cookies:
+                if cookie["name"].startswith("sb-") and cookie["name"].endswith("-auth-token"):
+                    try:
+                        token_data = json.loads(unquote(cookie["value"]))
+                        if "access_token" in token_data:
+                            captured_tokens["access_token"] = token_data["access_token"]
+                            print(f"  Extracted access_token from cookie: {cookie['name']}")
+                        if "refresh_token" in token_data:
+                            captured_tokens["refresh_token"] = token_data["refresh_token"]
+                            print(f"  Extracted refresh_token from cookie: {cookie['name']}")
+                        if "expires_in" in token_data:
+                            captured_tokens["expires_in"] = token_data["expires_in"]
+                        elif "expires_at" in token_data:
+                            # Supabase uses epoch seconds for expires_at
+                            remaining = int(token_data["expires_at"]) - int(time.time())
+                            if remaining > 0:
+                                captured_tokens["expires_in"] = str(remaining)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
 
-        # Also check localStorage
-        if not access_token:
-            access_token = page.evaluate(
-                "() => localStorage.getItem('access_token') || sessionStorage.getItem('access_token')"
-            )
-        if not refresh_token:
-            refresh_token = page.evaluate(
-                "() => localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token')"
-            )
+        # Debug: dump what we found if no tokens
+        if "access_token" not in captured_tokens:
+            print()
+            print("Debug — cookies found:")
+            for cookie in page.context.cookies():
+                print(f"  {cookie['name']}: {cookie['value'][:40]}...")
+            print("Debug — localStorage keys:")
+            keys = page.evaluate("() => Object.keys(localStorage)")
+            for k in keys:
+                val = page.evaluate(f"() => localStorage.getItem('{k}')")
+                print(f"  {k}: {val[:40] if val else '(empty)'}...")
+            print("Debug — sessionStorage keys:")
+            keys = page.evaluate("() => Object.keys(sessionStorage)")
+            for k in keys:
+                val = page.evaluate(f"() => sessionStorage.getItem('{k}')")
+                print(f"  {k}: {val[:40] if val else '(empty)'}...")
 
         browser.close()
 
-        if not access_token:
-            print("Error: Could not extract access token from browser session")
-            print("The login flow may have changed. Check T3K manually.")
-            sys.exit(1)
+    access_token = captured_tokens.get("access_token")
+    refresh_token = captured_tokens.get("refresh_token")
+    expires_in = captured_tokens.get("expires_in")
 
-        # Encrypt and save
-        auth_data = {}
-        if AUTH_FILE.exists():
-            import contextlib
-
-            with contextlib.suppress(json.JSONDecodeError):
-                auth_data = json.loads(AUTH_FILE.read_text())
-
-        auth_data["access_token"] = fernet.encrypt(access_token.encode()).decode()
-        if refresh_token:
-            auth_data["refresh_token"] = fernet.encrypt(refresh_token.encode()).decode()
-        auth_data["expires_at"] = None  # Unknown — refresh job will determine
-        auth_data["auth_status"] = "valid"
-        auth_data["saved_at"] = datetime.now(UTC).isoformat()
-
-        AUTH_FILE.write_text(json.dumps(auth_data, indent=2))
-        os.chmod(AUTH_FILE, 0o600)
-
+    if not access_token:
         print()
-        print(f"Login successful. Auth saved to {AUTH_FILE}")
+        print("Error: Could not extract access token")
+        print("The login flow may have changed. Check T3K manually.")
+        sys.exit(1)
+
+    # Encrypt and save
+    auth_data = {}
+    if AUTH_FILE.exists():
+        import contextlib
+
+        with contextlib.suppress(json.JSONDecodeError):
+            auth_data = json.loads(AUTH_FILE.read_text())
+
+    auth_data["access_token"] = fernet.encrypt(access_token.encode()).decode()
+    if refresh_token:
+        auth_data["refresh_token"] = fernet.encrypt(refresh_token.encode()).decode()
+    if expires_in:
+        expires_at = datetime.now(UTC).timestamp() + int(expires_in)
+        auth_data["expires_at"] = datetime.fromtimestamp(expires_at, tz=UTC).isoformat()
+    else:
+        auth_data["expires_at"] = None
+    auth_data["auth_status"] = "valid"
+    auth_data["saved_at"] = datetime.now(UTC).isoformat()
+
+    AUTH_FILE.write_text(json.dumps(auth_data, indent=2))
+    os.chmod(AUTH_FILE, 0o600)
+
+    print()
+    print(f"Login successful. Auth saved to {AUTH_FILE}")
+    if refresh_token:
+        print("  Access token + refresh token captured")
+    else:
+        print("  Access token captured (no refresh token)")
+    if expires_in:
+        print(f"  Expires in {expires_in}s")
 
 
 if __name__ == "__main__":

@@ -251,7 +251,7 @@ t3k-login:
     #!/usr/bin/env bash
     set -euo pipefail
     source .env 2>/dev/null || true
-    python3 scripts/t3k_login.py
+    uv run --group host python3 scripts/t3k_login.py
 
 # Solve Vercel Security Checkpoint — saves cookies for worker (runs on host)
 solve-vercel:
