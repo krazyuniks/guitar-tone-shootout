@@ -70,13 +70,14 @@ class TestStageToneCallsDownloader:
         staging_line = None
         download_line = None
         for i, line in enumerate(lines):
-            if "session.add" in line.replace("self._", "") and staging_line is None:
+            stripped = line.replace("self._", "")
+            if ("session.add" in stripped or "session.merge" in stripped) and staging_line is None:
                 staging_line = i
             if "download_models_for_tone" in line and download_line is None:
                 download_line = i
 
         assert staging_line is not None, (
-            "_stage_tone_models_and_publish must stage models via session.add"
+            "_stage_tone_models_and_publish must stage models via session.add or session.merge"
         )
         assert download_line is not None, (
             "_stage_tone_models_and_publish must call download_models_for_tone"

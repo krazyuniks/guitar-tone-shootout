@@ -10,7 +10,7 @@ from uuid import UUID
 from worker.main import broker
 
 
-@broker.task
+@broker.task(retry_on_error=True, max_retries=2)
 async def handle_audio_processing(job_id: UUID) -> None:
     """Handle AUDIO_PROCESSING job.
 

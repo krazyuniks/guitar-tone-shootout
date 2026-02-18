@@ -138,7 +138,7 @@ async def reconcile_parent_after_audio(parent_job_id: UUID, database_url: str) -
         await _dispatch_master_job(master_job_id, database_url)
 
 
-@broker.task
+@broker.task(retry_on_error=True, max_retries=2)
 async def handle_shootout_job(job_id: UUID) -> None:
     """Handle SHOOTOUT by spawning and dispatching chain jobs."""
     database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")

@@ -85,7 +85,7 @@ async def _resolve_gear_paths(
     return paths
 
 
-@broker.task
+@broker.task(retry_on_error=True, max_retries=2)
 async def handle_shootout_audio_job(job_id: UUID) -> None:
     """Handle SHOOTOUT_AUDIO job by processing a single signal chain.
 

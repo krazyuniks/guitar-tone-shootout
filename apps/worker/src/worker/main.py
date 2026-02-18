@@ -5,7 +5,7 @@ This module provides the TaskIQ broker configuration and job handlers.
 
 import os
 
-from taskiq import InMemoryBroker
+from taskiq import InMemoryBroker, SimpleRetryMiddleware
 from taskiq_redis import ListQueueBroker
 
 from worker.config import WorkerSettings
@@ -35,7 +35,9 @@ def _create_broker():
         r.close()
 
         # Redis available, use ListQueueBroker
-        broker = ListQueueBroker(redis_url)
+        broker = ListQueueBroker(redis_url).with_middlewares(
+            SimpleRetryMiddleware(default_retry_count=0),
+        )
         broker._redis_url = redis_url  # type: ignore[attr-defined]
         return broker
     except Exception:

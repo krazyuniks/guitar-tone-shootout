@@ -120,7 +120,7 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
         await session.commit()
 
 
-@broker.task
+@broker.task(retry_on_error=True, max_retries=2)
 async def handle_shootout_master_job(job_id: UUID) -> None:
     """Handle SHOOTOUT_MASTER job by creating the master audio artifact."""
     database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")

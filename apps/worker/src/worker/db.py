@@ -90,6 +90,8 @@ def async_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]
                 pool_pre_ping=True,
                 pool_size=10,
                 max_overflow=20,
+                pool_timeout=30,
+                pool_recycle=1800,
             )
         _engine_cache[database_url] = engine
 

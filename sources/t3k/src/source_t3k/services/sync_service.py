@@ -128,14 +128,14 @@ class T3KSyncService:
         """
         staging_tone = T3KToneStaging.from_domain(tone)
         staging_tone.last_synced_at = datetime.now(UTC)
-        self._session.add(staging_tone)
+        await self._session.merge(staging_tone)
 
         # Fetch and stage models for this tone.
         models = await self._api_client.get_models(tone.id)
         staging_models: list[T3KModelStaging] = []
         for model in models:
             staging_model = T3KModelStaging.from_domain(model)
-            self._session.add(staging_model)
+            await self._session.merge(staging_model)
             staging_models.append(staging_model)
 
         if not staging_models:

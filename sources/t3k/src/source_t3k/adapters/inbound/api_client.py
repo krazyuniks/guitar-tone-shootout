@@ -244,7 +244,7 @@ class T3KAPIClient:
             models_count=d.get("models_count", 0),
             favorites_count=d.get("favorites_count", 0),
             downloads_count=d.get("downloads_count", 0),
-            images=d.get("images", []),
+            images=d.get("images") or [],
             user_id=str(d.get("user_id", "")),
             user=user,
             url=d.get("url", ""),
@@ -258,7 +258,7 @@ class T3KAPIClient:
 
     def _parse_model_data(self, d: dict[str, Any]) -> T3KModel:
         return T3KModel(
-            id=str(d["id"]),
+            id=int(d["id"]),
             tone_id=int(d.get("tone_id", 0)),
             user_id=str(d.get("user_id", "")),
             name=d.get("name", ""),
