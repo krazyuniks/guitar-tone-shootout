@@ -24,6 +24,7 @@ from webapp.api.v1 import (
     irs,
     jobs,
     library,
+    metrics,
     notifications,
     presets,
     shootouts,
@@ -120,6 +121,7 @@ def create_app() -> FastAPI:
     app.include_router(files.router)
     app.include_router(gear.router)
     app.include_router(shootouts.router)
+    app.include_router(metrics.router)
     app.include_router(jobs.router)
     app.include_router(html.router)
     app.include_router(library.router)
