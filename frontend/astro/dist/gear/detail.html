@@ -96,12 +96,78 @@
             data-testid="pack-image"
           />
         {% else %}
-          <!-- Placeholder with gear type styling -->
+          <!-- Placeholder with gear type icon -->
           <div class="w-full aspect-square flex items-center justify-center rounded-lg {{ styles.bg }}">
-            <svg viewBox="0 0 48 48" fill="currentColor" class="w-32 h-32 {{ styles.text }} opacity-40">
-              <circle cx="24" cy="24" r="16" fill-opacity="0.2"/>
-              <circle cx="24" cy="24" r="8" fill-opacity="0.3"/>
-            </svg>
+            {% if pack.gear_type == 'amp' %}
+              <!-- Amp head icon -->
+              <svg viewBox="0 0 100 100" fill="currentColor" class="w-3/4 h-3/4 text-white/40" preserveAspectRatio="xMidYMid meet">
+                <rect x="0" y="5" width="100" height="90" rx="3" fill="#1a1a1a"/>
+                <rect x="2" y="7" width="96" height="86" rx="2" fill="#0d0d0d" stroke="#333" stroke-width="1"/>
+                <rect x="5" y="10" width="90" height="20" rx="1" fill="#1f1f1f"/>
+                <circle cx="15" cy="20" r="5" fill="#333" stroke="#555" stroke-width="1"/>
+                <circle cx="32" cy="20" r="5" fill="#333" stroke="#555" stroke-width="1"/>
+                <circle cx="50" cy="20" r="5" fill="#333" stroke="#555" stroke-width="1"/>
+                <circle cx="68" cy="20" r="5" fill="#333" stroke="#555" stroke-width="1"/>
+                <circle cx="85" cy="20" r="5" fill="#333" stroke="#555" stroke-width="1"/>
+                <circle cx="8" cy="12" r="2" fill="#22c55e"/>
+                <rect x="5" y="33" width="90" height="55" rx="2" fill="#0a0a0a"/>
+                <rect x="15" y="52" width="70" height="18" rx="2" fill="#1a1a1a" stroke="#333" stroke-width="0.5"/>
+                <text x="50" y="65" text-anchor="middle" font-size="12" fill="#888" font-family="sans-serif" font-weight="bold">AMP MODEL</text>
+              </svg>
+            {% elif pack.gear_type == 'full-rig' %}
+              <!-- Full rig icon (amp head + cabinet) -->
+              <svg viewBox="0 0 100 100" fill="currentColor" class="w-3/4 h-3/4 text-white/40" preserveAspectRatio="xMidYMid meet">
+                <!-- Amp head (top) -->
+                <rect x="5" y="2" width="90" height="38" rx="3" fill="#1a1a1a"/>
+                <rect x="7" y="4" width="86" height="34" rx="2" fill="#0d0d0d" stroke="#333" stroke-width="0.5"/>
+                <rect x="10" y="7" width="80" height="10" rx="1" fill="#1f1f1f"/>
+                <circle cx="18" cy="12" r="3" fill="#333" stroke="#555" stroke-width="0.5"/>
+                <circle cx="30" cy="12" r="3" fill="#333" stroke="#555" stroke-width="0.5"/>
+                <circle cx="42" cy="12" r="3" fill="#333" stroke="#555" stroke-width="0.5"/>
+                <circle cx="54" cy="12" r="3" fill="#333" stroke="#555" stroke-width="0.5"/>
+                <circle cx="66" cy="12" r="3" fill="#333" stroke="#555" stroke-width="0.5"/>
+                <circle cx="11" cy="7" r="1.5" fill="#22c55e"/>
+                <rect x="10" y="20" width="80" height="15" rx="1" fill="#0a0a0a"/>
+                <!-- Cabinet (bottom) -->
+                <rect x="3" y="44" width="94" height="54" rx="3" fill="#1a1a1a"/>
+                <rect x="5" y="46" width="90" height="50" rx="2" fill="#0d0d0d" stroke="#333" stroke-width="0.5"/>
+                <circle cx="50" cy="65" r="18" fill="#1f1f1f"/>
+                <circle cx="50" cy="65" r="14" fill="#2a2a2a"/>
+                <circle cx="50" cy="65" r="5" fill="#1a1a1a" stroke="#333" stroke-width="0.5"/>
+                <rect x="15" y="82" width="70" height="14" rx="2" fill="#1a1a1a" stroke="#333" stroke-width="0.5"/>
+                <text x="50" y="93" text-anchor="middle" font-size="12" fill="#888" font-family="sans-serif" font-weight="bold">FULL RIG</text>
+              </svg>
+            {% elif pack.gear_type == 'ir' %}
+              <!-- Speaker/IR icon -->
+              <svg viewBox="0 0 100 100" fill="currentColor" class="w-3/4 h-3/4 text-white/40" preserveAspectRatio="xMidYMid meet">
+                <circle cx="50" cy="50" r="48" fill="#1a1a1a"/>
+                <circle cx="50" cy="50" r="42" fill="#1f1f1f"/>
+                <circle cx="50" cy="50" r="36" fill="#3d3d3d"/>
+                <circle cx="50" cy="50" r="14" fill="#2d2d2d"/>
+                <circle cx="50" cy="50" r="12" fill="#252525" stroke="#333" stroke-width="0.5"/>
+                <text x="50" y="47" text-anchor="middle" font-size="7" fill="#f5c518" font-family="sans-serif" font-weight="bold" font-style="italic">IMPULSE</text>
+                <text x="50" y="56" text-anchor="middle" font-size="7" fill="#f5c518" font-family="sans-serif" font-weight="bold" font-style="italic">RESPONSE</text>
+              </svg>
+            {% elif pack.gear_type == 'pedal' %}
+              <!-- Pedal icon -->
+              <svg viewBox="0 0 100 100" fill="currentColor" class="w-3/4 h-3/4 text-white/40" preserveAspectRatio="xMidYMid meet">
+                <rect x="5" y="0" width="90" height="100" rx="5" fill="#1a1a1a"/>
+                <rect x="12" y="7" width="76" height="86" rx="3" fill="#0d0d0d"/>
+                <circle cx="28" cy="22" r="8" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+                <circle cx="50" cy="22" r="8" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+                <circle cx="72" cy="22" r="8" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+                <rect x="12" y="34" width="76" height="24" rx="2" fill="#1a1a1a" stroke="#333" stroke-width="0.5"/>
+                <text x="50" y="50" text-anchor="middle" font-size="12" fill="#888" font-family="sans-serif" font-weight="bold">PEDAL</text>
+                <circle cx="50" cy="65" r="3" fill="#22c55e"/>
+                <ellipse cx="50" cy="82" rx="22" ry="10" fill="#2a2a2a" stroke="#444" stroke-width="1"/>
+              </svg>
+            {% else %}
+              <!-- Default gear icon -->
+              <svg viewBox="0 0 48 48" fill="currentColor" class="w-32 h-32 {{ styles.text }} opacity-40">
+                <circle cx="24" cy="24" r="16" fill-opacity="0.2"/>
+                <circle cx="24" cy="24" r="8" fill-opacity="0.3"/>
+              </svg>
+            {% endif %}
           </div>
         {% endif %}
       </div>
