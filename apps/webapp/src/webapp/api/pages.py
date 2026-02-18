@@ -78,13 +78,13 @@ def _gear_to_pack(gear: Gear) -> dict[str, object]:
         ).replace("_", "-"),
         "platform": platform,
         "image_url": gear.thumbnail_url,
-        "downloads_count": 0,
-        "favorites_count": 0,
+        "downloads_count": gear.downloads_count,
+        "favorites_count": gear.favorites_count,
         "models_count": len(gear.models),
         "saved_count": 0,
         "creator_username": gear.manufacturer,
         "creator_avatar": None,
-        "relative_time": _relative_time(gear.created_at),
+        "relative_time": _relative_time(gear.source_created_at or gear.created_at),
     }
 
 

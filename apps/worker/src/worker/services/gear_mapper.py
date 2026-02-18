@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -214,7 +215,14 @@ class GearMapperService:
             platform=platform,
             description=description,
             thumbnail_url=thumbnail_url,
+            downloads_count=record.payload.get("downloads_count", 0),
+            favorites_count=record.payload.get("favorites_count", 0),
         )
+
+        # Preserve source creation time for "oldest/newest" sorting.
+        raw_created_at = record.payload.get("created_at")
+        if raw_created_at:
+            gear.source_created_at = datetime.fromisoformat(raw_created_at.replace("Z", "+00:00"))
         self.session.add(gear)
 
         gear_source = GearSource(
@@ -234,6 +242,10 @@ class GearMapperService:
             gear.description = record.payload["description"]
         if "thumbnail_url" in record.payload:
             gear.thumbnail_url = record.payload["thumbnail_url"]
+        if "downloads_count" in record.payload:
+            gear.downloads_count = record.payload["downloads_count"]
+        if "favorites_count" in record.payload:
+            gear.favorites_count = record.payload["favorites_count"]
 
         if gear.source:
             gear.source.source_updated_at = record.source_updated_at

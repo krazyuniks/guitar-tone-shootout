@@ -73,6 +73,9 @@ class GearSyncPublisher:
             "platform": platform,
             "gear_type": gear_type,
             "creator_id": tone.user_id,
+            "created_at": tone.created_at.isoformat(),
+            "downloads_count": tone.downloads_count,
+            "favorites_count": tone.favorites_count,
             "models": model_payloads,
         }
 

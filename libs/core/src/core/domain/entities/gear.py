@@ -96,6 +96,9 @@ class Gear(Entity):
     thumbnail_url: str | None = None
     is_public: bool = True
     license_text: str | None = None
+    source_created_at: datetime | None = None
+    downloads_count: int = 0
+    favorites_count: int = 0
     id: UUID = field(default_factory=new_id)
     created_at: datetime = field(default_factory=utcnow)
     updated_at: datetime = field(default_factory=utcnow)

@@ -10,9 +10,12 @@ if TYPE_CHECKING:
     from .gear_model import GearModel
     from .gear_source import GearSource
 
+from datetime import datetime
+
 from sqlalchemy import (
     Boolean,
     Column,
+    DateTime,
     ForeignKey,
     Index,
     String,
@@ -170,6 +173,11 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         nullable=True,
     )
     license_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    downloads_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    favorites_count: Mapped[int] = mapped_column(default=0, server_default="0")
 
     # Relationships
     make: Mapped[GearMake | None] = relationship(

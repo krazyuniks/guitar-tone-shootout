@@ -162,12 +162,19 @@ class SQLAlchemyGearRepository:
 
     def _sort_clause(self, sort: str) -> list:
         """Map sort parameter to SQLAlchemy order_by clauses."""
+        # Prefer source_created_at (when added to upstream source) over
+        # created_at (when synced into GTS) for date-based sorting.
+        effective_date = func.coalesce(Gear.source_created_at, Gear.created_at)
         if sort == "oldest":
-            return [Gear.created_at.asc()]
+            return [effective_date.asc()]
         if sort == "name":
             return [Gear.name.asc()]
-        # newest, downloads, favorites, trending all default to newest
-        return [Gear.created_at.desc()]
+        if sort == "downloads":
+            return [Gear.downloads_count.desc(), effective_date.desc()]
+        if sort == "favorites":
+            return [Gear.favorites_count.desc(), effective_date.desc()]
+        # newest (default)
+        return [effective_date.desc()]
 
     async def search(
         self,
@@ -354,6 +361,9 @@ class SQLAlchemyGearRepository:
             existing.thumbnail_url = gear.thumbnail_url
             existing.is_public = gear.is_public
             existing.license_text = gear.license_text
+            existing.source_created_at = gear.source_created_at
+            existing.downloads_count = gear.downloads_count
+            existing.favorites_count = gear.favorites_count
             existing.updated_at = gear.updated_at
 
             # Update source if present
@@ -391,6 +401,9 @@ class SQLAlchemyGearRepository:
                 thumbnail_url=gear.thumbnail_url,
                 is_public=gear.is_public,
                 license_text=gear.license_text,
+                source_created_at=gear.source_created_at,
+                downloads_count=gear.downloads_count,
+                favorites_count=gear.favorites_count,
                 created_at=gear.created_at,
                 updated_at=gear.updated_at,
             )
@@ -560,6 +573,9 @@ class SQLAlchemyGearRepository:
             thumbnail_url=gear.thumbnail_url,
             is_public=gear.is_public,
             license_text=gear.license_text,
+            source_created_at=gear.source_created_at,
+            downloads_count=gear.downloads_count,
+            favorites_count=gear.favorites_count,
             created_at=gear.created_at,
             updated_at=gear.updated_at,
         )
