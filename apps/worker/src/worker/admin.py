@@ -26,6 +26,8 @@ from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
 from worker.db import get_core_session
 from worker.schemas import (
+    APICallWindowMetrics,
+    APIStatsResponse,
     EnqueueRequest,
     EnqueueResponse,
     ErrorsSummaryResponse,
@@ -657,35 +659,26 @@ async def trigger_sync(
     return SyncTriggerResponse(message=f"Sync triggered for {source}")
 
 
-@app.post(
-    "/api/admin/sources/{source}/backfill-downloads",
-    response_model=SyncTriggerResponse,
-    status_code=202,
-)
-async def trigger_backfill_downloads(
-    source: str,
-    session: AsyncSession = Depends(get_db_session),
-) -> SyncTriggerResponse:
-    """Download missing NAM files for already-staged models and publish complete tones."""
+@app.get("/api/admin/sources/{source}/sync/api-stats", response_model=APIStatsResponse)
+async def get_api_stats(source: str) -> APIStatsResponse:
+    """Get API call statistics for a source."""
     validate_source(source)
 
-    job = Job(
-        id=uuid4(),
-        user_id=None,
-        job_type=JobType.SOURCE_SYNC,
-        status=JobStatus.PENDING,
-        progress=0,
-        attempt=1,
-        max_attempts=3,
+    from source_t3k.services.api_call_tracker import get_tracker
+
+    metrics = get_tracker().get_metrics()
+    return APIStatsResponse(
+        windows=[
+            APICallWindowMetrics(
+                window_seconds=m.window_seconds,
+                successful=m.successful,
+                failed=m.failed,
+                avg_success_per_minute=m.avg_success_per_minute,
+                avg_failure_per_minute=m.avg_failure_per_minute,
+            )
+            for m in metrics
+        ]
     )
-    session.add(job)
-    await session.flush()
-
-    from worker.jobs.source_sync import handle_backfill_downloads
-
-    await handle_backfill_downloads.kiq(job.id)
-
-    return SyncTriggerResponse(message=f"Backfill downloads triggered for {source}")
 
 
 @app.get("/api/admin/sources/{source}/sync/stats", response_model=SyncStatsResponse)

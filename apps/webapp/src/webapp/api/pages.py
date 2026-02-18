@@ -113,11 +113,6 @@ def _gear_to_detail_pack(gear: Gear) -> dict[str, object]:
                     ),
                     "model_size": (m.size.value if hasattr(m.size, "value") else str(m.size)),
                     "is_saved": False,
-                    "download_status": (
-                        m.download_status.value
-                        if hasattr(m.download_status, "value")
-                        else str(m.download_status)
-                    ),
                 }
                 for m in gear.models
             ],
@@ -162,6 +157,7 @@ async def gear_browse_page(
         query=search,
         gear_type=gt_filter,
         tags=tag_list,
+        sort=sort,
         limit=page_size,
         offset=offset,
     )

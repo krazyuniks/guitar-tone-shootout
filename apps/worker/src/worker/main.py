@@ -3,12 +3,41 @@
 This module provides the TaskIQ broker configuration and job handlers.
 """
 
+import logging
+import logging.handlers
 import os
 
-from taskiq import InMemoryBroker, SimpleRetryMiddleware
-from taskiq_redis import ListQueueBroker
+_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+logging.basicConfig(level=logging.INFO, format=_log_format)
 
-from worker.config import WorkerSettings
+# Add rotating file handler (same as entrypoint — child processes need their own)
+_log_dir = os.path.join(os.getenv("GTS_STORAGE_ROOT", "/app/storage"), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_file_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(_log_dir, "worker.log"),
+    maxBytes=10 * 1024 * 1024,
+    backupCount=5,
+)
+_file_handler.setFormatter(logging.Formatter(_log_format))
+logging.getLogger().addHandler(_file_handler)
+
+# Separate error log — WARNING+ only, for monitoring breakage
+_error_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(_log_dir, "worker-errors.log"),
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+)
+_error_handler.setFormatter(logging.Formatter(_log_format))
+_error_handler.setLevel(logging.WARNING)
+logging.getLogger().addHandler(_error_handler)
+
+logging.getLogger("source_t3k.services").setLevel(logging.INFO)
+logging.getLogger("source_t3k.adapters.inbound").setLevel(logging.INFO)
+
+from taskiq import InMemoryBroker, SimpleRetryMiddleware  # noqa: E402
+from taskiq_redis import ListQueueBroker  # noqa: E402
+
+from worker.config import WorkerSettings  # noqa: E402
 
 
 def _create_broker():
@@ -67,7 +96,4 @@ from worker.jobs import (  # noqa: E402, F401
     handle_shootout_job,
     handle_shootout_master_job,
 )
-from worker.jobs.source_sync import (  # noqa: E402, F401
-    handle_backfill_downloads,
-    handle_source_sync,
-)
+from worker.jobs.source_sync import handle_source_sync  # noqa: E402, F401

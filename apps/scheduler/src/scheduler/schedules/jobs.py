@@ -181,4 +181,4 @@ def _resolve_engine(db_engine: AsyncEngine | None) -> AsyncEngine:
 monitor_stale_jobs.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
 process_pending_retries.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
 scheduler_heartbeat.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]
-ensure_source_sync_running.labels = {"schedule": [{"interval": 300}]}  # type: ignore[attr-defined]
+ensure_source_sync_running.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]

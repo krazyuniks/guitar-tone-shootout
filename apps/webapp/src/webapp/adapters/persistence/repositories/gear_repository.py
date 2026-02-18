@@ -160,6 +160,15 @@ class SQLAlchemyGearRepository:
         gear = result.unique().scalar_one_or_none()
         return self._to_entity(gear) if gear else None
 
+    def _sort_clause(self, sort: str) -> list:
+        """Map sort parameter to SQLAlchemy order_by clauses."""
+        if sort == "oldest":
+            return [Gear.created_at.asc()]
+        if sort == "name":
+            return [Gear.name.asc()]
+        # newest, downloads, favorites, trending all default to newest
+        return [Gear.created_at.desc()]
+
     async def search(
         self,
         *,
@@ -167,6 +176,7 @@ class SQLAlchemyGearRepository:
         gear_type: GearType | None = None,
         manufacturer: str | None = None,
         tags: list[str] | None = None,
+        sort: str = "newest",
         limit: int = 50,
         offset: int = 0,
     ) -> list[GearEntity]:
@@ -183,12 +193,15 @@ class SQLAlchemyGearRepository:
             gear_type: Optional filter by gear type
             manufacturer: Optional filter by manufacturer
             tags: Optional filter by tags (AND logic)
+            sort: Sort order (newest, oldest, name)
             limit: Maximum number of results
             offset: Number of results to skip
 
         Returns:
-            List of matching Gear ordered by name
+            List of matching Gear entities
         """
+        order_clauses = self._sort_clause(sort)
+
         # Step 1: Build ID-subquery with filters and pagination
         id_stmt = select(Gear.id)
 
@@ -226,7 +239,7 @@ class SQLAlchemyGearRepository:
             id_stmt = id_stmt.where(and_(*conditions))
 
         # Apply ordering and pagination to ID query
-        id_stmt = id_stmt.order_by(Gear.name).limit(limit).offset(offset)
+        id_stmt = id_stmt.order_by(*order_clauses).limit(limit).offset(offset)
 
         # Execute ID query to get list of IDs
         id_result = await self.session.execute(id_stmt)
@@ -246,7 +259,7 @@ class SQLAlchemyGearRepository:
                 joinedload(Gear.source),
                 joinedload(Gear.make),
             )
-            .order_by(Gear.name)
+            .order_by(*order_clauses)
         )
 
         result = await self.session.execute(stmt)

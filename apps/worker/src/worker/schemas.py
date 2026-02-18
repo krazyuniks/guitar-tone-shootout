@@ -118,6 +118,22 @@ class UnlockResponse(BaseModel):
     message: str
 
 
+class APICallWindowMetrics(BaseModel):
+    """Metrics for a single time window."""
+
+    window_seconds: int
+    successful: int
+    failed: int
+    avg_success_per_minute: float
+    avg_failure_per_minute: float
+
+
+class APIStatsResponse(BaseModel):
+    """Response for API stats endpoint."""
+
+    windows: list[APICallWindowMetrics]
+
+
 class TokenRefreshRequest(BaseModel):
     """Request to refresh T3K OAuth token."""
 

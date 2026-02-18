@@ -274,7 +274,7 @@ class GearMapperService:
                 model.file_path = file_path
                 model.download_status = DownloadStatus.COMPLETED
             else:
-                logger.warning(
+                logger.debug(
                     "Model file not ready: source=%s source_record_id=%s filename=%s",
                     record.source_name,
                     record.source_record_id,

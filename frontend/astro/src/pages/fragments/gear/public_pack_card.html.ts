@@ -196,7 +196,7 @@ export const GET: APIRoute = () => {
           {% endif %}
         {% endif %}
         {% if pack.relative_time %}
-          <span class="text-xs text-[var(--color-text-muted)]">
+          <span class="text-xs text-[var(--color-text-muted)]" data-testid="pack-relative-time">
             {{ pack.relative_time }}
           </span>
         {% endif %}

@@ -76,17 +76,28 @@ class GearSyncConsumer:
                 await self._archive_stale_dlq_for_record(record)
                 await self._archive_message(queue_name, message.msg_id)
                 await self.t3k_session.commit()
-            except RetryableGearSyncError:
+            except RetryableGearSyncError as e:
                 await self.core_session.rollback()
                 await self.t3k_session.rollback()
-                logger.warning(
-                    "Retryable sync error for message %s on queue %s (read_ct=%s/%s)",
-                    message.msg_id,
-                    queue_name,
-                    message.read_ct,
-                    self.max_retries,
-                    exc_info=True,
-                )
+                # Log message only on early retries; full trace on final attempt
+                if message.read_ct >= self.max_retries - 1:
+                    logger.warning(
+                        "Retryable sync error for message %s on queue %s (read_ct=%s/%s)",
+                        message.msg_id,
+                        queue_name,
+                        message.read_ct,
+                        self.max_retries,
+                        exc_info=True,
+                    )
+                else:
+                    logger.info(
+                        "Retryable: message %s on %s (read_ct=%s/%s): %s",
+                        message.msg_id,
+                        queue_name,
+                        message.read_ct,
+                        self.max_retries,
+                        e,
+                    )
             except Exception:
                 await self.core_session.rollback()
                 logger.exception("Error processing sync message %s", message.msg_id)

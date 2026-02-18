@@ -14,6 +14,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import logging.handlers
+import os
 import signal
 import sys
 from typing import TYPE_CHECKING
@@ -22,11 +24,34 @@ if TYPE_CHECKING:
     from asyncio.subprocess import Process
     from types import FrameType
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+# Configure logging: stdout + rotating file
+_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+logging.basicConfig(level=logging.INFO, format=_log_format)
+
+_log_dir = os.path.join(os.getenv("GTS_STORAGE_ROOT", "/app/storage"), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_file_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(_log_dir, "worker.log"),
+    maxBytes=10 * 1024 * 1024,  # 10 MB
+    backupCount=5,
 )
+_file_handler.setFormatter(logging.Formatter(_log_format))
+logging.getLogger().addHandler(_file_handler)
+
+# Separate error log — WARNING+ only, for monitoring breakage
+_error_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(_log_dir, "worker-errors.log"),
+    maxBytes=5 * 1024 * 1024,
+    backupCount=3,
+)
+_error_handler.setFormatter(logging.Formatter(_log_format))
+_error_handler.setLevel(logging.WARNING)
+logging.getLogger().addHandler(_error_handler)
+
+# Set source_t3k loggers to INFO
+logging.getLogger("source_t3k.services").setLevel(logging.INFO)
+logging.getLogger("source_t3k.adapters.inbound").setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 

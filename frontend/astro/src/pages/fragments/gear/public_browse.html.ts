@@ -17,13 +17,13 @@ export const GET: APIRoute = () => {
   <!-- Filters -->
   <div class="mb-6 space-y-4">
     <!-- Search bar (standard form) -->
-    <form method="get" action="/gear" data-testid="gear-search-form">
+    <form method="get" action="/gear" data-testid="gear-search-form" class="flex items-center gap-2">
       <!-- Preserve current filters -->
       <input type="hidden" name="gear_type" value="{{ gear_type_filter }}">
       <input type="hidden" name="sort" value="{{ sort_order }}">
       {% if tags_filter %}<input type="hidden" name="tags" value="{{ tags_filter|join(',') }}">{% endif %}
 
-      <div class="relative">
+      <div class="relative max-w-md flex-1">
         <div class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
             <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
@@ -50,6 +50,13 @@ export const GET: APIRoute = () => {
           </a>
         {% endif %}
       </div>
+      <button
+        type="submit"
+        data-testid="search-button"
+        class="px-4 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent-primary)] text-white hover:opacity-90 transition-opacity"
+      >
+        Search
+      </button>
     </form>
 
     <!-- Filter row -->

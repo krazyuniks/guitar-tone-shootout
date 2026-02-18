@@ -159,6 +159,11 @@ services:
       - ./apps/webapp:/app/apps/webapp:ro
       - ./sources:/app/sources:ro
       - ../gts-storage:/app/storage
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
       db:
         condition: service_healthy

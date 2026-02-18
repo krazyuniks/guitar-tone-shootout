@@ -32,6 +32,15 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
+def _safe_enum[E](enum_cls: type[E], value: str, default: E) -> E:
+    """Parse an enum value, returning default if unknown."""
+    try:
+        return enum_cls(value)  # type: ignore[call-arg]
+    except ValueError:
+        logger.warning("Unknown %s value: %r, using %s", enum_cls.__name__, value, default)
+        return default
+
+
 class T3KAPIClient:
     """Async HTTP client for the Tone3000 REST API.
 
@@ -239,8 +248,8 @@ class T3KAPIClient:
             description=d.get("description", ""),
             tags=_extract_names(d.get("tags", [])),
             makes=_extract_names(d.get("makes", [])),
-            gear=T3KGearKind(d.get("gear", "amp")),
-            platform=T3KPlatform(d.get("platform", "nam")),
+            gear=_safe_enum(T3KGearKind, d.get("gear", "amp"), T3KGearKind.AMP),
+            platform=_safe_enum(T3KPlatform, d.get("platform", "nam"), T3KPlatform.NAM),
             models_count=d.get("models_count", 0),
             favorites_count=d.get("favorites_count", 0),
             downloads_count=d.get("downloads_count", 0),
@@ -263,7 +272,7 @@ class T3KAPIClient:
             user_id=str(d.get("user_id", "")),
             name=d.get("name", ""),
             model_url=d.get("model_url", ""),
-            size=d.get("size", ""),
+            size=d.get("size") or "standard",
             created_at=_parse_datetime(d.get("created_at", "")),
             updated_at=_parse_datetime(d.get("updated_at", "")),
         )

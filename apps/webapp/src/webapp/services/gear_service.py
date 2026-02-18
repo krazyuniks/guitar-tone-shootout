@@ -41,6 +41,7 @@ class GearService:
         gear_type: GearType | None = None,
         manufacturer: str | None = None,
         tags: list[str] | None = None,
+        sort: str = "newest",
         limit: int = 50,
         offset: int = 0,
     ) -> list[Gear]:
@@ -49,6 +50,7 @@ class GearService:
             gear_type=gear_type,
             manufacturer=manufacturer,
             tags=tags,
+            sort=sort,
             limit=limit,
             offset=offset,
         )

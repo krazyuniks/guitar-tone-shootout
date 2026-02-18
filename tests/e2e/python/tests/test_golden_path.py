@@ -33,6 +33,26 @@ class TestPublicPages:
         assert response is not None and response.status == 200
         await expect(guest_page.locator('[data-testid="gear-browse-page"]')).to_be_visible()
 
+        # Default sort is "newest" — verify cards are in descending created_at order.
+        # Parse relative_time values ("14m ago", "2d ago") into comparable seconds.
+        time_spans = guest_page.locator('[data-testid="pack-relative-time"]')
+        count = await time_spans.count()
+        assert count >= 2, "Need at least 2 cards to verify sort order"
+
+        unit_seconds = {"m": 60, "h": 3600, "d": 86400, "mo": 2592000, "y": 31536000}
+        ages: list[int] = []
+        for i in range(count):
+            text = (await time_spans.nth(i).text_content() or "").strip()
+            match = re.match(r"(\d+)(m|h|d|mo|y)\s+ago", text)
+            if match:
+                ages.append(int(match.group(1)) * unit_seconds[match.group(2)])
+
+        assert len(ages) >= 2, f"Could not parse enough relative times, got: {ages}"
+        for i in range(len(ages) - 1):
+            assert ages[i] <= ages[i + 1], (
+                f"Gear not sorted newest-first: card {i} ({ages[i]}s) is older than card {i + 1} ({ages[i + 1]}s)"
+            )
+
     async def test_gear_browse_filtered(self, guest_page: Page, frontend_url: str) -> None:
         response = await guest_page.goto(f"{frontend_url}/gear?gear_type=amp")
         assert response is not None and response.status == 200

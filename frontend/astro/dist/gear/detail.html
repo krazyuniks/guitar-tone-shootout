@@ -309,23 +309,7 @@
           {% endif %}
         </div>
 
-        {% if user and pack.models|length > 1 %}
-        <!-- Bulk select all checkbox -->
-        <div class="mb-2 px-4 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-t-lg">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              data-testid="bulk-select-all"
-              id="bulk-select-all"
-              class="w-4 h-4 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
-              onchange="toggleAllModels(this.checked)"
-            />
-            <span class="text-sm text-[var(--color-text-secondary)]">Select All</span>
-          </label>
-        </div>
-        {% endif %}
-
-        <div data-testid="pack-models-list" class="border border-[var(--border)] {% if not user or pack.models|length <= 1 %}rounded-lg{% else %}rounded-b-lg border-t-0{% endif %} overflow-hidden divide-y divide-[var(--border)]">
+        <div data-testid="pack-models-list" class="border border-[var(--border)] rounded-lg overflow-hidden divide-y divide-[var(--border)]">
           {% for model in pack.models %}
           <div
             data-testid="model-row"
@@ -333,14 +317,6 @@
             class="flex items-center justify-between px-4 py-3 bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-secondary)] transition-colors"
           >
             <div class="flex items-center gap-3 min-w-0">
-              {% if user and pack.models|length > 1 %}
-              <!-- Bulk select checkbox -->
-              <input
-                type="checkbox"
-                class="model-checkbox w-4 h-4 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
-                data-model-id="{{ model.id }}"
-              />
-              {% endif %}
               <!-- Model size badge -->
               {% if model.model_size %}
               <span class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)]">
@@ -351,15 +327,6 @@
               <span class="text-[var(--color-text-primary)] truncate" data-testid="model-name">
                 {{ model.name }}
               </span>
-              <!-- Download status indicator -->
-              {% if model.download_status %}
-              <span
-                data-testid="model-download-status"
-                class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded {% if model.download_status == 'completed' %}bg-green-500/20 text-green-500{% elif model.download_status == 'downloading' %}bg-blue-500/20 text-blue-500{% else %}bg-gray-500/20 text-gray-400{% endif %}"
-              >
-                {% if model.download_status == 'completed' %}Downloaded{% elif model.download_status == 'downloading' %}Downloading{% else %}Available{% endif %}
-              </span>
-              {% endif %}
               <!-- Saved badge -->
               {% if model.is_saved %}
               <span class="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-green-500/20 text-green-500" data-testid="saved-badge">
@@ -396,21 +363,11 @@
       </div>
 
       <script>
-        // Bulk select functionality
-        function toggleAllModels(checked) {
-          document.querySelectorAll('.model-checkbox').forEach(cb => {
-            cb.checked = checked;
-          });
-        }
-
         async function bulkToggleModels(action) {
-          const checkboxes = document.querySelectorAll('.model-checkbox:checked');
-          const modelIds = Array.from(checkboxes).map(cb => cb.dataset.modelId);
+          const rows = document.querySelectorAll('[data-testid="model-row"]');
+          const modelIds = Array.from(rows).map(r => r.dataset.modelId).filter(Boolean);
 
-          if (modelIds.length === 0) {
-            alert('Please select at least one model');
-            return;
-          }
+          if (modelIds.length === 0) return;
 
           try {
             const response = await fetch('/api/v1/html/gear/models/bulk-toggle', {
@@ -425,7 +382,6 @@
             });
 
             if (response.ok) {
-              // Reload page to reflect changes
               window.location.reload();
             } else {
               alert('Failed to update models. Please try again.');
