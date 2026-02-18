@@ -1,9 +1,11 @@
 """Shootout API endpoints."""
 
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -303,6 +305,99 @@ async def process_shootout(
     await enqueue_to_worker(job.id)
 
     return {"job_id": str(job.id)}
+
+
+# --- Audio Streaming Endpoints ---
+
+_AUDIO_CONTENT_TYPES: dict[str, str] = {
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+    ".ogg": "audio/ogg",
+    ".mp3": "audio/mpeg",
+}
+
+
+@router.get("/{shootout_id}/audio/master")
+async def stream_master_audio(
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> FileResponse:
+    """Stream the master FLAC audio file for a completed shootout."""
+    stmt = select(ShootoutModel).where(ShootoutModel.id == shootout_id)
+    result = await db.execute(stmt)
+    shootout = result.scalar_one_or_none()
+
+    if not shootout or shootout.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
+
+    if not shootout.output_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Master audio not available"
+        )
+
+    file_path = Path(shootout.output_path)
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Master audio file not found"
+        )
+
+    ext = file_path.suffix.lower()
+    media_type = _AUDIO_CONTENT_TYPES.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=media_type,
+        filename=f"{shootout.name}-master{ext}",
+        headers={"Content-Disposition": f'attachment; filename="{shootout.name}-master{ext}"'},
+    )
+
+
+@router.get("/{shootout_id}/chains/{chain_id}/audio")
+async def stream_chain_audio(
+    shootout_id: UUID,
+    chain_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> FileResponse:
+    """Stream processed audio for a specific chain in a shootout."""
+    from webapp.adapters.persistence.models.shootout import (
+        ShootoutChain as ShootoutChainModel,
+    )
+
+    stmt = (
+        select(ShootoutChainModel)
+        .where(
+            ShootoutChainModel.id == chain_id,
+            ShootoutChainModel.shootout_id == shootout_id,
+        )
+        .options(
+            joinedload(ShootoutChainModel.shootout),
+            joinedload(ShootoutChainModel.segments),
+        )
+    )
+    result = await db.execute(stmt)
+    chain = result.unique().scalar_one_or_none()
+
+    if not chain or chain.shootout.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chain not found")
+
+    if not chain.segments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No audio segments")
+
+    segment = chain.segments[0]
+    file_path = Path(segment.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio file not found")
+
+    ext = file_path.suffix.lower()
+    media_type = _AUDIO_CONTENT_TYPES.get(ext, "application/octet-stream")
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=media_type,
+        filename=f"{chain.label}{ext}",
+    )
 
 
 # --- Comment Endpoints ---
