@@ -80,6 +80,9 @@ class T3KToneStaging(Base):
     url: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Updated each time the tone is re-synced from the T3K API. Serves as a
+    # tombstone detection signal: tones deleted from T3K will have increasingly
+    # stale last_synced_at values compared to active tones.
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @classmethod
@@ -136,6 +139,7 @@ class T3KModelStaging(Base):
     size: Mapped[str] = mapped_column(String(50), nullable=False, default="standard")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    file_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @classmethod
     def from_domain(cls, entity: T3KModel) -> "T3KModelStaging":

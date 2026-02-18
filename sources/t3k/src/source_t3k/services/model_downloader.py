@@ -6,6 +6,7 @@ Filenames are derived from the model_url path.
 
 import logging
 from collections.abc import Callable, Coroutine
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -86,6 +87,7 @@ class ModelDownloader:
 
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content)
+                model.file_synced_at = datetime.now(UTC)
                 return path
 
             except T3KAPIError:

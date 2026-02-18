@@ -1,10 +1,10 @@
 """Unit tests for T3K Sync Service.
 
 The sync service coordinates fetching data from the T3K API and upserting it
-to staging tables. Tests verify run_catalog_sync(), pagination, checkpoint
-management, and error recovery.
+to staging tables. Tests verify run_catalog_sync(), dual-sync strategy,
+checkpoint management, and error recovery.
 
-Uses a fake API client class (not unittest.mock) and SQLite in-memory database.
+Uses a fake API client class (not unittest.mock) and real PostgreSQL database.
 """
 
 import contextlib
@@ -19,31 +19,46 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from source_t3k.adapters.outbound.models import SyncCheckpoint
+from source_t3k.adapters.outbound.models import (
+    SyncCheckpoint,
+    T3KModelStaging,
+    T3KToneStaging,
+)
 from source_t3k.domain.entities import T3KModel, T3KTone, T3KUser
 from source_t3k.domain.value_objects import T3KGearKind, T3KPlatform
-from source_t3k.services.sync_service import T3KSyncService
+from source_t3k.services.sync_service import BACKFILL_CHECKPOINT_TYPE, T3KSyncService
 
 
 class FakeAPIClient:
-    """Fake T3K API client that returns predetermined responses and tracks calls."""
+    """Fake T3K API client that returns predetermined responses per sort order."""
 
     def __init__(self) -> None:
         self.get_tones_calls: list[dict] = []
-        self.get_tones_responses: list[list[T3KTone]] = []
+        # Responses keyed by sort order — each is a list of pages (list of tones)
+        self.newest_responses: list[list[T3KTone]] = []
+        self.oldest_responses: list[list[T3KTone]] = []
         self.get_models_calls: list[int] = []
         self.get_models_responses: list[list[T3KModel]] = []
-        self._tones_call_index = 0
+        self._newest_call_index = 0
+        self._oldest_call_index = 0
         self._get_tones_error: Exception | None = None
 
     async def get_tones(self, **kwargs) -> list[T3KTone]:
         self.get_tones_calls.append(kwargs)
         if self._get_tones_error is not None:
             raise self._get_tones_error
-        if self._tones_call_index < len(self.get_tones_responses):
-            result = self.get_tones_responses[self._tones_call_index]
-            self._tones_call_index += 1
-            return result
+
+        sort = kwargs.get("sort", "newest")
+        if sort == "oldest":
+            if self._oldest_call_index < len(self.oldest_responses):
+                result = self.oldest_responses[self._oldest_call_index]
+                self._oldest_call_index += 1
+                return result
+        else:
+            if self._newest_call_index < len(self.newest_responses):
+                result = self.newest_responses[self._newest_call_index]
+                self._newest_call_index += 1
+                return result
         return []
 
     async def get_models(self, tone_id: int) -> list[T3KModel]:
@@ -80,10 +95,28 @@ async def db_engine() -> AsyncEngine:
 
 @pytest.fixture
 async def db_session(db_engine: AsyncEngine) -> AsyncSession:
-    """Create a database session."""
+    """Create a database session, cleaning up test data before and after."""
+    from sqlalchemy import delete
+
     async_session = async_sessionmaker(db_engine, expire_on_commit=False)
     async with async_session() as session:
+        # Clean up any leftover test data (IDs >= 900000)
+        await session.execute(delete(T3KModelStaging).where(T3KModelStaging.id >= 900000))
+        await session.execute(delete(T3KToneStaging).where(T3KToneStaging.id >= 900000))
+        await session.execute(
+            delete(SyncCheckpoint).where(SyncCheckpoint.entity_type == BACKFILL_CHECKPOINT_TYPE)
+        )
+        await session.commit()
+
         yield session
+
+        # Clean up after tests
+        await session.execute(delete(T3KModelStaging).where(T3KModelStaging.id >= 900000))
+        await session.execute(delete(T3KToneStaging).where(T3KToneStaging.id >= 900000))
+        await session.execute(
+            delete(SyncCheckpoint).where(SyncCheckpoint.entity_type == BACKFILL_CHECKPOINT_TYPE)
+        )
+        await session.commit()
 
 
 @pytest.fixture
@@ -158,20 +191,212 @@ class TestT3KSyncServiceConstruction:
         assert hasattr(service, "run_catalog_sync")
 
 
-class TestT3KSyncServiceRunCatalogSync:
-    """Test T3KSyncService.run_catalog_sync() method."""
+class TestNewestCheck:
+    """Test _run_newest_check: walks sort=newest, stops at first known tone."""
 
     @pytest.mark.asyncio
-    async def test_run_catalog_sync_fetches_from_api(
+    async def test_newest_check_stages_new_tones(
         self,
         sync_service: T3KSyncService,
         fake_api: FakeAPIClient,
         fake_publisher: FakePublisher,
     ) -> None:
-        """run_catalog_sync should call api_client.get_tones() to fetch data."""
-        fake_api.get_tones_responses = [[_make_tone(1)], [], []]
+        """Newest check should stage tones not yet in the database."""
+        tone = _make_tone(900100)
+        model = _make_model(900200, 900100)
+        fake_api.newest_responses = [[tone], []]
+        fake_api.oldest_responses = []
+        fake_api.get_models_responses = [[model]]
+
         await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
-        assert len(fake_api.get_tones_calls) >= 1
+
+        assert len(fake_publisher.published_tones) == 1
+        newest_calls = [c for c in fake_api.get_tones_calls if c.get("sort") == "newest"]
+        assert len(newest_calls) >= 1
+
+    @pytest.mark.asyncio
+    async def test_newest_check_stops_at_known_tone(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+        db_session: AsyncSession,
+    ) -> None:
+        """Newest check should stop when it hits a tone already in staging."""
+        # Pre-insert a known tone
+        existing = T3KToneStaging.from_domain(_make_tone(900050))
+        existing.last_synced_at = datetime.now(UTC)
+        await db_session.merge(existing)
+        await db_session.commit()
+
+        # API returns: new tone 900051, then known tone 900050
+        fake_api.newest_responses = [[_make_tone(900051), _make_tone(900050)]]
+        fake_api.oldest_responses = []
+        fake_api.get_models_responses = [
+            [_make_model(900510, 900051)],
+        ]
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        # Only tone 900051 should be published (900050 was known, stopped there)
+        assert len(fake_publisher.published_tones) == 1
+
+    @pytest.mark.asyncio
+    async def test_newest_check_no_page_cap(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+    ) -> None:
+        """Newest check should walk beyond 2 pages if all tones are new."""
+        # 4 pages of new tones, then empty page
+        fake_api.newest_responses = [[_make_tone(900000 + i)] for i in range(1, 5)] + [[]]
+        fake_api.oldest_responses = []
+        fake_api.get_models_responses = [
+            [_make_model(900000 + i * 10, 900000 + i)] for i in range(1, 5)
+        ]
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        assert len(fake_publisher.published_tones) == 4
+        newest_calls = [c for c in fake_api.get_tones_calls if c.get("sort") == "newest"]
+        assert len(newest_calls) >= 4
+
+
+class TestBackfill:
+    """Test _run_backfill_batch: walks sort=oldest from checkpoint."""
+
+    @pytest.mark.asyncio
+    async def test_backfill_uses_sort_oldest(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+    ) -> None:
+        """Backfill should request tones with sort=oldest."""
+        tone = _make_tone(900001)
+        model = _make_model(900010, 900001)
+        fake_api.newest_responses = []
+        fake_api.oldest_responses = [[tone]]
+        fake_api.get_models_responses = [[model]]
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        oldest_calls = [c for c in fake_api.get_tones_calls if c.get("sort") == "oldest"]
+        assert len(oldest_calls) >= 1
+
+    @pytest.mark.asyncio
+    async def test_backfill_skips_complete_tones(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+        db_session: AsyncSession,
+    ) -> None:
+        """Backfill should skip tones where all models are already staged."""
+        tone_domain = _make_tone(900001)
+        existing_tone = T3KToneStaging.from_domain(tone_domain)
+        existing_tone.last_synced_at = datetime.now(UTC)
+        existing_tone.models_count = 1
+        await db_session.merge(existing_tone)
+        existing_model = T3KModelStaging.from_domain(_make_model(900010, 900001))
+        await db_session.merge(existing_model)
+        await db_session.commit()
+
+        fake_api.newest_responses = []
+        fake_api.oldest_responses = [[tone_domain]]
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        # Should not have called get_models (skipped entirely)
+        assert len(fake_api.get_models_calls) == 0
+        assert len(fake_publisher.published_tones) == 0
+
+    @pytest.mark.asyncio
+    async def test_backfill_fetches_missing_models(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+        db_session: AsyncSession,
+    ) -> None:
+        """Backfill should fetch models for tones with incomplete model count."""
+        tone_domain = _make_tone(900001)
+        existing_tone = T3KToneStaging.from_domain(tone_domain)
+        existing_tone.models_count = 2
+        existing_tone.last_synced_at = datetime.now(UTC)
+        await db_session.merge(existing_tone)
+        existing_model = T3KModelStaging.from_domain(_make_model(900010, 900001))
+        await db_session.merge(existing_model)
+        await db_session.commit()
+
+        fake_api.newest_responses = []
+        fake_api.oldest_responses = [[tone_domain]]
+        fake_api.get_models_responses = [
+            [_make_model(900010, 900001), _make_model(900011, 900001)],
+        ]
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        assert len(fake_api.get_models_calls) == 1
+        assert len(fake_publisher.published_tones) == 1
+
+    @pytest.mark.asyncio
+    async def test_backfill_creates_checkpoint(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+        db_session: AsyncSession,
+    ) -> None:
+        """Backfill should create a backfill_page checkpoint."""
+        fake_api.newest_responses = []
+        fake_api.oldest_responses = [[_make_tone(900001)]]
+        fake_api.get_models_responses = [[_make_model(900010, 900001)]]
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        result = await db_session.execute(
+            select(SyncCheckpoint).where(SyncCheckpoint.entity_type == BACKFILL_CHECKPOINT_TYPE)
+        )
+        cp = result.scalar_one_or_none()
+        assert cp is not None
+        assert cp.last_record_id == "2"
+
+    @pytest.mark.asyncio
+    async def test_backfill_resets_at_end_of_catalogue(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+        db_session: AsyncSession,
+    ) -> None:
+        """Backfill should reset to page 1 when it reaches the end."""
+        cp = SyncCheckpoint(
+            source_name="t3k",
+            entity_type=BACKFILL_CHECKPOINT_TYPE,
+            last_synced_at=datetime.now(UTC),
+            last_record_id="999",
+            total_synced=0,
+        )
+        await db_session.merge(cp)
+        await db_session.commit()
+
+        fake_api.newest_responses = []
+        fake_api.oldest_responses = []
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        # Re-query since the sync may have replaced the checkpoint object
+        result = await db_session.execute(
+            select(SyncCheckpoint).where(SyncCheckpoint.entity_type == BACKFILL_CHECKPOINT_TYPE)
+        )
+        updated_cp = result.scalar_one()
+        assert updated_cp.last_record_id == "1"
+
+
+class TestRunCatalogSync:
+    """Test the overall run_catalog_sync orchestration."""
 
     @pytest.mark.asyncio
     async def test_run_catalog_sync_stops_at_max_iterations(
@@ -182,25 +407,7 @@ class TestT3KSyncServiceRunCatalogSync:
     ) -> None:
         """run_catalog_sync respects max_iterations limit."""
         await sync_service.run_catalog_sync(fake_publisher, max_iterations=2)
-        # Should not loop forever
         assert True  # If we reach here, it stopped as expected
-
-    @pytest.mark.asyncio
-    async def test_run_catalog_sync_creates_checkpoint(
-        self,
-        sync_service: T3KSyncService,
-        fake_api: FakeAPIClient,
-        fake_publisher: FakePublisher,
-        db_session: AsyncSession,
-    ) -> None:
-        """run_catalog_sync creates a checkpoint after processing tones."""
-        fake_api.get_tones_responses = [[_make_tone(1)], [], []]
-        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
-
-        result = await db_session.execute(select(SyncCheckpoint))
-        checkpoints = result.scalars().all()
-        # Checkpoint may be created after processing
-        assert len(checkpoints) >= 0  # If tones were processed, checkpoint was created
 
     @pytest.mark.asyncio
     async def test_run_catalog_sync_handles_api_error(
@@ -217,5 +424,22 @@ class TestT3KSyncServiceRunCatalogSync:
         with contextlib.suppress(T3KAPIError):
             await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
 
-        # If we reach here, the error was handled or propagated cleanly
         assert len(fake_api.get_tones_calls) >= 0
+
+    @pytest.mark.asyncio
+    async def test_newest_runs_before_backfill(
+        self,
+        sync_service: T3KSyncService,
+        fake_api: FakeAPIClient,
+        fake_publisher: FakePublisher,
+    ) -> None:
+        """Newest check should run before backfill in each iteration."""
+        fake_api.newest_responses = []
+        fake_api.oldest_responses = []
+
+        await sync_service.run_catalog_sync(fake_publisher, max_iterations=1)
+
+        # First call should be sort=newest, second should be sort=oldest
+        if len(fake_api.get_tones_calls) >= 2:
+            assert fake_api.get_tones_calls[0].get("sort") == "newest"
+            assert fake_api.get_tones_calls[1].get("sort") == "oldest"

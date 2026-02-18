@@ -1,15 +1,17 @@
 """T3K Sync Service.
 
 Coordinates fetching data from the T3K API and upserting it to staging tables.
-Supports multiple sync strategies (backfill, newest) and checkpoint management.
+Uses a dual-sync strategy: newest-first (stay current) + oldest-first backfill
+(fill gaps). Newest check is the priority path — fast, self-terminating.
+Backfill walks the catalogue from oldest to newest, resuming from checkpoint.
 """
 
 import contextlib
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
@@ -23,12 +25,16 @@ from source_t3k.services.model_downloader import ModelDownloader
 
 logger = logging.getLogger(__name__)
 
+BACKFILL_CHECKPOINT_TYPE = "backfill_page"
+
 
 class T3KSyncService:
     """T3K synchronisation service.
 
     Coordinates fetching data from the T3K API and upserting it to staging tables.
-    Manages checkpoints for resumable syncs and progress tracking.
+    Uses a dual-sync strategy:
+    - Newest check: walks sort=newest from page 1, stops at first known tone
+    - Backfill: walks sort=oldest from checkpoint page, fills gaps
     """
 
     def __init__(
@@ -44,34 +50,23 @@ class T3KSyncService:
     async def run_catalog_sync(
         self, publisher: GearSyncPublisher, max_iterations: int | None = None
     ) -> None:
-        """Run interleaved backfill and newest sync loop.
+        """Run interleaved newest + backfill sync loop.
 
-        Alternates between backfill (walking oldest→newest from checkpoint) and
-        newest (checking for recent updates). Each iteration consists of one backfill
-        batch followed by one newest check.
+        Each iteration: newest check first (fast — usually 0-1 pages),
+        then one backfill page (slow — 1 page + N model fetches).
         """
         pairs_completed = 0
 
         while max_iterations is None or pairs_completed < max_iterations:
-            checkpoint = await self._read_checkpoint_with_aliases(entity_type="tone")
-
-            # Reset stale checkpoints (older than 30 days)
-            now = datetime.now(UTC)
-            if checkpoint is not None and isinstance(checkpoint.last_synced_at, datetime):
-                age = now - checkpoint.last_synced_at
-                if age > timedelta(days=30):
-                    checkpoint.last_record_id = ""
-                    checkpoint.last_synced_at = now
-                    self._session.add(checkpoint)
-                    await self._session.commit()
+            with contextlib.suppress(StopIteration, StopAsyncIteration):
+                await self._run_newest_check(publisher)
 
             with contextlib.suppress(StopIteration, StopAsyncIteration):
-                await self._run_backfill_batch(checkpoint, publisher)
-
-            with contextlib.suppress(StopIteration, StopAsyncIteration):
-                await self._run_newest_check(checkpoint, publisher)
+                await self._run_backfill_batch(publisher)
 
             pairs_completed += 1
+
+    # ── Checkpoint management ────────────────────────────────────────────
 
     async def _read_checkpoint_with_aliases(self, entity_type: str) -> SyncCheckpoint | None:
         """Read a checkpoint supporting singular/plural aliases."""
@@ -116,6 +111,8 @@ class T3KSyncService:
 
         self._session.add(checkpoint)
         return checkpoint
+
+    # ── Staging helpers ──────────────────────────────────────────────────
 
     async def _stage_tone_models_and_publish(
         self,
@@ -163,99 +160,49 @@ class T3KSyncService:
         await publisher.publish_tone(staging_tone, models=staging_models)
         return True
 
-    async def _run_backfill_batch(
-        self, checkpoint: SyncCheckpoint | None, publisher: GearSyncPublisher
-    ) -> None:
-        """Run a single backfill batch."""
-        page = 1
-        page_size = 100
-        total_synced = checkpoint.total_synced if checkpoint else 0
-        last_result_id: int | None = None
+    async def _stage_models_only(
+        self,
+        tone_id: int,
+        publisher: GearSyncPublisher,
+        existing_tone: T3KToneStaging,
+    ) -> bool:
+        """Fetch and stage only models for a tone that already exists in staging.
 
-        while True:
-            tones = await self._api_client.get_tones(page=page, page_size=page_size)
+        Used by backfill when a tone exists but is missing some models.
+        Returns True if new models were staged/published.
+        """
+        models = await self._api_client.get_models(tone_id)
+        staging_models: list[T3KModelStaging] = []
+        for model in models:
+            staging_model = T3KModelStaging.from_domain(model)
+            await self._session.merge(staging_model)
+            staging_models.append(staging_model)
 
-            if not tones:
-                break
+        if not staging_models:
+            return False
 
-            # Infinite loop protection
-            current_result_id = id(tones)
-            if last_result_id is not None and current_result_id == last_result_id:
-                break
-            last_result_id = current_result_id
+        existing_tone.last_synced_at = datetime.now(UTC)
+        self._session.add(existing_tone)
 
-            processed_tones = 0
-            for tone in tones:
-                existing = await self._get_existing_tone(tone.id)
-                if (
-                    existing is not None
-                    and existing.last_synced_at is not None
-                    and isinstance(existing.last_synced_at, datetime)
-                ):
-                    age = datetime.now(UTC) - existing.last_synced_at
-                    if age <= timedelta(days=7):
-                        continue
-
-                published = await self._stage_tone_models_and_publish(tone, publisher)
-                if published:
-                    processed_tones += 1
-
-            total_synced += processed_tones
-            last_record_id = str(tones[-1].id) if tones else ""
-            checkpoint = await self._upsert_checkpoint(
-                entity_type="tone",
-                last_record_id=last_record_id,
-                increment=processed_tones,
-            )
-            checkpoint.total_synced = total_synced
-            await self._session.commit()
-
-            page += 1
-
-    async def _run_newest_check(
-        self, checkpoint: SyncCheckpoint | None, publisher: GearSyncPublisher
-    ) -> None:
-        """Run a newest check batch."""
-        page = 1
-        page_size = 100
-        max_pages = 2
-        total_synced = checkpoint.total_synced if checkpoint else 0
-        should_stop = False
-
-        for _ in range(max_pages):
-            if should_stop:
-                break
-
-            tones = await self._api_client.get_tones(page=page, page_size=page_size)
-
-            if not tones:
-                break
-
-            any_processed = False
-            processed_tones = 0
-            for tone in tones:
-                existing = await self._get_existing_tone(tone.id)
-                if existing is not None:
-                    should_stop = True
-                    break
-
-                published = await self._stage_tone_models_and_publish(tone, publisher)
-                any_processed = any_processed or published
-                if published:
-                    processed_tones += 1
-
-            if any_processed:
-                total_synced += processed_tones
-                last_record_id = str(tones[-1].id) if tones else ""
-                checkpoint = await self._upsert_checkpoint(
-                    entity_type="tone",
-                    last_record_id=last_record_id,
-                    increment=processed_tones,
+        if self._model_downloader is not None:
+            try:
+                await self._session.flush()
+                await self._model_downloader.download_models_for_tone(tone_id)
+            except Exception as e:
+                logger.warning(
+                    "Download failed for tone %s (will publish anyway): %s",
+                    tone_id,
+                    str(e),
                 )
-                checkpoint.total_synced = total_synced
-                await self._session.commit()
 
-            page += 1
+        await self._upsert_checkpoint(
+            entity_type="model",
+            last_record_id=str(staging_models[-1].id),
+            increment=len(staging_models),
+        )
+
+        await publisher.publish_tone(existing_tone, models=staging_models)
+        return True
 
     async def _get_existing_tone(self, tone_id: int) -> T3KToneStaging | None:
         stmt = select(T3KToneStaging).where(T3KToneStaging.id == tone_id)
@@ -264,3 +211,138 @@ class T3KSyncService:
         if value is not None and not isinstance(value, T3KToneStaging):
             return None
         return value
+
+    async def _count_staged_models(self, tone_id: int) -> int:
+        """Count how many models are staged for a given tone."""
+        stmt = select(func.count()).where(T3KModelStaging.tone_id == tone_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
+
+    # ── Newest check ─────────────────────────────────────────────────────
+
+    async def _run_newest_check(self, publisher: GearSyncPublisher) -> None:
+        """Walk sort=newest from page 1, stop at first known tone.
+
+        This is the priority path — stays current. Self-terminating: no
+        checkpoint needed because it always starts from the newest and stops
+        when it reaches tones we already have.
+        """
+        page = 1
+        page_size = 100
+
+        while True:
+            tones = await self._api_client.get_tones(page=page, page_size=page_size, sort="newest")
+
+            if not tones:
+                break
+
+            processed_tones = 0
+            hit_known = False
+            for tone in tones:
+                existing = await self._get_existing_tone(tone.id)
+                if existing is not None:
+                    hit_known = True
+                    break
+
+                published = await self._stage_tone_models_and_publish(tone, publisher)
+                if published:
+                    processed_tones += 1
+
+            if processed_tones > 0:
+                await self._upsert_checkpoint(
+                    entity_type="tone",
+                    last_record_id=str(tones[-1].id),
+                    increment=processed_tones,
+                )
+                await self._session.commit()
+
+            logger.info(
+                "Newest check page %d: %d new tones%s",
+                page,
+                processed_tones,
+                " (hit known tone, stopping)" if hit_known else "",
+            )
+
+            if hit_known:
+                break
+
+            page += 1
+
+    # ── Backfill ─────────────────────────────────────────────────────────
+
+    async def _run_backfill_batch(self, publisher: GearSyncPublisher) -> None:
+        """Run one page of backfill using sort=oldest, resuming from checkpoint.
+
+        Per-tone logic:
+        1. Tone exists + all models staged → skip (no API call)
+        2. Tone exists + missing models → fetch models only (1 API call)
+        3. Tone doesn't exist → full sync (page already fetched tone, + get_models)
+
+        After each page, updates checkpoint with current page number.
+        When backfill reaches end of catalogue, resets to page 1.
+        """
+        backfill_cp = await self._read_checkpoint(
+            source_name="t3k", entity_type=BACKFILL_CHECKPOINT_TYPE
+        )
+        page = int(backfill_cp.last_record_id) if backfill_cp else 1
+        page_size = 100
+
+        tones = await self._api_client.get_tones(page=page, page_size=page_size, sort="oldest")
+
+        if not tones:
+            # Reached end of catalogue — reset to page 1
+            logger.info("Backfill reached end of catalogue at page %d, resetting to page 1", page)
+            page = 1
+            await self._upsert_backfill_checkpoint(page)
+            await self._session.commit()
+            return
+
+        processed_tones = 0
+        skipped_tones = 0
+        for tone in tones:
+            existing = await self._get_existing_tone(tone.id)
+
+            if existing is not None:
+                staged_count = await self._count_staged_models(tone.id)
+                if staged_count >= existing.models_count:
+                    # All models staged — skip entirely
+                    skipped_tones += 1
+                    continue
+
+                # Missing models — fetch only models
+                published = await self._stage_models_only(tone.id, publisher, existing)
+                if published:
+                    processed_tones += 1
+            else:
+                # New tone — full sync
+                published = await self._stage_tone_models_and_publish(tone, publisher)
+                if published:
+                    processed_tones += 1
+
+        # Update backfill checkpoint to next page
+        next_page = page + 1
+        await self._upsert_backfill_checkpoint(next_page)
+
+        if processed_tones > 0:
+            await self._upsert_checkpoint(
+                entity_type="tone",
+                last_record_id=str(tones[-1].id),
+                increment=processed_tones,
+            )
+
+        await self._session.commit()
+
+        logger.info(
+            "Backfill page %d: %d processed, %d skipped (complete)",
+            page,
+            processed_tones,
+            skipped_tones,
+        )
+
+    async def _upsert_backfill_checkpoint(self, page: int) -> None:
+        """Update the backfill page checkpoint."""
+        await self._upsert_checkpoint(
+            entity_type=BACKFILL_CHECKPOINT_TYPE,
+            last_record_id=str(page),
+            increment=0,
+        )
