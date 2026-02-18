@@ -117,18 +117,12 @@ class T3KSyncService:
     async def _upsert_model(self, model: Any) -> T3KModelStaging:
         """Upsert a model to staging, preserving file_synced_at."""
         existing = await self._session.get(T3KModelStaging, model.id)
-        if existing is not None:
-            existing.tone_id = model.tone_id
-            existing.user_id = model.user_id
-            existing.name = model.name
-            existing.model_url = model.model_url
-            existing.size = model.size
-            existing.created_at = model.created_at
-            existing.updated_at = model.updated_at
-            return existing
+        preserved = existing.file_synced_at if existing else None
         staging = T3KModelStaging.from_domain(model)
-        self._session.add(staging)
-        return staging
+        if preserved is not None:
+            staging.file_synced_at = preserved
+        merged = await self._session.merge(staging)
+        return merged
 
     async def _stage_tone_models_and_publish(
         self,
@@ -319,16 +313,21 @@ class T3KSyncService:
             if existing is not None:
                 staged_count = await self._count_staged_models(tone.id)
                 if staged_count >= existing.models_count:
-                    # All models staged — skip entirely
                     skipped_tones += 1
+                    logger.info("Tone %d: skip (all %d models staged)", tone.id, staged_count)
                     continue
 
-                # Missing models — fetch only models
+                logger.info(
+                    "Tone %d: fetching models (%d staged, %d expected)",
+                    tone.id,
+                    staged_count,
+                    existing.models_count,
+                )
                 published = await self._stage_models_only(tone.id, publisher, existing)
                 if published:
                     processed_tones += 1
             else:
-                # New tone — full sync
+                logger.info("Tone %d: new tone — full sync", tone.id)
                 published = await self._stage_tone_models_and_publish(tone, publisher)
                 if published:
                     processed_tones += 1

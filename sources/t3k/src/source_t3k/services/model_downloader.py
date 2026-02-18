@@ -58,6 +58,7 @@ class ModelDownloader:
         path = self._get_model_path(model)
 
         if path.exists():
+            logger.info("Model %s: file exists, skipping download (%s)", model.id, path)
             if model.file_synced_at is None:
                 model.file_synced_at = datetime.now(UTC)
             return None
@@ -90,6 +91,7 @@ class ModelDownloader:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(content)
                 model.file_synced_at = datetime.now(UTC)
+                logger.info("Model %s: downloaded %d bytes → %s", model.id, len(content), path)
                 return path
 
             except T3KAPIError:
