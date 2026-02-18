@@ -41,3 +41,5 @@ docker-compose.override.yml
 .planning/epics/.gitkeep
 .gemini/
 .agents/
+
+.playwright-mcp/
