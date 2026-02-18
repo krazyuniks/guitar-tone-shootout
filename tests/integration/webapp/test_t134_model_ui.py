@@ -54,6 +54,7 @@ async def gear_with_models(db_session: "AsyncSession") -> Gear:
         name="Test Amp Pack",
         slug="test-amp-pack",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         description="A test amp for download status testing",
         manufacturer="TestCo",
         is_public=True,

@@ -73,6 +73,7 @@ async def amp_gear_1(db_session: AsyncSession, test_user: User) -> UserGear:
         name="Marshall JCM800",
         slug="marshall-jcm800",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         is_public=True,
     )
     db_session.add(gear)
@@ -109,6 +110,7 @@ async def amp_gear_2(db_session: AsyncSession, test_user: User) -> UserGear:
         name="Fender Twin",
         slug="fender-twin",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         is_public=True,
     )
     db_session.add(gear)
@@ -145,6 +147,7 @@ async def ir_gear_1(db_session: AsyncSession, test_user: User) -> UserGear:
         name="Greenback 25",
         slug="greenback-25",
         gear_type=GearType.IR,
+        platform=Platform.NAM,
         is_public=True,
     )
     db_session.add(gear)
@@ -180,6 +183,7 @@ async def ir_gear_2(db_session: AsyncSession, test_user: User) -> UserGear:
         name="V30",
         slug="v30",
         gear_type=GearType.IR,
+        platform=Platform.NAM,
         is_public=True,
     )
     db_session.add(gear)

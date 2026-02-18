@@ -1,15 +1,13 @@
 """Unit tests for SignalChain ORM models."""
 
-from collections.abc import AsyncGenerator
+import uuid
 from uuid import UUID
 
-import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.signal_chain import (
@@ -20,34 +18,12 @@ from webapp.adapters.persistence.models.signal_chain import (
 from webapp.adapters.persistence.models.user import User
 
 
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async with async_session() as session:
-        yield session
-
-    await engine.dispose()
-
-
-@pytest.mark.asyncio
 async def test_signal_chain_creation(session: AsyncSession) -> None:
     """Test creating a signal chain with basic fields."""
     # Arrange - Create user
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -72,11 +48,12 @@ async def test_signal_chain_creation(session: AsyncSession) -> None:
     assert chain.updated_at is not None
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_blocks(session: AsyncSession) -> None:
     """Test signal chain with blocks."""
     # Arrange - Create user and chain
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -120,11 +97,12 @@ async def test_signal_chain_blocks(session: AsyncSession) -> None:
     assert chain.blocks[1].gear_type == GearType.AMP
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_cascade_delete(session: AsyncSession) -> None:
     """Test that deleting chain cascades to blocks."""
     # Arrange
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -154,12 +132,12 @@ async def test_signal_chain_cascade_delete(session: AsyncSession) -> None:
     assert result is None
 
 
-@pytest.mark.asyncio
 async def test_block_type_creation(session: AsyncSession) -> None:
     """Test creating built-in processor definitions."""
+    suffix = uuid.uuid4().hex[:8]
     # Arrange & Act
     block_type = BlockType(
-        name="Compressor",
+        name=f"Compressor_{suffix}",
         category="dynamics",
         description="Audio compressor",
         default_params={"ratio": 4.0, "threshold": -20.0},
@@ -169,16 +147,18 @@ async def test_block_type_creation(session: AsyncSession) -> None:
 
     # Assert
     assert block_type.id is not None
-    assert block_type.name == "Compressor"
+    assert block_type.name == f"Compressor_{suffix}"
     assert block_type.category == "dynamics"
     assert block_type.default_params["ratio"] == 4.0
 
 
-@pytest.mark.asyncio
 async def test_preset_creation(session: AsyncSession) -> None:
     """Test creating parameter presets for blocks."""
+    suffix = uuid.uuid4().hex[:8]
     # Arrange - Create block type and chain
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -202,7 +182,7 @@ async def test_preset_creation(session: AsyncSession) -> None:
     # Act - Create preset
     preset = Preset(
         signal_chain_block_id=block.id,
-        name="Heavy Compression",
+        name=f"Heavy Compression {suffix}",
         params={"ratio": 8.0, "threshold": -30.0, "attack": 5.0},
     )
     session.add(preset)
@@ -211,15 +191,16 @@ async def test_preset_creation(session: AsyncSession) -> None:
     # Assert
     assert preset.id is not None
     assert preset.signal_chain_block_id == block.id
-    assert preset.name == "Heavy Compression"
+    assert preset.name == f"Heavy Compression {suffix}"
     assert preset.params["ratio"] == 8.0
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_group_creation(session: AsyncSession) -> None:
     """Test creating signal chain group for permutations."""
     # Arrange - Create user and base chain
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -254,13 +235,12 @@ async def test_signal_chain_group_creation(session: AsyncSession) -> None:
     assert len(group.gear_options[1]) == 2
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_user_relationship(session: AsyncSession) -> None:
     """Test relationship between signal chain and user."""
-    from sqlalchemy import select
-
     # Arrange
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 

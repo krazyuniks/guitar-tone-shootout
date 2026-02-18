@@ -8,35 +8,9 @@ Currently they're defined in signal_chain.py. These tests verify
 the expected module structure.
 """
 
-from collections.abc import AsyncGenerator
+import uuid
 
-import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
-from webapp.adapters.persistence.models.base import Base
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestBlockTypeModelLocation:
@@ -66,7 +40,7 @@ class TestBlockTypeModelLocation:
 
         # Create instance with valid category
         block_type = BlockType(
-            name="Test EQ",
+            name=f"Test EQ_{uuid.uuid4().hex[:8]}",
             category=BlockCategory.EQ,
             default_params={},
         )
@@ -79,9 +53,10 @@ class TestBlockTypeModelLocation:
         from core.domain.value_objects.block_category import BlockCategory
         from webapp.adapters.persistence.models.block_type import BlockType
 
+        suffix = uuid.uuid4().hex[:8]
         # Create and persist
         block_type = BlockType(
-            name="Compressor",
+            name=f"Compressor_{suffix}",
             category=BlockCategory.DYNAMICS,
             default_params={"ratio": 4.0, "threshold": -10.0},
         )
@@ -89,23 +64,27 @@ class TestBlockTypeModelLocation:
         await session.commit()
 
         # Query back
-        result = await session.execute(select(BlockType).where(BlockType.name == "Compressor"))
+        result = await session.execute(
+            select(BlockType).where(BlockType.name == f"Compressor_{suffix}")
+        )
         saved = result.scalar_one()
 
-        assert saved.name == "Compressor"
+        assert saved.name == f"Compressor_{suffix}"
         assert saved.category == BlockCategory.DYNAMICS
         assert saved.default_params == {"ratio": 4.0, "threshold": -10.0}
 
     async def test_block_type_name_is_unique(self, session: AsyncSession) -> None:
         """BlockType.name should have unique constraint."""
+        import pytest
         from sqlalchemy.exc import IntegrityError
 
         from core.domain.value_objects.block_category import BlockCategory
         from webapp.adapters.persistence.models.block_type import BlockType
 
+        shared_name = f"Reverb_{uuid.uuid4().hex[:8]}"
         # Create first block type
         block_type1 = BlockType(
-            name="Reverb",
+            name=shared_name,
             category=BlockCategory.REVERB,
             default_params={},
         )
@@ -114,7 +93,7 @@ class TestBlockTypeModelLocation:
 
         # Try to create duplicate
         block_type2 = BlockType(
-            name="Reverb",  # Same name
+            name=shared_name,  # Same name
             category=BlockCategory.DELAY,
             default_params={},
         )
@@ -156,8 +135,11 @@ class TestPresetModelLocation:
         from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
         from webapp.adapters.persistence.models.user import User
 
+        suffix = uuid.uuid4().hex[:8]
         # Create user and chain
-        user = User(username="testuser", email="test@example.com")
+        user = User(
+            username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+        )
         session.add(user)
         await session.commit()
 
@@ -171,7 +153,7 @@ class TestPresetModelLocation:
 
         # Create block type and block
         block_type = BlockType(
-            name="EQ",
+            name=f"EQ_{suffix}",
             category=BlockCategory.EQ,
             default_params={},
         )
@@ -189,17 +171,17 @@ class TestPresetModelLocation:
         # Create preset
         preset = Preset(
             signal_chain_block_id=block.id,
-            name="Scooped",
+            name=f"Scooped_{suffix}",
             params={"low": 5, "mid": -8, "high": 3},
         )
         session.add(preset)
         await session.commit()
 
         # Query back
-        result = await session.execute(select(Preset).where(Preset.name == "Scooped"))
+        result = await session.execute(select(Preset).where(Preset.name == f"Scooped_{suffix}"))
         saved = result.scalar_one()
 
-        assert saved.name == "Scooped"
+        assert saved.name == f"Scooped_{suffix}"
         assert saved.params == {"low": 5, "mid": -8, "high": 3}
         assert saved.signal_chain_block_id == block.id
 
@@ -217,8 +199,11 @@ class TestPresetModelLocation:
         from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
         from webapp.adapters.persistence.models.user import User
 
+        suffix = uuid.uuid4().hex[:8]
         # Create chain with block
-        user = User(username="testuser", email="test@example.com")
+        user = User(
+            username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+        )
         session.add(user)
         await session.commit()
 
@@ -231,7 +216,7 @@ class TestPresetModelLocation:
         await session.commit()
 
         block_type = BlockType(
-            name="Delay",
+            name=f"Delay_{suffix}",
             category=BlockCategory.DELAY,
             default_params={},
         )
@@ -249,7 +234,7 @@ class TestPresetModelLocation:
         # Create preset
         preset = Preset(
             signal_chain_block_id=block.id,
-            name="Short Delay",
+            name=f"Short Delay_{suffix}",
             params={"time": 250, "feedback": 0.3},
         )
         session.add(preset)
@@ -279,8 +264,11 @@ class TestPresetModelLocation:
         from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
         from webapp.adapters.persistence.models.user import User
 
+        suffix = uuid.uuid4().hex[:8]
         # Create chain with block and preset
-        user = User(username="testuser", email="test@example.com")
+        user = User(
+            username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+        )
         session.add(user)
         await session.commit()
 
@@ -293,7 +281,7 @@ class TestPresetModelLocation:
         await session.commit()
 
         block_type = BlockType(
-            name="Reverb",
+            name=f"Reverb_{suffix}",
             category=BlockCategory.REVERB,
             default_params={},
         )
@@ -310,7 +298,7 @@ class TestPresetModelLocation:
 
         preset = Preset(
             signal_chain_block_id=block.id,
-            name="Large Hall",
+            name=f"Large Hall_{suffix}",
             params={"size": 1.0, "mix": 0.4},
         )
         session.add(preset)

@@ -51,7 +51,7 @@ class TestUserGearModel:
         """Test creating UserGear with only required fields (user_id, gear_model_id)."""
         # Create user, gear, and gear model first
         user = User(username="test_user", email="test@example.com")
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(user)
         session.add(gear)
         await session.flush()
@@ -88,7 +88,7 @@ class TestUserGearModel:
         """Test that a user cannot add the same gear model twice (unique constraint)."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(user)
         session.add(gear)
         await session.flush()
@@ -118,7 +118,7 @@ class TestUserGearModel:
         # Create two users, one gear, and one gear model
         user1 = User(username="user1", email="user1@example.com")
         user2 = User(username="user2", email="user2@example.com")
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add_all([user1, user2, gear])
         await session.flush()
 
@@ -148,7 +148,7 @@ class TestUserGearModel:
         """Test creating UserGear with nickname, notes, and is_favourite."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
-        gear = Gear(name="Mesa Boogie", gear_type=GearType.AMP)
+        gear = Gear(name="Mesa Boogie", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(user)
         session.add(gear)
         await session.flush()
@@ -180,14 +180,10 @@ class TestUserGearModel:
         assert saved.notes == "Great for metal"
         assert saved.is_favourite is True
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: test isolation — passes individually, fails in full suite",
-        strict=False,
-    )
     async def test_user_gear_foreign_key_to_user(self, session: AsyncSession) -> None:
         """Test that user_id references the users table."""
         # Create gear and gear model but no user
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(gear)
         await session.flush()
 
@@ -208,10 +204,6 @@ class TestUserGearModel:
         with pytest.raises(IntegrityError):
             await session.commit()
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: test isolation — passes individually, fails in full suite",
-        strict=False,
-    )
     async def test_user_gear_foreign_key_to_gear(self, session: AsyncSession) -> None:
         """Test that gear_model_id references the gear_models table."""
         # Create user but no gear model
@@ -232,7 +224,7 @@ class TestUserGearModel:
         """Test that deleting a user deletes their user_gear entries."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(user)
         session.add(gear)
         await session.flush()
@@ -263,7 +255,7 @@ class TestUserGearModel:
         """Test that UserGear has a relationship to User model."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(user)
         session.add(gear)
         await session.flush()
@@ -295,7 +287,7 @@ class TestUserGearModel:
         """Test that UserGear has a relationship to GearModel."""
         # Create user, gear, and gear model
         user = User(username="test_user", email="test@example.com")
-        gear = Gear(name="Test Amp", gear_type=GearType.AMP)
+        gear = Gear(name="Test Amp", gear_type=GearType.AMP, platform=Platform.NAM)
         session.add(user)
         session.add(gear)
         await session.flush()

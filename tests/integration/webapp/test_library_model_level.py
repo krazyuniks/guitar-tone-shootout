@@ -41,6 +41,7 @@ async def test_gear(db_session: AsyncSession) -> Gear:
         id=uuid4(),
         name="Test Amp",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         is_public=True,
     )
     db_session.add(gear)

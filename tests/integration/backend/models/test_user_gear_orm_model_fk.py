@@ -107,6 +107,7 @@ class TestUserGearORMModelFK:
             name="Test Amp",
             slug="test-amp",
             gear_type="amp",
+            platform="nam",
         )
         gear_model = GearModel(
             id=uuid4(),
@@ -144,6 +145,7 @@ class TestUserGearORMModelFK:
             name="Test Amp",
             slug="test-amp",
             gear_type="amp",
+            platform="nam",
         )
         gear_model = GearModel(
             id=uuid4(),

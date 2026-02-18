@@ -1,11 +1,11 @@
 """Unit tests for ORM base classes and mixins."""
 
+import os
 import uuid
 from datetime import UTC, datetime
 
-import pytest
 from sqlalchemy import Column, Integer, create_engine, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from webapp.adapters.persistence.models.base import (
@@ -15,6 +15,12 @@ from webapp.adapters.persistence.models.base import (
     UUIDMixin,
     get_async_session,
 )
+
+
+def _sync_engine():
+    """Create a synchronous PostgreSQL engine for testing type decorators."""
+    url = os.environ["DATABASE_URL"].replace("asyncpg", "psycopg2")
+    return create_engine(url, echo=False)
 
 
 class TestBase:
@@ -51,9 +57,8 @@ class TestUUIDMixin:
         class TestModel(UUIDMixin, Base):
             __tablename__ = "test_uuid_gen"
 
-        # Create in-memory database
-        engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        engine = _sync_engine()
+        Base.metadata.create_all(engine, checkfirst=True)
 
         with Session(engine) as session:
             instance = TestModel()
@@ -66,6 +71,10 @@ class TestUUIDMixin:
             # UUIDv7 has version field = 7 (Python 3.13+)
             # UUIDv4 has version field = 4 (Python 3.12 fallback)
             assert instance.id.version in (4, 7)
+
+            session.rollback()
+
+        engine.dispose()
 
 
 class TestTimestampMixin:
@@ -88,9 +97,8 @@ class TestTimestampMixin:
             __tablename__ = "test_timestamp_created"
             id = Column(Integer, primary_key=True)
 
-        # Create in-memory database
-        engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        engine = _sync_engine()
+        Base.metadata.create_all(engine, checkfirst=True)
 
         before = datetime.now(UTC)
 
@@ -104,6 +112,10 @@ class TestTimestampMixin:
             assert before <= instance.created_at <= after
             assert instance.created_at.tzinfo == UTC
 
+            session.rollback()
+
+        engine.dispose()
+
     def test_timestamp_mixin_sets_updated_at(self) -> None:
         """TimestampMixin should set updated_at on insert."""
 
@@ -111,9 +123,8 @@ class TestTimestampMixin:
             __tablename__ = "test_timestamp_updated"
             id = Column(Integer, primary_key=True)
 
-        # Create in-memory database
-        engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        engine = _sync_engine()
+        Base.metadata.create_all(engine, checkfirst=True)
 
         with Session(engine) as session:
             instance = TestModel(id=1)
@@ -124,6 +135,10 @@ class TestTimestampMixin:
             # Timestamps should be very close (within 1 second)
             diff = abs((instance.updated_at - instance.created_at).total_seconds())
             assert diff < 1.0
+
+            session.rollback()
+
+        engine.dispose()
 
 
 class TestEnumByValue:
@@ -142,14 +157,16 @@ class TestEnumByValue:
             id = Column(Integer, primary_key=True)
             status: Status = Column(EnumByValue(Status), nullable=False)  # type: ignore[assignment]
 
-        # Create in-memory database
-        engine = create_engine("sqlite:///:memory:")
-        Base.metadata.create_all(engine)
+        engine = _sync_engine()
+        Base.metadata.create_all(engine, checkfirst=True)
 
-        with Session(engine) as session:
+        with engine.connect() as conn:
+            trans = conn.begin()
+            session = Session(bind=conn)
+
             instance = TestModel(id=1, status=Status.ACTIVE)
             session.add(instance)
-            session.commit()
+            session.flush()
 
             # Verify stored as value
             result = session.execute(select(TestModel).where(TestModel.id == 1))
@@ -157,31 +174,26 @@ class TestEnumByValue:
             assert retrieved.status == Status.ACTIVE
             assert isinstance(retrieved.status, Status)
 
+            session.close()
+            trans.rollback()
+
+        engine.dispose()
+
 
 class TestAsyncSession:
     """Test async session factory."""
 
-    @pytest.mark.asyncio
-    async def test_get_async_session_creates_session(self) -> None:
+    async def test_get_async_session_creates_session(self, db_session: AsyncSession) -> None:
         """get_async_session should create async sessions."""
-        # This test verifies the session factory works
-        # Using in-memory SQLite for testing
-        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-        session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        # Verify the session from conftest works
+        assert isinstance(db_session, AsyncSession)
+        # Verify we can execute queries
+        result = await db_session.execute(select(1))
+        assert result.scalar() == 1
 
-        async with session_factory() as session:
-            assert isinstance(session, AsyncSession)
-            # Verify we can execute queries
-            result = await session.execute(select(1))
-            assert result.scalar() == 1
-
-        await engine.dispose()
-
-    @pytest.mark.asyncio
     async def test_session_factory_from_get_async_session(self) -> None:
         """get_async_session should return a working session factory."""
-        # Mock database URL
-        database_url = "sqlite+aiosqlite:///:memory:"
+        database_url = os.environ["DATABASE_URL"]
 
         session_factory = get_async_session(database_url)
         assert session_factory is not None

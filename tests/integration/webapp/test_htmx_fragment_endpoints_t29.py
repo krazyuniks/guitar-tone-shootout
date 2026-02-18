@@ -47,6 +47,7 @@ async def test_gear(db_session: AsyncSession) -> Gear:
         name="Test Amp",
         slug="test-amp",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         description="A test amplifier",
         manufacturer="Test Brand",
         is_public=True,
@@ -112,6 +113,7 @@ class TestGearBrowseFragments:
             name="Test Amplifier",
             slug="test-amplifier",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             is_public=True,
         )
         pedal = Gear(
@@ -119,6 +121,7 @@ class TestGearBrowseFragments:
             name="Test Pedal",
             slug="test-pedal",
             gear_type=GearType.PEDAL,
+            platform=Platform.NAM,
             is_public=True,
         )
         db_session.add_all([amp, pedal])
@@ -146,6 +149,7 @@ class TestGearBrowseFragments:
             name="Fender Amp",
             slug="fender-amp",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             manufacturer="Fender",
             is_public=True,
         )
@@ -154,6 +158,7 @@ class TestGearBrowseFragments:
             name="Marshall Amp",
             slug="marshall-amp",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             manufacturer="Marshall",
             is_public=True,
         )
@@ -179,6 +184,7 @@ class TestGearBrowseFragments:
             name="Unique Search Term Amp",
             slug="unique-search-term-amp",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             description="Regular description",
             is_public=True,
         )
@@ -187,6 +193,7 @@ class TestGearBrowseFragments:
             name="Other Amp",
             slug="other-amp",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             description="Different content",
             is_public=True,
         )
@@ -213,6 +220,7 @@ class TestGearBrowseFragments:
                 name=f"Test Gear {i}",
                 slug=f"test-gear-{i}",
                 gear_type=GearType.AMP,
+                platform=Platform.NAM,
                 is_public=True,
             )
             db_session.add(gear)
@@ -239,6 +247,7 @@ class TestGearBrowseFragments:
             name="Public Gear",
             slug="public-gear",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             is_public=True,
         )
         private_gear = Gear(
@@ -246,6 +255,7 @@ class TestGearBrowseFragments:
             name="Private Gear",
             slug="private-gear",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             is_public=False,
         )
         db_session.add_all([public_gear, private_gear])
@@ -321,6 +331,7 @@ class TestLibraryMyGearFragments:
             name="User's Gear",
             slug="users-gear",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             is_public=True,
         )
         db_session.add(user_gear_item)
@@ -331,6 +342,7 @@ class TestLibraryMyGearFragments:
             name="Other User's Gear",
             slug="other-users-gear",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             is_public=True,
         )
         db_session.add(other_gear_item)
@@ -373,6 +385,7 @@ class TestLibraryMyGearFragments:
             name="User Amp",
             slug="user-amp",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             is_public=True,
         )
         pedal = Gear(
@@ -380,6 +393,7 @@ class TestLibraryMyGearFragments:
             name="User Pedal",
             slug="user-pedal",
             gear_type=GearType.PEDAL,
+            platform=Platform.NAM,
             is_public=True,
         )
         db_session.add_all([amp, pedal])

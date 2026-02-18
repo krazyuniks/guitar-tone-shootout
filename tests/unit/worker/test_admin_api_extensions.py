@@ -1,17 +1,17 @@
 """Unit tests for Worker Admin API extensions.
 
 Tests for new endpoints added to apps/worker/src/worker/admin.py:
-- POST /api/admin/enqueue — Enqueue jobs to TaskIQ broker
-- GET /api/admin/sources/{source}/sync/status — Sync state and checkpoints
-- POST /api/admin/sources/{source}/sync — Trigger manual sync
-- GET /api/admin/sources/{source}/sync/stats — Sync statistics
-- GET /api/admin/sources/{source}/sync/lag — Time since last successful sync
-- GET /api/admin/sources/{source}/errors/summary — Error counts by type
-- GET /api/admin/jobs/dead-lettered — List dead-lettered jobs
-- GET /api/admin/jobs/pending-retries/count — Count of pending retries
-- POST /api/admin/sources/{source}/sync/unlock — Release sync lock
-- POST /api/admin/scheduler/unlock — Release scheduler lock
-- Unknown source handling — 404 for unknown sources
+- POST /api/admin/enqueue -- Enqueue jobs to TaskIQ broker
+- GET /api/admin/sources/{source}/sync/status -- Sync state and checkpoints
+- POST /api/admin/sources/{source}/sync -- Trigger manual sync
+- GET /api/admin/sources/{source}/sync/stats -- Sync statistics
+- GET /api/admin/sources/{source}/sync/lag -- Time since last successful sync
+- GET /api/admin/sources/{source}/errors/summary -- Error counts by type
+- GET /api/admin/jobs/dead-lettered -- List dead-lettered jobs
+- GET /api/admin/jobs/pending-retries/count -- Count of pending retries
+- POST /api/admin/sources/{source}/sync/unlock -- Release sync lock
+- POST /api/admin/scheduler/unlock -- Release scheduler lock
+- Unknown source handling -- 404 for unknown sources
 """
 
 from __future__ import annotations
@@ -24,20 +24,14 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from redis.asyncio import Redis
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from source_t3k.adapters.outbound.models import SyncCheckpoint
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job
+from webapp.adapters.persistence.models.user import User
 from worker.admin import app, get_db_session, get_redis_client, get_t3k_db_session
 
 
@@ -61,35 +55,6 @@ class FakeRedis:
     async def aclose(self):
         """Close connection (no-op for fake)."""
         pass
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite database for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        # Create Core tables + only the T3K table needed (SyncCheckpoint).
-        # T3KToneStaging uses PostgreSQL ARRAY columns incompatible with SQLite.
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(SyncCheckpoint.__table__.create)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Database session for tests with transaction rollback."""
-    connection = await db_engine.connect()
-    transaction = await connection.begin()
-    session_maker = async_sessionmaker(bind=connection, class_=AsyncSession, expire_on_commit=False)
-    session = session_maker()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await transaction.rollback()
-        await connection.close()
 
 
 @pytest.fixture
@@ -139,10 +104,26 @@ async def test_broker(monkeypatch):
 
 
 @pytest.fixture
+async def test_user(db_session: AsyncSession) -> User:
+    """Create a test user for FK satisfaction."""
+    user = User(
+        id=uuid4(),
+        username=f"testuser-{uuid4().hex[:8]}",
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    return user
+
+
+@pytest.fixture
 async def client(
-    db_session: AsyncSession, fake_redis: FakeRedis, test_broker
+    db_session: AsyncSession, t3k_session: AsyncSession, fake_redis: FakeRedis, test_broker
 ) -> AsyncGenerator[AsyncClient, None]:
-    """HTTP client with database session and Redis overrides."""
+    """HTTP client with database session and Redis overrides.
+
+    Depends on t3k_session to ensure T3K tables exist in the test database.
+    """
 
     async def override_get_db_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
@@ -167,14 +148,14 @@ class TestEnqueueEndpoint:
     """Tests for POST /api/admin/enqueue endpoint."""
 
     async def test_enqueue_accepts_job_id_and_returns_202(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, test_user: User
     ) -> None:
         """POST /api/admin/enqueue accepts job_id and returns 202 Accepted."""
         # Create a job in the database
         job_id = uuid4()
         job = Job(
             id=job_id,
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.PENDING,
         )
@@ -345,14 +326,14 @@ class TestDeadLetteredJobs:
         assert isinstance(data, list)
 
     async def test_returns_dead_lettered_jobs(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, test_user: User
     ) -> None:
         """GET /api/admin/jobs/dead-lettered returns dead-lettered jobs."""
         # Create a dead-lettered job
         job_id = uuid4()
         job = Job(
             id=job_id,
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.DEAD_LETTERED,
             error="Max retries exceeded",
@@ -372,19 +353,19 @@ class TestDeadLetteredJobs:
         assert matching[0]["status"] == "dead_lettered"
 
     async def test_excludes_non_dead_lettered_jobs(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, test_user: User
     ) -> None:
         """GET /api/admin/jobs/dead-lettered excludes non-dead-lettered jobs."""
         # Create jobs with different statuses
         pending_job = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.PENDING,
         )
         dead_job = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.DEAD_LETTERED,
         )
@@ -414,7 +395,7 @@ class TestPendingRetriesCount:
         assert isinstance(data["count"], int)
 
     async def test_counts_jobs_with_next_retry_at_set(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, test_user: User
     ) -> None:
         """GET /api/admin/jobs/pending-retries/count counts jobs awaiting retry."""
         from datetime import datetime, timedelta
@@ -422,7 +403,7 @@ class TestPendingRetriesCount:
         # Create a job with next_retry_at set (pending retry)
         job = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             next_retry_at=datetime.now(UTC) + timedelta(minutes=5),
@@ -437,7 +418,7 @@ class TestPendingRetriesCount:
         assert data["count"] >= 1
 
     async def test_excludes_jobs_without_next_retry_at(
-        self, client: AsyncClient, db_session: AsyncSession
+        self, client: AsyncClient, db_session: AsyncSession, test_user: User
     ) -> None:
         """GET /api/admin/jobs/pending-retries/count excludes jobs without retry scheduled."""
         # Create jobs: one with retry, one without
@@ -445,14 +426,14 @@ class TestPendingRetriesCount:
 
         with_retry = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             next_retry_at=datetime.now(UTC) + timedelta(minutes=5),
         )
         without_retry = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=test_user.id,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             next_retry_at=None,

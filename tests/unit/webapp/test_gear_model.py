@@ -1,15 +1,13 @@
 """Unit tests for Gear ORM models."""
 
-from collections.abc import AsyncGenerator
+import uuid
 from datetime import UTC, datetime
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearMake,
@@ -19,47 +17,27 @@ from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
 
 
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-    # Create in-memory database
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session factory and session
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    session = async_session()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await engine.dispose()
-
-
 class TestGear:
     """Tests for Gear model."""
 
     async def test_gear_creation_with_minimal_fields(self, session: AsyncSession) -> None:
         """Test creating gear with minimal required fields."""
+        suffix = uuid.uuid4().hex[:8]
         gear = Gear(
-            name="Test Amp",
+            name=f"Test Amp {suffix}",
+            slug=f"test-amp-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
         )
 
         session.add(gear)
         await session.commit()
 
         # Verify gear was created
-        result = await session.execute(select(Gear).where(Gear.name == "Test Amp"))
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
-        assert saved_gear.name == "Test Amp"
+        assert saved_gear.name == f"Test Amp {suffix}"
         assert saved_gear.gear_type == GearType.AMP
         assert saved_gear.is_public is True  # Default
         assert saved_gear.created_at is not None
@@ -67,9 +45,12 @@ class TestGear:
 
     async def test_gear_creation_with_all_fields(self, session: AsyncSession) -> None:
         """Test creating gear with all fields."""
+        suffix = uuid.uuid4().hex[:8]
         gear = Gear(
-            name="Mesa Boogie Dual Rectifier",
+            name=f"Mesa Boogie Dual Rectifier {suffix}",
+            slug=f"mesa-boogie-dual-rectifier-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             description="High-gain metal amp",
             manufacturer="Mesa Boogie",
             thumbnail_url="https://example.com/thumbnail.jpg",
@@ -80,9 +61,7 @@ class TestGear:
         await session.commit()
 
         # Verify
-        result = await session.execute(
-            select(Gear).where(Gear.name == "Mesa Boogie Dual Rectifier")
-        )
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
         assert saved_gear.description == "High-gain metal amp"
@@ -91,14 +70,17 @@ class TestGear:
 
     async def test_gear_with_tags(self, session: AsyncSession) -> None:
         """Test gear with tags many-to-many relationship."""
+        suffix = uuid.uuid4().hex[:8]
         # Create tags
-        tag1 = GearTag(name="metal")
-        tag2 = GearTag(name="high-gain")
+        tag1 = GearTag(name=f"metal_{suffix}")
+        tag2 = GearTag(name=f"high-gain_{suffix}")
 
         # Create gear and associate tags
         gear = Gear(
-            name="High Gain Amp",
+            name=f"High Gain Amp {suffix}",
+            slug=f"high-gain-amp-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
         )
         gear.tags.append(tag1)
         gear.tags.append(tag2)
@@ -107,26 +89,29 @@ class TestGear:
         await session.commit()
 
         # Verify tags are saved and associated
-        result = await session.execute(select(Gear).where(Gear.name == "High Gain Amp"))
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
         assert len(saved_gear.tags) == 2
         tag_names = {tag.name for tag in saved_gear.tags}
-        assert tag_names == {"metal", "high-gain"}
+        assert tag_names == {f"metal_{suffix}", f"high-gain_{suffix}"}
 
     async def test_gear_with_source(self, session: AsyncSession) -> None:
         """Test gear with source tracking."""
+        suffix = uuid.uuid4().hex[:8]
         # Create source
         source = GearSource(
             source_name="t3k",
-            source_record_id="T3K-12345",
+            source_record_id=f"T3K-{suffix}",
             source_updated_at=datetime.now(UTC),
         )
 
         # Create gear with source
         gear = Gear(
-            name="T3K Amp",
+            name=f"T3K Amp {suffix}",
+            slug=f"t3k-amp-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             source=source,
         )
 
@@ -134,19 +119,22 @@ class TestGear:
         await session.commit()
 
         # Verify source relationship
-        result = await session.execute(select(Gear).where(Gear.name == "T3K Amp"))
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
         assert saved_gear.source is not None
         assert saved_gear.source.source_name == "t3k"
-        assert saved_gear.source.source_record_id == "T3K-12345"
+        assert saved_gear.source.source_record_id == f"T3K-{suffix}"
 
     async def test_gear_with_models(self, session: AsyncSession) -> None:
         """Test gear with multiple model files."""
+        suffix = uuid.uuid4().hex[:8]
         # Create gear
         gear = Gear(
-            name="Amp with Models",
+            name=f"Amp with Models {suffix}",
+            slug=f"amp-with-models-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
         )
 
         # Create models
@@ -172,7 +160,7 @@ class TestGear:
         await session.commit()
 
         # Verify models are saved and associated
-        result = await session.execute(select(Gear).where(Gear.name == "Amp with Models"))
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
         assert len(saved_gear.models) == 2
@@ -189,16 +177,19 @@ class TestGear:
 
     async def test_gear_type_enum_storage(self, session: AsyncSession) -> None:
         """Test that gear_type enum is stored by value."""
+        suffix = uuid.uuid4().hex[:8]
         gear = Gear(
-            name="Test Pedal",
+            name=f"Test Pedal {suffix}",
+            slug=f"test-pedal-{suffix}",
             gear_type=GearType.PEDAL,
+            platform=Platform.NAM,
         )
 
         session.add(gear)
         await session.commit()
 
         # Query raw database to verify enum is stored by value
-        result = await session.execute(select(Gear).where(Gear.name == "Test Pedal"))
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
         assert saved_gear.gear_type == GearType.PEDAL
@@ -206,13 +197,16 @@ class TestGear:
 
     async def test_gear_with_make(self, session: AsyncSession) -> None:
         """Test gear with manufacturer (GearMake) relationship."""
+        suffix = uuid.uuid4().hex[:8]
         # Create make
-        make = GearMake(name="Fender")
+        make = GearMake(name=f"Fender_{suffix}")
 
         # Create gear with make
         gear = Gear(
-            name="Fender Deluxe",
+            name=f"Fender Deluxe {suffix}",
+            slug=f"fender-deluxe-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             make=make,
         )
 
@@ -220,11 +214,11 @@ class TestGear:
         await session.commit()
 
         # Verify make relationship
-        result = await session.execute(select(Gear).where(Gear.name == "Fender Deluxe"))
+        result = await session.execute(select(Gear).where(Gear.id == gear.id))
         saved_gear = result.scalar_one()
 
         assert saved_gear.make is not None
-        assert saved_gear.make.name == "Fender"
+        assert saved_gear.make.name == f"Fender_{suffix}"
 
     async def test_indexes_exist(self, session: AsyncSession) -> None:
         """Test that indexes are created for common query patterns."""

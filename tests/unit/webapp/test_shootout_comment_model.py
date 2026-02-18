@@ -153,7 +153,6 @@ class TestShootoutCommentForeignKeys:
 class TestShootoutCommentCascadeDelete:
     """Tests for cascade delete from shootout to comments."""
 
-    @pytest.mark.xfail(reason="Pre-existing: SQLite doesn't enforce ON DELETE CASCADE")
     @pytest.mark.asyncio
     async def test_deleting_shootout_cascades_to_comments(
         self, session: AsyncSession, user: User, shootout: Shootout

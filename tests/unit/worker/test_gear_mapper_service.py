@@ -1,29 +1,23 @@
 """Unit tests for GearMapperService end-to-end data flow.
 
 Tests verify that sync records produce correct Gear, GearSource, and GearModel
-rows in the gts_core database. Uses real SQLite sessions — no mocking.
+rows in the gts_core database. Uses real PostgreSQL sessions -- no mocking.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 from sqlalchemy.orm import joinedload
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.records.gear_sync import GearSyncRecord, SyncOperation
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
@@ -39,34 +33,28 @@ from worker.services.gear_mapper import (
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-
-
-@pytest.fixture
 def mapper(session: AsyncSession) -> GearMapperService:
     return GearMapperService(session=session)
 
 
+def _unique_id() -> str:
+    """Generate a short unique suffix for test data."""
+    return uuid4().hex[:8]
+
+
 def _pack_record(
-    source_record_id: str = "pack-001",
+    source_record_id: str | None = None,
     name: str = "Test Amp",
-    slug: str = "test-amp",
+    slug: str | None = None,
     gear_type: str = "amp",
     **extra_payload: object,
 ) -> GearSyncRecord:
-    """Build a pack sync record with sensible defaults."""
+    """Build a pack sync record with sensible defaults and unique slug."""
+    suffix = _unique_id()
+    if source_record_id is None:
+        source_record_id = f"pack-{suffix}"
+    if slug is None:
+        slug = f"test-amp-{suffix}"
     payload = {
         "name": name,
         "slug": slug,
@@ -84,12 +72,14 @@ def _pack_record(
 
 def _model_record(
     pack_id: str = "pack-001",
-    source_record_id: str = "model-001",
+    source_record_id: str | None = None,
     platform: str = "nam",
     size: str = "standard",
     **extra_payload: object,
 ) -> GearSyncRecord:
     """Build a model sync record with sensible defaults."""
+    if source_record_id is None:
+        source_record_id = f"model-{_unique_id()}"
     payload = {
         "pack_id": pack_id,
         "platform": platform,
@@ -106,7 +96,7 @@ def _model_record(
 
 
 # ---------------------------------------------------------------------------
-# Pack sync → Gear + GearSource creation
+# Pack sync -> Gear + GearSource creation
 # ---------------------------------------------------------------------------
 
 
@@ -115,14 +105,19 @@ class TestPackSyncCreatesGear:
 
     async def test_creates_gear_row(self, mapper: GearMapperService, session: AsyncSession) -> None:
         """A pack sync record should create a Gear row in gts_core."""
-        record = _pack_record(name="Marshall JCM800", slug="marshall-jcm800", gear_type="amp")
+        suffix = _unique_id()
+        record = _pack_record(
+            source_record_id=f"pack-{suffix}",
+            name="Marshall JCM800",
+            slug=f"marshall-jcm800-{suffix}",
+            gear_type="amp",
+        )
         await mapper.process_pack_sync(record)
         await session.flush()
 
-        result = await session.execute(select(Gear))
+        result = await session.execute(select(Gear).where(Gear.slug == f"marshall-jcm800-{suffix}"))
         gear = result.scalar_one()
         assert gear.name == "Marshall JCM800"
-        assert gear.slug == "marshall-jcm800"
         assert gear.gear_type.value == "amp"
 
     async def test_creates_gear_source_row(
@@ -133,10 +128,11 @@ class TestPackSyncCreatesGear:
         await mapper.process_pack_sync(record)
         await session.flush()
 
-        result = await session.execute(select(GearSource))
+        result = await session.execute(
+            select(GearSource).where(GearSource.source_record_id == record.source_record_id)
+        )
         source = result.scalar_one()
         assert source.source_name == "t3k"
-        assert source.source_record_id == "pack-001"
 
     async def test_gear_source_linked_to_gear(
         self, mapper: GearMapperService, session: AsyncSession
@@ -146,15 +142,17 @@ class TestPackSyncCreatesGear:
         await mapper.process_pack_sync(record)
         await session.flush()
 
-        result = await session.execute(select(Gear).options(joinedload(Gear.source)))
+        result = await session.execute(
+            select(Gear).options(joinedload(Gear.source)).where(Gear.slug == record.payload["slug"])
+        )
         gear = result.unique().scalar_one()
         assert gear.source is not None
         assert gear.source.source_name == "t3k"
-        assert gear.source.source_record_id == "pack-001"
+        assert gear.source.source_record_id == record.source_record_id
 
 
 # ---------------------------------------------------------------------------
-# Pack sync → Gear update (idempotency)
+# Pack sync -> Gear update (idempotency)
 # ---------------------------------------------------------------------------
 
 
@@ -165,15 +163,22 @@ class TestPackSyncUpdatesGear:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """Re-syncing a pack with a newer timestamp updates the Gear name."""
+        suffix = _unique_id()
+        source_id = f"pack-{suffix}"
+
         # Create initial
-        record_v1 = _pack_record(name="Old Name", slug="old-name")
+        record_v1 = _pack_record(
+            source_record_id=source_id,
+            name="Old Name",
+            slug=f"old-name-{suffix}",
+        )
         await mapper.process_pack_sync(record_v1)
         await session.flush()
 
         # Update with newer timestamp
         record_v2 = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=source_id,
             source_updated_at=datetime(2026, 2, 1, tzinfo=UTC),
             operation=SyncOperation.UPDATE,
             payload={"name": "New Name"},
@@ -181,7 +186,7 @@ class TestPackSyncUpdatesGear:
         await mapper.process_pack_sync(record_v2)
         await session.flush()
 
-        result = await session.execute(select(Gear))
+        result = await session.execute(select(Gear).where(Gear.slug == f"old-name-{suffix}"))
         gear = result.scalar_one()
         assert gear.name == "New Name"
 
@@ -189,12 +194,15 @@ class TestPackSyncUpdatesGear:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """Re-syncing with older timestamp does NOT update the Gear."""
+        suffix = _unique_id()
+        source_id = f"pack-{suffix}"
+
         record_v1 = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=source_id,
             source_updated_at=datetime(2026, 2, 1, tzinfo=UTC),
             operation=SyncOperation.CREATE,
-            payload={"name": "Current Name", "slug": "current-name", "gear_type": "amp"},
+            payload={"name": "Current Name", "slug": f"current-name-{suffix}", "gear_type": "amp"},
         )
         await mapper.process_pack_sync(record_v1)
         await session.flush()
@@ -202,7 +210,7 @@ class TestPackSyncUpdatesGear:
         # Stale update with OLDER timestamp
         record_stale = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=source_id,
             source_updated_at=datetime(2026, 1, 1, tzinfo=UTC),
             operation=SyncOperation.UPDATE,
             payload={"name": "Stale Name"},
@@ -210,13 +218,13 @@ class TestPackSyncUpdatesGear:
         await mapper.process_pack_sync(record_stale)
         await session.flush()
 
-        result = await session.execute(select(Gear))
+        result = await session.execute(select(Gear).where(Gear.slug == f"current-name-{suffix}"))
         gear = result.scalar_one()
         assert gear.name == "Current Name", "Stale update should NOT overwrite current name"
 
 
 # ---------------------------------------------------------------------------
-# Model sync → GearModel creation
+# Model sync -> GearModel creation
 # ---------------------------------------------------------------------------
 
 
@@ -233,11 +241,22 @@ class TestModelSyncCreatesGearModel:
         await session.flush()
 
         # Then create a model for that gear
-        model_record = _model_record(platform="nam", size="standard")
+        model_record = _model_record(
+            pack_id=pack_record.source_record_id,
+            platform="nam",
+            size="standard",
+        )
         await mapper.process_model_sync(model_record)
         await session.flush()
 
-        result = await session.execute(select(GearModel))
+        result = await session.execute(
+            select(GearModel).where(
+                GearModel.gear_id
+                == (
+                    select(Gear.id).where(Gear.slug == pack_record.payload["slug"])
+                ).scalar_subquery()
+            )
+        )
         model = result.scalar_one()
         assert model.platform.value == "nam"
         assert model.size.value == "standard"
@@ -250,12 +269,16 @@ class TestModelSyncCreatesGearModel:
         await mapper.process_pack_sync(pack_record)
         await session.flush()
 
-        model_record = _model_record()
+        model_record = _model_record(pack_id=pack_record.source_record_id)
         await mapper.process_model_sync(model_record)
         await session.flush()
 
         # Load gear with models
-        result = await session.execute(select(Gear).options(joinedload(Gear.models)))
+        result = await session.execute(
+            select(Gear)
+            .options(joinedload(Gear.models))
+            .where(Gear.slug == pack_record.payload["slug"])
+        )
         gear = result.unique().scalar_one()
         assert len(gear.models) == 1
         assert gear.models[0].platform.value == "nam"
@@ -264,7 +287,7 @@ class TestModelSyncCreatesGearModel:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """Model sync for non-existent parent gear must raise retryable error."""
-        model_record = _model_record(pack_id="nonexistent-pack")
+        model_record = _model_record(pack_id=f"nonexistent-pack-{_unique_id()}")
 
         with pytest.raises(ParentGearNotReadyError, match="Parent gear not found"):
             await mapper.process_model_sync(model_record)
@@ -275,7 +298,7 @@ class TestModelSyncCreatesGearModel:
         """Model sync missing pack_id in payload must raise ValueError."""
         record = GearSyncRecord(
             source_name="t3k",
-            source_record_id="model-bad",
+            source_record_id=f"model-bad-{_unique_id()}",
             source_updated_at=datetime(2026, 1, 15, tzinfo=UTC),
             operation=SyncOperation.CREATE,
             payload={"platform": "nam", "size": "standard"},  # no pack_id
@@ -294,11 +317,18 @@ class TestModelSyncCreatesGearModel:
         await mapper.process_pack_sync(pack_record)
         await session.flush()
 
-        model_record = _model_record()
+        model_record = _model_record(pack_id=pack_record.source_record_id)
         await mapper.process_model_sync(model_record)
         await session.flush()
 
-        result = await session.execute(select(GearModel))
+        result = await session.execute(
+            select(GearModel).where(
+                GearModel.gear_id
+                == (
+                    select(Gear.id).where(Gear.slug == pack_record.payload["slug"])
+                ).scalar_subquery()
+            )
+        )
         model = result.scalar_one()
         assert model.download_status == DownloadStatus.PENDING
 
@@ -315,10 +345,14 @@ class TestFullDataFlow:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """Syncing a pack then two models produces a complete gear aggregate."""
+        suffix = _unique_id()
+        source_id = f"pack-{suffix}"
+
         # Create pack
         pack_record = _pack_record(
+            source_record_id=source_id,
             name="Mesa Boogie Dual Rectifier",
-            slug="mesa-boogie-dual-rectifier",
+            slug=f"mesa-boogie-dual-rectifier-{suffix}",
             gear_type="amp",
             platform="nam",
             description="High-gain amp capture",
@@ -328,13 +362,13 @@ class TestFullDataFlow:
 
         # Create two models
         model1 = _model_record(
-            source_record_id="model-001",
+            pack_id=source_id,
             platform="nam",
             size="standard",
             download_url="https://example.com/model1.nam",
         )
         model2 = _model_record(
-            source_record_id="model-002",
+            pack_id=source_id,
             platform="nam",
             size="standard",
             checksum="abc123def456",
@@ -345,10 +379,12 @@ class TestFullDataFlow:
 
         # Verify the complete aggregate
         result = await session.execute(
-            select(Gear).options(
+            select(Gear)
+            .options(
                 joinedload(Gear.source),
                 joinedload(Gear.models),
             )
+            .where(Gear.slug == f"mesa-boogie-dual-rectifier-{suffix}")
         )
         gear = result.unique().scalar_one()
 
@@ -359,7 +395,7 @@ class TestFullDataFlow:
         # GearSource row links back to T3K
         assert gear.source is not None
         assert gear.source.source_name == "t3k"
-        assert gear.source.source_record_id == "pack-001"
+        assert gear.source.source_record_id == source_id
 
         # Two GearModel rows linked to parent Gear
         assert len(gear.models) == 2
@@ -372,26 +408,27 @@ class TestAggregateSyncRecord:
         self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
     ) -> None:
         """Aggregate sync payload should create parent Gear and child GearModel rows."""
+        suffix = _unique_id()
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
-        source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
+        source_model_dir = tmp_path / "source_downloads" / "t3k" / f"model-{suffix}"
         source_model_dir.mkdir(parents=True, exist_ok=True)
-        (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
+        (source_model_dir / f"model-{suffix}.nam").write_bytes(b"dummy-nam")
 
         record = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=f"pack-{suffix}",
             source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
             operation=SyncOperation.CREATE,
             payload={
                 "name": "Aggregate Pack",
-                "slug": "aggregate-pack",
+                "slug": f"aggregate-pack-{suffix}",
                 "gear_type": "amp",
                 "platform": "nam",
                 "models": [
                     {
-                        "source_record_id": "model-001",
-                        "filename": "model-001.nam",
-                        "download_url": "https://example.com/model-001.nam",
+                        "source_record_id": f"model-{suffix}",
+                        "filename": f"model-{suffix}.nam",
+                        "download_url": f"https://example.com/model-{suffix}.nam",
                         "checksum": "abc123",
                         "platform": "nam",
                         "size": "standard",
@@ -403,7 +440,11 @@ class TestAggregateSyncRecord:
         await mapper.process_sync_record(record)
         await session.flush()
 
-        result = await session.execute(select(Gear).options(joinedload(Gear.models)))
+        result = await session.execute(
+            select(Gear)
+            .options(joinedload(Gear.models))
+            .where(Gear.slug == f"aggregate-pack-{suffix}")
+        )
         gear = result.unique().scalar_one()
         assert gear.name == "Aggregate Pack"
         assert len(gear.models) == 1
@@ -415,26 +456,27 @@ class TestAggregateSyncRecord:
         """Model with successfully migrated file should have COMPLETED download status."""
         from core.domain.value_objects.download_status import DownloadStatus
 
+        suffix = _unique_id()
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
-        source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
+        source_model_dir = tmp_path / "source_downloads" / "t3k" / f"model-{suffix}"
         source_model_dir.mkdir(parents=True, exist_ok=True)
-        (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
+        (source_model_dir / f"model-{suffix}.nam").write_bytes(b"dummy-nam")
 
         record = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=f"pack-{suffix}",
             source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
             operation=SyncOperation.CREATE,
             payload={
                 "name": "Status Check Pack",
-                "slug": "status-check-pack",
+                "slug": f"status-check-pack-{suffix}",
                 "gear_type": "amp",
                 "platform": "nam",
                 "models": [
                     {
-                        "source_record_id": "model-001",
-                        "filename": "model-001.nam",
-                        "download_url": "https://example.com/model-001.nam",
+                        "source_record_id": f"model-{suffix}",
+                        "filename": f"model-{suffix}.nam",
+                        "download_url": f"https://example.com/model-{suffix}.nam",
                         "checksum": "abc123",
                         "platform": "nam",
                         "size": "standard",
@@ -446,7 +488,14 @@ class TestAggregateSyncRecord:
         await mapper.process_sync_record(record)
         await session.flush()
 
-        result = await session.execute(select(GearModel))
+        result = await session.execute(
+            select(GearModel).where(
+                GearModel.gear_id
+                == (
+                    select(Gear.id).where(Gear.slug == f"status-check-pack-{suffix}")
+                ).scalar_subquery()
+            )
+        )
         model = result.scalar_one()
         assert model.download_status == DownloadStatus.COMPLETED
         assert model.file_path is not None
@@ -459,16 +508,17 @@ class TestAggregateSyncRecord:
         monkeypatch,
     ) -> None:
         """Missing model files should fail atomically and be retried by consumer."""
+        suffix = _unique_id()
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
 
         record = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=f"pack-{suffix}",
             source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
             operation=SyncOperation.CREATE,
             payload={
                 "name": "Aggregate Pack",
-                "slug": "aggregate-pack",
+                "slug": f"aggregate-pack-missing-{suffix}",
                 "gear_type": "amp",
                 "platform": "nam",
                 "models": [
@@ -491,7 +541,15 @@ class TestAggregateSyncRecord:
         # aggregate creation is atomic and idempotent.
         await session.rollback()
 
-        gear_count = (await session.execute(select(Gear))).scalars().all()
+        gear_count = (
+            (
+                await session.execute(
+                    select(Gear).where(Gear.slug == f"aggregate-pack-missing-{suffix}")
+                )
+            )
+            .scalars()
+            .all()
+        )
         model_count = (await session.execute(select(GearModel))).scalars().all()
         assert len(gear_count) == 0
         assert len(model_count) == 0
@@ -500,27 +558,29 @@ class TestAggregateSyncRecord:
         self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
     ) -> None:
         """A mixed bundle retries as a unit; no partial models should persist."""
+        suffix = _unique_id()
+        model_ok_id = f"model-ok-{suffix}"
 
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
-        source_model_dir = tmp_path / "source_downloads" / "t3k" / "model-001"
+        source_model_dir = tmp_path / "source_downloads" / "t3k" / model_ok_id
         source_model_dir.mkdir(parents=True, exist_ok=True)
-        (source_model_dir / "model-001.nam").write_bytes(b"dummy-nam")
+        (source_model_dir / f"{model_ok_id}.nam").write_bytes(b"dummy-nam")
 
         record = GearSyncRecord(
             source_name="t3k",
-            source_record_id="pack-001",
+            source_record_id=f"pack-{suffix}",
             source_updated_at=datetime(2026, 2, 15, tzinfo=UTC),
             operation=SyncOperation.CREATE,
             payload={
                 "name": "Mixed Bundle Pack",
-                "slug": "mixed-bundle-pack",
+                "slug": f"mixed-bundle-pack-{suffix}",
                 "gear_type": "amp",
                 "platform": "nam",
                 "models": [
                     {
-                        "source_record_id": "model-001",
-                        "filename": "model-001.nam",
-                        "download_url": "https://example.com/model-001.nam",
+                        "source_record_id": model_ok_id,
+                        "filename": f"{model_ok_id}.nam",
+                        "download_url": f"https://example.com/{model_ok_id}.nam",
                         "checksum": "abc123",
                         "platform": "nam",
                         "size": "standard",
@@ -542,7 +602,11 @@ class TestAggregateSyncRecord:
 
         await session.rollback()
 
-        gear_count = (await session.execute(select(Gear))).scalars().all()
+        gear_count = (
+            (await session.execute(select(Gear).where(Gear.slug == f"mixed-bundle-pack-{suffix}")))
+            .scalars()
+            .all()
+        )
         model_count = (await session.execute(select(GearModel))).scalars().all()
         assert len(gear_count) == 0
         assert len(model_count) == 0

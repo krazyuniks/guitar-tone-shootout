@@ -7,36 +7,12 @@ This test verifies that BlockType.category is typed as BlockCategory enum,
 not just a plain string.
 """
 
-from collections.abc import AsyncGenerator
+import uuid
 
 import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.block_category import BlockCategory
-from webapp.adapters.persistence.models.base import Base
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
 
 
 class TestBlockCategoryEnumUsage:
@@ -46,10 +22,11 @@ class TestBlockCategoryEnumUsage:
         """BlockType.category should accept BlockCategory enum values."""
         from webapp.adapters.persistence.models.block_type import BlockType
 
+        suffix = uuid.uuid4().hex[:8]
         # Create with each BlockCategory enum value
         for category in BlockCategory:
             block_type = BlockType(
-                name=f"Test {category.value}",
+                name=f"Test {category.value}_{suffix}",
                 category=category,  # Should accept enum directly
                 default_params={},
             )
@@ -66,7 +43,7 @@ class TestBlockCategoryEnumUsage:
 
         # Try to create with invalid category
         block_type = BlockType(
-            name="Invalid Block",
+            name=f"Invalid Block_{uuid.uuid4().hex[:8]}",
             category="invalid_category",  # Not a valid BlockCategory value
             default_params={},
         )
@@ -82,9 +59,10 @@ class TestBlockCategoryEnumUsage:
 
         from webapp.adapters.persistence.models.block_type import BlockType
 
+        suffix = uuid.uuid4().hex[:8]
         # Create with REVERB category
         block_type = BlockType(
-            name="Hall Reverb",
+            name=f"Hall Reverb_{suffix}",
             category=BlockCategory.REVERB,
             default_params={"size": 1.0},
         )
@@ -92,7 +70,9 @@ class TestBlockCategoryEnumUsage:
         await session.commit()
 
         # Query back
-        result = await session.execute(select(BlockType).where(BlockType.name == "Hall Reverb"))
+        result = await session.execute(
+            select(BlockType).where(BlockType.name == f"Hall Reverb_{suffix}")
+        )
         saved = result.scalar_one()
 
         # Verify it's still an enum (not converted to string)
@@ -108,6 +88,7 @@ class TestBlockCategoryEnumUsage:
 
         from webapp.adapters.persistence.models.block_type import BlockType
 
+        suffix = uuid.uuid4().hex[:8]
         # Create blocks for each category mentioned in acceptance criteria
         expected_categories = [
             BlockCategory.UTILITY,
@@ -120,7 +101,7 @@ class TestBlockCategoryEnumUsage:
 
         for idx, category in enumerate(expected_categories):
             block_type = BlockType(
-                name=f"Test Block {idx}",
+                name=f"Test Block {idx}_{suffix}",
                 category=category,
                 default_params={},
             )
@@ -129,7 +110,7 @@ class TestBlockCategoryEnumUsage:
         await session.commit()
 
         # Verify all were saved
-        result = await session.execute(select(BlockType))
+        result = await session.execute(select(BlockType).where(BlockType.name.like(f"%{suffix}")))
         saved_blocks = result.scalars().all()
 
         assert len(saved_blocks) == len(expected_categories)

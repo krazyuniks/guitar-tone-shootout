@@ -5,38 +5,18 @@ configuration including client_id, client_secret, and endpoints.
 """
 
 import uuid
-from collections.abc import AsyncGenerator
 
-import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
 
 
-@pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create an in-memory SQLite session for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    session = async_session()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await engine.dispose()
-
-
-@pytest.mark.asyncio
 async def test_oauth_provider_creates_with_required_fields(db_session: AsyncSession) -> None:
     """Test OAuthProvider model creates with all required fields."""
+    suffix = uuid.uuid4().hex[:8]
     provider = OAuthProvider(
-        name="t3k",
+        name=f"provider_{suffix}",
         client_id="test_client_id_123",
         client_secret="test_secret_abc",
         enabled=True,
@@ -49,17 +29,17 @@ async def test_oauth_provider_creates_with_required_fields(db_session: AsyncSess
     # Verify all fields
     assert provider.id is not None
     assert isinstance(provider.id, uuid.UUID)
-    assert provider.name == "t3k"
+    assert provider.name == f"provider_{suffix}"
     assert provider.client_id == "test_client_id_123"
     assert provider.client_secret == "test_secret_abc"
     assert provider.enabled is True
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_name_is_unique(db_session: AsyncSession) -> None:
     """Test OAuthProvider name field enforces uniqueness."""
+    shared_name = f"provider_{uuid.uuid4().hex[:8]}"
     provider1 = OAuthProvider(
-        name="t3k",
+        name=shared_name,
         client_id="client1",
         client_secret="secret1",
         enabled=True,
@@ -69,7 +49,7 @@ async def test_oauth_provider_name_is_unique(db_session: AsyncSession) -> None:
 
     # Attempt to create second provider with same name
     provider2 = OAuthProvider(
-        name="t3k",
+        name=shared_name,
         client_id="client2",
         client_secret="secret2",
         enabled=True,
@@ -77,15 +57,16 @@ async def test_oauth_provider_name_is_unique(db_session: AsyncSession) -> None:
     db_session.add(provider2)
 
     # Should raise integrity error due to unique constraint
+    import pytest
+
     with pytest.raises(Exception):  # SQLAlchemy will raise IntegrityError
         await db_session.commit()
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_enabled_defaults_to_true(db_session: AsyncSession) -> None:
     """Test OAuthProvider enabled field defaults to True."""
     provider = OAuthProvider(
-        name="google",
+        name=f"provider_{uuid.uuid4().hex[:8]}",
         client_id="google_client",
         client_secret="google_secret",
         # Note: not setting enabled explicitly
@@ -98,11 +79,10 @@ async def test_oauth_provider_enabled_defaults_to_true(db_session: AsyncSession)
     assert provider.enabled is True
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_can_be_disabled(db_session: AsyncSession) -> None:
     """Test OAuthProvider can be disabled."""
     provider = OAuthProvider(
-        name="facebook",
+        name=f"provider_{uuid.uuid4().hex[:8]}",
         client_id="fb_client",
         client_secret="fb_secret",
         enabled=False,
@@ -115,53 +95,60 @@ async def test_oauth_provider_can_be_disabled(db_session: AsyncSession) -> None:
     assert provider.enabled is False
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_supports_multiple_providers(db_session: AsyncSession) -> None:
-    """Test multiple OAuth providers can exist (T3K, Google, GitHub, Facebook)."""
+    """Test multiple OAuth providers can exist."""
+    suffix = uuid.uuid4().hex[:8]
     providers = [
         OAuthProvider(
-            name="t3k",
+            name=f"t3k_{suffix}",
             client_id="t3k_client",
             client_secret="t3k_secret",
             enabled=True,
         ),
         OAuthProvider(
-            name="google",
+            name=f"google_{suffix}",
             client_id="google_client",
             client_secret="google_secret",
             enabled=True,
         ),
         OAuthProvider(
-            name="github",
+            name=f"github_{suffix}",
             client_id="github_client",
             client_secret="github_secret",
-            enabled=False,  # Stub/disabled
+            enabled=False,
         ),
         OAuthProvider(
-            name="facebook",
+            name=f"facebook_{suffix}",
             client_id="facebook_client",
             client_secret="facebook_secret",
-            enabled=False,  # Stub/disabled
+            enabled=False,
         ),
     ]
 
     db_session.add_all(providers)
     await db_session.commit()
 
-    # Query all providers
-    result = await db_session.execute(select(OAuthProvider))
+    # Query providers created in this test
+    result = await db_session.execute(
+        select(OAuthProvider).where(OAuthProvider.name.like(f"%{suffix}"))
+    )
     all_providers = result.scalars().all()
 
     assert len(all_providers) == 4
     provider_names = {p.name for p in all_providers}
-    assert provider_names == {"t3k", "google", "github", "facebook"}
+    assert provider_names == {
+        f"t3k_{suffix}",
+        f"google_{suffix}",
+        f"github_{suffix}",
+        f"facebook_{suffix}",
+    }
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_query_by_name(db_session: AsyncSession) -> None:
     """Test querying OAuthProvider by name."""
+    name = f"provider_{uuid.uuid4().hex[:8]}"
     provider = OAuthProvider(
-        name="t3k",
+        name=name,
         client_id="t3k_client",
         client_secret="t3k_secret",
         enabled=True,
@@ -170,36 +157,38 @@ async def test_oauth_provider_query_by_name(db_session: AsyncSession) -> None:
     await db_session.commit()
 
     # Query by name
-    result = await db_session.execute(select(OAuthProvider).where(OAuthProvider.name == "t3k"))
+    result = await db_session.execute(select(OAuthProvider).where(OAuthProvider.name == name))
     found = result.scalar_one()
 
-    assert found.name == "t3k"
+    assert found.name == name
     assert found.client_id == "t3k_client"
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_query_enabled_only(db_session: AsyncSession) -> None:
     """Test querying only enabled OAuth providers."""
+    suffix = uuid.uuid4().hex[:8]
     providers = [
-        OAuthProvider(name="t3k", client_id="c1", client_secret="s1", enabled=True),
-        OAuthProvider(name="google", client_id="c2", client_secret="s2", enabled=True),
-        OAuthProvider(name="github", client_id="c3", client_secret="s3", enabled=False),
+        OAuthProvider(name=f"t3k_{suffix}", client_id="c1", client_secret="s1", enabled=True),
+        OAuthProvider(name=f"google_{suffix}", client_id="c2", client_secret="s2", enabled=True),
+        OAuthProvider(name=f"github_{suffix}", client_id="c3", client_secret="s3", enabled=False),
     ]
     db_session.add_all(providers)
     await db_session.commit()
 
-    # Query only enabled providers
+    # Query only enabled providers created in this test
     result = await db_session.execute(
-        select(OAuthProvider).where(OAuthProvider.enabled == True)  # noqa: E712
+        select(OAuthProvider).where(
+            OAuthProvider.enabled == True,  # noqa: E712
+            OAuthProvider.name.like(f"%{suffix}"),
+        )
     )
     enabled_providers = result.scalars().all()
 
     assert len(enabled_providers) == 2
     enabled_names = {p.name for p in enabled_providers}
-    assert enabled_names == {"t3k", "google"}
+    assert enabled_names == {f"t3k_{suffix}", f"google_{suffix}"}
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_client_secret_is_stored(db_session: AsyncSession) -> None:
     """Test OAuthProvider stores client_secret securely.
 
@@ -207,7 +196,7 @@ async def test_oauth_provider_client_secret_is_stored(db_session: AsyncSession) 
     This test verifies the field exists and can be stored/retrieved.
     """
     provider = OAuthProvider(
-        name="t3k",
+        name=f"provider_{uuid.uuid4().hex[:8]}",
         client_id="test_client",
         client_secret="very_secret_value_abc123",
         enabled=True,
@@ -234,11 +223,10 @@ async def test_oauth_provider_client_secret_is_stored(db_session: AsyncSession) 
     await new_session.close()
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_update_enabled_status(db_session: AsyncSession) -> None:
     """Test OAuthProvider enabled status can be toggled."""
     provider = OAuthProvider(
-        name="github",
+        name=f"provider_{uuid.uuid4().hex[:8]}",
         client_id="github_client",
         client_secret="github_secret",
         enabled=False,
@@ -258,7 +246,6 @@ async def test_oauth_provider_update_enabled_status(db_session: AsyncSession) ->
     assert provider.enabled is True
 
 
-@pytest.mark.asyncio
 async def test_oauth_provider_cascade_deletes_identities(db_session: AsyncSession) -> None:
     """Test deleting OAuthProvider cascades to UserIdentity records.
 
@@ -268,7 +255,7 @@ async def test_oauth_provider_cascade_deletes_identities(db_session: AsyncSessio
 
     # Create provider
     provider = OAuthProvider(
-        name="t3k",
+        name=f"provider_{uuid.uuid4().hex[:8]}",
         client_id="t3k_client",
         client_secret="t3k_secret",
         enabled=True,
@@ -277,7 +264,9 @@ async def test_oauth_provider_cascade_deletes_identities(db_session: AsyncSessio
     await db_session.commit()
 
     # Create user
-    user = User(username="test_user", email="test@example.com")
+    user = User(
+        username=f"test_user_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     db_session.add(user)
     await db_session.commit()
 
@@ -285,14 +274,15 @@ async def test_oauth_provider_cascade_deletes_identities(db_session: AsyncSessio
     identity = UserIdentity(
         user_id=user.id,
         provider_id=provider.id,
-        external_id="external_123",
-        username="external_user",
+        external_id=f"external_{uuid.uuid4().hex[:8]}",
+        username=f"external_user_{uuid.uuid4().hex[:8]}",
     )
     db_session.add(identity)
     await db_session.commit()
 
     # Verify identity exists
-    result = await db_session.execute(select(UserIdentity))
+    identity_id = identity.id
+    result = await db_session.execute(select(UserIdentity).where(UserIdentity.id == identity_id))
     identities = result.scalars().all()
     assert len(identities) == 1
 
@@ -301,6 +291,6 @@ async def test_oauth_provider_cascade_deletes_identities(db_session: AsyncSessio
     await db_session.commit()
 
     # Verify identity was cascade deleted
-    result = await db_session.execute(select(UserIdentity))
+    result = await db_session.execute(select(UserIdentity).where(UserIdentity.id == identity_id))
     identities = result.scalars().all()
     assert len(identities) == 0
