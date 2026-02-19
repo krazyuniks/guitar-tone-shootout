@@ -16,11 +16,8 @@ import numpy as np
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
     DITrack,
@@ -28,26 +25,7 @@ from webapp.adapters.persistence.models.shootout import (
     ShootoutChain,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine (SQLite for testing)."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+from webapp.adapters.persistence.models.user import User
 
 
 def _make_fake_get_session(session: AsyncSession):
@@ -72,7 +50,16 @@ async def _create_shootout_fixture(
     Returns:
         (shootout_id, chain_ids, segment_ids) tuple
     """
-    user_id = uuid4()
+    # Create user for FK satisfaction
+    user = User(
+        id=uuid4(),
+        username=f"testuser-{uuid4().hex[:8]}",
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+
+    user_id = user.id
     shootout_id = uuid4()
 
     # DITrack needed for Shootout FK

@@ -197,6 +197,7 @@ class TestGearDetailLicenseSection:
             name="No License Gear Test",
             slug="no-license-gear-test-t136",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             description="A gear item with no license",
             manufacturer="TestMfg",
             is_public=True,

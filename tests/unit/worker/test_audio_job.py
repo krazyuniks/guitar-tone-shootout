@@ -14,12 +14,9 @@ import numpy as np
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import (
     DITrack,
@@ -27,26 +24,7 @@ from webapp.adapters.persistence.models.shootout import (
     ShootoutChain,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine (SQLite for testing)."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+from webapp.adapters.persistence.models.user import User
 
 
 def _make_fake_get_session(session: AsyncSession):
@@ -60,17 +38,17 @@ def _make_fake_get_session(session: AsyncSession):
 
 
 async def _fake_execute_signal_chain(signal_chain, di_audio, sample_rate, resolver):
-    """Test double for execute_signal_chain — returns processed audio."""
+    """Test double for execute_signal_chain -- returns processed audio."""
     return np.zeros(len(di_audio), dtype=np.float32)
 
 
 def _fake_measure_loudness(path):
-    """Test double for measure_loudness — returns (LUFS, peak_dBFS)."""
+    """Test double for measure_loudness -- returns (LUFS, peak_dBFS)."""
     return (-14.0, -6.0)
 
 
 def _fake_sf_read(path):
-    """Test double for soundfile.read — returns (audio, sample_rate)."""
+    """Test double for soundfile.read -- returns (audio, sample_rate)."""
     return (np.zeros(1000, dtype=np.float32), 48000)
 
 
@@ -78,7 +56,7 @@ _sf_write_calls: list[tuple] = []
 
 
 def _fake_sf_write(path, data, samplerate):
-    """Test double for soundfile.write — records calls."""
+    """Test double for soundfile.write -- records calls."""
     _sf_write_calls.append((path, data, samplerate))
 
 
@@ -92,7 +70,15 @@ async def _create_full_job_fixture(session: AsyncSession):
 
     Returns (job_id, shootout_chain_id).
     """
-    user_id = uuid4()
+    user = User(
+        id=uuid4(),
+        username=f"testuser-{uuid4().hex[:8]}",
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+
+    user_id = user.id
     di_track = DITrack(
         id=uuid4(),
         user_id=user_id,
@@ -361,7 +347,7 @@ class TestAudioJobHandler:
 
         await handle_shootout_audio_job(job_id)
 
-        # Progress should go through 50 (loading) → 90 (processing) → 100 (complete)
+        # Progress should go through 50 (loading) -> 90 (processing) -> 100 (complete)
         assert 50 in progress_values
 
     async def test_updates_job_progress_at_processing_stage(

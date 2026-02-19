@@ -391,11 +391,20 @@ class SQLAlchemyGearRepository:
             # Create new gear
             # Generate slug if not provided
             slug = gear.slug if gear.slug else _slugify(gear.name, gear.manufacturer)
+            # Derive platform from first model or gear_type name
+            platform = gear.gear_type.value
+            if gear.models:
+                platform = (
+                    gear.models[0].platform.value
+                    if hasattr(gear.models[0].platform, "value")
+                    else str(gear.models[0].platform)
+                )
             new_gear = Gear(
                 id=gear.id,
                 name=gear.name,
                 slug=slug,
                 gear_type=gear.gear_type,
+                platform=platform,
                 description=gear.description,
                 manufacturer=gear.manufacturer,
                 thumbnail_url=gear.thumbnail_url,

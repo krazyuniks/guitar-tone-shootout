@@ -20,7 +20,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from webapp.adapters.persistence.models.user import User
@@ -53,6 +53,7 @@ async def public_gear(db_session: AsyncSession) -> Gear:
         name="Test Amp",
         slug="test-amp",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         description="Test amp for sitemap",
         manufacturer="Test Brand",
         is_public=True,
@@ -71,6 +72,7 @@ async def private_gear(db_session: AsyncSession) -> Gear:
         name="Private Amp",
         slug="private-amp",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         description="Private amp - should not appear in sitemap",
         manufacturer="Test Brand",
         is_public=False,

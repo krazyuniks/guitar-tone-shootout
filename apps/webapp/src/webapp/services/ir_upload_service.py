@@ -159,6 +159,7 @@ class IRUploadService:
         gear = Gear(
             name=name,
             gear_type=GearType.IR,
+            platform=Platform.IR.value,
             description=description,
             is_public=True,
             source_id=gear_source.id,

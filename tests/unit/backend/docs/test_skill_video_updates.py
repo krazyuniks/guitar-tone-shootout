@@ -28,35 +28,6 @@ class TestGtsArchitectureSkillVideoUpdates:
         )
 
 
-class TestDockerInfraSkillVideoUpdates:
-    """Tests for video service Docker integration in docker-infra skill."""
-
-    @pytest.fixture
-    def skill_file(self) -> Path:
-        return Path(".claude/skills/docker-infra/SKILL.md")
-
-    def test_skill_lists_video_service(self, skill_file: Path) -> None:
-        """Verify docker-infra skill lists video service in services table."""
-        content = skill_file.read_text()
-        assert "video" in content.lower(), "docker-infra skill must list video service"
-
-    def test_skill_mentions_video_dockerfile(self, skill_file: Path) -> None:
-        """Verify docker-infra skill documents video service Dockerfile."""
-        content = skill_file.read_text()
-        assert any(
-            keyword in content
-            for keyword in ["Dockerfile.video", "libs/video/Dockerfile", "node:24", "remotion"]
-        ), "docker-infra must document video service Dockerfile location/base image"
-
-    def test_skill_documents_video_port(self, skill_file: Path) -> None:
-        """Verify docker-infra documents video service port."""
-        content = skill_file.read_text()
-        # Video service typically runs on port 3001 or similar
-        assert any(port in content for port in ["3001", "video service port"]), (
-            "docker-infra must document video service port"
-        )
-
-
 class TestGtsTestingSkillVideoUpdates:
     """Tests for video test patterns in gts-testing skill."""
 

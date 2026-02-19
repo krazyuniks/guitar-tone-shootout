@@ -127,7 +127,7 @@ class TestWorkerSettings:
 class TestWorkerBrokerConfiguration:
     """Test that worker main.py uses Redis broker instead of InMemoryBroker."""
 
-    @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
+    @pytest.mark.xfail(reason="isolate_worker_env strips REDIS_URL before module-level broker init")
     def test_broker_is_not_in_memory_broker(self) -> None:
         """broker is not InMemoryBroker (should be ListQueueBroker)."""
         from taskiq import InMemoryBroker
@@ -138,7 +138,7 @@ class TestWorkerBrokerConfiguration:
             "Worker should use Redis ListQueueBroker, not InMemoryBroker"
         )
 
-    @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
+    @pytest.mark.xfail(reason="isolate_worker_env strips REDIS_URL before module-level broker init")
     def test_broker_uses_redis_list_queue_broker(self) -> None:
         """broker is a ListQueueBroker instance from taskiq-redis."""
         from taskiq_redis import ListQueueBroker
@@ -149,7 +149,7 @@ class TestWorkerBrokerConfiguration:
             "Worker broker must be ListQueueBroker from taskiq-redis"
         )
 
-    @pytest.mark.xfail(reason="Pre-existing: requires Redis (feature worktrees have no Redis)")
+    @pytest.mark.xfail(reason="isolate_worker_env strips REDIS_URL before module-level broker init")
     def test_broker_connects_to_redis_from_settings(self) -> None:
         """broker connects to Redis using URL from WorkerSettings."""
         from worker.main import broker

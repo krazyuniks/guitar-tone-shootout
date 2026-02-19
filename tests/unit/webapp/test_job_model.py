@@ -3,41 +3,23 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
-import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import AuditLog, Job
 from webapp.adapters.persistence.models.user import User
 
 
-@pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session with in-memory SQLite."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-
-    # Cleanup
-    await engine.dispose()
-
-
-@pytest.mark.asyncio
 async def test_job_creation(db_session: AsyncSession) -> None:
     """Test creating a Job model with basic fields."""
     # Create a user first
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     db_session.add(user)
     await db_session.commit()
 
@@ -62,7 +44,6 @@ async def test_job_creation(db_session: AsyncSession) -> None:
     assert job.updated_at is not None
 
 
-@pytest.mark.asyncio
 async def test_job_parent_child_relationship(db_session: AsyncSession) -> None:
     """Test parent/child job relationships."""
     # Create parent job
@@ -92,10 +73,9 @@ async def test_job_parent_child_relationship(db_session: AsyncSession) -> None:
     assert child2.parent_job_id == parent.id
 
 
-@pytest.mark.asyncio
 async def test_job_all_fields(db_session: AsyncSession) -> None:
     """Test Job model with all optional fields populated."""
-    user = User(username="testuser")
+    user = User(username=f"testuser_{uuid.uuid4().hex[:8]}")
     db_session.add(user)
     await db_session.commit()
 
@@ -127,7 +107,6 @@ async def test_job_all_fields(db_session: AsyncSession) -> None:
     assert job.result_path == "/results/output.json"
 
 
-@pytest.mark.asyncio
 async def test_job_status_enum_storage(db_session: AsyncSession) -> None:
     """Test that JobStatus enum is stored by value."""
     job = Job(
@@ -145,12 +124,11 @@ async def test_job_status_enum_storage(db_session: AsyncSession) -> None:
     assert isinstance(job.status, JobStatus)
 
 
-@pytest.mark.asyncio
 async def test_job_indexes(db_session: AsyncSession) -> None:
     """Test that Job indexes are created correctly."""
     # This is mainly verified by the model definition and schema creation
     # Just verify we can create and query by indexed fields
-    user = User(username="testuser")
+    user = User(username=f"testuser_{uuid.uuid4().hex[:8]}")
     db_session.add(user)
     await db_session.commit()
 
@@ -165,10 +143,9 @@ async def test_job_indexes(db_session: AsyncSession) -> None:
     assert job2.status == JobStatus.RUNNING
 
 
-@pytest.mark.asyncio
 async def test_audit_log_creation(db_session: AsyncSession) -> None:
     """Test creating an AuditLog model."""
-    user = User(username="testuser")
+    user = User(username=f"testuser_{uuid.uuid4().hex[:8]}")
     db_session.add(user)
     await db_session.commit()
 
@@ -194,7 +171,6 @@ async def test_audit_log_creation(db_session: AsyncSession) -> None:
     assert audit.user_agent == "Mozilla/5.0"
 
 
-@pytest.mark.asyncio
 async def test_audit_log_with_changes(db_session: AsyncSession) -> None:
     """Test AuditLog with changes field."""
     audit = AuditLog(

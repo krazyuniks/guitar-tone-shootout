@@ -10,29 +10,12 @@ Tests verify:
 - is_active is stored in the database correctly
 """
 
-import pytest
+import uuid
+
 from sqlalchemy import inspect, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
-
-
-@pytest.fixture
-async def db_session() -> AsyncSession:
-    """Create an in-memory SQLite session for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    session = async_session()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await engine.dispose()
 
 
 def test_user_model_has_is_active_column() -> None:
@@ -112,11 +95,10 @@ def test_user_model_is_active_column_has_default() -> None:
     )
 
 
-@pytest.mark.asyncio
 async def test_user_model_is_active_defaults_to_true(db_session: AsyncSession) -> None:
     """When creating a user without specifying is_active, it defaults to True."""
     # Create user without specifying is_active
-    user = User(username="test_user")
+    user = User(username=f"test_user_{uuid.uuid4().hex[:8]}")
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -129,11 +111,10 @@ async def test_user_model_is_active_defaults_to_true(db_session: AsyncSession) -
     )
 
 
-@pytest.mark.asyncio
 async def test_user_model_is_active_can_be_set_to_false(db_session: AsyncSession) -> None:
     """User can be created with is_active=False explicitly."""
     # Create user with is_active=False
-    user = User(username="test_user", is_active=False)
+    user = User(username=f"test_user_{uuid.uuid4().hex[:8]}", is_active=False)
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -142,11 +123,10 @@ async def test_user_model_is_active_can_be_set_to_false(db_session: AsyncSession
     assert user.is_active is False, "is_active should be False when explicitly set"
 
 
-@pytest.mark.asyncio
 async def test_user_model_is_active_can_be_set_to_true(db_session: AsyncSession) -> None:
     """User can be created with is_active=True explicitly."""
     # Create user with is_active=True explicitly
-    user = User(username="test_user", is_active=True)
+    user = User(username=f"test_user_{uuid.uuid4().hex[:8]}", is_active=True)
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -154,11 +134,10 @@ async def test_user_model_is_active_can_be_set_to_true(db_session: AsyncSession)
     assert user.is_active is True
 
 
-@pytest.mark.asyncio
 async def test_user_model_is_active_persists_to_database(db_session: AsyncSession) -> None:
     """User is_active value is correctly persisted to and retrieved from database."""
     # Create an inactive user
-    user = User(username="inactive_user", is_active=False)
+    user = User(username=f"inactive_user_{uuid.uuid4().hex[:8]}", is_active=False)
     db_session.add(user)
     await db_session.commit()
     user_id = user.id
@@ -174,11 +153,10 @@ async def test_user_model_is_active_persists_to_database(db_session: AsyncSessio
     assert retrieved_user.is_active is False, "is_active value not persisted correctly to database"
 
 
-@pytest.mark.asyncio
 async def test_user_model_is_active_can_be_updated(db_session: AsyncSession) -> None:
     """User is_active can be updated after creation."""
     # Create active user
-    user = User(username="test_user", is_active=True)
+    user = User(username=f"test_user_{uuid.uuid4().hex[:8]}", is_active=True)
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)

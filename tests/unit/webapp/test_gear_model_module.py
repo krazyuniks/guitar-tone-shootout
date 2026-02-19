@@ -5,35 +5,12 @@ apps/webapp/src/webapp/adapters/persistence/models/gear_model.py
 as specified in the task requirements.
 """
 
-from collections.abc import AsyncGenerator
+import uuid
 
-import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
-
-
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    # Create in-memory database
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session factory and session
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    session = async_session()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await engine.dispose()
 
 
 class TestGearModelModule:
@@ -83,9 +60,12 @@ class TestGearModelModule:
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
 
+        suffix = uuid.uuid4().hex[:8]
         gear = Gear(
-            name="Test Amp",
+            name=f"Test Amp {suffix}",
+            slug=f"test-amp-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
         )
         session.add(gear)
         await session.flush()
@@ -118,7 +98,13 @@ class TestGearModelModule:
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
 
-        gear = Gear(name="Test", gear_type=GearType.AMP)
+        suffix = uuid.uuid4().hex[:8]
+        gear = Gear(
+            name=f"Test {suffix}",
+            slug=f"test-{suffix}",
+            gear_type=GearType.AMP,
+            platform=Platform.NAM,
+        )
         session.add(gear)
         await session.flush()
 
@@ -147,7 +133,13 @@ class TestGearModelModule:
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
 
-        gear = Gear(name="Test", gear_type=GearType.AMP)
+        suffix = uuid.uuid4().hex[:8]
+        gear = Gear(
+            name=f"Test {suffix}",
+            slug=f"test-{suffix}",
+            gear_type=GearType.AMP,
+            platform=Platform.NAM,
+        )
         session.add(gear)
         await session.flush()
 

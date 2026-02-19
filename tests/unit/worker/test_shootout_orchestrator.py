@@ -10,16 +10,13 @@ import contextlib
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import pytest
+from sqlalchemy import select
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+    import pytest
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.value_objects.job_status import JobStatus, JobType
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import (
     DITrack,
@@ -28,26 +25,7 @@ from webapp.adapters.persistence.models.shootout import (
     ShootoutStatus,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine (SQLite for testing)."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+from webapp.adapters.persistence.models.user import User
 
 
 def _make_fake_get_session(session: AsyncSession):
@@ -71,7 +49,16 @@ async def _create_shootout_with_chains(
     Returns:
         (parent_job_id, shootout_id, chain_ids)
     """
-    user_id = uuid4()
+    # Create user for FK satisfaction
+    user = User(
+        id=uuid4(),
+        username=f"testuser-{uuid4().hex[:8]}",
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+
+    user_id = user.id
 
     # DITrack needed for Shootout FK
     di_track = DITrack(
@@ -254,12 +241,15 @@ class TestShootoutJobHandler:
             db_session, num_chains=2
         )
 
+        # Get user_id from parent job
+        user_id = (
+            await db_session.execute(select(Job.user_id).where(Job.id == parent_job_id))
+        ).scalar_one()
+
         # Create child jobs, one completed
         child1 = Job(
             id=uuid4(),
-            user_id=(
-                await db_session.execute(select(Job.user_id).where(Job.id == parent_job_id))
-            ).scalar_one(),
+            user_id=user_id,
             job_type=JobType.SHOOTOUT_AUDIO,
             parent_job_id=parent_job_id,
             entity_id=chain_ids[0],
@@ -267,7 +257,7 @@ class TestShootoutJobHandler:
         )
         child2 = Job(
             id=uuid4(),
-            user_id=child1.user_id,
+            user_id=user_id,
             job_type=JobType.SHOOTOUT_AUDIO,
             parent_job_id=parent_job_id,
             entity_id=chain_ids[1],
@@ -324,7 +314,7 @@ class TestShootoutJobHandler:
         monkeypatch.setattr("worker.jobs.shootout._dispatch_master_job", _noop_dispatch)
         await _update_parent_progress(parent_job_id, "unused")
 
-        # All audio children complete → MASTER job should be created; shootout stays PROCESSING
+        # All audio children complete -> MASTER job should be created; shootout stays PROCESSING
         master_result = await db_session.execute(
             select(Job).where(
                 Job.parent_job_id == parent_job_id,

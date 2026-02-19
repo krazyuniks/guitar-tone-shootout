@@ -5,36 +5,13 @@ apps/webapp/src/webapp/adapters/persistence/models/gear_source.py
 as specified in the task requirements.
 """
 
-from collections.abc import AsyncGenerator
+import uuid
 from datetime import UTC, datetime
 
-import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.signal_chain_enums import GearType
-from webapp.adapters.persistence.models.base import Base
-
-
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    # Create in-memory database
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session factory and session
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    session = async_session()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await engine.dispose()
+from core.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
 class TestGearSourceModule:
@@ -85,10 +62,11 @@ class TestGearSourceModule:
         """Test creating a GearSource instance."""
         from webapp.adapters.persistence.models.gear_source import GearSource
 
+        suffix = uuid.uuid4().hex[:8]
         # Create gear source
         source = GearSource(
             source_name="t3k",
-            source_record_id="pack_123",
+            source_record_id=f"pack_{suffix}",
             source_updated_at=datetime.now(UTC),
         )
 
@@ -96,20 +74,21 @@ class TestGearSourceModule:
         await session.commit()
 
         # Verify
-        result = await session.execute(select(GearSource).where(GearSource.source_name == "t3k"))
+        result = await session.execute(select(GearSource).where(GearSource.id == source.id))
         saved_source = result.scalar_one()
 
         assert saved_source.source_name == "t3k"
-        assert saved_source.source_record_id == "pack_123"
+        assert saved_source.source_record_id == f"pack_{suffix}"
         assert saved_source.source_updated_at is not None
 
     async def test_gear_source_timestamps_auto_set(self, session: AsyncSession) -> None:
         """Test that created_at and updated_at are automatically set."""
         from webapp.adapters.persistence.models.gear_source import GearSource
 
+        suffix = uuid.uuid4().hex[:8]
         source = GearSource(
             source_name="community",
-            source_record_id="user_upload_456",
+            source_record_id=f"user_upload_{suffix}",
             source_updated_at=datetime.now(UTC),
         )
 
@@ -128,10 +107,11 @@ class TestGearSourceModule:
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_source import GearSource
 
+        suffix = uuid.uuid4().hex[:8]
         # Create source
         source = GearSource(
             source_name="t3k",
-            source_record_id="pack_789",
+            source_record_id=f"pack_{suffix}",
             source_updated_at=datetime.now(UTC),
         )
         session.add(source)
@@ -139,8 +119,10 @@ class TestGearSourceModule:
 
         # Create gear linked to source
         gear = Gear(
-            name="Mesa Boogie",
+            name=f"Mesa Boogie {suffix}",
+            slug=f"mesa-boogie-{suffix}",
             gear_type=GearType.AMP,
+            platform=Platform.NAM,
             source_id=source.id,
         )
         session.add(gear)
@@ -177,10 +159,11 @@ class TestGearSourceModule:
 
         from webapp.adapters.persistence.models.gear_source import GearSource
 
+        suffix = uuid.uuid4().hex[:8]
         # Create first source
         source1 = GearSource(
             source_name="t3k",
-            source_record_id="pack_001",
+            source_record_id=f"pack_{suffix}",
             source_updated_at=datetime.now(UTC),
         )
         session.add(source1)
@@ -190,7 +173,7 @@ class TestGearSourceModule:
         # NOTE: This test assumes a unique constraint will be added
         source2 = GearSource(
             source_name="t3k",
-            source_record_id="pack_001",  # Same as source1
+            source_record_id=f"pack_{suffix}",  # Same as source1
             source_updated_at=datetime.now(UTC),
         )
         session.add(source2)
@@ -209,15 +192,16 @@ class TestGearSourceModule:
         """Test that different sources can have same record_id."""
         from webapp.adapters.persistence.models.gear_source import GearSource
 
+        suffix = uuid.uuid4().hex[:8]
         # Create sources with same record_id but different source_name
         source1 = GearSource(
             source_name="t3k",
-            source_record_id="123",
+            source_record_id=f"rec_{suffix}",
             source_updated_at=datetime.now(UTC),
         )
         source2 = GearSource(
             source_name="community",
-            source_record_id="123",  # Same ID, different source
+            source_record_id=f"rec_{suffix}",  # Same ID, different source
             source_updated_at=datetime.now(UTC),
         )
 
@@ -226,7 +210,9 @@ class TestGearSourceModule:
         await session.commit()
 
         # Both should exist
-        result = await session.execute(select(GearSource))
+        result = await session.execute(
+            select(GearSource).where(GearSource.source_record_id == f"rec_{suffix}")
+        )
         sources = result.scalars().all()
 
         assert len(sources) == 2
@@ -236,10 +222,11 @@ class TestGearSourceModule:
         """Test that GearSource can exist without linked Gear."""
         from webapp.adapters.persistence.models.gear_source import GearSource
 
+        suffix = uuid.uuid4().hex[:8]
         # Create source without gear
         source = GearSource(
             source_name="t3k",
-            source_record_id="orphan_123",
+            source_record_id=f"orphan_{suffix}",
             source_updated_at=datetime.now(UTC),
         )
 
@@ -248,7 +235,7 @@ class TestGearSourceModule:
 
         # Should succeed - source doesn't require gear
         result = await session.execute(
-            select(GearSource).where(GearSource.source_record_id == "orphan_123")
+            select(GearSource).where(GearSource.source_record_id == f"orphan_{suffix}")
         )
         saved_source = result.scalar_one()
 
@@ -263,7 +250,7 @@ class TestGearSourceModule:
         assert "source_id" in Gear.__annotations__
 
         # Verify it's a UUID type
-        import uuid
+        import uuid as uuid_mod
 
         from sqlalchemy import Uuid
 
@@ -271,7 +258,7 @@ class TestGearSourceModule:
         source_id_column = gear_table.c.source_id
 
         # Should be UUID type (UuidType is a custom type that wraps UUID)
-        assert isinstance(source_id_column.type, Uuid | UuidType | type(uuid.UUID))
+        assert isinstance(source_id_column.type, Uuid | UuidType | type(uuid_mod.UUID))
 
         # Should be nullable (gear can exist without source)
         assert source_id_column.nullable is True

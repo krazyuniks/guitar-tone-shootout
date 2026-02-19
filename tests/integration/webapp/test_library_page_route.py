@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
@@ -44,6 +44,7 @@ async def test_gear(db_session: AsyncSession) -> Gear:
         name="Test Amp",
         slug="test-amp",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         description="A test amplifier",
         manufacturer="Test Brand",
         is_public=True,

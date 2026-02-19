@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from core.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.main import create_app
 
@@ -101,6 +102,7 @@ class TestGearDetailPageRoute:
             name="Test Amplifier",
             slug="test-amplifier",
             gear_type="amp",
+            platform=Platform.NAM,
             description="Test description",
             manufacturer="Test Manufacturer",
             is_public=True,
@@ -132,6 +134,7 @@ class TestGearDetailPageRoute:
             name="Marshall JCM800",
             slug="marshall-jcm800",
             gear_type="amp",
+            platform=Platform.NAM,
             description="Classic British high-gain amplifier",
             manufacturer="Marshall",
             is_public=True,
@@ -174,6 +177,7 @@ class TestGearDetailPageRoute:
             name="Private Gear",
             slug="private-gear",
             gear_type="amp",
+            platform=Platform.NAM,
             is_public=False,
         )
         db_session.add(gear)
@@ -195,6 +199,7 @@ class TestGearDetailPageRoute:
             name="Test Gear",
             slug="test-gear",
             gear_type="pedal",
+            platform=Platform.NAM,
             is_public=True,
         )
         db_session.add(gear)
@@ -220,6 +225,7 @@ class TestGearDetailPageRoute:
             name="Test Gear",
             slug="test-gear",
             gear_type="amp",
+            platform=Platform.NAM,
             is_public=True,
         )
         db_session.add(gear)
@@ -266,6 +272,7 @@ class TestGearHTMXFragments:
             name="Test Amp",
             slug="test-amp",
             gear_type="amp",
+            platform=Platform.NAM,
             manufacturer="Test",
             is_public=True,
         )
@@ -293,6 +300,7 @@ class TestGearHTMXFragments:
             name="Unique Searchable Gear",
             slug="unique-searchable-gear",
             gear_type="amp",
+            platform=Platform.NAM,
             description="Searchable description text",
             is_public=True,
         )

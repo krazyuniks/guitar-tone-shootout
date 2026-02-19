@@ -9,37 +9,12 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.notification import UserNotification
 from webapp.adapters.persistence.models.user import User
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -85,7 +60,6 @@ class TestUserNotificationModel:
         assert saved.read_at is None
         assert isinstance(saved.created_at, datetime)
 
-    @pytest.mark.xfail(reason="Pre-existing: SQLite doesn't enforce FK constraints")
     async def test_notification_requires_user_id(self, session: AsyncSession) -> None:
         """Test that UserNotification requires a user_id."""
         notification = UserNotification(

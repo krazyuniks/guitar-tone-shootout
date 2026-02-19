@@ -15,21 +15,44 @@ import inspect
 import textwrap
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from worker.consumers.gear_sync import GearSyncConsumer
 from worker.services.gear_mapper import RetryableGearSyncError
+
+# ---------------------------------------------------------------------------
+# Async call tracker (replaces AsyncMock)
+# ---------------------------------------------------------------------------
+
+
+class AsyncTracker:
+    """Async callable that records calls and optionally raises or returns a value."""
+
+    def __init__(self, *, return_value=None, side_effect=None):
+        self.calls: list[tuple] = []
+        self.kwargs_calls: list[dict] = []
+        self.return_value = return_value
+        self.side_effect = side_effect
+
+    async def __call__(self, *args, **kwargs):
+        self.calls.append(args)
+        self.kwargs_calls.append(kwargs)
+        if self.side_effect is not None:
+            raise self.side_effect
+        return self.return_value
+
+    @property
+    def call_count(self) -> int:
+        return len(self.calls)
+
+    @property
+    def was_called(self) -> bool:
+        return len(self.calls) > 0
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -37,46 +60,12 @@ from worker.services.gear_mapper import RetryableGearSyncError
 
 
 @pytest.fixture
-async def t3k_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """In-memory SQLite engine simulating the t3k_source database."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def core_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """In-memory SQLite engine simulating the gts_core database."""
-    from webapp.adapters.persistence.models.base import Base
-
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def t3k_session(t3k_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    factory = async_sessionmaker(t3k_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-
-
-@pytest.fixture
-async def core_session(core_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    factory = async_sessionmaker(core_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-
-
-@pytest.fixture
 def consumer(
-    core_session: AsyncSession,
+    session: AsyncSession,
     t3k_session: AsyncSession,
 ) -> GearSyncConsumer:
     return GearSyncConsumer(
-        core_session=core_session,
+        core_session=session,
         t3k_session=t3k_session,
         pack_queue_name="gear_sync",
         model_queue_name="gear_sync",
@@ -170,15 +159,15 @@ class TestPollQueueSessionRecovery:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Polling errors should trigger rollback so next poll can recover."""
-        execute_mock = AsyncMock(side_effect=RuntimeError("simulated poll error"))
-        rollback_mock = AsyncMock()
-        monkeypatch.setattr(consumer.t3k_session, "execute", execute_mock)
-        monkeypatch.setattr(consumer.t3k_session, "rollback", rollback_mock)
+        execute_tracker = AsyncTracker(side_effect=RuntimeError("simulated poll error"))
+        rollback_tracker = AsyncTracker()
+        monkeypatch.setattr(consumer.t3k_session, "execute", execute_tracker)
+        monkeypatch.setattr(consumer.t3k_session, "rollback", rollback_tracker)
 
         messages = await consumer._poll_queue("gear_sync")
 
         assert messages == []
-        rollback_mock.assert_awaited_once()
+        assert rollback_tracker.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -364,34 +353,34 @@ class TestRetryableErrorHandling:
             },
         )
 
-        monkeypatch.setattr(consumer, "_poll_queue", AsyncMock(return_value=[message]))
-        dead_letter_mock = AsyncMock()
-        archive_mock = AsyncMock()
-        monkeypatch.setattr(consumer, "_dead_letter", dead_letter_mock)
-        monkeypatch.setattr(consumer, "_archive_message", archive_mock)
-        monkeypatch.setattr(
-            consumer.mapper,
-            "process_sync_record",
-            AsyncMock(side_effect=RetryableGearSyncError("model file not ready")),
+        poll_tracker = AsyncTracker(return_value=[message])
+        dead_letter_tracker = AsyncTracker()
+        archive_tracker = AsyncTracker()
+        process_tracker = AsyncTracker(
+            side_effect=RetryableGearSyncError("model file not ready"),
         )
+        core_commit_tracker = AsyncTracker()
+        core_rollback_tracker = AsyncTracker()
+        t3k_commit_tracker = AsyncTracker()
+        t3k_rollback_tracker = AsyncTracker()
 
-        core_commit_mock = AsyncMock()
-        core_rollback_mock = AsyncMock()
-        t3k_commit_mock = AsyncMock()
-        t3k_rollback_mock = AsyncMock()
-        monkeypatch.setattr(consumer.core_session, "commit", core_commit_mock)
-        monkeypatch.setattr(consumer.core_session, "rollback", core_rollback_mock)
-        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_mock)
-        monkeypatch.setattr(consumer.t3k_session, "rollback", t3k_rollback_mock)
+        monkeypatch.setattr(consumer, "_poll_queue", poll_tracker)
+        monkeypatch.setattr(consumer, "_dead_letter", dead_letter_tracker)
+        monkeypatch.setattr(consumer, "_archive_message", archive_tracker)
+        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_tracker)
+        monkeypatch.setattr(consumer.core_session, "commit", core_commit_tracker)
+        monkeypatch.setattr(consumer.core_session, "rollback", core_rollback_tracker)
+        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_tracker)
+        monkeypatch.setattr(consumer.t3k_session, "rollback", t3k_rollback_tracker)
 
         await consumer._poll_and_process("gear_sync")
 
-        dead_letter_mock.assert_not_awaited()
-        archive_mock.assert_not_awaited()
-        core_commit_mock.assert_not_awaited()
-        t3k_commit_mock.assert_not_awaited()
-        core_rollback_mock.assert_awaited_once()
-        t3k_rollback_mock.assert_awaited_once()
+        assert not dead_letter_tracker.was_called
+        assert not archive_tracker.was_called
+        assert not core_commit_tracker.was_called
+        assert not t3k_commit_tracker.was_called
+        assert core_rollback_tracker.call_count == 1
+        assert t3k_rollback_tracker.call_count == 1
 
     async def test_retryable_error_is_dead_lettered_after_max_retries(
         self,
@@ -404,19 +393,22 @@ class TestRetryableErrorHandling:
             message={"source_name": "t3k"},
         )
 
-        monkeypatch.setattr(consumer, "_poll_queue", AsyncMock(return_value=[message]))
-        dead_letter_mock = AsyncMock()
-        monkeypatch.setattr(consumer, "_dead_letter", dead_letter_mock)
-        process_mock = AsyncMock()
-        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_mock)
-        t3k_commit_mock = AsyncMock()
-        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_mock)
+        poll_tracker = AsyncTracker(return_value=[message])
+        dead_letter_tracker = AsyncTracker()
+        process_tracker = AsyncTracker()
+        t3k_commit_tracker = AsyncTracker()
+
+        monkeypatch.setattr(consumer, "_poll_queue", poll_tracker)
+        monkeypatch.setattr(consumer, "_dead_letter", dead_letter_tracker)
+        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_tracker)
+        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_tracker)
 
         await consumer._poll_and_process("gear_sync")
 
-        process_mock.assert_not_awaited()
-        dead_letter_mock.assert_awaited_once_with(message, "gear_sync")
-        t3k_commit_mock.assert_awaited_once()
+        assert not process_tracker.was_called
+        assert dead_letter_tracker.call_count == 1
+        assert dead_letter_tracker.calls[0] == (message, "gear_sync")
+        assert t3k_commit_tracker.call_count == 1
 
 
 class TestStaleDlqCleanup:
@@ -439,26 +431,29 @@ class TestStaleDlqCleanup:
             },
         )
 
-        monkeypatch.setattr(consumer, "_poll_queue", AsyncMock(return_value=[message]))
-        process_mock = AsyncMock(return_value=None)
-        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_mock)
-        cleanup_mock = AsyncMock()
-        archive_mock = AsyncMock()
-        monkeypatch.setattr(consumer, "_archive_stale_dlq_for_record", cleanup_mock)
-        monkeypatch.setattr(consumer, "_archive_message", archive_mock)
+        poll_tracker = AsyncTracker(return_value=[message])
+        process_tracker = AsyncTracker(return_value=None)
+        cleanup_tracker = AsyncTracker()
+        archive_tracker = AsyncTracker()
+        core_commit_tracker = AsyncTracker()
+        t3k_commit_tracker = AsyncTracker()
 
-        core_commit_mock = AsyncMock()
-        t3k_commit_mock = AsyncMock()
-        monkeypatch.setattr(consumer.core_session, "commit", core_commit_mock)
-        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_mock)
+        monkeypatch.setattr(consumer, "_poll_queue", poll_tracker)
+        monkeypatch.setattr(consumer.mapper, "process_sync_record", process_tracker)
+        monkeypatch.setattr(consumer, "_archive_stale_dlq_for_record", cleanup_tracker)
+        monkeypatch.setattr(consumer, "_archive_message", archive_tracker)
+        monkeypatch.setattr(consumer.core_session, "commit", core_commit_tracker)
+        monkeypatch.setattr(consumer.t3k_session, "commit", t3k_commit_tracker)
 
         await consumer._poll_and_process("gear_sync")
 
-        process_mock.assert_awaited_once()
-        cleanup_mock.assert_awaited_once()
-        record = cleanup_mock.await_args.args[0]
+        assert process_tracker.call_count == 1
+        assert cleanup_tracker.call_count == 1
+        # Verify the record passed to cleanup has correct source info
+        record = cleanup_tracker.calls[0][0]
         assert record.source_name == "t3k"
         assert record.source_record_id == "pack-42"
-        archive_mock.assert_awaited_once_with("gear_sync", 103)
-        core_commit_mock.assert_awaited_once()
-        t3k_commit_mock.assert_awaited_once()
+        assert archive_tracker.call_count == 1
+        assert archive_tracker.calls[0] == ("gear_sync", 103)
+        assert core_commit_tracker.call_count == 1
+        assert t3k_commit_tracker.call_count == 1

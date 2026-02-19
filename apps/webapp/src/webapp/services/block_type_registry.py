@@ -143,14 +143,17 @@ class BlockTypeRegistry:
         return result.scalar_one_or_none()
 
     async def _initialize_builtin_types(self) -> None:
-        """Initialize the database with built-in block types."""
+        """Initialize the database with built-in block types (upsert by name)."""
         for processor in self.BUILTIN_PROCESSORS:
-            block_type = BlockType(
-                name=processor["name"],
-                category=processor["category"],
-                description=processor.get("description"),
-                default_params=processor["default_params"],
-            )
-            self.session.add(block_type)
+            stmt = select(BlockType).where(BlockType.name == processor["name"])
+            result = await self.session.execute(stmt)
+            if result.scalar_one_or_none() is None:
+                block_type = BlockType(
+                    name=processor["name"],
+                    category=processor["category"],
+                    description=processor.get("description"),
+                    default_params=processor["default_params"],
+                )
+                self.session.add(block_type)
 
         await self.session.flush()

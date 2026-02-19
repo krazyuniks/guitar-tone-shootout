@@ -43,6 +43,7 @@ async def many_gear_items(db_session: "AsyncSession", test_user: User) -> list[G
             name=f"Gear {chr(65 + i)}",  # Gear A, Gear B, ..., Gear O
             slug=f"gear-{chr(97 + i)}",
             gear_type=gear_type,
+            platform=Platform.NAM,
             description=f"Test gear item {i}",
             manufacturer="TestCo",
             is_public=True,

@@ -35,17 +35,23 @@ async def test_user(db_session: AsyncSession) -> User:
 
 @pytest.fixture
 async def t3k_provider(db_session: AsyncSession) -> OAuthProvider:
-    """Create T3K OAuth provider."""
-    provider = OAuthProvider(
-        id=uuid4(),
-        name="t3k",
-        client_id="test-client-id",
-        client_secret="test-client-secret",
-        enabled=True,
-    )
-    db_session.add(provider)
-    await db_session.commit()
-    await db_session.refresh(provider)
+    """Get or create T3K OAuth provider."""
+    from sqlalchemy import select
+
+    stmt = select(OAuthProvider).where(OAuthProvider.name == "t3k")
+    result = await db_session.execute(stmt)
+    provider = result.scalar_one_or_none()
+    if provider is None:
+        provider = OAuthProvider(
+            id=uuid4(),
+            name="t3k",
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+            enabled=True,
+        )
+        db_session.add(provider)
+        await db_session.commit()
+        await db_session.refresh(provider)
     return provider
 
 

@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from core.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
@@ -67,6 +67,7 @@ async def test_gear(db_session: AsyncSession) -> Gear:
         name="Test Amp",
         slug="test-amp",
         gear_type=GearType.AMP,
+        platform=Platform.NAM,
         description="A test amplifier",
         manufacturer="Test Brand",
         is_public=True,
@@ -85,6 +86,7 @@ async def second_gear(db_session: AsyncSession) -> Gear:
         name="Test Pedal",
         slug="test-pedal",
         gear_type=GearType.PEDAL,
+        platform=Platform.NAM,
         description="A test pedal",
         manufacturer="Test Brand",
         is_public=True,

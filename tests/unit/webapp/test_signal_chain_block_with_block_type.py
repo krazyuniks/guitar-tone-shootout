@@ -1,14 +1,12 @@
 """Unit tests for SignalChainBlock with BlockType reference."""
 
-from collections.abc import AsyncGenerator
+import uuid
 
-import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from core.domain.value_objects.signal_chain_enums import Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.signal_chain import (
     SignalChain,
@@ -17,34 +15,13 @@ from webapp.adapters.persistence.models.signal_chain import (
 from webapp.adapters.persistence.models.user import User
 
 
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async with async_session() as session:
-        yield session
-
-    await engine.dispose()
-
-
-@pytest.mark.asyncio
 async def test_signal_chain_block_with_block_type_id(session: AsyncSession) -> None:
     """Test that SignalChainBlock can reference a BlockType instead of user gear."""
+    suffix = uuid.uuid4().hex[:8]
     # Arrange - Create user, chain, and block type
-    user = User(username="testuser", email="test@example.com")
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -57,7 +34,7 @@ async def test_signal_chain_block_with_block_type_id(session: AsyncSession) -> N
     await session.commit()
 
     block_type = BlockType(
-        name="Compressor",
+        name=f"Compressor_{suffix}",
         category="dynamics",
         default_params={"ratio": 4.0},
     )
@@ -79,17 +56,18 @@ async def test_signal_chain_block_with_block_type_id(session: AsyncSession) -> N
     assert block.user_gear_id is None  # Should be nullable when block_type_id is set
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_block_has_block_type_id_field(session: AsyncSession) -> None:
     """Test that SignalChainBlock model has block_type_id field."""
     # This test verifies the field exists on the model
     assert hasattr(SignalChainBlock, "block_type_id")
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_block_user_gear_id_nullable(session: AsyncSession) -> None:
     """Test that user_gear_id can be NULL when block_type_id is set."""
-    user = User(username="testuser", email="test@example.com")
+    suffix = uuid.uuid4().hex[:8]
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -102,7 +80,7 @@ async def test_signal_chain_block_user_gear_id_nullable(session: AsyncSession) -
     await session.commit()
 
     block_type = BlockType(
-        name="EQ",
+        name=f"EQ_{suffix}",
         category="eq",
         default_params={},
     )
@@ -123,10 +101,12 @@ async def test_signal_chain_block_user_gear_id_nullable(session: AsyncSession) -
     assert block.block_type_id is not None
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_block_has_block_type_relationship(session: AsyncSession) -> None:
     """Test that SignalChainBlock has relationship to BlockType."""
-    user = User(username="testuser", email="test@example.com")
+    suffix = uuid.uuid4().hex[:8]
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -139,7 +119,7 @@ async def test_signal_chain_block_has_block_type_relationship(session: AsyncSess
     await session.commit()
 
     block_type = BlockType(
-        name="Reverb",
+        name=f"Reverb_{suffix}",
         category="modulation",
         default_params={"mix": 0.3},
     )
@@ -165,13 +145,15 @@ async def test_signal_chain_block_has_block_type_relationship(session: AsyncSess
     # Assert - Check relationship exists
     assert hasattr(block, "block_type")
     assert block.block_type is not None
-    assert block.block_type.name == "Reverb"
+    assert block.block_type.name == f"Reverb_{suffix}"
 
 
-@pytest.mark.asyncio
 async def test_signal_chain_block_gear_type_nullable(session: AsyncSession) -> None:
     """Test that gear_type is nullable when using BlockType."""
-    user = User(username="testuser", email="test@example.com")
+    suffix = uuid.uuid4().hex[:8]
+    user = User(
+        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
+    )
     session.add(user)
     await session.commit()
 
@@ -184,7 +166,7 @@ async def test_signal_chain_block_gear_type_nullable(session: AsyncSession) -> N
     await session.commit()
 
     block_type = BlockType(
-        name="Delay",
+        name=f"Delay_{suffix}",
         category="modulation",
         default_params={},
     )
