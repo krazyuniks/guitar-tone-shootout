@@ -14,7 +14,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 project_root="$(git rev-parse --show-toplevel)"
-ruff_version=$(grep -oP 'ruff==\K[0-9.]+' "$project_root/pyproject.toml")
+ruff_version=$(sed -n 's/.*ruff==\([0-9.]*\).*/\1/p' "$project_root/pyproject.toml" | head -1)
 
 case "$mode" in
     check)

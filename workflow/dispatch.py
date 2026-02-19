@@ -1,20 +1,24 @@
-"""V2 agent dispatch module.
+"""Agent dispatch module with multi-provider support.
 
-Dispatches prompts to Claude Code agents with the correct model, tools,
-skills, and budget controls. ClaudeAdapter is the only concrete
-implementation.
+Dispatches prompts to AI coding agents via adapter classes. Supports
+Claude Code (ClaudeAdapter) and OpenAI Codex CLI (CodexAdapter).
+Adapter selection is automatic based on model name.
 
 No dependency on run_epic.py or any V1 code.
 """
 
+import contextlib
 import hashlib
 import json
 import logging
 import os
+import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -31,6 +35,9 @@ BUDGET_DEFAULTS: dict[str, dict[str, int | float]] = {
     "implementation": {"max_turns": 40, "max_budget_usd": 4.00},
     "validation": {"max_turns": 15, "max_budget_usd": 0.50},
     "regression": {"max_turns": 30, "max_budget_usd": 3.00},
+    "critique_plan": {"max_turns": 20, "max_budget_usd": 5.00},
+    "critique_story": {"max_turns": 15, "max_budget_usd": 3.00},
+    "critique_epic": {"max_turns": 20, "max_budget_usd": 8.00},
 }
 
 # Fallback models per primary model (Section 8.6 Decision 6)
@@ -38,6 +45,7 @@ FALLBACK_MODELS: dict[str, str] = {
     "opus": "sonnet",
     "sonnet": "haiku",
     "haiku": "haiku",  # no cheaper fallback
+    "codex": "codex",  # no fallback — single provider
 }
 
 # Tool restrictions per agent role (Section 8.2 Strategy 4)
@@ -47,6 +55,7 @@ TOOL_SETS: dict[str, list[str]] = {
     "validation_browser": ["Read", "Bash", "Glob", "Grep"],
     "validation_api": ["Bash", "Read", "Glob", "Grep"],
     "regression": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+    "critique": ["Read", "Bash", "Glob", "Grep"],
 }
 
 
@@ -66,6 +75,35 @@ class AgentResult:
     cost_usd: float | None = None
     turns: int | None = None
     is_overload_or_transient: bool = False
+
+
+# ---------------------------------------------------------------------------
+# AgentAdapter protocol
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class AgentAdapter(Protocol):
+    """Protocol for agent CLI adapters."""
+
+    @property
+    def name(self) -> str: ...
+
+    def build_args(
+        self,
+        model: str,
+        tools: list[str],
+        max_turns: int,
+        max_budget_usd: float,
+        json_schema: dict | None,
+        fallback_model: str | None = None,
+        no_mcp: bool = False,
+    ) -> list[str]: ...
+
+    def parse_result(
+        self,
+        completed: subprocess.CompletedProcess,
+    ) -> "AgentResult": ...
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +217,184 @@ class ClaudeAdapter:
 
 
 # ---------------------------------------------------------------------------
+# CodexAdapter
+# ---------------------------------------------------------------------------
+
+
+class CodexAdapter:
+    """OpenAI Codex CLI adapter.
+
+    Passes prompt via stdin (codex exec reads stdin when no prompt arg given).
+    Uses --json for structured output, --ephemeral for no session persistence.
+    MCP servers are configured globally in ~/.codex/config.toml.
+
+    Sandbox modes:
+    - "read-only" for critique (read codebase, no writes)
+    - "danger-full-access" for implementation (full write access)
+    """
+
+    def __init__(self, sandbox: str = "read-only") -> None:
+        self._sandbox = sandbox
+
+    @property
+    def name(self) -> str:
+        return "codex"
+
+    @staticmethod
+    def _find_binary() -> str:
+        """Locate the codex binary."""
+        path = shutil.which("codex")
+        if path:
+            return path
+        volta_path = Path.home() / ".volta" / "bin" / "codex"
+        if volta_path.exists():
+            return str(volta_path)
+        return "codex"  # fall through to PATH
+
+    def build_args(
+        self,
+        model: str,  # noqa: ARG002
+        tools: list[str],  # noqa: ARG002
+        max_turns: int,  # noqa: ARG002
+        max_budget_usd: float,  # noqa: ARG002
+        json_schema: dict | None,  # noqa: ARG002
+        fallback_model: str | None = None,  # noqa: ARG002
+        no_mcp: bool = False,  # noqa: ARG002
+    ) -> list[str]:
+        """Build Codex CLI arguments. Prompt is piped via stdin by the caller.
+
+        Codex CLI does not support --tools, --max-turns, --max-budget-usd,
+        or --fallback-model flags. Those parameters are accepted for
+        interface compatibility but are not passed to the CLI.
+        """
+        binary = self._find_binary()
+
+        # Create a temp file for -o output capture before building args
+        fd, output_path = tempfile.mkstemp(suffix=".txt", prefix="codex-output-")
+        os.close(fd)
+        self._output_path = output_path
+
+        args = [
+            binary,
+            "exec",
+            "--model",
+            "gpt-5.3-codex",
+            "-c",
+            "model_reasoning_effort=high",
+            "--ephemeral",
+            "--json",
+            "--sandbox",
+            self._sandbox,
+            "-o",
+            output_path,
+        ]
+
+        return args
+
+    def parse_result(
+        self,
+        completed: subprocess.CompletedProcess,
+    ) -> "AgentResult":
+        """Parse Codex CLI output into AgentResult.
+
+        Codex --json emits structured JSON to stdout with cost/turns info.
+        The -o flag captures the last assistant message to a file.
+        """
+        raw = completed.stdout or ""
+        exit_code = completed.returncode
+        success = exit_code == 0
+
+        # Read the -o output file for the agent's text response
+        output = ""
+        output_path = Path(self._output_path)
+        try:
+            if output_path.exists():
+                output = output_path.read_text(encoding="utf-8")
+        finally:
+            with contextlib.suppress(OSError):
+                output_path.unlink(missing_ok=True)
+
+        structured_output = None
+        cost_usd = None
+        turns = None
+
+        # Parse --json stdout for metadata
+        if raw.strip():
+            try:
+                parsed = json.loads(raw)
+                structured_output = parsed
+                if isinstance(parsed, dict):
+                    cost_usd = parsed.get("cost_usd")
+                    turns = parsed.get("num_turns") or parsed.get("turns")
+                    # If -o file was empty, try extracting from JSON
+                    if not output and "result" in parsed:
+                        output = str(parsed["result"])
+            except json.JSONDecodeError:
+                # Raw text — use as output if -o file was empty
+                if not output:
+                    output = raw
+
+        # Detect overload/transient failures
+        is_transient = _is_overload_or_transient(exit_code, raw, completed.stderr or "")
+
+        return AgentResult(
+            success=success,
+            output=output,
+            structured_output=structured_output,
+            exit_code=exit_code,
+            cost_usd=cost_usd,
+            turns=turns,
+            is_overload_or_transient=is_transient,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Adapter routing
+# ---------------------------------------------------------------------------
+
+_claude_adapter = ClaudeAdapter()
+_codex_critique_adapter = CodexAdapter(sandbox="read-only")
+_codex_impl_adapter = CodexAdapter(sandbox="danger-full-access")
+
+ADAPTER_MAP: dict[str, AgentAdapter] = {
+    "opus": _claude_adapter,
+    "sonnet": _claude_adapter,
+    "haiku": _claude_adapter,
+    "codex": _codex_impl_adapter,
+}
+
+
+def get_adapter(model: str) -> AgentAdapter:
+    """Return the appropriate adapter for a model name.
+
+    Args:
+        model: Model identifier (e.g. "opus", "sonnet", "codex").
+
+    Returns:
+        The adapter instance for the given model.
+    """
+    adapter = ADAPTER_MAP.get(model)
+    if adapter is None:
+        logger.warning("Unknown model '%s', falling back to Claude adapter", model)
+        return _claude_adapter
+    return adapter
+
+
+def get_codex_adapter(sandbox: str = "read-only") -> CodexAdapter:
+    """Return a CodexAdapter with the specified sandbox mode.
+
+    Args:
+        sandbox: "read-only" for critique, "danger-full-access" for implementation.
+
+    Returns:
+        CodexAdapter instance.
+    """
+    if sandbox == "read-only":
+        return _codex_critique_adapter
+    return _codex_impl_adapter
+
+
+# ---------------------------------------------------------------------------
 # Transient failure detection
 # ---------------------------------------------------------------------------
 
@@ -280,9 +496,6 @@ def estimate_tokens(text: str) -> int:
 # Core dispatch function
 # ---------------------------------------------------------------------------
 
-# Module-level adapter instance (V2 is Claude-only)
-_claude_adapter = ClaudeAdapter()
-
 
 def dispatch_agent(
     prompt: str,
@@ -293,7 +506,7 @@ def dispatch_agent(
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
     fallback_model: str | None = None,
-    adapter: ClaudeAdapter | None = None,
+    adapter: AgentAdapter | None = None,
     no_mcp: bool = False,
 ) -> AgentResult:
     """Dispatch a prompt to an agent and return the structured result.
@@ -304,21 +517,21 @@ def dispatch_agent(
 
     Args:
         prompt: The full agent prompt text.
-        model: Model identifier (e.g. "opus", "sonnet", "haiku").
+        model: Model identifier (e.g. "opus", "sonnet", "haiku", "codex").
         tools: List of tool names the agent may use.
         max_turns: Maximum conversation turns.
         max_budget_usd: Dollar cap for this invocation.
         json_schema: JSON schema for structured output (optional).
         cwd: Working directory for the subprocess.
         fallback_model: Model to fall back to on HTTP 529 overload.
-        adapter: Provider adapter to use (defaults to ClaudeAdapter).
+        adapter: Provider adapter (auto-selected from model if None).
         no_mcp: If True, pass --no-mcp to skip MCP server startup.
 
     Returns:
         AgentResult with success status, output, cost, and turn count.
     """
     if adapter is None:
-        adapter = _claude_adapter
+        adapter = get_adapter(model)
 
     # Resolve fallback model from defaults if not provided
     if fallback_model is None:
@@ -402,7 +615,7 @@ def dispatch_with_fallback(
     max_budget_usd: float = 3.0,
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
-    adapter: ClaudeAdapter | None = None,
+    adapter: AgentAdapter | None = None,
     no_mcp: bool = False,
 ) -> AgentResult:
     """Dispatch with orchestrator-level retry for transient provider failures.
@@ -486,18 +699,21 @@ def dispatch_with_fallback(
 def get_dispatch_metadata(
     prompt: str,
     model: str,
+    adapter_name: str = "claude",
 ) -> dict:
     """Build metadata dict suitable for JSONL agent_dispatched events.
 
     Args:
         prompt: The prompt text.
         model: Model identifier.
+        adapter_name: Adapter name ("claude" or "codex").
 
     Returns:
-        Dict with model, prompt_hash, prompt_tokens.
+        Dict with model, adapter, prompt_hash, prompt_tokens.
     """
     return {
         "model": model,
+        "adapter": adapter_name,
         "prompt_hash": compute_prompt_hash(prompt),
         "prompt_tokens": estimate_tokens(prompt),
     }
@@ -508,7 +724,8 @@ def get_budget_defaults(agent_type: str) -> dict[str, int | float]:
 
     Args:
         agent_type: One of "planning", "architecture", "implementation",
-            "validation", "regression".
+            "validation", "regression", "critique_plan", "critique_story",
+            "critique_epic".
 
     Returns:
         Dict with "max_turns" (int) and "max_budget_usd" (float).
@@ -521,7 +738,7 @@ def get_tools_for_role(role: str) -> list[str]:
 
     Args:
         role: One of "implementation", "validation_browser",
-            "validation_api", "regression".
+            "validation_api", "regression", "critique".
 
     Returns:
         List of tool name strings.

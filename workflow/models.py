@@ -54,7 +54,7 @@ class Scope(BaseModel):
 class AgentConfig(BaseModel):
     """Full agent dispatch specification for a story."""
 
-    model: Literal["opus", "sonnet", "haiku"] = Field(description="Claude model tier.")
+    model: Literal["opus", "sonnet", "haiku", "codex"] = Field(description="Model tier.")
     skills: list[str] = Field(default_factory=list, description="Skill names to inject.")
     tools: list[str] = Field(default_factory=list, description="Tools available to the agent.")
     max_turns: int = Field(description="Maximum conversation turns.")

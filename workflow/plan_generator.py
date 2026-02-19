@@ -118,11 +118,11 @@ Story sizing constraints:
 Example story breakdown for a typical GTS epic:
 | Story | Scope | Model | Budget |
 |-------|-------|-------|--------|
-| 1. Architecture | Entity, ORM, repo, service, migration | Sonnet | $3 |
-| 2. API + Schemas | Routes, Pydantic schemas, route registration | Sonnet | $2 |
-| 3. UI Scaffolding | Page templates, fragments, navigation | Sonnet | $3 |
-| 4. CRUD Features | Form handling, HTMX interactions, DB writes | Sonnet | $4 |
-| 5. Regression Tests | E2E tests, regression test updates | Sonnet | $3 |"""
+| 1. Architecture | Entity, ORM, repo, service, migration | Codex | $3 |
+| 2. API + Schemas | Routes, Pydantic schemas, route registration | Codex | $2 |
+| 3. UI Scaffolding | Page templates, fragments, navigation | Codex | $3 |
+| 4. CRUD Features | Form handling, HTMX interactions, DB writes | Codex | $4 |
+| 5. Regression Tests | E2E tests, regression test updates | Codex | $3 |"""
 
 # Skill mapping per story type (Section 8.5 Decision 3)
 SKILL_MAPPING_REFERENCE = """\
@@ -144,17 +144,21 @@ Tool restrictions per agent role:
 | Regression test | Read, Edit, Write, Bash, Glob, Grep |
 
 Note: Validation checkpoints run commands directly (no agent dispatch).
-Validation does not need tool configuration."""
+Validation does not need tool configuration.
+
+Codex agents receive MCP tools (Serena, Pyright, Playwright, Chrome DevTools)
+automatically via ~/.codex/config.toml. Do not specify tools in the agent
+config for Codex — they are configured globally."""
 
 # Budget defaults (Section 8.2 Strategy 7)
 BUDGET_REFERENCE = """\
 Budget defaults (starting points):
 | Agent Type | Max Turns | Max Budget |
 |------------|-----------|------------|
-| Architecture (Sonnet) | 30 | $3.00 |
-| Implementation (Sonnet) | 40 | $4.00 |
+| Architecture (Codex) | 30 | $3.00 |
+| Implementation (Codex) | 40 | $4.00 |
 | Validation (Haiku) | 15 | $0.50 |
-| Regression tests (Sonnet) | 30 | $3.00 |"""
+| Regression tests (Codex) | 30 | $3.00 |"""
 
 
 def _build_planner_prompt(

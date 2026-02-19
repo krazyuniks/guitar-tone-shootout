@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class EventLogger:
@@ -226,10 +226,10 @@ def get_resumable_state(
     if last_event_type == "epic_complete":
         next_action = "epic_complete"
         failed_story_id = None
-    elif last_event_type == "exit_to_human":
+    elif last_event_type in ("exit_to_human", "epic_critique_fail"):
         next_action = "exit_to_human"
         failed_story_id = last_event.get("story_id")
-    elif last_event_type in ("story_failed", "agent_failed", "validation_fail"):
+    elif last_event_type in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
         next_action = "retry_story"
         failed_story_id = last_event.get("story_id")
     else:

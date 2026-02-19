@@ -21,6 +21,11 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from workflow.dispatch import (
+    compute_prompt_hash,
+    dispatch_agent,
+    estimate_tokens,
+)
 from workflow.git_helpers import (
     GitConflictError,
     GitPushError,
@@ -477,6 +482,176 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Post-epic Opus critique
+# ---------------------------------------------------------------------------
+
+
+def _run_epic_critique(
+    plan: dict,
+    epic_dir: Path,
+    events: list[dict],
+    epic_logger: EventLogger,
+) -> tuple[bool, list, float | None]:
+    """Run post-epic Opus critique on the full implementation.
+
+    Dispatches an Opus read-only agent with the critique_epic template
+    to review the entire epic holistically.
+
+    Args:
+        plan: The plan.json dict.
+        epic_dir: Path to the epic directory.
+        events: All JSONL events (epic + story combined).
+        epic_logger: Epic-level JSONL event logger.
+
+    Returns:
+        Tuple of (passed, findings_list, cost_usd).
+    """
+    # Read template
+    template_path = Path(__file__).resolve().parent / "templates" / "critique_epic.md"
+    template = template_path.read_text(encoding="utf-8")
+
+    # Read EPIC.md
+    epic_md_path = epic_dir / "EPIC.md"
+    epic_md = epic_md_path.read_text(encoding="utf-8") if epic_md_path.exists() else "(unavailable)"
+
+    # Get first story commit from JSONL events
+    first_commit = None
+    for e in events:
+        if e.get("event") == "story_complete" and e.get("commit"):
+            first_commit = e["commit"]
+            break
+
+    # Get full git diff from first story commit to HEAD
+    if first_commit and first_commit != "unknown":
+        try:
+            diff_result = subprocess.run(
+                ["git", "diff", f"{first_commit}~1..HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
+                timeout=30,
+            )
+            git_diff = diff_result.stdout or "(no diff)"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            git_diff = "(diff unavailable)"
+    else:
+        git_diff = "(no commit reference available)"
+
+    # Build event summary from JSONL
+    summary_events = []
+    for e in events:
+        event_type = e.get("event", "")
+        if event_type in (
+            "story_complete",
+            "story_failed",
+            "validation_pass",
+            "validation_fail",
+            "agent_complete",
+            "critique_pass",
+            "critique_fail",
+        ):
+            summary_events.append(
+                {
+                    "event": event_type,
+                    "story_id": e.get("story_id", ""),
+                    "attempt": e.get("attempt"),
+                    "cost_usd": e.get("cost_usd"),
+                }
+            )
+    event_summary = json.dumps(summary_events, indent=2)
+
+    # Build prompt from template
+    plan_json = json.dumps(plan, indent=2)
+    prompt = template.replace("{{ epic_md }}", epic_md)
+    prompt = prompt.replace("{{ plan_json }}", plan_json)
+    prompt = prompt.replace("{{ git_diff }}", git_diff)
+    prompt = prompt.replace("{{ event_summary }}", event_summary)
+
+    # Log critique dispatch
+    prompt_hash = compute_prompt_hash(prompt)
+    prompt_tokens = estimate_tokens(prompt)
+    epic_logger.log_event(
+        "epic_critique_dispatched",
+        critique_type="epic",
+        critique_model="opus",
+        adapter="claude",
+        role="critique_epic",
+        prompt_hash=prompt_hash,
+        prompt_tokens=prompt_tokens,
+    )
+
+    # Dispatch Opus read-only
+    result = dispatch_agent(
+        prompt=prompt,
+        model="opus",
+        tools=["Read", "Bash", "Glob", "Grep"],
+        no_mcp=True,
+        max_budget_usd=8.0,
+        max_turns=20,
+        cwd=PROJECT_ROOT,
+    )
+
+    if not result.success:
+        logger.warning(
+            "Epic critique dispatch failed (exit_code=%d)",
+            result.exit_code,
+        )
+        epic_logger.log_event(
+            "epic_critique_fail",
+            critique_type="epic",
+            critique_model="opus",
+            error=result.output[:500] if result.output else "Dispatch failed",
+        )
+        # Treat dispatch failure as a pass — don't block on infra issues
+        return (True, [], result.cost_usd)
+
+    # Parse JSON result
+    output = (result.output or "").strip()
+    if output.startswith("```"):
+        lines = output.split("\n")
+        if lines[-1].strip() == "```":
+            output = "\n".join(lines[1:-1]).strip()
+
+    try:
+        critique = json.loads(output)
+    except json.JSONDecodeError:
+        logger.warning("Epic critique returned invalid JSON")
+        epic_logger.log_event(
+            "epic_critique_fail",
+            critique_type="epic",
+            critique_model="opus",
+            error=f"Invalid JSON: {output[:200]}",
+        )
+        return (True, [], result.cost_usd)
+
+    status = critique.get("status", "pass")
+    findings = critique.get("findings", [])
+    passed = status == "pass"
+
+    if passed:
+        epic_logger.log_event(
+            "epic_critique_pass",
+            critique_type="epic",
+            critique_model="opus",
+            cost_usd=result.cost_usd,
+            turns=result.turns,
+            findings_count=0,
+        )
+    else:
+        epic_logger.log_event(
+            "epic_critique_fail",
+            critique_type="epic",
+            critique_model="opus",
+            cost_usd=result.cost_usd,
+            turns=result.turns,
+            findings_count=len(findings),
+            findings=findings,
+        )
+
+    return (passed, findings, result.cost_usd)
+
+
+# ---------------------------------------------------------------------------
 # Plan and event loading helpers
 # ---------------------------------------------------------------------------
 
@@ -654,6 +829,17 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
             stories=len(stories),
         )
 
+    # Sync agent configuration before execution
+    try:
+        subprocess.run(
+            ["agent-sync", "--quiet"],
+            cwd=PROJECT_ROOT,
+            timeout=30,
+            capture_output=True,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        logger.debug("agent-sync not available or timed out, continuing")
+
     # The outer loop
     while True:
         # Re-read the log to get latest state (events accumulate)
@@ -676,11 +862,62 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
         # Determine next story
         next_story = _determine_next_story(plan, completed_stories)
         if next_story is None:
-            # All stories complete
-            logger.info("All stories complete for epic #%d", epic_number)
+            # All stories complete -- run epic critique before finishing
+            logger.info("All stories complete for epic #%d. Running epic critique...", epic_number)
 
-            # Log epic_complete
             all_events = _collect_story_events(epic_dir, plan)
+
+            critique_passed, findings, _critique_cost = _run_epic_critique(
+                plan=plan,
+                epic_dir=epic_dir,
+                events=all_events,
+                epic_logger=epic_logger,
+            )
+
+            if not critique_passed:
+                # Epic critique failed -- exit to human (no retries)
+                logger.error(
+                    "Epic critique failed with %d findings. Exiting to human.",
+                    len(findings),
+                )
+
+                # Post critique findings as GitHub comment
+                finding_lines = []
+                for f in findings:
+                    file_ref = f.get("file", "?")
+                    line_ref = f.get("line", "?")
+                    issue = f.get("issue", "?")
+                    severity = f.get("severity", "?")
+                    finding_lines.append(f"- **[{severity}]** `{file_ref}:{line_ref}` — {issue}")
+
+                critique_body = (
+                    "## Epic Critique Failed\n\n"
+                    f"Opus review found {len(findings)} issue(s):\n\n"
+                    + "\n".join(finding_lines)
+                    + "\n\nManual intervention required."
+                )
+                url = comment_on_epic(epic_number, critique_body)
+                if url:
+                    epic_logger.log_event(
+                        "github_comment",
+                        epic=epic_number,
+                        comment_url=url,
+                    )
+
+                epic_logger.log_event(
+                    "exit_to_human",
+                    reason=f"Epic critique failed with {len(findings)} findings",
+                    failure_category="implementation",
+                    context={
+                        "critique_findings": findings[:5],
+                        "findings_count": len(findings),
+                    },
+                )
+
+                generate_summary(epic_dir, plan, all_events)
+                break
+
+            # Critique passed -- log epic_complete
             total_cost = sum(
                 e.get("cost_usd", 0) or 0 for e in all_events if e.get("event") == "agent_complete"
             )

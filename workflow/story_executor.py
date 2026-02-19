@@ -21,7 +21,10 @@ from pathlib import Path
 
 from workflow.dispatch import (
     FALLBACK_MODELS,
+    compute_prompt_hash,
+    dispatch_agent,
     dispatch_with_fallback,
+    estimate_tokens,
     get_dispatch_metadata,
 )
 from workflow.jsonl_logger import EventLogger
@@ -770,6 +773,152 @@ def execute_story(
     )
 
 
+def _run_story_critique(
+    story: dict,
+    validation_results: str,
+    event_logger: EventLogger,
+    attempt: int,
+    model: str,
+) -> tuple[bool, list, float | None]:
+    """Run post-story Opus critique on the implementation.
+
+    Dispatches an Opus read-only agent with the critique_story template
+    to review the code changes made by the implementation agent.
+
+    Args:
+        story: The story dict from plan.json.
+        validation_results: String summary of validation checkpoint results.
+        event_logger: JSONL event logger.
+        attempt: The current attempt number.
+        model: The model that produced the implementation (for logging).
+
+    Returns:
+        Tuple of (passed, findings_list, cost_usd).
+    """
+    story_id = story.get("story_id", "unknown")
+
+    # Read the critique template
+    template_path = Path(__file__).resolve().parent / "templates" / "critique_story.md"
+    template = template_path.read_text(encoding="utf-8")
+
+    # Get git diff for story scope paths
+    scope = story.get("scope", {})
+    scope_paths = list(scope.get("create", [])) + list(scope.get("modify", []))
+    diff_args = ["git", "diff", "HEAD~1", "--", *scope_paths]
+    try:
+        diff_result = subprocess.run(
+            diff_args,
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=30,
+        )
+        git_diff = diff_result.stdout or "(no diff)"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        git_diff = "(diff unavailable)"
+
+    # Build prompt from template
+    story_json = json.dumps(story, indent=2)
+    prompt = template.replace("{{ story_json }}", story_json)
+    prompt = prompt.replace("{{ git_diff }}", git_diff)
+    prompt = prompt.replace("{{ validation_results }}", validation_results)
+
+    # Log critique dispatch
+    prompt_hash = compute_prompt_hash(prompt)
+    prompt_tokens = estimate_tokens(prompt)
+    event_logger.log_event(
+        "critique_dispatched",
+        story_id=story_id,
+        attempt=attempt,
+        critique_type="story",
+        critique_model="opus",
+        target_model=model,
+        adapter="claude",
+        role="critique_story",
+        prompt_hash=prompt_hash,
+        prompt_tokens=prompt_tokens,
+    )
+
+    # Dispatch Opus read-only
+    result = dispatch_agent(
+        prompt=prompt,
+        model="opus",
+        tools=["Read", "Bash", "Glob", "Grep"],
+        no_mcp=True,
+        max_turns=15,
+        max_budget_usd=3.0,
+        cwd=PROJECT_ROOT,
+    )
+
+    if not result.success:
+        logger.warning(
+            "Story critique dispatch failed for '%s' (exit_code=%d)",
+            story_id,
+            result.exit_code,
+        )
+        event_logger.log_event(
+            "critique_failed",
+            story_id=story_id,
+            attempt=attempt,
+            critique_type="story",
+            critique_model="opus",
+            error=result.output[:500] if result.output else "Unknown error",
+        )
+        # Treat dispatch failure as a pass — don't block on infra issues
+        return (True, [], result.cost_usd)
+
+    # Parse JSON result
+    output = (result.output or "").strip()
+    if output.startswith("```"):
+        lines = output.split("\n")
+        if lines[-1].strip() == "```":
+            output = "\n".join(lines[1:-1]).strip()
+
+    try:
+        critique = json.loads(output)
+    except json.JSONDecodeError:
+        logger.warning("Story critique returned invalid JSON for '%s'", story_id)
+        event_logger.log_event(
+            "critique_failed",
+            story_id=story_id,
+            attempt=attempt,
+            critique_type="story",
+            critique_model="opus",
+            error=f"Invalid JSON: {output[:200]}",
+        )
+        return (True, [], result.cost_usd)
+
+    status = critique.get("status", "pass")
+    findings = critique.get("findings", [])
+    passed = status == "pass"
+
+    if passed:
+        event_logger.log_event(
+            "critique_pass",
+            story_id=story_id,
+            attempt=attempt,
+            critique_type="story",
+            critique_model="opus",
+            cost_usd=result.cost_usd,
+            turns=result.turns,
+            findings_count=0,
+        )
+    else:
+        event_logger.log_event(
+            "critique_fail",
+            story_id=story_id,
+            attempt=attempt,
+            critique_type="story",
+            critique_model="opus",
+            cost_usd=result.cost_usd,
+            turns=result.turns,
+            findings_count=len(findings),
+            findings=findings,
+        )
+
+    return (passed, findings, result.cost_usd)
+
+
 def _dispatch_and_validate_loop(
     story: dict,
     plan: dict,
@@ -960,19 +1109,87 @@ def _dispatch_and_validate_loop(
         )
 
         if validation_result.passed:
-            # Validation passed -- story is complete
-            event_logger.log_event(
-                "story_complete",
-                story_id=story_id,
-                attempt=attempt,
-                commit=_get_latest_commit_hash(),
+            # Validation passed -- run Opus critique before completing
+            validation_summary = json.dumps(
+                {"check_type": validation_result.check_type, "status": "pass"},
+                indent=2,
             )
-            logger.info(
-                "Story '%s' completed (validation passed, attempt %d)",
+            critique_passed, findings, _critique_cost = _run_story_critique(
+                story=story,
+                validation_results=validation_summary,
+                event_logger=event_logger,
+                attempt=attempt,
+                model=model,
+            )
+
+            if critique_passed:
+                # Critique passed -- story is complete
+                event_logger.log_event(
+                    "story_complete",
+                    story_id=story_id,
+                    attempt=attempt,
+                    commit=_get_latest_commit_hash(),
+                )
+                logger.info(
+                    "Story '%s' completed (validation + critique passed, attempt %d)",
+                    story_id,
+                    attempt,
+                )
+                return True
+
+            # Critique failed -- retry with critique findings
+            logger.warning(
+                "Opus critique failed for story '%s' (attempt %d, %d findings)",
                 story_id,
                 attempt,
+                len(findings),
             )
-            return True
+
+            remaining_attempts = max_attempts - attempt
+            if remaining_attempts == 0:
+                return _handle_terminal_failure(
+                    story_id=story_id,
+                    attempt=attempt,
+                    classification=FailureClassification(
+                        category="implementation",
+                        evidence=f"Opus critique: {len(findings)} findings",
+                        pattern="critique_fail",
+                    ),
+                    error_text=json.dumps(findings[:3]),
+                    event_logger=event_logger,
+                    plan_scope_paths=plan_scope_paths,
+                )
+
+            # Build retry context from critique findings
+            finding_lines = []
+            for f in findings:
+                file_ref = f.get("file", "?")
+                line_ref = f.get("line", "?")
+                issue = f.get("issue", "?")
+                finding_lines.append(f"- {file_ref}:{line_ref} — {issue}")
+
+            retry_context = {
+                "attempt": attempt,
+                "error": f"Opus critique failed with {len(findings)} findings:\n"
+                + "\n".join(finding_lines),
+                "files_modified": plan_scope_paths,
+                "jsonl_excerpt": json.dumps(
+                    {
+                        "event": "critique_fail",
+                        "story_id": story_id,
+                        "attempt": attempt,
+                        "findings_count": len(findings),
+                    }
+                ),
+            }
+
+            event_logger.log_event(
+                "story_started",
+                story_id=story_id,
+                attempt=attempt + 1,
+                index=_find_story_index(plan, story_id),
+            )
+            continue
 
         # Validation failed -- classify and decide whether to retry
         error_text = validation_result.failure_reason or ""
