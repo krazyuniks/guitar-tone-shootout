@@ -114,6 +114,53 @@ def get_redis_client() -> redis.Redis:
     return redis.from_url(settings.redis_url)
 
 
+async def dispatch_pending_jobs() -> None:
+    """Dispatch jobs stuck in PENDING status to the worker.
+
+    Finds non-source-sync PENDING jobs older than 5 minutes and enqueues them
+    via the worker admin API. This recovers jobs created when the worker was
+    temporarily unavailable.
+    """
+    cutoff = datetime.now(UTC) - timedelta(minutes=5)
+
+    stmt = text("""
+        SELECT id FROM jobs
+        WHERE status = :pending_status
+          AND created_at < :cutoff
+          AND job_type != 'source_sync'
+        LIMIT 50
+    """)
+    params = {"pending_status": JobStatus.PENDING.value, "cutoff": cutoff}
+
+    engine = _resolve_engine(None)
+    async with get_session(engine) as session:
+        result = await session.execute(stmt, params)
+        job_ids = [row[0] for row in result.fetchall()]
+
+    if not job_ids:
+        return
+
+    worker_url = os.getenv("WORKER_ADMIN_URL", "http://worker:8001")
+    dispatched = 0
+    async with httpx.AsyncClient() as client:
+        for job_id in job_ids:
+            try:
+                response = await client.post(
+                    f"{worker_url}/api/admin/enqueue",
+                    json={"job_id": str(job_id)},
+                    timeout=10.0,
+                )
+                if response.status_code < 300:
+                    dispatched += 1
+                else:
+                    logger.warning("Failed to enqueue job %s: %d", job_id, response.status_code)
+            except Exception:
+                logger.exception("Error enqueuing job %s", job_id)
+
+    if dispatched > 0:
+        logger.info("Dispatched %d stuck pending jobs", dispatched)
+
+
 async def ensure_source_sync_running(db_engine: AsyncEngine | None = None) -> None:
     """Ensure T3K source sync is running by checking Redis lock and dispatching if needed.
 
@@ -182,5 +229,6 @@ def _resolve_engine(db_engine: AsyncEngine | None) -> AsyncEngine:
 # Schedule labels — discovered by InProcessScheduleSource
 monitor_stale_jobs.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
 process_pending_retries.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
+dispatch_pending_jobs.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
 scheduler_heartbeat.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]
 ensure_source_sync_running.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]

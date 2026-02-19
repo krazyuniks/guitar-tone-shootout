@@ -7,20 +7,24 @@ Scheduler re-triggers after 60s if lock is gone.
 
 import logging
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
 import redis.asyncio as redis
+from sqlalchemy import select
 
 from core.domain.auth_gate import check_auth_status
+from core.domain.value_objects.job_status import JobStatus
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
 from source_t3k.adapters.inbound.token_manager import T3KTokenManager
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
 from source_t3k.domain.value_objects import SyncMode
 from source_t3k.services.model_downloader import ModelDownloader
 from source_t3k.services.sync_service import T3KSyncService
+from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings
-from worker.db import get_t3k_session_no_tx
+from worker.db import get_core_session, get_t3k_session_no_tx
 from worker.main import broker
 
 logger = logging.getLogger(__name__)
@@ -80,21 +84,42 @@ def _get_sync_mode() -> SyncMode:
     return SyncMode.BAU
 
 
+async def _update_job_status(job_id: UUID, status: JobStatus, **fields: object) -> None:
+    """Update job status in gts_core."""
+    async with get_core_session() as session:
+        result = await session.execute(select(Job).where(Job.id == job_id))
+        job = result.scalar_one_or_none()
+        if job is not None:
+            job.status = status
+            for key, value in fields.items():
+                setattr(job, key, value)
+
+
 @broker.task
 async def handle_source_sync(job_id: UUID) -> None:
     """Handle SOURCE_SYNC job: one batch, then exit."""
-    _check_auth_gate()
+    try:
+        _check_auth_gate()
+    except RuntimeError as e:
+        await _update_job_status(
+            job_id, JobStatus.FAILED, error=str(e), completed_at=datetime.now(UTC)
+        )
+        raise
     settings = WorkerSettings()  # type: ignore[call-arg]
     redis_client = redis.from_url(settings.redis_url, decode_responses=True)
     lock_key = f"{SYNC_SOURCE}:sync:lock"
     lock_value = str(job_id)
 
-    # Non-destructive lock: if held, exit cleanly
+    # Non-destructive lock: if held, this job is superseded — mark completed and exit
     acquired = await redis_client.set(lock_key, lock_value, nx=True, ex=SYNC_LOCK_TTL_SECONDS)
     if not acquired:
         logger.info("Sync lock held by another job, exiting")
         await redis_client.aclose()
+        await _update_job_status(job_id, JobStatus.COMPLETED, completed_at=datetime.now(UTC))
         return
+
+    now = datetime.now(UTC)
+    await _update_job_status(job_id, JobStatus.RUNNING, started_at=now, last_heartbeat=now)
 
     token_manager = None
     try:
@@ -110,6 +135,9 @@ async def handle_source_sync(job_id: UUID) -> None:
 
             async def renew_lock() -> None:
                 await redis_client.expire(lock_key, SYNC_LOCK_TTL_SECONDS)
+                await _update_job_status(
+                    job_id, JobStatus.RUNNING, last_heartbeat=datetime.now(UTC)
+                )
 
             mode = _get_sync_mode()
             result = await sync_service.run_sync_batch(publisher, mode=mode, on_progress=renew_lock)
@@ -125,6 +153,13 @@ async def handle_source_sync(job_id: UUID) -> None:
                 result.api_calls_made,
                 result.hit_known_tone,
             )
+
+        await _update_job_status(job_id, JobStatus.COMPLETED, completed_at=datetime.now(UTC))
+    except Exception:
+        logger.exception("Sync batch failed")
+        await _update_job_status(
+            job_id, JobStatus.FAILED, error="Sync batch failed", completed_at=datetime.now(UTC)
+        )
     finally:
         if token_manager is not None:
             await token_manager.close()

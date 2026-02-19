@@ -56,6 +56,14 @@ def create_parser() -> argparse.ArgumentParser:
     # unlock-scheduler subcommand
     subparsers.add_parser("unlock-scheduler", help="Release scheduler lock")
 
+    # enqueue-pending subcommand
+    enqueue_parser = subparsers.add_parser("enqueue-pending", help="Enqueue all pending jobs")
+    enqueue_parser.add_argument(
+        "--type",
+        dest="job_type",
+        help="Filter by job type (e.g., audio_processing, source_sync)",
+    )
+
     return parser
 
 
@@ -241,6 +249,64 @@ async def unlock_sync(source: str, base_url: str | None = None) -> None:
         sys.exit(1)
 
 
+async def enqueue_pending(job_type: str | None = None, base_url: str | None = None) -> None:
+    """Enqueue all pending jobs via the worker admin API.
+
+    Args:
+        job_type: Optional filter by job type (e.g., audio_processing)
+        base_url: Worker API base URL (default from get_base_url())
+    """
+    if base_url is None:
+        base_url = get_base_url()
+
+    url = f"{base_url}/api/admin/jobs?status=pending"
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url)
+            if response.status_code != 200:
+                print(f"Error: HTTP {response.status_code}")
+                print(response.text)
+                sys.exit(1)
+
+            jobs = response.json()
+
+            if job_type:
+                jobs = [j for j in jobs if j.get("job_type") == job_type]
+
+            if not jobs:
+                print("No pending jobs found")
+                return
+
+            print(f"\nEnqueuing {len(jobs)} pending jobs...")
+            dispatched = 0
+            failed = 0
+
+            for job in jobs:
+                job_id = job["id"]
+                job_t = job.get("job_type", "unknown")
+                try:
+                    r = await client.post(
+                        f"{base_url}/api/admin/enqueue",
+                        json={"job_id": job_id},
+                    )
+                    if r.status_code < 300:
+                        dispatched += 1
+                    else:
+                        failed += 1
+                        print(f"  ✗ {job_t} {job_id}: HTTP {r.status_code}")
+                except Exception as e:
+                    failed += 1
+                    print(f"  ✗ {job_t} {job_id}: {e}")
+
+            print(f"\n✓ Dispatched: {dispatched}  ✗ Failed: {failed}")
+
+    except Exception as e:
+        print(f"Error: Could not reach worker at {base_url}")
+        print(f"Worker may not be running or reachable: {e}")
+        sys.exit(1)
+
+
 async def unlock_scheduler(base_url: str | None = None) -> None:
     """Release scheduler lock.
 
@@ -289,6 +355,8 @@ async def main() -> None:
         await unlock_sync(args.source)
     elif args.command == "unlock-scheduler":
         await unlock_scheduler()
+    elif args.command == "enqueue-pending":
+        await enqueue_pending(job_type=getattr(args, "job_type", None))
 
 
 if __name__ == "__main__":
