@@ -4,6 +4,7 @@
 Usage:
     just admin source-status <source>
     just admin source-sync <source>
+    just admin source-diagnose <source>
     just admin jobs [--status STATUS]
     just admin job-health
     just admin unlock-sync <source>
@@ -41,6 +42,12 @@ def create_parser() -> argparse.ArgumentParser:
     # source-sync subcommand
     sync_parser = subparsers.add_parser("source-sync", help="Trigger sync for a source")
     sync_parser.add_argument("source", help="Source name (e.g., t3k)")
+
+    # source-diagnose subcommand
+    diagnose_parser = subparsers.add_parser(
+        "source-diagnose", help="Run automated source sync diagnostics"
+    )
+    diagnose_parser.add_argument("source", help="Source name (e.g., t3k)")
 
     # jobs subcommand
     jobs_parser = subparsers.add_parser("jobs", help="List jobs")
@@ -128,6 +135,92 @@ async def source_sync(source: str, base_url: str | None = None) -> None:
             data = response.json()
             message = data.get("message", "Sync triggered")
             print(f"\n✓ {message}")
+
+    except Exception as e:
+        print(f"Error: Could not reach worker at {base_url}")
+        print(f"Worker may not be running or reachable: {e}")
+        sys.exit(1)
+
+
+async def source_diagnose(source: str, base_url: str | None = None) -> None:
+    """Run automated diagnostics for a source sync pipeline.
+
+    Args:
+        source: Source name (e.g., t3k)
+        base_url: Worker API base URL (default from get_base_url())
+    """
+    if base_url is None:
+        base_url = get_base_url()
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            health_resp = await client.get(f"{base_url}/health")
+            status_resp = await client.get(f"{base_url}/api/admin/sources/{source}/sync/status")
+            lag_resp = await client.get(f"{base_url}/api/admin/sources/{source}/sync/lag")
+            stats_resp = await client.get(f"{base_url}/api/admin/sources/{source}/sync/stats")
+            errors_resp = await client.get(f"{base_url}/api/admin/sources/{source}/errors/summary")
+            jobs_resp = await client.get(f"{base_url}/api/admin/jobs?job_type=source_sync")
+
+            responses = [health_resp, status_resp, lag_resp, stats_resp, errors_resp, jobs_resp]
+            bad = next((r for r in responses if r.status_code != 200), None)
+            if bad is not None:
+                print(f"Error: HTTP {bad.status_code}")
+                print(bad.text)
+                sys.exit(1)
+
+            health = health_resp.json()
+            sync_status = status_resp.json()
+            lag = lag_resp.json()
+            stats = stats_resp.json()
+            errors = errors_resp.json()
+            jobs = jobs_resp.json()
+
+        running_jobs = [j for j in jobs if j.get("status") == "running"]
+        failed_jobs = [j for j in jobs if j.get("status") == "failed"]
+        pending_jobs = [j for j in jobs if j.get("status") == "pending"]
+        completed_jobs = [j for j in jobs if j.get("status") == "completed"]
+        lag_seconds = lag.get("lag_seconds")
+        total_synced = stats.get("total_synced")
+        error_count = sum(errors.get("errors", {}).values())
+
+        print(f"\nSource Diagnostics: {source}")
+        print("─" * 72)
+        print(
+            f"Worker: status={health.get('status')} redis={health.get('redis')} "
+            f"db={health.get('database')}"
+        )
+        print(
+            f"Sync: state={sync_status.get('status')} "
+            f"lag_seconds={lag_seconds if lag_seconds is not None else 'unknown'} "
+            f"total_synced={total_synced}"
+        )
+        print(
+            f"Jobs(source_sync): total={len(jobs)} running={len(running_jobs)} "
+            f"failed={len(failed_jobs)} pending={len(pending_jobs)} completed={len(completed_jobs)}"
+        )
+        print(f"Errors(24h): total={error_count}")
+        if errors.get("errors"):
+            top_err = max(errors["errors"].items(), key=lambda kv: kv[1])
+            print(f"Top error: {top_err[1]}x {top_err[0][:120]}")
+        print("─" * 72)
+
+        print("Diagnosis")
+        if health.get("status") in {"unhealthy", "degraded"}:
+            print("- Infrastructure issue: worker health degraded/unhealthy.")
+        if len(failed_jobs) > 0:
+            print("- SOURCE_SYNC failures present: inspect latest failed job details/logs.")
+        if sync_status.get("status") == "idle" and len(running_jobs) == 0:
+            print("- No active sync run: scheduler may not be dispatching or sync is disabled.")
+        if lag_seconds is not None and lag_seconds > 4 * 3600:
+            print("- High sync lag detected (>4h): ingestion path is behind.")
+        if len(pending_jobs) > 0 and len(running_jobs) == 0:
+            print("- Pending SOURCE_SYNC jobs without runners: dispatch/worker throughput issue.")
+        if (
+            health.get("status") == "healthy"
+            and len(failed_jobs) == 0
+            and (lag_seconds is None or lag_seconds <= 3600)
+        ):
+            print("- No obvious control-plane fault from admin API signals.")
 
     except Exception as e:
         print(f"Error: Could not reach worker at {base_url}")
@@ -347,6 +440,8 @@ async def main() -> None:
         await source_status(args.source)
     elif args.command == "source-sync":
         await source_sync(args.source)
+    elif args.command == "source-diagnose":
+        await source_diagnose(args.source)
     elif args.command == "jobs":
         await list_jobs(status=args.status)
     elif args.command == "job-health":
