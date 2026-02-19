@@ -382,33 +382,48 @@ CREATE TABLE msg_consumer_offsets (
 
 ## 5. Table Rename Map
 
-All tables get strict BC prefix. Preliminary mapping (to be finalised during
-implementation — requires full audit of both databases):
+All tables get strict BC prefix. Complete mapping from full database audit
+(2026-02-19):
 
-| Current name | New name | BC |
-|-------------|----------|-----|
-| `jobs` | `core_jobs` | Core |
-| `gear` | `core_gear` | Core |
-| `gear_models` | `core_gear_models` | Core |
-| `gear_sources` | `core_gear_sources` | Core |
-| `shootouts` | `core_shootouts` | Core |
-| `shootout_chains` | `core_shootout_chains` | Core |
-| `audio_segments` | `core_audio_segments` | Core |
-| `signal_chains` | `core_signal_chains` | Core |
-| `signal_chain_blocks` | `core_signal_chain_blocks` | Core |
-| `di_tracks` | `core_di_tracks` | Core |
-| `presets` | `core_presets` | Core |
-| `tags` | `core_tags` | Core |
-| `users` | `core_users` | Core |
-| `user_gear` | `core_user_gear` | Core |
-| `t3k_tone_staging` | `t3k_tone_staging` | Source: T3K |
-| `t3k_model_staging` | `t3k_model_staging` | Source: T3K |
-| `sync_checkpoints` | `t3k_sync_checkpoints` | Source: T3K |
-| `t3k_oauth_tokens` | `t3k_oauth_tokens` | Source: T3K |
+**Core BC (26 tables — all in `gts_core`):**
 
-> Note: T3K tables already mostly have `t3k_` prefix. Core tables need renaming.
-> Full audit of both databases required before implementation to ensure
-> completeness.
+| Current name | New name | Category |
+|-------------|----------|----------|
+| `users` | `core_users` | Auth |
+| `oauth_providers` | `core_oauth_providers` | Auth |
+| `user_identities` | `core_user_identities` | Auth |
+| `audit_logs` | `core_audit_logs` | Auth |
+| `user_notifications` | `core_user_notifications` | Auth |
+| `gear` | `core_gear` | Gear |
+| `gear_makes` | `core_gear_makes` | Gear |
+| `gear_models` | `core_gear_models` | Gear |
+| `gear_sources` | `core_gear_sources` | Gear |
+| `tags` | `core_tags` | Gear |
+| `gear_tags` | `core_gear_tags` | Gear (association) |
+| `user_gear` | `core_user_gear` | Gear |
+| `signal_chains` | `core_signal_chains` | Signal Chains |
+| `signal_chain_blocks` | `core_signal_chain_blocks` | Signal Chains |
+| `signal_chain_groups` | `core_signal_chain_groups` | Signal Chains |
+| `block_types` | `core_block_types` | Signal Chains |
+| `presets` | `core_presets` | Signal Chains |
+| `di_tracks` | `core_di_tracks` | Shootouts |
+| `shootouts` | `core_shootouts` | Shootouts |
+| `shootout_chains` | `core_shootout_chains` | Shootouts |
+| `audio_segments` | `core_audio_segments` | Shootouts |
+| `shootout_comments` | `core_shootout_comments` | Shootouts |
+| `user_tags` | `core_user_tags` | Shootouts |
+| `jobs` | `core_jobs` | System |
+
+**Source: T3K BC (4 tables — currently in `gts_t3k_source`, merging to main):**
+
+| Current name | New name | Notes |
+|-------------|----------|-------|
+| `t3k_tones_staging` | `t3k_tones_staging` | Already prefixed |
+| `t3k_models_staging` | `t3k_models_staging` | Already prefixed |
+| `t3k_users_staging` | `t3k_users_staging` | Already prefixed |
+| `sync_checkpoints` | `t3k_sync_checkpoints` | Needs prefix |
+
+> `t3k_oauth_tokens` was dropped in migration 0003 — does not exist.
 
 ---
 
@@ -506,7 +521,7 @@ implementation — requires full audit of both databases):
 | 1 | pgmq offset-based event consumption detail | Defer to Phase 2 prototyping |
 | 2 | DLQ strategy | One shared DLQ with routing metadata |
 | 3 | Schema migration strategy | Single Alembic migration |
-| 4 | Table rename completeness | Full audit required before Phase 1 |
+| 4 | Table rename completeness | **COMPLETE.** Full audit done 2026-02-19. 26 core + 4 T3K = 30 tables. |
 | 5 | Message schema validation | Pydantic models per BC library |
 | 6 | core_jobs role | User-facing status aggregate. BCs update it via events. No abstraction leakage. |
 | 7 | TaskIQ's role | **Eliminated.** pgmq consumer loops replace TaskIQ entirely. Redis removed. |
@@ -520,6 +535,6 @@ implementation — requires full audit of both databases):
 
 ## 9. Remaining Work
 
-- [ ] Full database audit (both databases) to complete table rename map
-- [ ] Write canonical wiki page
-- [ ] Create implementation plan (invoke writing-plans skill)
+- [x] Full database audit (both databases) to complete table rename map
+- [x] Write canonical wiki page (`wiki/Jobs-Architecture-and-Operations.md`)
+- [x] Create implementation plan (`docs/plans/2026-02-19-jobs-event-driven-architecture-plan.md`)
