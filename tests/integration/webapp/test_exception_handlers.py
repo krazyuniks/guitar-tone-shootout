@@ -10,20 +10,13 @@ Tests exception handlers mounted in main.py:
 - Production vs development mode sanitisation
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.exceptions import (
     AppException,
     AuthorizationError,
@@ -32,38 +25,6 @@ from webapp.exceptions import (
     NotFoundError,
     ValidationError,
 )
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite session for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Real database with transaction rollback."""
-    connection = await db_engine.connect()
-    transaction = await connection.begin()
-
-    async_session_factory = async_sessionmaker(
-        bind=connection,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    session = async_session_factory()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await transaction.rollback()
-        await connection.close()
 
 
 @pytest.fixture

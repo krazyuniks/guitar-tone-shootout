@@ -189,6 +189,33 @@ ANTIPATTERNS = [
         "error",
         "BANNED: mock .side_effect — use real services",
     ),
+    # =========================================================================
+    # SQLite violations — ERRORS (block the lock)
+    # =========================================================================
+    (
+        r"sqlite",
+        "sqlite_usage",
+        "error",
+        "BANNED: SQLite — use real PostgreSQL",
+    ),
+    (
+        r"aiosqlite",
+        "sqlite_usage",
+        "error",
+        "BANNED: aiosqlite — use real PostgreSQL",
+    ),
+    (
+        r"PRAGMA",
+        "sqlite_usage",
+        "error",
+        "BANNED: SQLite PRAGMA — use real PostgreSQL",
+    ),
+    (
+        r"xfail.*[Pp]re.existing",
+        "xfail_preexisting",
+        "error",
+        "BANNED: xfail with 'pre-existing' reason — fix the test",
+    ),
 ]
 
 

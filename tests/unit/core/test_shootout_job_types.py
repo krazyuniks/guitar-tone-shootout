@@ -4,22 +4,19 @@ This test verifies that the SHOOTOUT and SHOOTOUT_AUDIO job types
 exist in the JobType enum and work correctly with the Job entity.
 """
 
-import uuid
-from collections.abc import AsyncGenerator
+from __future__ import annotations
 
-import pytest
+import uuid
+from typing import TYPE_CHECKING
+
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.entities.job import Job as DomainJob
 from core.domain.value_objects.job_status import JobStatus, JobType
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.job import Job as ORMJob
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestShootoutJobTypes:
@@ -178,31 +175,10 @@ class TestDomainJobWithShootoutTypes:
         assert job2.status == JobStatus.CANCELLED
 
 
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine with in-memory SQLite."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-
-
 class TestORMJobWithShootoutTypes:
     """Tests for ORM Job model with shootout job types (EnumByValue pattern)."""
 
-    async def test_orm_job_stores_shootout_type(self, db_session: AsyncSession) -> None:
+    async def test_orm_job_stores_shootout_type(self, session: AsyncSession) -> None:
         """Test that ORM Job model stores JobType.SHOOTOUT correctly."""
         entity_id = uuid.uuid4()
 
@@ -211,43 +187,43 @@ class TestORMJobWithShootoutTypes:
             entity_id=entity_id,
             status=JobStatus.PENDING,
         )
-        db_session.add(job)
-        await db_session.commit()
+        session.add(job)
+        await session.commit()
 
         # Refresh to get from database
-        await db_session.refresh(job)
+        await session.refresh(job)
 
         # Verify enum is stored and loaded correctly via EnumByValue
         assert job.job_type == JobType.SHOOTOUT
         assert isinstance(job.job_type, JobType)
         assert job.entity_id == entity_id
 
-    async def test_orm_job_stores_shootout_audio_type(self, db_session: AsyncSession) -> None:
+    async def test_orm_job_stores_shootout_audio_type(self, session: AsyncSession) -> None:
         """Test that ORM Job model stores JobType.SHOOTOUT_AUDIO correctly."""
         parent = ORMJob(
             job_type=JobType.SHOOTOUT,
             status=JobStatus.RUNNING,
         )
-        db_session.add(parent)
-        await db_session.commit()
+        session.add(parent)
+        await session.commit()
 
         child = ORMJob(
             parent_job_id=parent.id,
             job_type=JobType.SHOOTOUT_AUDIO,
             status=JobStatus.PENDING,
         )
-        db_session.add(child)
-        await db_session.commit()
+        session.add(child)
+        await session.commit()
 
         # Refresh to get from database
-        await db_session.refresh(child)
+        await session.refresh(child)
 
         # Verify enum is stored and loaded correctly via EnumByValue
         assert child.job_type == JobType.SHOOTOUT_AUDIO
         assert isinstance(child.job_type, JobType)
         assert child.parent_job_id == parent.id
 
-    async def test_orm_job_query_by_shootout_type(self, db_session: AsyncSession) -> None:
+    async def test_orm_job_query_by_shootout_type(self, session: AsyncSession) -> None:
         """Test that we can query ORM Job by shootout job types."""
         # Create jobs of different types
         shootout_job = ORMJob(
@@ -262,26 +238,32 @@ class TestORMJobWithShootoutTypes:
             job_type=JobType.VIDEO_COMPOSE,
             status=JobStatus.PENDING,
         )
-        db_session.add_all([shootout_job, audio_job, other_job])
-        await db_session.commit()
+        session.add_all([shootout_job, audio_job, other_job])
+        await session.commit()
 
-        # Query for SHOOTOUT jobs
-        stmt = select(ORMJob).where(ORMJob.job_type == JobType.SHOOTOUT)
-        result = await db_session.execute(stmt)
+        # Query for SHOOTOUT jobs - scope to our specific job IDs
+        stmt = select(ORMJob).where(
+            ORMJob.job_type == JobType.SHOOTOUT,
+            ORMJob.id.in_([shootout_job.id, audio_job.id, other_job.id]),
+        )
+        result = await session.execute(stmt)
         shootout_jobs = result.scalars().all()
 
         assert len(shootout_jobs) == 1
         assert shootout_jobs[0].job_type == JobType.SHOOTOUT
 
-        # Query for SHOOTOUT_AUDIO jobs
-        stmt = select(ORMJob).where(ORMJob.job_type == JobType.SHOOTOUT_AUDIO)
-        result = await db_session.execute(stmt)
+        # Query for SHOOTOUT_AUDIO jobs - scope to our specific job IDs
+        stmt = select(ORMJob).where(
+            ORMJob.job_type == JobType.SHOOTOUT_AUDIO,
+            ORMJob.id.in_([shootout_job.id, audio_job.id, other_job.id]),
+        )
+        result = await session.execute(stmt)
         audio_jobs = result.scalars().all()
 
         assert len(audio_jobs) == 1
         assert audio_jobs[0].job_type == JobType.SHOOTOUT_AUDIO
 
-    async def test_orm_job_parent_child_with_shootout_types(self, db_session: AsyncSession) -> None:
+    async def test_orm_job_parent_child_with_shootout_types(self, session: AsyncSession) -> None:
         """Test parent/child relationship with shootout job types."""
         # Parent SHOOTOUT job
         parent = ORMJob(
@@ -289,8 +271,8 @@ class TestORMJobWithShootoutTypes:
             status=JobStatus.RUNNING,
             entity_id=uuid.uuid4(),
         )
-        db_session.add(parent)
-        await db_session.commit()
+        session.add(parent)
+        await session.commit()
 
         # Child SHOOTOUT_AUDIO jobs
         child1 = ORMJob(
@@ -303,8 +285,8 @@ class TestORMJobWithShootoutTypes:
             job_type=JobType.SHOOTOUT_AUDIO,
             status=JobStatus.PENDING,
         )
-        db_session.add_all([child1, child2])
-        await db_session.commit()
+        session.add_all([child1, child2])
+        await session.commit()
 
         # Verify relationships
         assert child1.parent_job_id == parent.id

@@ -1,44 +1,30 @@
 """Unit tests for SignalChainService."""
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.domain.entities.signal_chain import SignalChain as SignalChainEntity
 from core.domain.entities.signal_chain import SignalChainBlock as BlockEntity
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
 from webapp.services.signal_chain_service import (
     SignalChainService,
     ValidationException,
 )
 
-
-@pytest.fixture
-async def db_engine():
-    """Create test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
 async def test_user(session: AsyncSession) -> User:
     """Create test user."""
-    user = User(username="testuser", email="test@example.com")
+    _sfx = uuid4().hex[:8]
+    user = User(username=f"testuser_{_sfx}", email=f"test_{_sfx}@example.com")
     session.add(user)
     await session.commit()
     return user

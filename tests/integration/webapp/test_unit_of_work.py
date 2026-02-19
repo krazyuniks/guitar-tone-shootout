@@ -7,38 +7,23 @@ from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.unit_of_work import UnitOfWork
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 @pytest.fixture
-async def session_factory() -> AsyncGenerator[async_sessionmaker[AsyncSession], None]:
-    """Create a test session factory with in-memory SQLite database."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    session_factory = async_sessionmaker(
-        engine,
+def session_factory(core_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+    """Create a test session factory using the shared PostgreSQL engine."""
+    return async_sessionmaker(
+        core_engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )
-
-    yield session_factory
-
-    # Cleanup
-    await engine.dispose()
 
 
 @pytest.mark.asyncio
@@ -54,14 +39,15 @@ async def test_uow_context_manager(
 @pytest.mark.asyncio
 async def test_uow_commit(session_factory: async_sessionmaker[AsyncSession]) -> None:
     """Test UnitOfWork commit persists changes."""
+    suffix = uuid.uuid4().hex[:8]
     user_id = uuid.uuid4()
 
     # Create user within UnitOfWork
     async with UnitOfWork(session_factory) as uow:
         user = User(
             id=user_id,
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{suffix}",
+            email=f"test_{suffix}@example.com",
         )
         uow.session.add(user)
         await uow.commit()
@@ -73,8 +59,8 @@ async def test_uow_commit(session_factory: async_sessionmaker[AsyncSession]) -> 
         fetched_user = result.scalar_one_or_none()
 
         assert fetched_user is not None
-        assert fetched_user.username == "testuser"
-        assert fetched_user.email == "test@example.com"
+        assert fetched_user.username == f"testuser_{suffix}"
+        assert fetched_user.email == f"test_{suffix}@example.com"
 
 
 @pytest.mark.asyncio
@@ -83,14 +69,15 @@ async def test_uow_rollback_on_exception(
 ) -> None:
     """Test UnitOfWork rolls back on exception."""
     user_id = uuid.uuid4()
+    suffix = uuid.uuid4().hex[:8]
 
     # Create user then raise exception
     try:
         async with UnitOfWork(session_factory) as uow:
             user = User(
                 id=user_id,
-                username="testuser",
-                email="test@example.com",
+                username=f"testuser_{suffix}",
+                email=f"test_{suffix}@example.com",
             )
             uow.session.add(user)
             raise ValueError("Test exception")
@@ -112,12 +99,13 @@ async def test_uow_explicit_rollback(
 ) -> None:
     """Test explicit rollback() discards changes."""
     user_id = uuid.uuid4()
+    suffix = uuid.uuid4().hex[:8]
 
     async with UnitOfWork(session_factory) as uow:
         user = User(
             id=user_id,
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{suffix}",
+            email=f"test_{suffix}@example.com",
         )
         uow.session.add(user)
         await uow.rollback()
@@ -137,13 +125,14 @@ async def test_uow_default_rollback_without_commit(
 ) -> None:
     """Test UnitOfWork rolls back if commit() not called."""
     user_id = uuid.uuid4()
+    suffix = uuid.uuid4().hex[:8]
 
     # Create user but don't commit
     async with UnitOfWork(session_factory) as uow:
         user = User(
             id=user_id,
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{suffix}",
+            email=f"test_{suffix}@example.com",
         )
         uow.session.add(user)
         # No commit() - should rollback on exit
@@ -158,10 +147,10 @@ async def test_uow_default_rollback_without_commit(
 
 
 @pytest.mark.asyncio
-async def test_uow_session_property_outside_context() -> None:
+async def test_uow_session_property_outside_context(core_engine: AsyncEngine) -> None:
     """Test accessing session outside context manager raises error."""
     session_factory = async_sessionmaker(
-        create_async_engine("sqlite+aiosqlite:///:memory:"),
+        core_engine,
         class_=AsyncSession,
     )
     uow = UnitOfWork(session_factory)
@@ -171,10 +160,10 @@ async def test_uow_session_property_outside_context() -> None:
 
 
 @pytest.mark.asyncio
-async def test_uow_commit_outside_context() -> None:
+async def test_uow_commit_outside_context(core_engine: AsyncEngine) -> None:
     """Test commit() outside context manager raises error."""
     session_factory = async_sessionmaker(
-        create_async_engine("sqlite+aiosqlite:///:memory:"),
+        core_engine,
         class_=AsyncSession,
     )
     uow = UnitOfWork(session_factory)
@@ -184,10 +173,10 @@ async def test_uow_commit_outside_context() -> None:
 
 
 @pytest.mark.asyncio
-async def test_uow_rollback_outside_context() -> None:
+async def test_uow_rollback_outside_context(core_engine: AsyncEngine) -> None:
     """Test rollback() outside context manager raises error."""
     session_factory = async_sessionmaker(
-        create_async_engine("sqlite+aiosqlite:///:memory:"),
+        core_engine,
         class_=AsyncSession,
     )
     uow = UnitOfWork(session_factory)
@@ -203,21 +192,22 @@ async def test_uow_multiple_operations(
     """Test multiple operations within single UnitOfWork."""
     user1_id = uuid.uuid4()
     user2_id = uuid.uuid4()
+    suffix = uuid.uuid4().hex[:8]
 
     async with UnitOfWork(session_factory) as uow:
         # Create first user
         user1 = User(
             id=user1_id,
-            username="user1",
-            email="user1@example.com",
+            username=f"user1_{suffix}",
+            email=f"user1_{suffix}@example.com",
         )
         uow.session.add(user1)
 
         # Create second user
         user2 = User(
             id=user2_id,
-            username="user2",
-            email="user2@example.com",
+            username=f"user2_{suffix}",
+            email=f"user2_{suffix}@example.com",
         )
         uow.session.add(user2)
 
@@ -231,7 +221,7 @@ async def test_uow_multiple_operations(
 
         assert len(users) == 2
         usernames = {u.username for u in users}
-        assert usernames == {"user1", "user2"}
+        assert usernames == {f"user1_{suffix}", f"user2_{suffix}"}
 
 
 @pytest.mark.asyncio
@@ -240,6 +230,7 @@ async def test_uow_transaction_scoping(
 ) -> None:
     """Test transaction scope is properly managed."""
     user_id = uuid.uuid4()
+    suffix = uuid.uuid4().hex[:8]
 
     async with UnitOfWork(session_factory) as uow:
         # Transaction should be active
@@ -247,8 +238,8 @@ async def test_uow_transaction_scoping(
 
         user = User(
             id=user_id,
-            username="testuser",
-            email="test@example.com",
+            username=f"testuser_{suffix}",
+            email=f"test_{suffix}@example.com",
         )
         uow.session.add(user)
         await uow.commit()

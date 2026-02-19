@@ -30,7 +30,7 @@ class TestAdminDbDependency:
         # Check that it's an async generator function
         assert inspect.isasyncgenfunction(get_db_session)
 
-    async def test_get_db_session_yields_async_session(self, db_engine: AsyncEngine) -> None:
+    async def test_get_db_session_yields_async_session(self, core_engine: AsyncEngine) -> None:
         """get_db_session yields an AsyncSession."""
         from worker.admin import get_db_session
 
@@ -40,7 +40,7 @@ class TestAdminDbDependency:
             assert isinstance(session, AsyncSession)
             break
 
-    async def test_get_db_session_uses_core_database(self, db_engine: AsyncEngine) -> None:
+    async def test_get_db_session_uses_core_database(self, core_engine: AsyncEngine) -> None:
         """get_db_session uses gts_core database via get_core_session."""
         from worker.admin import get_db_session
 
@@ -54,7 +54,7 @@ class TestAdminDbDependency:
             assert result.scalar() == 1
             break
 
-    async def test_admin_endpoints_use_core_session(self, db_engine: AsyncEngine) -> None:
+    async def test_admin_endpoints_use_core_session(self, core_engine: AsyncEngine) -> None:
         """Admin API endpoints receive sessions from get_core_session."""
         from httpx import ASGITransport, AsyncClient
 
@@ -69,7 +69,7 @@ class TestAdminDbDependency:
             assert response.status_code == 200
             assert response.json() == []
 
-    async def test_get_db_session_does_not_use_t3k_database(self, db_engine: AsyncEngine) -> None:
+    async def test_get_db_session_does_not_use_t3k_database(self, core_engine: AsyncEngine) -> None:
         """get_db_session does NOT use gts_t3k_source database."""
         from sqlalchemy.ext.asyncio import create_async_engine
 

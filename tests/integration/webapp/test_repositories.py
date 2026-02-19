@@ -9,9 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.domain.entities.di_track import DITrack as DITrackEntity
 from core.domain.entities.job import Job as JobEntity
@@ -24,7 +22,6 @@ from core.domain.entities.user import UserIdentity
 from core.domain.value_objects.audio_checksum import AudioChecksum
 from core.domain.value_objects.job_status import JobStatus, JobType
 from core.domain.value_objects.signal_chain_enums import Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.audit_repository import (
     SQLAlchemyAuditRepository,
 )
@@ -47,42 +44,22 @@ from webapp.adapters.persistence.repositories.user_repository import (
 
 
 @pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    # Use in-memory SQLite for fast tests
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
-
-    # Clean up
-    await engine.dispose()
-
-
-@pytest.fixture
 async def user(
     db_session: AsyncSession,
 ) -> UserEntity:
     """Create a test user."""
+    from uuid import uuid4
+
+    suffix = uuid4().hex[:8]
     identity = UserIdentity(
         provider="t3k",
-        external_id="ext123",
-        username="testuser",
+        external_id=f"ext123_{suffix}",
+        username=f"testuser_{suffix}",
         avatar_url="https://example.com/avatar.jpg",
     )
     user = UserEntity.create_with_identity(
         identity=identity,
-        email="test@example.com",
+        email=f"test_{suffix}@example.com",
     )
 
     user_repo = SQLAlchemyUserRepository(db_session)

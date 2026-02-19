@@ -11,19 +11,13 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
     from pathlib import Path
 
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
@@ -31,24 +25,11 @@ from webapp.services.ir_upload_service import IRUploadService
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-
-
-@pytest.fixture
 async def test_user(session: AsyncSession) -> User:
-    user = User(id=uuid4(), username="testuser", email="test@example.com", is_active=True)
+    _sfx = uuid4().hex[:8]
+    user = User(
+        id=uuid4(), username=f"testuser_{_sfx}", email=f"test_{_sfx}@example.com", is_active=True
+    )
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -67,7 +48,7 @@ class TestIRUploadServiceCreatesGear:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="my_cab.wav",
@@ -75,7 +56,7 @@ class TestIRUploadServiceCreatesGear:
         )
 
         # Verify Gear was created with correct type
-        stmt = select(Gear).where(Gear.gear_type == GearType.IR)
+        stmt = select(Gear).where(Gear.id == result.id)
         db_result = await session.execute(stmt)
         gear = db_result.scalar_one()
         assert gear.name == "My IR"
@@ -89,7 +70,7 @@ class TestIRUploadServiceCreatesGear:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
@@ -97,10 +78,10 @@ class TestIRUploadServiceCreatesGear:
         )
 
         # The Gear should be traceable to "community" source
-        stmt = select(Gear).where(Gear.name == "Community IR")
+        stmt = select(Gear).where(Gear.id == result.id)
         db_result = await session.execute(stmt)
         gear = db_result.scalar_one()
-        # source="community" — exact implementation TBD (could be manufacturer field,
+        # source="community" -- exact implementation TBD (could be manufacturer field,
         # a GearSource record, or similar), but the service must associate it
         assert gear is not None
 
@@ -112,7 +93,7 @@ class TestIRUploadServiceCreatesGear:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
@@ -120,7 +101,7 @@ class TestIRUploadServiceCreatesGear:
             description="A great cab sim",
         )
 
-        stmt = select(Gear).where(Gear.name == "Described IR")
+        stmt = select(Gear).where(Gear.id == result.id)
         db_result = await session.execute(stmt)
         gear = db_result.scalar_one()
         assert gear.description == "A great cab sim"
@@ -138,7 +119,7 @@ class TestIRUploadServiceCreatesGearModel:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
@@ -146,14 +127,10 @@ class TestIRUploadServiceCreatesGearModel:
         )
 
         # There should be a GearModel linked to the created Gear
-        stmt = select(Gear).where(Gear.name == "Linked IR")
-        gear_result = await session.execute(stmt)
-        gear = gear_result.scalar_one()
-
-        model_stmt = select(GearModel).where(GearModel.gear_id == gear.id)
+        model_stmt = select(GearModel).where(GearModel.gear_id == result.id)
         model_result = await session.execute(model_stmt)
         gear_model = model_result.scalar_one()
-        assert gear_model.gear_id == gear.id
+        assert gear_model.gear_id == result.id
 
     async def test_gear_model_has_ir_platform(
         self, session: AsyncSession, test_user: User, tmp_path: Path
@@ -163,18 +140,14 @@ class TestIRUploadServiceCreatesGearModel:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
             name="Platform IR",
         )
 
-        stmt = select(Gear).where(Gear.name == "Platform IR")
-        gear_result = await session.execute(stmt)
-        gear = gear_result.scalar_one()
-
-        model_stmt = select(GearModel).where(GearModel.gear_id == gear.id)
+        model_stmt = select(GearModel).where(GearModel.gear_id == result.id)
         model_result = await session.execute(model_stmt)
         gear_model = model_result.scalar_one()
         assert gear_model.platform == Platform.IR
@@ -187,18 +160,14 @@ class TestIRUploadServiceCreatesGearModel:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
             name="FilePath IR",
         )
 
-        stmt = select(Gear).where(Gear.name == "FilePath IR")
-        gear_result = await session.execute(stmt)
-        gear = gear_result.scalar_one()
-
-        model_stmt = select(GearModel).where(GearModel.gear_id == gear.id)
+        model_stmt = select(GearModel).where(GearModel.gear_id == result.id)
         model_result = await session.execute(model_stmt)
         gear_model = model_result.scalar_one()
         assert gear_model.file_path is not None
@@ -212,18 +181,14 @@ class TestIRUploadServiceCreatesGearModel:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
             name="Hash IR",
         )
 
-        stmt = select(Gear).where(Gear.name == "Hash IR")
-        gear_result = await session.execute(stmt)
-        gear = gear_result.scalar_one()
-
-        model_stmt = select(GearModel).where(GearModel.gear_id == gear.id)
+        model_stmt = select(GearModel).where(GearModel.gear_id == result.id)
         model_result = await session.execute(model_stmt)
         gear_model = model_result.scalar_one()
         assert gear_model.file_hash is not None
@@ -285,14 +250,14 @@ class TestIRUploadServiceValidation:
         ir_file.write_bytes(b"RIFF" + b"\x00" * 100)
 
         service = IRUploadService(session)
-        _ = await service.upload(
+        result = await service.upload(
             user_id=test_user.id,
             file_path=str(ir_file),
             original_filename="cab.wav",
             name="WAV IR",
         )
 
-        stmt = select(Gear).where(Gear.name == "WAV IR")
+        stmt = select(Gear).where(Gear.id == result.id)
         db_result = await session.execute(stmt)
         assert db_result.scalar_one() is not None
 

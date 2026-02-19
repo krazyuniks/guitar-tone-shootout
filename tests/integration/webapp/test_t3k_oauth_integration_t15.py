@@ -9,23 +9,19 @@ Tests end-to-end T3K authentication flow:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+
+from typing import Any
 
 import httpx
 import pytest
 from httpx import HTTPStatusError, Request, Response
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 
 class FakeHttpxResponse:
@@ -43,42 +39,13 @@ class FakeHttpxResponse:
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite session for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Real database with transaction rollback."""
-    connection = await db_engine.connect()
-    transaction = await connection.begin()
-
-    async_session_factory = async_sessionmaker(
-        bind=connection,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    session = async_session_factory()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await transaction.rollback()
-        await connection.close()
-
-
-@pytest.fixture
 async def t3k_provider(db_session: AsyncSession) -> OAuthProvider:
     """Create a T3K OAuth provider with real credentials format."""
+    from uuid import uuid4
+
+    suffix = uuid4().hex[:8]
     provider = OAuthProvider(
-        name="t3k",
+        name=f"t3k_{suffix}",
         client_id="gts_client_id_123",
         client_secret="gts_client_secret_456",
         enabled=True,

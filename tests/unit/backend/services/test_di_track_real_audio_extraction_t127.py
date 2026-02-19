@@ -4,41 +4,22 @@ Verifies that DITrackService extracts channels, waveform data, duration,
 and sample_rate from actual WAV files (not minimal-header stubs).
 """
 
-from collections.abc import AsyncGenerator
-from pathlib import Path
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import numpy as np
 import pytest
 import soundfile as sf
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
 from webapp.services.di_track_service import DITrackService
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite database for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -46,8 +27,8 @@ async def test_user(session: AsyncSession) -> User:
     """Create a test user."""
     user = User(
         id=uuid4(),
-        username="realaudiotestuser",
-        email="realaudio@example.com",
+        username=f"realaudiotestuser_{uuid4().hex[:8]}",
+        email=f"realaudio_{uuid4().hex[:8]}@example.com",
     )
     session.add(user)
     await session.commit()

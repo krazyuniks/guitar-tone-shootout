@@ -4,19 +4,14 @@ Tests verify that the API endpoints required by the SignalChainBuilder
 component work correctly.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
@@ -28,32 +23,20 @@ from webapp.adapters.persistence.models.user_gear import UserGear
 from webapp.auth.dependencies import set_session_override, set_user_override
 from webapp.main import app
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create a test user."""
+    suffix = uuid4().hex[:8]
     user = User(
         id=uuid4(),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     db_session.add(user)
     await db_session.commit()
@@ -64,25 +47,26 @@ async def test_user(db_session: AsyncSession) -> User:
 @pytest.fixture
 async def test_gear(db_session: AsyncSession) -> list[Gear]:
     """Create test gear items of various types."""
+    suffix = uuid4().hex[:8]
     gear_items = [
         Gear(
             id=uuid4(),
-            name="Test Amp",
-            slug="test-amp",
+            name=f"Test Amp {suffix}",
+            slug=f"test-amp-{suffix}",
             gear_type="amp",
             platform="nam",
         ),
         Gear(
             id=uuid4(),
-            name="Test Pedal",
-            slug="test-pedal",
+            name=f"Test Pedal {suffix}",
+            slug=f"test-pedal-{suffix}",
             gear_type="pedal",
             platform="nam",
         ),
         Gear(
             id=uuid4(),
-            name="Test IR",
-            slug="test-ir",
+            name=f"Test IR {suffix}",
+            slug=f"test-ir-{suffix}",
             gear_type="ir",
             platform="ir",
         ),
@@ -199,7 +183,7 @@ class TestSignalChainAPIForBuilder:
     ) -> None:
         """Builder should be able to create a chain with multiple blocks."""
         # Note: user_gear[0]=amp, user_gear[1]=pedal, user_gear[2]=ir
-        # Chain must be: pedal → amp → ir (validation requires IR after amp)
+        # Chain must be: pedal -> amp -> ir (validation requires IR after amp)
         chain_data = {
             "name": "Test Chain",
             "platform": "nam",

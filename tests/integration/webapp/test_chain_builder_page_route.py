@@ -4,19 +4,14 @@ Tests verify that the FastAPI route for /library/chains/build
 serves the correct template with proper context.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
 from webapp.auth.dependencies import (
     set_session_override,
@@ -24,32 +19,20 @@ from webapp.auth.dependencies import (
 )
 from webapp.main import app
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create a test user."""
+    suffix = uuid4().hex[:8]
     user = User(
         id=uuid4(),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     db_session.add(user)
     await db_session.commit()
@@ -153,7 +136,6 @@ class TestChainBuilderPageRoute:
         html = response.text
 
         # Should have a mount point (div with id/testid)
-        # Exact structure depends on template implementation
         assert "<div" in html, "No div elements for React mount point"
 
     async def test_builder_includes_react_scripts(
@@ -170,8 +152,6 @@ class TestChainBuilderPageRoute:
         assert "<script" in html
 
         # Should reference React bundle or initialization script
-        # (Astro bundles are in /_astro/*.js)
-        # Or inline script that mounts the component
         has_script = (
             ("/_astro/" in html and ".js" in html)
             or ("SignalChainBuilder" in html)
@@ -207,7 +187,6 @@ class TestBuilderWithChainId:
         response = await authenticated_client.get(f"/library/chains/build?chain_id={test_chain_id}")
 
         # Should return 200 (even if chain doesn't exist, page still renders)
-        # Component handles "chain not found" on client side
         assert response.status_code == 200
 
     async def test_builder_passes_chain_id_to_template(
@@ -222,8 +201,7 @@ class TestBuilderWithChainId:
         assert response.status_code == 200
         html = response.text
 
-        # chain_id should appear in the HTML (either as data attribute or in script)
-        # This allows React component to fetch the chain
+        # chain_id should appear in the HTML
         assert str(test_chain_id) in html, "chain_id not passed to React component"
 
 
@@ -258,7 +236,6 @@ class TestBuilderPageIntegration:
 
         # Should have title tag with builder-related content
         assert "<title>" in html
-        # Title should mention "build" or "create" or "builder"
         title_section = html[html.find("<title>") : html.find("</title>") + 8]
         title_lower = title_section.lower()
         assert (

@@ -1,40 +1,28 @@
 """Integration tests for SignalChain API endpoints."""
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 from webapp.auth.dependencies import set_session_override, set_user_override
 from webapp.main import create_app
 
 
 @pytest.fixture
-async def db_engine():
-    """Create test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-
-
-@pytest.fixture
 async def test_user(session: AsyncSession) -> User:
     """Create test user."""
-    user = User(username="testuser", email="test@example.com")
+    suffix = uuid4().hex[:8]
+    user = User(username=f"testuser_{suffix}", email=f"test_{suffix}@example.com")
     session.add(user)
     await session.commit()
     return user
@@ -43,7 +31,8 @@ async def test_user(session: AsyncSession) -> User:
 @pytest.fixture
 async def other_user(session: AsyncSession) -> User:
     """Create second test user for isolation tests."""
-    user = User(username="otheruser", email="other@example.com")
+    suffix = uuid4().hex[:8]
+    user = User(username=f"otheruser_{suffix}", email=f"other_{suffix}@example.com")
     session.add(user)
     await session.commit()
     return user

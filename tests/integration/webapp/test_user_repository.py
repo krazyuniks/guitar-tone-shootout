@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+
+import uuid
 
 import pytest
 
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import OAuthProvider
 from webapp.adapters.persistence.repositories.user_repository import (
     SQLAlchemyUserRepository,
@@ -21,32 +21,23 @@ from webapp.adapters.persistence.repositories.user_repository import (
 
 
 @pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    # Use in-memory SQLite for fast tests
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
-
-    # Clean up
-    await engine.dispose()
-
-
-@pytest.fixture
 async def user_repository(db_session: AsyncSession) -> SQLAlchemyUserRepository:
     """Create a UserRepository instance."""
     return SQLAlchemyUserRepository(db_session)
+
+
+def _make_identity(provider="t3k", suffix=None):
+    """Helper to create a UserIdentity with unique values."""
+    if suffix is None:
+        from uuid import uuid4
+
+        suffix = uuid4().hex[:8]
+    return UserIdentity(
+        provider=provider,
+        external_id=f"ext123_{suffix}",
+        username=f"testuser_{suffix}",
+        avatar_url="https://example.com/avatar.jpg",
+    )
 
 
 @pytest.mark.asyncio

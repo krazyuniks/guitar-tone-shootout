@@ -11,12 +11,10 @@ from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.domain.entities.base import new_id
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.value_objects.signal_chain_enums import GearType
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
 )
@@ -25,30 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
     from fastapi import FastAPI
-
-
-@pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session factory
-    session_factory = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    # Yield session
-    async with session_factory() as session:
-        yield session
-
-    # Cleanup
-    await engine.dispose()
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture

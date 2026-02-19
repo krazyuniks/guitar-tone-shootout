@@ -4,22 +4,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.entities.user import User as UserEntity
 from core.domain.entities.user import UserIdentity
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.user_repository import SQLAlchemyUserRepository
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 
 class QueryCounter:
@@ -45,25 +39,9 @@ class QueryCounter:
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
+async def db_engine(core_engine: AsyncEngine) -> AsyncEngine:
+    """Alias core_engine for QueryCounter compatibility."""
+    return core_engine
 
 
 @pytest.fixture
@@ -78,15 +56,18 @@ async def sample_user_with_identity(
     db_session: AsyncSession,
 ) -> UserEntity:
     """Create and persist a user with identity."""
+    from uuid import uuid4
+
+    suffix = uuid4().hex[:8]
     identity = UserIdentity(
         provider="t3k",
-        external_id="ext123",
-        username="testuser",
+        external_id=f"ext123_{suffix}",
+        username=f"testuser_{suffix}",
         avatar_url="https://example.com/avatar.jpg",
     )
     user = UserEntity.create_with_identity(
         identity=identity,
-        email="test@example.com",
+        email=f"test_{suffix}@example.com",
     )
 
     await user_repository.save(user)

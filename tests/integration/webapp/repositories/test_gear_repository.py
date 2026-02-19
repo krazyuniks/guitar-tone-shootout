@@ -3,27 +3,22 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import GearModel as GearModelVO
 from core.domain.entities.gear import GearSource as GearSourceVO
 from core.domain.value_objects.download_status import DownloadStatus
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.gear_repository import SQLAlchemyGearRepository
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 
 class QueryCounter:
@@ -49,25 +44,9 @@ class QueryCounter:
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
+async def db_engine(core_engine: AsyncEngine) -> AsyncEngine:
+    """Alias core_engine for QueryCounter compatibility."""
+    return core_engine
 
 
 @pytest.fixture

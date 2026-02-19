@@ -10,15 +10,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
-
-@pytest.fixture
-async def t3k_db_engine() -> AsyncEngine:
-    """Create temporary SQLite engine for T3K source database."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    yield engine
-    await engine.dispose()
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 
 @pytest.fixture
@@ -88,14 +80,14 @@ class TestT3KMigrationExecution:
 
     @pytest.mark.skip(reason="Requires sync Alembic execution - implement after models exist")
     async def test_upgrade_creates_all_tables(
-        self, alembic_config: Config, t3k_db_engine: AsyncEngine
+        self, alembic_config: Config, t3k_engine: AsyncEngine
     ) -> None:
         """Test that running upgrade creates all staging tables."""
         # Run Alembic upgrade
         command.upgrade(alembic_config, "head")
 
         # Verify tables exist
-        async with t3k_db_engine.connect() as conn:
+        async with t3k_engine.connect() as conn:
             inspector = await conn.run_sync(inspect)
             tables = inspector.get_table_names()
 
@@ -106,7 +98,7 @@ class TestT3KMigrationExecution:
 
     @pytest.mark.skip(reason="Requires sync Alembic execution - implement after models exist")
     async def test_downgrade_removes_all_tables(
-        self, alembic_config: Config, t3k_db_engine: AsyncEngine
+        self, alembic_config: Config, t3k_engine: AsyncEngine
     ) -> None:
         """Test that downgrade removes all staging tables."""
         # Run upgrade first
@@ -116,7 +108,7 @@ class TestT3KMigrationExecution:
         command.downgrade(alembic_config, "base")
 
         # Verify tables are gone
-        async with t3k_db_engine.connect() as conn:
+        async with t3k_engine.connect() as conn:
             inspector = await conn.run_sync(inspect)
             tables = inspector.get_table_names()
 
@@ -131,12 +123,12 @@ class TestT3KMigrationSchema:
 
     @pytest.mark.skip(reason="Requires sync Alembic execution - implement after models exist")
     async def test_creators_staging_schema(
-        self, alembic_config: Config, t3k_db_engine: AsyncEngine
+        self, alembic_config: Config, t3k_engine: AsyncEngine
     ) -> None:
         """Test that t3k_creators_staging has correct columns."""
         command.upgrade(alembic_config, "head")
 
-        async with t3k_db_engine.connect() as conn:
+        async with t3k_engine.connect() as conn:
             inspector = await conn.run_sync(inspect)
             columns = {col["name"] for col in inspector.get_columns("t3k_creators_staging")}
 
@@ -148,12 +140,12 @@ class TestT3KMigrationSchema:
 
     @pytest.mark.skip(reason="Requires sync Alembic execution - implement after models exist")
     async def test_packs_staging_schema(
-        self, alembic_config: Config, t3k_db_engine: AsyncEngine
+        self, alembic_config: Config, t3k_engine: AsyncEngine
     ) -> None:
         """Test that t3k_packs_staging has correct columns."""
         command.upgrade(alembic_config, "head")
 
-        async with t3k_db_engine.connect() as conn:
+        async with t3k_engine.connect() as conn:
             inspector = await conn.run_sync(inspect)
             columns = {col["name"] for col in inspector.get_columns("t3k_packs_staging")}
 
@@ -170,12 +162,12 @@ class TestT3KMigrationSchema:
 
     @pytest.mark.skip(reason="Requires sync Alembic execution - implement after models exist")
     async def test_models_staging_schema(
-        self, alembic_config: Config, t3k_db_engine: AsyncEngine
+        self, alembic_config: Config, t3k_engine: AsyncEngine
     ) -> None:
         """Test that t3k_models_staging has correct columns."""
         command.upgrade(alembic_config, "head")
 
-        async with t3k_db_engine.connect() as conn:
+        async with t3k_engine.connect() as conn:
             inspector = await conn.run_sync(inspect)
             columns = {col["name"] for col in inspector.get_columns("t3k_models_staging")}
 
@@ -191,12 +183,12 @@ class TestT3KMigrationSchema:
 
     @pytest.mark.skip(reason="Requires sync Alembic execution - implement after models exist")
     async def test_sync_checkpoints_schema(
-        self, alembic_config: Config, t3k_db_engine: AsyncEngine
+        self, alembic_config: Config, t3k_engine: AsyncEngine
     ) -> None:
         """Test that sync_checkpoints has correct columns."""
         command.upgrade(alembic_config, "head")
 
-        async with t3k_db_engine.connect() as conn:
+        async with t3k_engine.connect() as conn:
             inspector = await conn.run_sync(inspect)
             columns = {col["name"] for col in inspector.get_columns("sync_checkpoints")}
 

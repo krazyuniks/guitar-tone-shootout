@@ -7,66 +7,33 @@ Tests for:
 Uses httpx MockTransport and monkeypatch instead of unittest.mock.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient, HTTPStatusError, MockTransport, Request, Response
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from webapp.adapters.persistence.models.base import Base
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 from webapp.adapters.persistence.models.user import OAuthProvider
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite session for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Real database with transaction rollback."""
-    connection = await db_engine.connect()
-    transaction = await connection.begin()
-
-    async_session_factory = async_sessionmaker(
-        bind=connection,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    session = async_session_factory()
-
-    try:
-        yield session
-    finally:
-        await session.close()
-        await transaction.rollback()
-        await connection.close()
-
-
-@pytest.fixture
-async def test_provider(db_session: AsyncSession) -> OAuthProvider:
+async def test_provider(session: AsyncSession) -> OAuthProvider:
     """Create a test OAuth provider."""
+    _sfx = uuid4().hex[:8]
     provider = OAuthProvider(
-        name="t3k",
-        client_id="test_client_id",
-        client_secret="test_client_secret",
+        name=f"t3k_{_sfx}",
+        client_id=f"test_client_id_{_sfx}",
+        client_secret=f"test_client_secret_{_sfx}",
         enabled=True,
     )
-    db_session.add(provider)
-    await db_session.commit()
-    await db_session.refresh(provider)
+    session.add(provider)
+    await session.commit()
+    await session.refresh(provider)
     return provider
 
 

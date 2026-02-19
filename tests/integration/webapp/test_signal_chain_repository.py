@@ -2,52 +2,32 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+
+import uuid
+
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
 
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    async with async_session() as session:
-        yield session
-        await session.rollback()
-
-    await engine.dispose()
-
 
 @pytest.fixture
 async def test_user(session: AsyncSession) -> User:
     """Create a test user."""
+    suffix = uuid.uuid4().hex[:8]
     user = User(
         id=uuid.uuid4(),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     session.add(user)
     await session.flush()
@@ -258,10 +238,11 @@ async def test_get_by_user_id(
     repo = SQLAlchemySignalChainRepository(session)
 
     # Create a second user for isolation testing
+    suffix = uuid.uuid4().hex[:8]
     other_user = User(
         id=uuid.uuid4(),
-        username="otheruser",
-        email="other@example.com",
+        username=f"otheruser_{suffix}",
+        email=f"other_{suffix}@example.com",
     )
     session.add(other_user)
     await session.flush()

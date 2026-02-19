@@ -5,41 +5,16 @@ and transactional behaviour. Uses SQLite (pgmq calls are silently
 swallowed) to verify the publisher doesn't crash.
 """
 
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+from __future__ import annotations
 
-import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
 
-
-@pytest.fixture
-async def t3k_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create async engine for T3K staging database.
-
-    Only creates tables without PostgreSQL ARRAY columns (model staging).
-    Tone staging objects are constructed in-memory without DB persistence.
-    """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(T3KModelStaging.__table__.create)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def t3k_session(t3k_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create async session for T3K staging database."""
-    async_session = async_sessionmaker(t3k_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _make_tone(**overrides) -> T3KToneStaging:

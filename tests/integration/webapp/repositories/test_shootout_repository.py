@@ -3,26 +3,21 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.entities.shootout import Shootout as ShootoutEntity
 from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.shootout_repository import (
     SQLAlchemyShootoutRepository,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 
 class QueryCounter:
@@ -49,25 +44,9 @@ class QueryCounter:
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
+async def db_engine(core_engine: AsyncEngine) -> AsyncEngine:
+    """Alias core_engine for QueryCounter compatibility."""
+    return core_engine
 
 
 @pytest.fixture
@@ -98,10 +77,11 @@ async def test_shootout_get_by_id_single_query(
     # Create user
     from webapp.adapters.persistence.models.user import User
 
+    suffix = uuid4().hex[:8]
     test_user = User(
         id=uuid4(),
-        username="test_user",
-        email="test@example.com",
+        username=f"test_user_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     db_session.add(test_user)
 
@@ -219,10 +199,11 @@ async def test_shootout_get_public_single_query_with_pagination(
     # First, create users for the shootouts
     from webapp.adapters.persistence.models.user import User
 
+    suffix = uuid4().hex[:8]
     test_user = User(
         id=uuid4(),
-        username="test_user",
-        email="test@example.com",
+        username=f"test_user_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     db_session.add(test_user)
 
@@ -341,10 +322,11 @@ async def test_shootout_get_by_user_id_uses_id_subquery_pattern(
     # Create test user
     from webapp.adapters.persistence.models.user import User
 
+    suffix = uuid4().hex[:8]
     test_user = User(
         id=uuid4(),
-        username="test_user",
-        email="test@example.com",
+        username=f"test_user_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     db_session.add(test_user)
 

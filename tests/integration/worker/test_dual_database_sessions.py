@@ -24,14 +24,14 @@ class TestGetCoreSession:
 
         assert callable(get_core_session)
 
-    async def test_get_core_session_yields_async_session(self, db_engine) -> None:
+    async def test_get_core_session_yields_async_session(self, core_engine) -> None:
         """get_core_session yields an AsyncSession."""
         from worker.db import get_core_session
 
         async with get_core_session() as session:
             assert isinstance(session, AsyncSession)
 
-    async def test_get_core_session_uses_core_database_url(self, db_engine) -> None:
+    async def test_get_core_session_uses_core_database_url(self, core_engine) -> None:
         """get_core_session uses WorkerSettings.database_url (gts_core)."""
         from worker.db import get_core_session
 
@@ -41,7 +41,7 @@ class TestGetCoreSession:
             result = await session.execute(text("SELECT 1"))
             assert result.scalar() == 1
 
-    async def test_get_core_session_uses_engine_cache(self, db_engine) -> None:
+    async def test_get_core_session_uses_engine_cache(self, core_engine) -> None:
         """get_core_session reuses cached engines."""
         from worker.db import _engine_cache, get_core_session
 
@@ -70,14 +70,14 @@ class TestGetT3kSession:
 
         assert callable(get_t3k_session)
 
-    async def test_get_t3k_session_yields_async_session(self, db_engine) -> None:
+    async def test_get_t3k_session_yields_async_session(self, core_engine) -> None:
         """get_t3k_session yields an AsyncSession."""
         from worker.db import get_t3k_session
 
         async with get_t3k_session() as session:
             assert isinstance(session, AsyncSession)
 
-    async def test_get_t3k_session_uses_t3k_database_url(self, db_engine) -> None:
+    async def test_get_t3k_session_uses_t3k_database_url(self, core_engine) -> None:
         """get_t3k_session uses WorkerSettings.t3k_database_url (gts_t3k_source)."""
         from worker.db import get_t3k_session
 
@@ -87,7 +87,7 @@ class TestGetT3kSession:
             result = await session.execute(text("SELECT 1"))
             assert result.scalar() == 1
 
-    async def test_get_t3k_session_uses_engine_cache(self, db_engine) -> None:
+    async def test_get_t3k_session_uses_engine_cache(self, core_engine) -> None:
         """get_t3k_session reuses cached engines."""
         from worker.db import _engine_cache, get_t3k_session
 

@@ -14,19 +14,13 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
     from pathlib import Path
 
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user import User
@@ -34,24 +28,11 @@ from webapp.services.ir_upload_service import IRUploadService
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-
-
-@pytest.fixture
 async def test_user(session: AsyncSession) -> User:
-    user = User(id=uuid4(), username="testuser", email="test@example.com", is_active=True)
+    _sfx = uuid4().hex[:8]
+    user = User(
+        id=uuid4(), username=f"testuser_{_sfx}", email=f"test_{_sfx}@example.com", is_active=True
+    )
     session.add(user)
     await session.commit()
     await session.refresh(user)
@@ -148,7 +129,7 @@ class TestIRUploadServiceGearDefaults:
         assert result.id is not None
 
         # Verify the returned ID matches what's in the database
-        stmt = select(Gear).where(Gear.name == "Return Value IR")
+        stmt = select(Gear).where(Gear.id == result.id)
         db_result = await session.execute(stmt)
         gear = db_result.scalar_one()
         assert gear.id == result.id

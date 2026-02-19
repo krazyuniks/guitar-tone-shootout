@@ -3,40 +3,20 @@
 Tests the service layer for managing parameter presets.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.value_objects.block_category import BlockCategory
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
 from webapp.adapters.persistence.models.user import User
 
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite database for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session with transaction rollback."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -44,8 +24,8 @@ async def test_user(session: AsyncSession) -> User:
     """Create a test user."""
     user = User(
         id=uuid4(),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{uuid4().hex[:8]}",
+        email=f"test_{uuid4().hex[:8]}@example.com",
     )
     session.add(user)
     await session.commit()
@@ -58,7 +38,7 @@ async def test_block_type(session: AsyncSession) -> BlockType:
     """Create a test block type."""
     block_type = BlockType(
         id=uuid4(),
-        name="Test Compressor",
+        name=f"Test Compressor {uuid4().hex[:8]}",
         category=BlockCategory.DYNAMICS,
         default_params={
             "threshold": -20.0,
@@ -81,7 +61,7 @@ async def test_signal_chain(session: AsyncSession, test_user: User) -> SignalCha
     chain = SignalChain(
         id=uuid4(),
         user_id=test_user.id,
-        name="Test Chain",
+        name=f"Test Chain {uuid4().hex[:8]}",
         description="Test chain for presets",
         platform=Platform.NAM,
     )

@@ -5,10 +5,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, TypeVar
 
-from sqlalchemy import DateTime, MetaData, String, TypeDecorator, event
+from sqlalchemy import DateTime, MetaData, String, TypeDecorator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
-from sqlalchemy.pool import Pool
 
 # Naming conventions for database constraints
 NAMING_CONVENTION = {
@@ -24,26 +23,6 @@ class Base(DeclarativeBase):
     """Declarative base class with naming conventions."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
-
-
-# Enable foreign key constraints for SQLite
-# This ensures foreign keys are enforced in both development and testing
-@event.listens_for(Pool, "connect")
-def _set_sqlite_pragma(dbapi_conn: Any, _connection_record: Any) -> None:
-    """Enable foreign key constraints for SQLite connections.
-
-    SQLite does not enforce foreign key constraints by default.
-    This event listener ensures they are enabled for all connections.
-    """
-    # Only apply to SQLite connections
-    if hasattr(dbapi_conn, "execute"):
-        try:
-            cursor = dbapi_conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.close()
-        except Exception:
-            # Silently ignore errors (e.g., if not SQLite)
-            pass
 
 
 class _UUIDv7Generator:
@@ -209,26 +188,16 @@ class EnumByValue(TypeDecorator[E]):
 
 
 class UuidType(TypeDecorator[uuid.UUID]):
-    """SQLAlchemy UUID type that stores UUIDs with hyphens in SQLite.
-
-    SQLAlchemy's default Uuid type stores UUIDs without hyphens in SQLite (CHAR(32)),
-    which breaks raw text() queries that use str(uuid) for parameter binding.
-    This custom type ensures UUIDs are stored with hyphens (CHAR(36)) in SQLite
-    while using native UUID type for PostgreSQL.
-    """
+    """SQLAlchemy UUID type using native PostgreSQL UUID storage."""
 
     impl = String(36)
     cache_ok = True
 
     def load_dialect_impl(self, dialect: Any) -> Any:
-        """Choose storage type based on database dialect."""
-        if dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import UUID
+        """Use native PostgreSQL UUID type."""
+        from sqlalchemy.dialects.postgresql import UUID
 
-            return dialect.type_descriptor(UUID())
-        else:
-            # SQLite and others: use string with hyphens
-            return dialect.type_descriptor(String(36))
+        return dialect.type_descriptor(UUID())
 
     def process_bind_param(self, value: uuid.UUID | str | None, _dialect: Any) -> str | None:
         """Convert UUID to string with hyphens for database storage."""
@@ -353,23 +322,15 @@ def get_async_session(database_url: str) -> async_sessionmaker[AsyncSession]:
     Returns:
         Session factory that creates AsyncSession instances
     """
-    # SQLite doesn't support pool_size/max_overflow
-    if "sqlite" in database_url:
-        engine = create_async_engine(
-            database_url,
-            echo=False,
-        )
-    else:
-        # PostgreSQL with connection pooling
-        engine = create_async_engine(
-            database_url,
-            echo=False,
-            pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=20,
-            pool_timeout=30,
-            pool_recycle=1800,
-        )
+    engine = create_async_engine(
+        database_url,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
+        pool_recycle=1800,
+    )
 
     return async_sessionmaker(
         engine,

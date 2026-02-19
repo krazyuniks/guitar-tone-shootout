@@ -3,37 +3,14 @@
 Tests the registry for managing built-in processor types.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
 
-import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from typing import TYPE_CHECKING
 
 from core.domain.value_objects.block_category import BlockCategory
-from webapp.adapters.persistence.models.base import Base
-from webapp.adapters.persistence.models.block_type import BlockType
 
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create an in-memory SQLite database for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a database session with transaction rollback."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestBlockTypeRegistry:
@@ -185,6 +162,8 @@ class TestBlockTypeRegistry:
 
         # Verify they're actually persisted in the database
         from sqlalchemy import select
+
+        from webapp.adapters.persistence.models.block_type import BlockType
 
         result = await session.execute(select(BlockType))
         persisted = result.scalars().all()

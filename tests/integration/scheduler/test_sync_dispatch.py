@@ -13,20 +13,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
-from source_t3k.adapters.outbound.models import Base as T3KBase
-from webapp.adapters.persistence.models.base import Base as CoreBase
 from webapp.adapters.persistence.models.job import Job
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-    from sqlalchemy.ext.asyncio import AsyncEngine
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 
 # ---------------------------------------------------------------------------
@@ -73,28 +66,6 @@ def scheduler_env(monkeypatch) -> None:
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create in-memory SQLite engine with both Core and T3K tables."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///file::memory:?cache=shared&uri=true",
-        echo=False,
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(CoreBase.metadata.create_all)
-        await conn.run_sync(T3KBase.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create async session for test data."""
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-
-
-@pytest.fixture
 def fake_redis() -> FakeRedis:
     """FakeRedis with no keys set (no lock)."""
     return FakeRedis()
@@ -109,12 +80,12 @@ def fake_redis_with_lock() -> FakeRedis:
 
 
 @pytest.fixture
-async def register_engines(db_engine: AsyncEngine) -> AsyncGenerator[None, None]:
+async def register_engines(core_engine: AsyncEngine) -> AsyncGenerator[None, None]:
     """Register test engine so get_t3k_session and get_core_session resolve."""
     from worker.db import _engine_cache, register_engine
 
-    register_engine("postgresql+asyncpg://user:pass@db/gts_core", db_engine)
-    register_engine("postgresql+asyncpg://user:pass@db/gts_t3k_source", db_engine)
+    register_engine("postgresql+asyncpg://user:pass@db/gts_core", core_engine)
+    register_engine("postgresql+asyncpg://user:pass@db/gts_t3k_source", core_engine)
     yield
     _engine_cache.clear()
 
@@ -130,7 +101,7 @@ class TestEnsureSourceSyncRunningDispatches:
     async def test_dispatches_when_no_lock_and_sync_enabled(
         self,
         fake_redis: FakeRedis,
-        db_engine: AsyncEngine,
+        core_engine: AsyncEngine,
         db_session: AsyncSession,
         register_engines: None,
         monkeypatch,
@@ -258,7 +229,7 @@ class TestEnsureSourceSyncRunningDispatches:
     async def test_dispatch_creates_job_record_in_database(
         self,
         fake_redis: FakeRedis,
-        db_engine: AsyncEngine,
+        core_engine: AsyncEngine,
         db_session: AsyncSession,
         register_engines: None,
         monkeypatch,

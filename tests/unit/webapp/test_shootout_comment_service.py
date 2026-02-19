@@ -7,9 +7,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.shootout import (
     DITrack,
     Shootout,
@@ -20,27 +18,14 @@ from webapp.adapters.persistence.models.user import User
 from webapp.services.shootout_comment_service import ShootoutCommentService
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-
-@pytest.fixture
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Create an in-memory SQLite session for testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
-
-    await engine.dispose()
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
 async def user(session: AsyncSession) -> User:
     """Create a test user."""
-    user = User(username="testuser", email="test@example.com")
+    _sfx = uuid4().hex[:8]
+    user = User(username=f"testuser_{_sfx}", email=f"test_{_sfx}@example.com")
     session.add(user)
     await session.commit()
     return user
@@ -49,7 +34,8 @@ async def user(session: AsyncSession) -> User:
 @pytest.fixture
 async def other_user(session: AsyncSession) -> User:
     """Create a second test user."""
-    user = User(username="otheruser", email="other@example.com")
+    _sfx = uuid4().hex[:8]
+    user = User(username=f"otheruser_{_sfx}", email=f"other_{_sfx}@example.com")
     session.add(user)
     await session.commit()
     return user

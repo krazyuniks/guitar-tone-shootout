@@ -1,33 +1,20 @@
 """Integration tests for UserGear FK migration to gear_models."""
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
-async def migration_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create in-memory SQLite engine for migration testing."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def migration_session(
-    migration_engine: AsyncEngine,
-) -> AsyncGenerator[AsyncSession, None]:
-    """Create session for migration testing."""
-    async_session = async_sessionmaker(migration_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+def migration_session(db_session: AsyncSession) -> AsyncSession:
+    """Use shared PostgreSQL session for migration testing."""
+    return db_session
 
 
 @pytest.mark.integration
@@ -99,8 +86,12 @@ class TestUserGearFKMigration:
         await migration_session.commit()
 
         # Verify old schema
-        result = await migration_session.execute(text("PRAGMA table_info(user_gear)"))
-        columns_before = {row[1] for row in result.fetchall()}
+        result = await migration_session.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'user_gear'"
+            )
+        )
+        columns_before = {row[0] for row in result.fetchall()}
         assert "gear_id" in columns_before
         assert "gear_model_id" not in columns_before
 

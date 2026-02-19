@@ -9,18 +9,12 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear import Gear, GearTag
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
@@ -28,27 +22,14 @@ from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 
 
-class _TestAsyncSession(AsyncSession):
-    """Test session that falls back to begin_nested() when already in a transaction.
-
-    Fixtures call flush() which triggers autobegin. Tests then call begin()
-    expecting nested transaction (SAVEPOINT) semantics. SQLAlchemy 2.0's begin()
-    raises on double-begin, so we intercept and use begin_nested() instead.
-    """
-
-    def begin(self, **kw):  # type: ignore[override]
-        if self.in_transaction():
-            return self.begin_nested(**kw)
-        return super().begin(**kw)
-
-
 @pytest.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """Create a test user."""
+    suffix = uuid4().hex[:8]
     user = User(
         id=uuid4(),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{suffix}",
+        email=f"test_{suffix}@example.com",
         is_active=True,
     )
     db_session.add(user)
@@ -76,76 +57,43 @@ async def make_user_gear(db_session: AsyncSession):
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    # Use in-memory SQLite for fast tests
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
+async def seeded_db_session(db_session: AsyncSession) -> AsyncSession:
+    """Seed the session with test data for gear detail page tests.
 
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    # Clean up
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session with transaction management.
-
-    The session auto-begins a transaction on first use. Tests can:
-    - Use `async with db_session.begin():` for nested transactions (SAVEPOINT)
-    - Use `await db_session.commit()` to commit changes
-
-    All changes are rolled back after each test for isolation.
-
-    This fixture auto-seeds test data for gear detail page tests.
+    Returns the same db_session after seeding gear, tags, sources, and models.
     """
-    # Create session factory with custom session class
-    async_session = async_sessionmaker(
-        db_engine,
-        class_=_TestAsyncSession,
-        expire_on_commit=False,
-    )
-
-    # Create session
-    session = async_session()
+    suffix = uuid4().hex[:8]
 
     # Seed test data - create tags first
-    tag_metal = GearTag(id=uuid4(), name="metal")
-    tag_high_gain = GearTag(id=uuid4(), name="high-gain")
-    tag_clean = GearTag(id=uuid4(), name="clean")
-    tag_vintage = GearTag(id=uuid4(), name="vintage")
-    session.add_all([tag_metal, tag_high_gain, tag_clean, tag_vintage])
-    await session.flush()
+    tag_metal = GearTag(id=uuid4(), name=f"metal_{suffix}")
+    tag_high_gain = GearTag(id=uuid4(), name=f"high-gain_{suffix}")
+    tag_clean = GearTag(id=uuid4(), name=f"clean_{suffix}")
+    tag_vintage = GearTag(id=uuid4(), name=f"vintage_{suffix}")
+    db_session.add_all([tag_metal, tag_high_gain, tag_clean, tag_vintage])
+    await db_session.flush()
 
     # Create gear sources for T3K attribution
     now = datetime.now(UTC)
     source1 = GearSource(
         id=uuid4(),
         source_name="t3k",
-        source_record_id="t3k-mesa-mark-v",
+        source_record_id=f"t3k-mesa-mark-v-{suffix}",
         source_updated_at=now,
     )
     source2 = GearSource(
         id=uuid4(),
         source_name="t3k",
-        source_record_id="t3k-fender-twin",
+        source_record_id=f"t3k-fender-twin-{suffix}",
         source_updated_at=now,
     )
-    session.add_all([source1, source2])
-    await session.flush()
+    db_session.add_all([source1, source2])
+    await db_session.flush()
 
     # Create gear with tags
     gear1 = Gear(
         id=uuid4(),
-        name="Mesa Boogie Mark V",
-        slug="mesa-boogie-mark-v",
+        name=f"Mesa Boogie Mark V {suffix}",
+        slug=f"mesa-boogie-mark-v-{suffix}",
         gear_type=GearType.AMP,
         platform=Platform.NAM,
         description="High-gain tube amp",
@@ -154,8 +102,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         source_id=source1.id,
     )
     gear1.tags = [tag_metal, tag_high_gain]
-    session.add(gear1)
-    await session.flush()
+    db_session.add(gear1)
+    await db_session.flush()
 
     # Add models to gear1
     model1a = GearModel(
@@ -170,12 +118,12 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         platform=Platform.NAM,
         size=ModelSize.LITE,
     )
-    session.add_all([model1a, model1b])
+    db_session.add_all([model1a, model1b])
 
     gear2 = Gear(
         id=uuid4(),
-        name="Fender Twin Reverb",
-        slug="fender-twin-reverb",
+        name=f"Fender Twin Reverb {suffix}",
+        slug=f"fender-twin-reverb-{suffix}",
         gear_type=GearType.AMP,
         platform=Platform.NAM,
         description="Classic clean amp",
@@ -184,8 +132,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         source_id=source2.id,
     )
     gear2.tags = [tag_clean, tag_vintage]
-    session.add(gear2)
-    await session.flush()
+    db_session.add(gear2)
+    await db_session.flush()
 
     # Add models to gear2
     model2 = GearModel(
@@ -194,17 +142,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         platform=Platform.NAM,
         size=ModelSize.STANDARD,
     )
-    session.add(model2)
+    db_session.add(model2)
 
-    await session.commit()
+    await db_session.commit()
 
-    try:
-        yield session
-    finally:
-        # Rollback any active transaction and close session
-        if session.in_transaction():
-            await session.rollback()
-        await session.close()
+    return db_session
 
 
 def pytest_runtest_call(item: pytest.Item) -> None:
@@ -228,9 +170,7 @@ def pytest_runtest_call(item: pytest.Item) -> None:
 
     # Wire test_user if: (a) test_user is a direct param, or
     # (b) authenticated_client is a direct param (it manages auth explicitly)
-    # BUT never wire if unauthenticated_client is also a direct param —
-    # the test explicitly wants unauthenticated access even when test_user
-    # is needed for setup (e.g., creating owned resources).
+    # BUT never wire if unauthenticated_client is also a direct param
     should_wire = (
         "test_user" in direct_params or "authenticated_client" in direct_params
     ) and "unauthenticated_client" not in direct_params

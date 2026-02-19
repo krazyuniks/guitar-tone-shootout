@@ -3,27 +3,22 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import event
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
 
 from core.domain.entities.signal_chain import SignalChain as SignalChainEntity
 from core.domain.entities.signal_chain import SignalChainBlock as BlockEntity
 from core.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 
 class QueryCounter:
@@ -49,25 +44,9 @@ class QueryCounter:
 
 
 @pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine."""
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-
-    async with async_session() as session:
-        yield session
+async def db_engine(core_engine: AsyncEngine) -> AsyncEngine:
+    """Alias core_engine for QueryCounter compatibility."""
+    return core_engine
 
 
 @pytest.fixture
@@ -86,10 +65,11 @@ async def sample_signal_chain_with_blocks(
     from webapp.adapters.persistence.models.user import User
 
     # Create a user first to satisfy foreign key constraint
+    suffix = uuid4().hex[:8]
     user = User(
         id=uuid4(),
-        username="testuser",
-        email="test@example.com",
+        username=f"testuser_{suffix}",
+        email=f"test_{suffix}@example.com",
     )
     db_session.add(user)
     await db_session.flush()

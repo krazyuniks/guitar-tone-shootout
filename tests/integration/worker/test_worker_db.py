@@ -6,37 +6,9 @@ gts_core database for reading/writing Job records and other data.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-
-from webapp.adapters.persistence.models.base import Base
-
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    """Create a test database engine (SQLite for testing)."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
 
 
 @pytest.mark.asyncio
@@ -125,12 +97,12 @@ class TestGetSession:
         async with get_session("sqlite+aiosqlite:///:memory:") as session:
             assert isinstance(session, AsyncSession)
 
-    async def test_session_can_execute_queries(self, db_engine: AsyncEngine) -> None:
+    async def test_session_can_execute_queries(self, core_engine: AsyncEngine) -> None:
         """Session from get_session can execute queries."""
         from worker.db import get_session
 
         # Create a database URL from the test engine
-        database_url = str(db_engine.url)
+        database_url = str(core_engine.url)
 
         async with get_session(database_url) as session:
             result = await session.execute(text("SELECT 1 as value"))
@@ -158,22 +130,22 @@ class TestGetSession:
 class TestDatabaseConnectivity:
     """Test worker can connect to gts_core database and query tables."""
 
-    async def test_can_query_jobs_table(self, db_engine: AsyncEngine) -> None:
+    async def test_can_query_jobs_table(self, core_engine: AsyncEngine) -> None:
         """Worker session can query the jobs table."""
         from worker.db import get_session
 
-        async with get_session(db_engine) as session:
+        async with get_session(core_engine) as session:
             # Query jobs table (should be empty in fresh test DB)
             result = await session.execute(text("SELECT count(*) FROM jobs"))
             count = result.scalar()
             assert count == 0
 
-    async def test_can_query_jobs_table_using_orm(self, db_engine: AsyncEngine) -> None:
+    async def test_can_query_jobs_table_using_orm(self, core_engine: AsyncEngine) -> None:
         """Worker session can query jobs using SQLAlchemy ORM."""
         from webapp.adapters.persistence.models.job import Job
         from worker.db import get_session
 
-        async with get_session(db_engine) as session:
+        async with get_session(core_engine) as session:
             # Query jobs using ORM
             stmt = select(Job)
             result = await session.execute(stmt)

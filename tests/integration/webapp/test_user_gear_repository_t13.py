@@ -7,17 +7,20 @@ Tests the repository layer for managing user gear library.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.domain.entities.base import new_id
 from core.domain.entities.gear import Gear as GearEntity
 from core.domain.entities.gear import UserGear as UserGearEntity
 from core.domain.entities.user import User as UserEntity
 from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
@@ -28,36 +31,6 @@ from webapp.adapters.persistence.repositories.user_gear_repository import (
 from webapp.adapters.persistence.repositories.user_repository import (
     SQLAlchemyUserRepository,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-
-@pytest.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Create a test database session.
-
-    Uses in-memory SQLite for fast, isolated testing.
-    """
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # Create session factory
-    session_factory = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-    )
-
-    # Yield session
-    async with session_factory() as session:
-        yield session
-
-    # Cleanup
-    await engine.dispose()
 
 
 @pytest.fixture

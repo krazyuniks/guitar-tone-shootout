@@ -97,18 +97,12 @@ class BlockTypeRegistry:
         Returns:
             List of all built-in block types
         """
-        # Check if built-in types are already in the database
+        # Ensure all built-in types exist (upsert missing ones)
+        await self._initialize_builtin_types()
+
         stmt = select(BlockType)
         result = await self.session.execute(stmt)
-        existing = result.scalars().all()
-
-        # If no types exist, initialize them
-        if not existing:
-            await self._initialize_builtin_types()
-            result = await self.session.execute(stmt)
-            existing = result.scalars().all()
-
-        return list(existing)
+        return list(result.scalars().all())
 
     async def get_by_category(self, category: BlockCategory) -> list[BlockType]:
         """Get block types filtered by category.
