@@ -6,41 +6,30 @@ Tests the scheduled cron tasks:
 - scheduler_heartbeat: Updates scheduler health record and renews lock
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from core.domain.entities.job import Job
 from core.domain.value_objects.job_status import JobStatus, JobType
 
-
-@pytest.fixture
-async def db_engine() -> AsyncEngine:
-    """Create in-memory SQLite engine with ORM models."""
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    from webapp.adapters.persistence.models.base import Base
-
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    yield engine
-    await engine.dispose()
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncSession:
-    """Create async session with transaction rollback."""
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as sess:
-        yield sess
+@pytest.fixture(autouse=True)
+def _register_test_session(session: AsyncSession):
+    """Register the test session with the scheduler jobs module."""
+    from scheduler.schedules import jobs
+
+    jobs._test_session = session
+    yield
+    jobs._test_session = None
 
 
 class TestMonitorStaleJobsModule:
@@ -74,7 +63,7 @@ class TestMonitorStaleJobsLogic:
         stale_time = datetime.now(UTC) - timedelta(minutes=3)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.RUNNING,
             last_heartbeat=stale_time,
@@ -104,7 +93,7 @@ class TestMonitorStaleJobsLogic:
         recent_time = datetime.now(UTC) - timedelta(seconds=30)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.RUNNING,
             last_heartbeat=recent_time,
@@ -132,7 +121,7 @@ class TestMonitorStaleJobsLogic:
         stale_time = datetime.now(UTC) - timedelta(minutes=3)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.PENDING,
             last_heartbeat=stale_time,
@@ -155,16 +144,18 @@ class TestMonitorStaleJobsLogic:
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         stale_time = datetime.now(UTC) - timedelta(minutes=3)
+        job_ids = []
 
         # Create 3 stale RUNNING jobs
         for _ in range(3):
             job_entity = Job(
                 id=uuid4(),
-                user_id=uuid4(),
+                user_id=None,
                 job_type=JobType.AUDIO_PROCESSING,
                 status=JobStatus.RUNNING,
                 last_heartbeat=stale_time,
             )
+            job_ids.append(job_entity.id)
             job_model = JobModel.from_entity(job_entity)
             session.add(job_model)
 
@@ -173,9 +164,12 @@ class TestMonitorStaleJobsLogic:
         # Run monitor
         await monitor_stale_jobs()
 
-        # Verify all marked as DEAD_LETTERED
+        # Verify all marked as DEAD_LETTERED (scoped to our job IDs)
         result = await session.execute(
-            select(JobModel).where(JobModel.status == JobStatus.DEAD_LETTERED.value)
+            select(JobModel).where(
+                JobModel.status == JobStatus.DEAD_LETTERED.value,
+                JobModel.id.in_(job_ids),
+            )
         )
         dead_lettered_jobs = result.scalars().all()
         assert len(dead_lettered_jobs) == 3
@@ -204,7 +198,7 @@ class TestProcessPendingRetriesLogic:
         retry_time = datetime.now(UTC) - timedelta(seconds=1)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             attempt=1,
@@ -233,7 +227,7 @@ class TestProcessPendingRetriesLogic:
         future_time = datetime.now(UTC) + timedelta(minutes=5)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             attempt=1,
@@ -261,7 +255,7 @@ class TestProcessPendingRetriesLogic:
         retry_time = datetime.now(UTC) - timedelta(seconds=1)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             attempt=3,
@@ -286,18 +280,20 @@ class TestProcessPendingRetriesLogic:
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         retry_time = datetime.now(UTC) - timedelta(seconds=1)
+        job_ids = []
 
         # Create 3 eligible FAILED jobs
         for _ in range(3):
             job_entity = Job(
                 id=uuid4(),
-                user_id=uuid4(),
+                user_id=None,
                 job_type=JobType.AUDIO_PROCESSING,
                 status=JobStatus.FAILED,
                 attempt=1,
                 max_attempts=3,
                 next_retry_at=retry_time,
             )
+            job_ids.append(job_entity.id)
             job_model = JobModel.from_entity(job_entity)
             session.add(job_model)
 
@@ -306,9 +302,12 @@ class TestProcessPendingRetriesLogic:
         # Run processor
         await process_pending_retries()
 
-        # Verify all reset to PENDING
+        # Verify all reset to PENDING (scoped to our job IDs)
         result = await session.execute(
-            select(JobModel).where(JobModel.status == JobStatus.PENDING.value)
+            select(JobModel).where(
+                JobModel.status == JobStatus.PENDING.value,
+                JobModel.id.in_(job_ids),
+            )
         )
         pending_jobs = result.scalars().all()
         assert len(pending_jobs) == 3
@@ -322,7 +321,7 @@ class TestProcessPendingRetriesLogic:
         retry_time = datetime.now(UTC) - timedelta(seconds=1)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.COMPLETED,
             next_retry_at=retry_time,
@@ -382,7 +381,6 @@ class TestSchedulerHeartbeatLogic:
 
         # Verify health record updated (actual health table tested separately)
         # This test verifies the function executes without error
-        # Implementation will update a health record in the database
         assert True  # Placeholder - actual DB query will be added by implementer
 
 
@@ -458,7 +456,7 @@ class TestSchedulerDatabaseIntegration:
         stale_time = datetime.now(UTC) - timedelta(minutes=3)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.RUNNING,
             last_heartbeat=stale_time,
@@ -487,7 +485,7 @@ class TestSchedulerDatabaseIntegration:
         retry_time = datetime.now(UTC) - timedelta(seconds=1)
         job_entity = Job(
             id=uuid4(),
-            user_id=uuid4(),
+            user_id=None,
             job_type=JobType.AUDIO_PROCESSING,
             status=JobStatus.FAILED,
             attempt=1,

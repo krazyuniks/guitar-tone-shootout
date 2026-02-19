@@ -30,12 +30,17 @@ from worker.main import broker
 STORAGE_ROOT = Path(os.environ["GTS_STORAGE_ROOT"])
 
 
-async def create_master_audio(shootout_id: UUID, database_url: str | None = None) -> None:
+async def create_master_audio(
+    shootout_id: UUID,
+    database_url: str | None = None,
+    job_id: UUID | None = None,
+) -> None:
     """Create master audio file for a shootout.
 
     Args:
         shootout_id: UUID of the shootout to process
         database_url: Database connection string (or None to use DATABASE_URL env var)
+        job_id: Optional job ID for heartbeat updates during processing
 
     Raises:
         ValueError: If shootout is not found
@@ -73,7 +78,7 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
 
         # Process each segment: normalize and update loudness values
         normalized_files = []
-        for chain in chains:
+        for chain_idx, chain in enumerate(chains, 1):
             for segment in chain.segments:
                 input_path = Path(segment.file_path)
                 normalized_path = output_dir / f"normalized_{input_path.name}"
@@ -86,6 +91,17 @@ async def create_master_audio(shootout_id: UUID, database_url: str | None = None
                 segment.integrated_lufs = result_lufs
                 segment.peak_dbfs = result_peak_dbfs
                 normalized_files.append(normalized_path)
+
+            # Update heartbeat after each chain to avoid stale heartbeat detection
+            if job_id is not None:
+                async with get_session_no_tx(database_url) as hb_session:
+                    hb_stmt = select(Job).where(Job.id == job_id)
+                    hb_result = await hb_session.execute(hb_stmt)
+                    hb_job = hb_result.scalar_one_or_none()
+                    if hb_job is not None:
+                        hb_job.last_heartbeat = datetime.now(UTC)
+                        hb_job.progress = 10 + int(70 * chain_idx / len(chains))
+                        await hb_session.commit()
 
         audio_arrays = []
         sample_rate = None
@@ -145,7 +161,7 @@ async def handle_shootout_master_job(job_id: UUID) -> None:
             job.message = "Creating master audio"
             await session.commit()
 
-        await create_master_audio(shootout_id, database_url)
+        await create_master_audio(shootout_id, database_url, job_id=job_id)
 
         async with get_session_no_tx(database_url) as session:
             stmt = select(Job).where(Job.id == job_id)

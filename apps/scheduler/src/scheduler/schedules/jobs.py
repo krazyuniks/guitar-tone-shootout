@@ -40,7 +40,9 @@ async def monitor_stale_jobs(db_engine: AsyncEngine | None = None) -> None:
 
     stmt = text("""
         UPDATE jobs SET status = :dead_status, error = :error, completed_at = :now
-        WHERE status = :running_status AND last_heartbeat < :threshold
+        WHERE status = :running_status
+          AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
+          AND (started_at IS NULL OR started_at < :threshold)
     """)
     params = {
         "dead_status": JobStatus.DEAD_LETTERED.value,
