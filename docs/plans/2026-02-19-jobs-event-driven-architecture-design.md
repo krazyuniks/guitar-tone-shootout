@@ -1,7 +1,7 @@
 # Jobs & Event-Driven Architecture Design
 
-> Status: **IN PROGRESS** — brainstorming session paused. Architecture decisions
-> agreed. Phase breakdown and implementation detail still needed.
+> Status: **DESIGN COMPLETE** — all architectural decisions agreed. Ready for
+> implementation planning.
 >
 > This document synthesises and supersedes:
 > - `2026-02-19-bounded-context-architecture.md`
@@ -30,6 +30,9 @@ Execution) but boundaries are not enforced at the infrastructure level:
   call chains and direct `.kiq()` dispatches.
 - Progress notification infrastructure exists (Redis pub/sub + WebSocket) but
   handlers don't use it.
+- TaskIQ + Redis add unnecessary dependencies when pgmq can handle both
+  messaging and task dispatch.
+- The scheduler exists solely to HTTP-trigger jobs that should be self-driven.
 
 ---
 
@@ -75,15 +78,19 @@ Two message types, same transactional outbox pattern:
 
 This applies to ALL producers — commands, events, every BC.
 
-### 2.4 Two Topic Types Per BC
+### 2.4 Topic Types Per BC
 
-Each bounded context has a command topic (input) and an event topic (output):
+Each bounded context has topics appropriate to its role:
 
 | BC | Command topic (input) | Event topic (output) |
 |----|----------------------|---------------------|
 | **Audio** | `audio_commands` | `audio_events` |
 | **Video** | `video_commands` | `video_events` |
-| **Source: T3K** | `source_commands` | `source_events` |
+| **Source: T3K** | _(none — self-driven)_ | `source_events` |
+
+Source BCs have no command topic. The T3K sync is a continuously running loop
+that polls the T3K API. It is not triggered by commands — it runs as a daemon
+and publishes events when it finds new data.
 
 All queues live in the single shared database as pgmq queues.
 
@@ -91,6 +98,10 @@ All queues live in the single shared database as pgmq queues.
 
 All messages (commands and events) carry rich metadata so consumers have
 everything they need without querying back. No thin `{job_id}` messages.
+
+Producers publish thick events to their topic. Any consumer that cares reads
+the topic and does what it wants with the data. Producers don't know or care
+who consumes their events.
 
 **Command example** (`compose_shootout` on `video_commands`):
 
@@ -128,6 +139,7 @@ everything they need without querying back. No thin `{job_id}` messages.
 ### 2.6 Event-Driven Choreography (No Central Orchestrator)
 
 Each handler creates the next step on completion. No central orchestrator.
+Each BC is in charge of its own work and sub-jobs.
 
 **Shootout flow (user wants a video):**
 
@@ -164,7 +176,7 @@ Video BC consumer reads audio_events
   → commit
 
 Webapp (or any consumer) reads video_events
-  → Updates UI, notifies user via WebSocket
+  → Updates UI, notifies user
 ```
 
 **Standalone audio flow (user wants audio for listening):**
@@ -182,10 +194,34 @@ Audio BC consumer reads audio_commands
   → commit
 ```
 
+**T3K sync flow (continuous):**
+
+```
+T3K sync container starts
+  → Enters eternal loop polling T3K API
+  → Finds new gear data
+  → pgmq.send('source_events', {gear_synced, ...thick payload...})
+  → commit
+  → Continue polling
+
+Any consumer (e.g. webapp/core) reads source_events
+  → Upserts into core_gear, core_gear_models, etc.
+  → Updates offset
+```
+
 ### 2.7 Queue Implementation
+
+**pgmq is just SQL functions and tables inside PostgreSQL.** `pgmq.send()`
+inserts a row. `pgmq.read()` selects a row with a visibility timeout.
+`pgmq.archive()` moves it to an archive table. No separate process, no daemon.
+
+**Consumer loops are our code.** Each BC container runs a `while True` loop
+that calls `pgmq.read()`, processes the message, and calls `pgmq.archive()`.
+We own these loops entirely.
 
 **Commands (point-to-point):** standard pgmq — `pgmq.read()` → process →
 `pgmq.archive()`. One consumer drains the queue. Visibility timeout for retry.
+If the consumer crashes before archiving, the message reappears after timeout.
 
 **Events (multi-consumer):** pgmq as append log with consumer offsets:
 
@@ -197,6 +233,16 @@ Audio BC consumer reads audio_commands
 5. Cleanup: periodically archive messages below the minimum offset across all
    registered consumers.
 
+**Retries:** pgmq visibility timeout handles retries automatically. If a
+consumer reads a message but crashes before archiving, the message becomes
+visible again after the timeout period. After N failed attempts, move to DLQ.
+
+**DLQ:** One shared dead-letter queue with routing metadata (source queue,
+failure reason, attempt count).
+
+**Event consumer registration:** Static configuration with schema validation
+and proper error handling.
+
 ### 2.8 Database Table Layers
 
 | Layer | Tables | Owned by |
@@ -205,35 +251,69 @@ Audio BC consumer reads audio_commands
 | pgmq queues | `pgmq.q_audio_commands`, `pgmq.q_video_events`, ... | Shared messaging infrastructure |
 | Messaging state | `msg_consumer_offsets` | Shared messaging infrastructure |
 
-### 2.9 Worker as Runtime, BCs as Libraries
+### 2.9 One Container Per BC
 
-Audio and video BCs are libraries (`libs/audio`, `libs/video`). They don't run
-as separate processes. The worker process:
+Each bounded context runs as its own Docker container with its own process.
+This is the strongest enforcement of BC isolation — not just code boundaries,
+but process boundaries. Each container only has its own BC's code in the
+import path.
 
-- Connects to the single database
-- Runs pgmq consumer loops (polling)
-- Routes messages to BC handler functions
-- BC handler code never touches pgmq directly — it receives typed messages
-  and does domain work
+| Container | BC | Role |
+|-----------|-----|------|
+| `webapp` | Core | FastAPI server, writes commands to pgmq, consumes events for UI updates |
+| `t3k-sync` | Source: T3K | Eternal loop polling T3K API, publishes `source_events` |
+| `audio-worker` | Audio | Polls `audio_commands`, publishes `audio_events` |
+| `video-worker` | Video | Polls `video_commands` + reads `audio_events`, publishes `video_events` |
+| `postgres` | — | Database (pgmq lives here) |
+| `nginx` | — | Reverse proxy |
+
+**Removed from current architecture:**
+
+| Removed | Reason |
+|---------|--------|
+| `scheduler` | No remaining purpose. T3K sync is self-driven. On-demand jobs are triggered by user actions via pgmq commands. |
+| `redis` | Was only needed as TaskIQ broker. pgmq replaces TaskIQ for task dispatch. WebSocket notifications are a future webapp concern. |
+| `worker` (monolithic) | Replaced by per-BC containers (`audio-worker`, `video-worker`, `t3k-sync`). |
+| TaskIQ dependency | pgmq consumer loops replace TaskIQ's poll-and-execute pattern. Same concept, one fewer dependency, transactional publish for free. |
 
 ### 2.10 Token Refresh Ownership
 
-T3K token refresh is handled by the sync consumer as part of its startup
+T3K token refresh is handled by the T3K sync container as part of its startup
 lifecycle. `T3KSyncService` already calls `token_manager.ensure_valid_token()`.
-Add proactive refresh if token expires within 10 minutes. Scheduler no longer
-proxies token refresh via HTTP.
+Add proactive refresh if token expires within 10 minutes.
 
-### 2.11 Worker Import Decoupling (Required)
+### 2.11 Import Decoupling
 
-Move shared ORM models from `webapp.adapters.persistence.models` to
-`libs/core`. Worker imports from core instead of webapp. This is required,
-not optional.
+Each BC container only imports its own BC's code. Shared domain models (e.g.
+base entities, value objects) live in `libs/core`. BC-specific models live in
+their BC's library. This happens naturally with separate containers — no
+special decoupling phase needed.
 
 ### 2.12 BC-Level CLAUDE.md Files
 
 Each BC has its own `CLAUDE.md` file pointing to `AGENTS.md` for shared rules,
 plus BC-specific rules, table ownership declarations, and implementation
 guidelines.
+
+### 2.13 Message Schema Validation
+
+Pydantic models for all commands and events. Each BC defines its own message
+schemas in its library (`libs/core/messages.py`, `libs/audio/messages.py`,
+`libs/video/messages.py`). Follows existing Pydantic-everywhere pattern.
+
+### 2.14 core_jobs as User-Facing Status
+
+`core_jobs` remains the single user-facing aggregate for job status and
+progress. The webapp queries it for "what's my job doing?" Event consumers
+update it as they progress through the workflow. BCs treat it as part of the
+core domain — conceptually a separate database. No abstraction leakage.
+
+### 2.15 JobType Enum
+
+`JobType` maps to command types. `JobType.VIDEO_COMPOSE` → `compose_shootout`
+command, `JobType.SOURCE_SYNC` → removed (T3K sync is self-driven, not a job).
+The enum stays as the user-facing label; command types are the internal
+dispatch key.
 
 ---
 
@@ -244,11 +324,11 @@ guidelines.
 | Queue | Type | Producer(s) | Consumer(s) |
 |-------|------|-------------|-------------|
 | `audio_commands` | Command | Webapp, Video BC | Audio BC consumer |
-| `audio_events` | Event | Audio BC | Video BC, Webapp, monitoring |
+| `audio_events` | Event | Audio BC | Video BC, Webapp |
 | `video_commands` | Command | Webapp | Video BC consumer |
-| `video_events` | Event | Video BC | Webapp, monitoring |
-| `source_commands` | Command | Scheduler | T3K sync consumer |
-| `source_events` | Event | T3K sync service | Gear mapper (worker), monitoring |
+| `video_events` | Event | Video BC | Webapp |
+| `source_events` | Event | T3K sync | Webapp (core domain), monitoring |
+| `dead_letter` | DLQ | Any consumer (on failure) | Monitoring/alerting |
 
 ### Queues to remove
 
@@ -259,8 +339,9 @@ guidelines.
 - `gear_sync` (replaced by `source_events`)
 - `gear_pack_sync` (legacy)
 - `gear_model_sync` (legacy)
-- `sync_dead_letter` (replaced by DLQ convention on new queues)
-- `gear_sync_dlq` (replaced by DLQ convention on new queues)
+- `sync_dead_letter` (replaced by shared `dead_letter` queue)
+- `gear_sync_dlq` (replaced by shared `dead_letter` queue)
+- `source_commands` (not needed — T3K sync is self-driven)
 
 ### New shared table
 
@@ -286,7 +367,6 @@ CREATE TABLE msg_consumer_offsets (
 | `process_audio_file` | `audio_commands` | Webapp | job_id, user_id, signal_chain_id, input_file_path, output_format |
 | `process_chain_audio` | `audio_commands` | Video BC | shootout_id, chain_id, signal_chain_id, di_track_path, gear_paths |
 | `produce_master_track` | `audio_commands` | Video BC | shootout_id, chain_results with segment paths and LUFS |
-| `trigger_sync` | `source_commands` | Scheduler | source name, requested_at |
 
 ### Events
 
@@ -303,7 +383,7 @@ CREATE TABLE msg_consumer_offsets (
 ## 5. Table Rename Map
 
 All tables get strict BC prefix. Preliminary mapping (to be finalised during
-implementation planning):
+implementation — requires full audit of both databases):
 
 | Current name | New name | BC |
 |-------------|----------|-----|
@@ -327,10 +407,12 @@ implementation planning):
 | `t3k_oauth_tokens` | `t3k_oauth_tokens` | Source: T3K |
 
 > Note: T3K tables already mostly have `t3k_` prefix. Core tables need renaming.
+> Full audit of both databases required before implementation to ensure
+> completeness.
 
 ---
 
-## 6. Phase Breakdown (Draft — Needs Detail)
+## 6. Phase Breakdown
 
 ### Phase 0: Documentation baseline
 
@@ -339,62 +421,68 @@ implementation planning):
 - Update AGENTS.md (outbox rule, BC communication patterns, table isolation rule)
 - Update gts-architecture skill references
 - Create/update BC-level CLAUDE.md files with table ownership declarations
-- Update memory files
 
 ### Phase 1: Single database migration
 
-- Merge `gts_t3k_source` tables into main database
+- Merge `gts_t3k_source` tables into main database (single Alembic migration)
 - Rename all tables with BC prefixes (`core_*`, `t3k_*`)
 - Update all ORM models, migrations, connection strings
 - Simplify Docker compose (one DB init)
-- Remove `T3K_DATABASE_URL` from worker/scheduler config
+- Remove `T3K_DATABASE_URL` from all config
 - Update import-linter contracts
 
 ### Phase 2: Command and event infrastructure
 
 - Create pgmq queues: `audio_commands`, `audio_events`, `video_commands`,
-  `video_events`, `source_commands`, `source_events`
+  `video_events`, `source_events`
+- Create shared `dead_letter` queue
 - Create `msg_consumer_offsets` table
 - Drop unused/legacy queues
-- Build command consumer base (pgmq read/archive pattern)
+- Build command consumer base (pgmq read/archive with visibility timeout retry)
 - Build event consumer base (offset-based read pattern)
+- Prototype offset-based event consumption with pgmq (implementation detail
+  to be resolved during this phase)
 
-### Phase 3: Source sync — migrate to new pattern
+### Phase 3: T3K sync container
 
-- Rename gear_sync flow to `source_commands`/`source_events`
-- Fix transactional outbox (publish within transaction, not after commit)
-- Scheduler writes to `source_commands` instead of HTTP-calling worker
-- Remove scheduler → worker HTTP calls
-- Token refresh moves into sync consumer lifecycle
+- Extract T3K sync into its own container (`t3k-sync`)
+- Eternal loop polling T3K API, no external trigger
+- Publish thick events to `source_events` via transactional outbox
+- Token refresh handled within sync container lifecycle
+- Remove scheduler container and all scheduler code
 
-### Phase 4: Audio BC — commands and events
+### Phase 4: Audio BC container
 
-- Implement `audio_commands` consumer in worker
-- Refactor audio handlers to consume from queue
-- Add thick event publishing to `audio_events` on completion
-- Wire `publish_progress` for real-time WebSocket updates
+- Extract audio processing into `audio-worker` container
+- Polls `audio_commands`, processes work, publishes to `audio_events`
+- Thick events with full results (paths, LUFS, duration, etc.)
+- Transactional outbox for all publishes
 
-### Phase 5: Video BC — commands and events
+### Phase 5: Video BC container
 
-- Implement `video_commands` consumer in worker
-- Video BC consumes `audio_events` to know when audio is ready
-- Video BC publishes to `video_events` on completion
-- Webapp creates VIDEO_COMPOSE command instead of HTTP dispatch
+- Extract video processing into `video-worker` container
+- Polls `video_commands` for new compose requests
+- Reads `audio_events` (offset-based) to track chain completion
+- Owns reconciliation logic ("are all chains done?")
+- Publishes to `video_events` on completion
 
-### Phase 6: Webapp decoupling and cleanup
+### Phase 6: Webapp decoupling
 
-- Webapp writes commands to `audio_commands` or `video_commands` + Job row
-  (transactional)
+- Webapp writes commands to `audio_commands` or `video_commands` + core_jobs
+  row (transactional outbox)
+- Webapp consumes `source_events` to upsert core domain (gear mapping)
+- Webapp consumes `video_events` for job completion updates
 - Remove `enqueue_to_worker()` HTTP dispatch
-- Worker admin API becomes operator-only tooling
 - Remove direct `.kiq()` calls from all handlers
 
-### Phase 7: Worker import decoupling
+### Phase 7: Cleanup and removal
 
-- Move shared ORM models from `webapp.adapters.persistence.models` to
-  `libs/core`
-- Worker imports from core instead of webapp
-- Update import-linter contracts
+- Remove TaskIQ dependency entirely
+- Remove Redis from infrastructure
+- Remove monolithic worker container
+- Remove scheduler container
+- Clean up Docker compose (remove unused services, profiles, volumes)
+- Update all documentation and configuration
 
 ---
 
@@ -405,35 +493,33 @@ implementation planning):
 - AGENTS.md updates (rules, architecture table, patterns)
 - BC-level CLAUDE.md files (table ownership, BC-specific rules)
 - gts-architecture skill reference updates
-- Memory file updates
-- .claude and .codex configuration files
+- Pydantic message schemas per BC
+- Docker compose topology changes
+- Removal of TaskIQ, Redis, scheduler
 
 ---
 
-## 8. Open Questions (For Next Session)
+## 8. Resolved Design Questions
 
-1. **pgmq for events detail**: exact consumer poll implementation — how does
-   offset-based reading work with pgmq's underlying table structure? Need to
-   prototype.
-2. **DLQ strategy**: per-queue DLQs or shared DLQ with routing metadata?
-3. **Schema migration strategy**: single Alembic migration for the DB merge +
-   rename, or phased?
-4. **Table rename completeness**: need to audit ALL tables in both databases to
-   build the complete rename map.
-5. **Message schema validation**: Pydantic models for commands/events? Where
-   do they live?
-6. **Existing `core_jobs` table role**: still the user-facing aggregate for
-   status/progress? How does it interact with the event-driven flow?
-7. **TaskIQ's role**: commands go to pgmq, but CPU-intensive work still needs
-   TaskIQ for Redis-backed task execution. How do pgmq consumers delegate to
-   TaskIQ?
-8. **Progress notification wiring**: which handlers publish to Redis pub/sub
-   and at what milestones?
-9. **Detailed thick event schemas**: full Pydantic models for each command and
-   event type.
-10. **Consumer registration**: how do event consumers register and how does
-    cleanup know the minimum offset?
-11. **What happens to `JobType` enum**: does it map to command types, or is it
-    replaced?
-12. **Reconciliation pattern**: "are all siblings done?" check — where does this
-    logic live in the event-driven model?
+| # | Question | Resolution |
+|---|----------|------------|
+| 1 | pgmq offset-based event consumption detail | Defer to Phase 2 prototyping |
+| 2 | DLQ strategy | One shared DLQ with routing metadata |
+| 3 | Schema migration strategy | Single Alembic migration |
+| 4 | Table rename completeness | Full audit required before Phase 1 |
+| 5 | Message schema validation | Pydantic models per BC library |
+| 6 | core_jobs role | User-facing status aggregate. BCs update it via events. No abstraction leakage. |
+| 7 | TaskIQ's role | **Eliminated.** pgmq consumer loops replace TaskIQ entirely. Redis removed. |
+| 8 | Progress notifications | Webapp concern only. Not part of this architecture. Will be triggered by events but implementation is webapp-owned. |
+| 9 | Detailed thick event schemas | Deferred to implementation |
+| 10 | Consumer registration | Static configuration with schema validation |
+| 11 | JobType enum | Maps to command types. Enum stays as user-facing label. SOURCE_SYNC removed (T3K sync is self-driven). |
+| 12 | Reconciliation pattern | Each BC owns its own sub-job tracking and reconciliation |
+
+---
+
+## 9. Remaining Work
+
+- [ ] Full database audit (both databases) to complete table rename map
+- [ ] Write canonical wiki page
+- [ ] Create implementation plan (invoke writing-plans skill)

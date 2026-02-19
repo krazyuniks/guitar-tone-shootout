@@ -9,6 +9,6 @@ See [project README](../README.md) for configuration architecture.
 ├── hooks/           # Lifecycle hooks (deterministic enforcement)
 ├── skills/          # GTS-specific domain knowledge (7 skills)
 ├── rules/           # github.md (--repo flag reminder)
-├── commands/        # Slash commands (/epic, /check, /merge, /resume)
+├── commands/        # Slash commands (/epic, /check, /merge)
 └── settings.json    # Permissions & hook config
 ```
