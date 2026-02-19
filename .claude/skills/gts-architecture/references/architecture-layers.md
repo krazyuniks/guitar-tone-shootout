@@ -58,7 +58,7 @@ Hexagonal architecture with domain at centre. Dependencies point inward -- adapt
 
 | Concern | Technology | Rationale |
 |---------|------------|-----------|
-| Regression | pytest (SQLite in-memory) | Fast stack validation (~0.2s) |
+| Regression | pytest | Stack connectivity validation (<1s) |
 | Unit/Integration | pytest, pytest-asyncio | Async support, fixtures |
 | E2E | Playwright | Browser automation, visual verification |
 
@@ -146,7 +146,7 @@ gts/
 │   └── git_ops.py              # Git operations
 │
 ├── tests/
-│   ├── regression/             # Stack connectivity tests (SQLite, ~0.2s)
+│   ├── regression/             # Stack connectivity tests (<1s)
 │   ├── unit/                   # Unit tests (core, audio, webapp)
 │   ├── integration/            # Integration tests (real DB/Redis)
 │   └── e2e/python/             # E2E tests (Playwright, isolated workspace)

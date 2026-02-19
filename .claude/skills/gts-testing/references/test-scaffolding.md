@@ -2,41 +2,24 @@
 
 Quick-start patterns for common GTS test scenarios. Extracted from production-proven templates.
 
-## Unit Test with Async SQLite (ORM Models)
+## Unit/Integration Test with PostgreSQL (ORM Models)
 
-Use this pattern when testing ORM models in isolation without the full integration test stack.
+Use the shared `session` fixture from `tests/conftest.py`. No inline engine or session setup needed — SQLite is banned.
 
 ```python
-"""Unit tests for SomeModel."""
+"""Tests for SomeModel."""
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy import select
 
-from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.some_model import SomeModel
 
-
-@pytest.fixture
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    async_session = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with async_session() as session:
-        yield session
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestSomeModel:
@@ -49,6 +32,8 @@ class TestSomeModel:
         saved = result.scalar_one()
         assert saved.name == "test"
 ```
+
+The `session` fixture (alias for `db_session`) provides SAVEPOINT isolation — all changes are rolled back after each test. No teardown code needed.
 
 ## Verifying a Module/Class Exists
 

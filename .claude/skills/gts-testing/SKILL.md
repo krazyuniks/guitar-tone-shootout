@@ -57,7 +57,7 @@ tests/
   integration/
     backend/               # Real DB/Redis tests
     video/                 # Video API tests
-  regression/              # Stack connectivity (SQLite, <1s)
+  regression/              # Stack connectivity (<1s)
   e2e/
     python/                # E2E tests (pytest + Playwright, HOST only)
       conftest.py          # Browser fixtures, auth, DB access

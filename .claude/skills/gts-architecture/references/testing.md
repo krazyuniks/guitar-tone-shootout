@@ -6,7 +6,7 @@ Testing uses pytest with Playwright for browser automation. The suite is structu
 
 | Level | Purpose | Infrastructure | Location |
 |-------|---------|----------------|----------|
-| Regression | Stack connectivity (ORM -> Repo -> DB) | SQLite in-memory | `tests/regression/` |
+| Regression | Stack connectivity (ORM -> Repo -> DB) | Real PostgreSQL | `tests/regression/` |
 | Unit | Domain logic, validators | None | `tests/unit/` |
 | Integration | Repository operations, services | Real PostgreSQL/Redis | `tests/integration/` |
 | E2E | User journeys, UI flows | Browser + full stack | `tests/e2e/python/` |
@@ -28,7 +28,7 @@ Fast validation that the ORM -> Repository -> Database stack works correctly:
 
 - **User round-trip** -- Create, save, retrieve by ID/email/identity
 - **Job round-trip** -- Create, save, state transitions, retrieve
-- Uses SQLite in-memory for speed (~0.2s)
+- Uses real PostgreSQL with SAVEPOINT rollback isolation
 - Run before commits to catch fundamental breaks
 
 ```bash
@@ -51,7 +51,7 @@ This pattern catches issues at any layer: frontend rendering, API communication,
 
 | Category | Approach |
 |----------|----------|
-| PostgreSQL | Real database (SQLite in-memory for unit/regression, PostgreSQL for integration) |
+| PostgreSQL | Real database — all test levels use PostgreSQL with SAVEPOINT isolation |
 | Redis | Real Redis instance in Docker |
 | T3K API | Real T3K API with auth tokens |
 | pgmq | Real pgmq extension in PostgreSQL |
