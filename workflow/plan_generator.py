@@ -62,18 +62,18 @@ def _read_epic_number(epic_dir: Path) -> int:
 # Planner prompt construction
 # ---------------------------------------------------------------------------
 
-# Evidence fields per check type (Section 8.4 Decision 4)
+# Evidence fields — all types now produce command output (deterministic)
 EVIDENCE_FIELDS_TABLE = """\
-| Check Type | Required Evidence Fields |
-|------------|------------------------|
-| `http` | `status_code`, `url`, `response_excerpt` |
-| `http+dom` | `status_code`, `url`, `dom_selector`, `element_text` |
-| `browser+db` | `action_performed`, `sql_query`, `row_count`, `sample_row` |
-| `api+response` | `status_code`, `url`, `method`, `response_body_excerpt` |
-| `process` | `process_name`, `pid_or_status`, `log_excerpt` |
-| `screenshot` | `screenshot_path`, `observations` |
-| `regression` | `test_command`, `exit_code`, `test_count`, `failure_count` |
-| `quality` | `commands_run`, `exit_code`, `error_count` |"""
+All check types produce the same evidence fields (command execution output):
+
+| Evidence Field | Description |
+|----------------|-------------|
+| `command` | The shell command that was executed |
+| `exit_code` | Process exit code (0 = pass) |
+| `output_tail` | Last 2000 chars of combined stdout + stderr |
+
+The default `evidence_fields` value is `["command", "exit_code", "output_tail"]`.
+You may omit `evidence_fields` from criteria — the default is applied automatically."""
 
 # Checkpoint placement guidance (Section 8.4 Decision 5)
 CHECKPOINT_PLACEMENT_GUIDANCE = """\
@@ -86,7 +86,21 @@ Place validation checkpoints strategically based on story types:
 
 Not every story needs a checkpoint. Backend-only stories (entity + repo + service)
 may wait for the UI story that exposes them. The key is to catch wiring failures
-before building on top of broken scaffolding."""
+before building on top of broken scaffolding.
+
+**Command-based validation:** Every criterion SHOULD include a `command` field with the
+shell command to run. Commands should be `just` recipes or `just tdd <path> -k <test>`.
+Exit code 0 = pass. The implementation story's scope should include the test file so the
+agent writes the test as part of the story.
+
+Examples:
+- `"command": "just tdd tests/unit/webapp/test_gear_list.py -k test_gear_list_page"`
+- `"command": "just check-lint"`
+- `"command": "just test-golden-path"`
+- `"command": "just tdd tests/integration/webapp/test_gear_crud.py"`
+
+Criteria without a `command` field fall back to keyword matching (e.g. "quality gates
+pass" maps to `just check`), but explicit commands are preferred for precision."""
 
 # Story sizing guidance (Section 8.4 Decision 7)
 STORY_SIZING_GUIDANCE = """\
@@ -127,9 +141,10 @@ Tool restrictions per agent role:
 | Agent Role | Tools |
 |------------|-------|
 | Implementation | Read, Edit, Write, Bash, Glob, Grep |
-| Validation (browser) | Read, Bash, Glob, Grep |
-| Validation (API/DB) | Bash, Read, Glob, Grep |
-| Regression test | Read, Edit, Write, Bash, Glob, Grep |"""
+| Regression test | Read, Edit, Write, Bash, Glob, Grep |
+
+Note: Validation checkpoints run commands directly (no agent dispatch).
+Validation does not need tool configuration."""
 
 # Budget defaults (Section 8.2 Strategy 7)
 BUDGET_REFERENCE = """\
@@ -264,10 +279,11 @@ For each story, specify the full agent dispatch configuration.
 
 ---
 
-## Evidence Fields per Check Type
+## Validation Checkpoints: Command-Based
 
-Each validation checkpoint must specify `evidence_fields` per criterion. Use the
-correct fields for the check type:
+Validation checkpoints run shell commands directly — no LLM agents. Each criterion
+should include a `command` field. The `evidence_fields` default to
+`["command", "exit_code", "output_tail"]` and can be omitted.
 
 {EVIDENCE_FIELDS_TABLE}
 

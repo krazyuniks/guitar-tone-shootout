@@ -1,12 +1,13 @@
 """Phase A: Deterministic plan validation ($0 AI cost).
 
-Validates plan.json against the Pydantic Plan model and checks 6
+Validates plan.json against the Pydantic Plan model and checks 7
 structural properties that are mechanical and instant to verify. This
 runs before Phase B (AI verification) to catch structural errors without
 spending any AI tokens.
 
 Check 1 (schema conformance) is eliminated — Pydantic validation in
-the plan generator already enforces it.
+the plan generator already enforces it. Check 8 (command coverage)
+runs but only produces warnings, not errors.
 
 Reference: Research doc Section 8.4 Decision 8.
 
@@ -21,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from workflow.models import Plan
+from workflow.validation import _match_command
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -322,16 +324,50 @@ def _check_budget_sanity(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
+# Check 8: Command coverage
+# ---------------------------------------------------------------------------
+
+
+def _check_command_coverage(plan: Plan) -> list[ValidationError]:
+    """Check 8: Every checkpoint criterion resolves to a command.
+
+    A criterion resolves if it has an explicit ``command`` field or if
+    ``_match_command()`` finds a keyword match. Criteria without a
+    mapping produce warnings (not errors) since existing plans may
+    lack commands.
+    """
+    warnings: list[ValidationError] = []
+
+    for cp in plan.validation_checkpoints:
+        for check in cp.checks:
+            has_explicit = bool(check.command)
+            has_keyword = _match_command(check.criterion) is not None
+
+            if not has_explicit and not has_keyword:
+                warnings.append(
+                    ValidationError(
+                        check="command_coverage",
+                        message=f"Checkpoint after '{cp.after_story}': criterion "
+                        f"'{check.criterion}' has no command field and no keyword "
+                        f"match. It will be skipped during validation.",
+                    )
+                )
+
+    return warnings
+
+
+# ---------------------------------------------------------------------------
 # Core function
 # ---------------------------------------------------------------------------
 
 
 def validate_plan(epic_dir: Path) -> ValidationResult:
-    """Run 6 deterministic validation checks on plan.json.
+    """Run 7 deterministic validation checks on plan.json.
 
     Phase A of the two-phase plan verification system. This is the
     deterministic, $0, instant check. Check 1 (schema conformance) is
     eliminated — Pydantic validation already handles it at parse time.
+    Check 8 (command coverage) runs but only produces warnings.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -387,6 +423,11 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_scope_coherence(plan))
     all_errors.extend(_check_dependency_ordering(plan))
     all_errors.extend(_check_budget_sanity(plan))
+
+    # Check 8: Command coverage (warnings only — doesn't fail validation)
+    command_warnings = _check_command_coverage(plan)
+    for w in command_warnings:
+        logger.warning("Check 8 warning: %s", w.message)
 
     return ValidationResult(
         valid=len(all_errors) == 0,

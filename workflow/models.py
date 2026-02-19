@@ -65,7 +65,15 @@ class CheckCriterion(BaseModel):
     """Individual criterion to verify at a validation checkpoint."""
 
     criterion: str = Field(description="Natural-language behaviour to verify.")
-    evidence_fields: list[str] = Field(description="Required evidence fields for this criterion.")
+    command: str | None = Field(
+        default=None,
+        description="Shell command to run (e.g. 'just tdd tests/... -k test_name'). "
+        "Exit 0 = pass. If omitted, falls back to keyword matching.",
+    )
+    evidence_fields: list[str] = Field(
+        default_factory=lambda: ["command", "exit_code", "output_tail"],
+        description="Evidence fields (default: command output).",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +236,8 @@ def render_plan_md(plan: Plan) -> str:
                 lines.append("**Checks:**")
                 for check in cp.checks:
                     evidence = ", ".join(check.evidence_fields)
-                    lines.append(f"- {check.criterion} (evidence: {evidence})")
+                    cmd_suffix = f" [cmd: `{check.command}`]" if check.command else ""
+                    lines.append(f"- {check.criterion} (evidence: {evidence}){cmd_suffix}")
                 lines.append("")
                 lines.append("---")
                 lines.append("")

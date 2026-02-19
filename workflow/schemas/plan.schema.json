@@ -319,16 +319,20 @@
           "minLength": 1,
           "description": "Natural-language behaviour statement to verify."
         },
+        "command": {
+          "type": "string",
+          "description": "Shell command to execute. Exit 0 = pass. E.g. 'just tdd tests/... -k test_name'."
+        },
         "evidence_fields": {
           "type": "array",
-          "minItems": 1,
           "items": {
             "type": "string"
           },
-          "description": "Required evidence fields for this criterion. Depends on the parent checkpoint's check_type."
+          "default": ["command", "exit_code", "output_tail"],
+          "description": "Evidence fields produced by validation. Defaults to command output fields."
         }
       },
-      "required": ["criterion", "evidence_fields"],
+      "required": ["criterion"],
       "additionalProperties": false
     }
   }

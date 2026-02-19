@@ -1,79 +1,30 @@
-"""V2 type-aware validation checkpoint system.
+"""Command-based validation checkpoint system.
 
-Dispatches read-only agents to verify that stories produced working results.
-Each check type (http, http+dom, browser+db, api+response, process,
-screenshot, regression, quality) uses the correct model and tools.
-Evidence fields are validated to reject empty or generic responses.
+All validation runs commands directly — no LLM agent dispatch. Each
+criterion resolves to a shell command (via the explicit ``command`` field
+or keyword matching) and pass/fail is determined by exit code. Test output
+(assertion errors, tracebacks) flows into retry prompts as actionable
+feedback.
 
 Reference: Research doc Section 8.4 Decisions 4, 5. Section 8.5 Decision 5.
 No dependency on run_epic.py or any V1 code.
 """
 
-import json
 import logging
-import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from workflow.dispatch import (
-    FALLBACK_MODELS,
-    AgentResult,
-    dispatch_with_fallback,
-    get_tools_for_role,
-)
 from workflow.jsonl_logger import EventLogger
-from workflow.models import ValidationCheckpoint
+from workflow.models import CheckCriterion, ValidationCheckpoint
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-SCHEMA_PATH = PROJECT_ROOT / "workflow" / "schemas" / "validation-result.schema.json"
 
 
 # ---------------------------------------------------------------------------
-# Validation prompt builder (local — not in workflow.prompt_builder)
-# ---------------------------------------------------------------------------
-
-
-def build_validation_prompt(checkpoint: ValidationCheckpoint, check_type: str) -> str:
-    """Build a minimal validation prompt for the read-only validation agent.
-
-    Args:
-        checkpoint: Validation checkpoint dict from plan.json.
-        check_type: The check type string.
-
-    Returns:
-        Prompt string for the validation agent.
-    """
-    checks = checkpoint.checks
-    criteria_lines = []
-    for i, check in enumerate(checks, 1):
-        criterion = check.criterion
-        fields = check.evidence_fields
-        criteria_lines.append(f"{i}. {criterion}")
-        if fields:
-            criteria_lines.append(f"   Evidence required: {', '.join(fields)}")
-
-    return f"""You are a read-only validation agent. Verify the following criteria and report results as structured JSON.
-
-Check type: {check_type}
-
-Criteria:
-{chr(10).join(criteria_lines)}
-
-For EACH criterion, report:
-- criterion: the criterion text
-- status: "pass" or "fail"
-- evidence: object with the required evidence fields populated with actual observed values
-
-Do NOT modify any files. Only read, observe, and report.
-Reject any observation that uses generic phrases like "looks good" or "seems fine".
-"""
-
-
-# ---------------------------------------------------------------------------
-# Check type configuration (Section 8.4 Decision 5)
+# Check type configuration (retained as documentation/metadata)
 # ---------------------------------------------------------------------------
 
 
@@ -129,35 +80,6 @@ CHECK_TYPE_CONFIGS: dict[str, CheckTypeConfig] = {
     ),
 }
 
-# Required evidence fields per check type (Section 8.4 Decision 4).
-# The orchestrator validates that these fields are present and non-empty.
-REQUIRED_EVIDENCE_FIELDS: dict[str, list[str]] = {
-    "http": ["status_code", "url", "response_excerpt"],
-    "http+dom": ["status_code", "url", "dom_selector", "element_text"],
-    "browser+db": ["action_performed", "sql_query", "row_count", "sample_row"],
-    "api+response": ["status_code", "url", "method", "response_body_excerpt"],
-    "process": ["process_name", "pid_or_status", "log_excerpt"],
-    "screenshot": ["screenshot_path", "observations"],
-    "regression": ["test_command", "exit_code", "test_count", "failure_count"],
-    "quality": ["commands_run", "exit_code", "error_count"],
-}
-
-# Generic evidence phrases that indicate the agent did not actually check.
-GENERIC_EVIDENCE_PHRASES = [
-    "looks good",
-    "seems fine",
-    "appears correct",
-    "no issues",
-    "everything works",
-    "all good",
-    "working as expected",
-    "n/a",
-    "not applicable",
-    "see above",
-    "passed",
-    "ok",
-]
-
 
 # ---------------------------------------------------------------------------
 # Validation result
@@ -177,7 +99,7 @@ class ValidationResult:
 
 
 # ---------------------------------------------------------------------------
-# Direct command execution for quality/regression checks
+# Direct command execution for all check types
 # ---------------------------------------------------------------------------
 
 _CRITERION_COMMANDS: dict[str, str] = {
@@ -201,23 +123,35 @@ def _match_command(criterion: str) -> str | None:
     return None
 
 
-def _run_quality_checks_directly(
-    checks: list,
+def _resolve_command(check: CheckCriterion) -> str | None:
+    """Resolve a criterion to its shell command.
+
+    Checks the explicit ``command`` field first, then falls back to
+    keyword matching against ``_CRITERION_COMMANDS``.
+    """
+    if check.command:
+        return check.command
+    return _match_command(check.criterion)
+
+
+def _run_checks_directly(
+    checks: list[CheckCriterion],
     check_type: str,
     story_id: str,
 ) -> ValidationResult:
-    """Run quality/regression checks directly via subprocess.
+    """Run validation checks directly via subprocess.
 
-    For quality and regression check types, running the commands directly
-    is faster and more reliable than dispatching an LLM agent — exit codes
-    are deterministic and don't require interpretation.
+    For each criterion, resolves a command (explicit or keyword-matched),
+    runs it, and determines pass/fail from the exit code. Combined test
+    output is stored in ``raw_output`` so it flows into retry prompts.
     """
     per_criterion_results: list[dict] = []
     all_pass = True
+    all_output_parts: list[str] = []
 
     for check in checks:
         criterion = check.criterion
-        cmd = _match_command(criterion)
+        cmd = _resolve_command(check)
 
         if cmd is None:
             logger.warning("Cannot map criterion to command (skipping): %s", criterion)
@@ -250,6 +184,7 @@ def _run_quality_checks_directly(
                 }
             )
             all_pass = False
+            all_output_parts.append(f"[TIMEOUT] {cmd}")
             continue
 
         passed = completed.returncode == 0
@@ -257,17 +192,21 @@ def _run_quality_checks_directly(
             all_pass = False
 
         output = (completed.stdout or "") + (completed.stderr or "")
+        all_output_parts.append(output)
+
         per_criterion_results.append(
             {
                 "criterion": criterion,
                 "status": "pass" if passed else "fail",
                 "evidence": {
-                    "commands_run": [cmd],
+                    "command": cmd,
                     "exit_code": completed.returncode,
-                    "output_tail": output[-500:] if output else "",
+                    "output_tail": output[-2000:] if output else "",
                 },
             }
         )
+
+    combined_output = "\n".join(all_output_parts)
 
     return ValidationResult(
         passed=all_pass,
@@ -275,120 +214,8 @@ def _run_quality_checks_directly(
         results=per_criterion_results,
         failure_reason=None if all_pass else "One or more checks failed",
         failure_category=None if all_pass else "implementation",
+        raw_output=combined_output,
     )
-
-
-# ---------------------------------------------------------------------------
-# Evidence validation
-# ---------------------------------------------------------------------------
-
-
-def _is_generic_evidence(value: object) -> bool:
-    """Check if an evidence value is empty or generic.
-
-    A value is considered generic if it is:
-    - None, empty string, empty dict, empty list
-    - A string matching known generic phrases (case-insensitive)
-    - A string that is too short to be meaningful (< 3 chars)
-
-    Args:
-        value: The evidence field value to check.
-
-    Returns:
-        True if the value is empty or generic.
-    """
-    if value is None:
-        return True
-    if isinstance(value, str):
-        stripped = value.strip().lower()
-        if len(stripped) < 3:
-            return True
-        return stripped in GENERIC_EVIDENCE_PHRASES
-    if isinstance(value, dict) and not value:
-        return True
-    return bool(isinstance(value, list) and not value)
-
-
-def validate_evidence(
-    results: list[dict],
-    check_type: str,
-) -> tuple[bool, list[str]]:
-    """Validate that evidence fields are populated and non-generic.
-
-    For each criterion result, checks that:
-    1. The evidence object is present and non-empty.
-    2. All required fields for the check type are present.
-    3. No required field has a generic/empty value.
-
-    Args:
-        results: List of per-criterion result dicts from the agent.
-        check_type: The check type to validate against.
-
-    Returns:
-        Tuple of (all_valid, list_of_error_messages).
-    """
-    required_fields = REQUIRED_EVIDENCE_FIELDS.get(check_type, [])
-    errors: list[str] = []
-
-    for i, result in enumerate(results):
-        criterion = result.get("criterion", f"criterion {i + 1}")
-        evidence = result.get("evidence")
-
-        if not isinstance(evidence, dict) or not evidence:
-            errors.append(f"Criterion '{criterion}': evidence is missing or empty")
-            continue
-
-        for field_name in required_fields:
-            if field_name not in evidence:
-                errors.append(
-                    f"Criterion '{criterion}': missing required evidence field '{field_name}'"
-                )
-            elif _is_generic_evidence(evidence[field_name]):
-                errors.append(
-                    f"Criterion '{criterion}': evidence field '{field_name}' "
-                    f"has empty or generic value"
-                )
-
-    return (len(errors) == 0, errors)
-
-
-# ---------------------------------------------------------------------------
-# Schema loading
-# ---------------------------------------------------------------------------
-
-
-def _load_validation_schema() -> dict:
-    """Load the validation-result JSON schema for --json-schema.
-
-    Returns:
-        The schema dict, or a minimal fallback if the file is missing.
-    """
-    if SCHEMA_PATH.exists():
-        return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-
-    logger.warning(
-        "Validation schema not found at %s; using minimal fallback",
-        SCHEMA_PATH,
-    )
-    return {
-        "type": "object",
-        "properties": {
-            "status": {"enum": ["pass", "fail"]},
-            "results": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "criterion": {"type": "string"},
-                        "status": {"enum": ["pass", "fail"]},
-                        "evidence": {"type": "object"},
-                    },
-                    "required": ["criterion", "status", "evidence"],
-                },
-            },
-        },
-        "required": ["status", "results"],
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -402,29 +229,23 @@ def run_validation_checkpoint(
     story_id: str,
     event_logger: EventLogger | None = None,
 ) -> ValidationResult:
-    """Execute a type-aware validation checkpoint.
+    """Execute a validation checkpoint by running commands directly.
 
-    1. Read checkpoint definition and determine check type.
-    2. Look up model and tools from the check type config.
-    3. Build the validation agent prompt (minimal, ~100-200 tokens).
-    4. Dispatch via dispatch_with_fallback() with read-only tools
-       and --json-schema for structured output.
-    5. Parse structured output.
-    6. Validate evidence fields are populated and non-generic.
-    7. Log result to JSONL (validation_pass or validation_fail).
+    All check types are routed through ``_run_checks_directly()``.
+    Each criterion resolves to a shell command (explicit ``command``
+    field or keyword matching) and pass/fail is determined by exit code.
 
     Args:
-        checkpoint: Validation checkpoint dict from plan.json. Must contain
-            'check_type' and 'checks' fields.
+        checkpoint: Validation checkpoint from plan.json.
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95).
         story_id: The story_id this checkpoint follows.
-        event_logger: Optional JSONL logger for recording results. If None,
-            results are returned but not logged.
+        event_logger: Optional JSONL logger for recording results.
 
     Returns:
         ValidationResult with pass/fail status, per-criterion results,
         and any failure details.
     """
+    _ = epic_dir  # Retained for API compatibility (callers pass it)
     check_type = checkpoint.check_type
     checks = checkpoint.checks
 
@@ -442,18 +263,8 @@ def run_validation_checkpoint(
             _log_validation_event(event_logger, story_id, result)
         return result
 
-    # For quality/regression checks, run commands directly instead of
-    # dispatching an LLM agent.  The agent adds latency and can misinterpret
-    # command output; exit codes are deterministic.
-    if check_type in ("quality", "regression"):
-        result = _run_quality_checks_directly(checks, check_type, story_id)
-        if event_logger:
-            _log_validation_event(event_logger, story_id, result)
-        return result
-
-    # Look up check type configuration
-    config = CHECK_TYPE_CONFIGS.get(check_type)
-    if config is None:
+    # Verify check type is known (fail explicitly for unknown types)
+    if check_type not in CHECK_TYPE_CONFIGS:
         logger.error(
             "Unknown check type '%s' for story '%s'; failing validation",
             check_type,
@@ -470,221 +281,15 @@ def run_validation_checkpoint(
             _log_validation_event(event_logger, story_id, result)
         return result
 
-    # Build the minimal validation prompt
-    prompt = build_validation_prompt(checkpoint, check_type)
-
-    # Load the JSON schema for structured output, simplified for
-    # constrained decoding (strips $defs, descriptions, etc.).
-    json_schema = _load_validation_schema()
-
-    # Get tools for the validation role (read-only — no Edit/Write)
-    tools = get_tools_for_role(config.tool_role)
-
-    # Determine fallback model
-    fallback_model = FALLBACK_MODELS.get(config.model, config.model)
-
-    # Log the prompt for debugging
-    _log_validation_prompt(epic_dir, story_id, prompt)
-
-    # Dispatch the validation agent
+    # All check types go through direct command execution
     logger.info(
-        "Dispatching %s validation agent for story '%s' (model=%s, check_type=%s, checks=%d)",
-        config.model,
-        story_id,
-        config.model,
-        check_type,
+        "Running %d checks directly for story '%s' (check_type=%s)",
         len(checks),
-    )
-
-    agent_result = dispatch_with_fallback(
-        prompt=prompt,
-        primary_model=config.model,
-        fallback_model=fallback_model,
-        tools=tools,
-        max_turns=15,
-        max_budget_usd=0.50,
-        json_schema=json_schema,
-        cwd=PROJECT_ROOT,
-    )
-
-    # Parse and validate the result
-    return _process_agent_result(
-        agent_result=agent_result,
-        check_type=check_type,
-        story_id=story_id,
-        event_logger=event_logger,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Result processing
-# ---------------------------------------------------------------------------
-
-
-def _process_agent_result(
-    agent_result: AgentResult,
-    check_type: str,
-    story_id: str,
-    event_logger: EventLogger | None,
-) -> ValidationResult:
-    """Process the agent's output into a ValidationResult.
-
-    Handles three scenarios:
-    1. Agent failed to run (exit code non-zero, no structured output).
-    2. Agent ran but output is malformed or missing fields.
-    3. Agent ran and produced valid structured output.
-
-    For case 3, evidence fields are further validated against the
-    check-type-specific requirements.
-
-    Args:
-        agent_result: The raw AgentResult from dispatch.
-        check_type: The check type for evidence validation.
-        story_id: The story this validation is for.
-        event_logger: Optional logger for JSONL events.
-
-    Returns:
-        ValidationResult with pass/fail and details.
-    """
-    # Case 1: Agent dispatch failed entirely
-    if not agent_result.success and agent_result.structured_output is None:
-        logger.error(
-            "Validation agent failed for story '%s': exit_code=%d",
-            story_id,
-            agent_result.exit_code,
-        )
-        result = ValidationResult(
-            passed=False,
-            check_type=check_type,
-            results=[],
-            failure_reason=(f"Validation agent failed with exit code {agent_result.exit_code}"),
-            failure_category="env",
-            raw_output=agent_result.output,
-        )
-        if event_logger:
-            _log_validation_event(event_logger, story_id, result)
-        return result
-
-    # Parse structured output.
-    # agent_result.structured_output is the Claude Code envelope:
-    #   {"type":"result","result":"<agent text>","num_turns":N,...}
-    # The validation JSON is inside the "result" field as a string.
-    structured = agent_result.structured_output
-    # Log structured output keys for debugging
-    logger.debug(
-        "Validation structured_output keys for '%s': %s",
         story_id,
-        list(structured.keys()) if isinstance(structured, dict) else type(structured).__name__,
+        check_type,
     )
-    if isinstance(structured, dict) and "result" in structured:
-        result_text = structured["result"]
-        if isinstance(result_text, str):
-            # Try to extract JSON from markdown code blocks
-            json_match = re.search(r"```json\s*\n(.*?)\n```", result_text, re.DOTALL)
-            json_text = json_match.group(1) if json_match else result_text
 
-            try:
-                structured = json.loads(json_text)
-            except json.JSONDecodeError:
-                logger.debug(
-                    "Could not parse 'result' field as JSON for story '%s'",
-                    story_id,
-                )
-        elif isinstance(result_text, dict):
-            structured = result_text
-
-    if not isinstance(structured, dict):
-        result = ValidationResult(
-            passed=False,
-            check_type=check_type,
-            results=[],
-            failure_reason="Validation agent returned non-dict output",
-            failure_category="implementation",
-            raw_output=agent_result.output,
-        )
-        if event_logger:
-            _log_validation_event(event_logger, story_id, result)
-        return result
-
-    # Extract results array — agents produce varied field names since
-    # --json-schema doesn't constrain output in agent mode.
-    per_criterion_results = structured.get("criteria") or structured.get("results") or []
-    # Extract overall status from any of the common locations
-    summary = structured.get("summary", {})
-    if isinstance(summary, dict):
-        agent_status = (
-            summary.get("overall_status")
-            or summary.get("quality_gates_status")
-            or summary.get("status")
-            or ""
-        )
-    else:
-        agent_status = ""
-    if not agent_status:
-        agent_status = structured.get("status", "fail")
-    agent_status = str(agent_status).lower()
-
-    if not isinstance(per_criterion_results, list):
-        result = ValidationResult(
-            passed=False,
-            check_type=check_type,
-            results=[],
-            failure_reason="Validation agent 'results' field is not an array",
-            failure_category="implementation",
-            raw_output=agent_result.output,
-        )
-        if event_logger:
-            _log_validation_event(event_logger, story_id, result)
-        return result
-
-    # Validate evidence fields — skip strict field validation since
-    # --json-schema doesn't constrain agent output format.  Just check
-    # that evidence objects are present and non-empty.
-    for i, r in enumerate(per_criterion_results):
-        evidence = r.get("evidence")
-        if not isinstance(evidence, dict) or not evidence:
-            logger.warning(
-                "Criterion %d for story '%s' has no evidence",
-                i + 1,
-                story_id,
-            )
-
-    # Check agent's own status assessment
-    all_criteria_pass = all(r.get("status", "").upper() == "PASS" for r in per_criterion_results)
-    overall_pass = agent_status == "pass" and all_criteria_pass
-
-    if not overall_pass:
-        # Collect failing criteria for the failure reason
-        failing = [
-            r.get("criterion", "unknown")
-            for r in per_criterion_results
-            if r.get("status", "").upper() != "PASS"
-        ]
-        failure_reason = (
-            f"Validation failed for criteria: {', '.join(failing)}"
-            if failing
-            else "Agent reported overall status as fail"
-        )
-
-        result = ValidationResult(
-            passed=False,
-            check_type=check_type,
-            results=per_criterion_results,
-            failure_reason=failure_reason,
-            failure_category="implementation",
-            raw_output=agent_result.output,
-        )
-        if event_logger:
-            _log_validation_event(event_logger, story_id, result)
-        return result
-
-    # All passed
-    result = ValidationResult(
-        passed=True,
-        check_type=check_type,
-        results=per_criterion_results,
-        raw_output=agent_result.output,
-    )
+    result = _run_checks_directly(checks, check_type, story_id)
     if event_logger:
         _log_validation_event(event_logger, story_id, result)
     return result
@@ -738,26 +343,3 @@ def _log_validation_event(
         result.check_type,
         len(result.results),
     )
-
-
-def _log_validation_prompt(
-    epic_dir: Path,
-    story_id: str,
-    prompt: str,
-    attempt: int = 1,
-) -> None:
-    """Save the validation prompt alongside story artefacts for debugging.
-
-    Args:
-        epic_dir: Path to the epic directory.
-        story_id: The story identifier.
-        prompt: The full validation prompt text.
-        attempt: The attempt number (1-indexed).
-    """
-    story_dir = epic_dir / "stories" / story_id
-    story_dir.mkdir(parents=True, exist_ok=True)
-
-    prompt_path = story_dir / f"validation-prompt-attempt-{attempt}.md"
-    prompt_path.write_text(prompt, encoding="utf-8")
-
-    logger.debug("Validation prompt saved to %s", prompt_path)
