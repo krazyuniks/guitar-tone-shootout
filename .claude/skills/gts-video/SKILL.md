@@ -459,9 +459,9 @@ dependencies = [
 ## Related Skills
 
 - **gts-architecture**: Dependency rules, layer responsibilities
-- **docker-infra**: Video service container, Dockerfile
+- **gts-security**: Container hardening, secret handling, and security checks for video services
 - **gts-testing**: Video test patterns, test locations
-- **gts-backend-dev**: FastAPI patterns (video API uses same patterns)
+- **expertise/python**: Python service patterns used by FastAPI video endpoints
 
 ## References
 

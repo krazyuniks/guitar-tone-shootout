@@ -9,14 +9,14 @@ context: fork
 
 Perform an architecture review of code changes or a specific component.
 
-**Foundation:** Load `software-architecture` skill for pattern reference.
+**Foundation:** Load `gts-architecture` skill for pattern reference.
 
 ---
 
 ## Workflow
 
 1. **Identify scope** from argument or recent changes
-2. **Load architectural context** from `software-architecture` skill
+2. **Load architectural context** from `gts-architecture` skill
 3. **Analyze patterns** against project standards
 4. **Check for violations**: layer boundaries, SOLID principles, DDD patterns
 5. **Generate report** with findings and recommendations
@@ -139,6 +139,6 @@ grep -rn "\.commit()" apps/webapp/src/webapp/adapters/       # Should be empty
 
 ## Reference
 
-- **Patterns:** `software-architecture` skill
+- **Patterns:** `gts-architecture` skill
 - **GTS Implementation:** `.planning/codebase/ARCHITECTURE.md`
 - **Automated Audit:** `/codebase-review --section=architecture`
