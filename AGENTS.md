@@ -50,11 +50,16 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 | `audio` | core | video, sources, apps |
 | `video` | core, audio | sources, apps |
 | `source_*` | core | audio, video, other sources, apps |
-| `webapp` | core, audio, video | sources |
-| `worker` | core, audio, video | sources |
-| `scheduler` | core | audio, video, sources |
+| `webapp` | core, audio, video, messaging | sources |
+| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | core, audio, messaging | video, sources, webapp |
+| `video-worker` | core, video, messaging | audio, sources, webapp |
 
-**Critical**: Webapp has NO dependency on sources. Worker bridges gts_core and gts_t3k_source databases.
+**Single database:** All BCs share one PostgreSQL instance (`gts_core`). BC separation via `import-linter` + table naming (`core_*`, `t3k_*`).
+
+**BC table isolation:** Each BC's ORM models MUST only reference their own BC's tables.
+
+**Transactional outbox:** All pgmq publishes MUST happen within the same database transaction as the domain state change.
 
 **Enforcement**: `import-linter` contracts in root `pyproject.toml`.
 
@@ -79,7 +84,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 - T3K = passwordless OAuth. No user credentials stored by GTS. Only OAuth access/refresh tokens.
 - Token-based auth (stateless). JWT validated per request. No server-side sessions, no Redis for webapp.
-- Admin API (Worker, port 8001): NO authentication. Network-level access control only.
+- Admin API (Webapp, port 8000, `/api/admin/*`): NO authentication. Network-level access control only.
 - User API (Webapp, port 8000): all `/api/v1/*` routes require `CurrentUser` token authentication.
 
 ## Testing
@@ -119,6 +124,9 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 - NEVER edit `docker-compose.override.yml` or `.env.local` — they are auto-generated.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
 - For ANY infrastructure problem: `./worktree.py setup <name>` (idempotent).
+- **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx. No Redis, no scheduler, no monolithic worker.
+- **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main worktree only.
+- **Messaging:** pgmq queues in PostgreSQL. Command queues (point-to-point) and event queues (multi-consumer via offset tracking). See wiki for queue topology.
 
 ## Git & GitHub
 
