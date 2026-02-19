@@ -72,21 +72,23 @@ Task runner with commands for development workflow. Use `just --list` for discov
 
 | Service | Purpose |
 |---------|---------|
-| `db` | PostgreSQL (data + pgmq) |
-| `redis` | Job broker for TaskIQ (jobs profile only -- not used by webapp) |
-| `webapp` | FastAPI application |
+| `db` | PostgreSQL (data + pgmq queues) |
+| `webapp` | FastAPI application + event consumers + background tasks |
 | `nginx` | Reverse proxy, static files |
+| `t3k-sync` | T3K source sync (eternal loop, jobs profile) |
+| `audio-worker` | Audio processing consumer (jobs profile) |
+| `video-worker` | Video composition consumer (jobs profile) |
 
 **Profiles:**
 
 | Profile | Services | Usage |
 |---------|----------|-------|
-| `jobs` | worker, scheduler | Main worktree only (background processing) |
+| `jobs` | t3k-sync, audio-worker, video-worker | Main worktree only (BC worker containers) |
 | `build` | astro | Frontend build (on-demand) |
 | `tools` | cloudbeaver | Database IDE (optional) |
 | `observability` | prometheus, loki, tempo, grafana, alloy | Monitoring stack (optional) |
 
-Feature worktrees run without the `jobs` profile -- they use data synced from main.
+Feature worktrees run without the `jobs` profile — they use data synced from main.
 
 ## Shared Resources
 
@@ -183,9 +185,10 @@ openssl rand -hex 32 > secrets/secret_key
 |---------|--------|-----|
 | nginx | 128M | -- |
 | webapp | 1G | 1.0 |
-| worker | 2G | 2.0 |
+| t3k-sync | 512M | 0.5 |
+| audio-worker | 2G | 2.0 |
+| video-worker | 2G | 2.0 |
 | db | 512M | -- |
-| redis | 512M | -- |
 
 ### CI Pipeline
 

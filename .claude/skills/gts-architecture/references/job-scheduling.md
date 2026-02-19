@@ -1,137 +1,123 @@
-# Job Scheduling (TaskIQ)
+# Job Scheduling & Event-Driven Messaging
 
-Async job scheduler for background processing. Separate from pgmq (gear sync message queue).
+Event-driven architecture using pgmq for all inter-BC communication. No TaskIQ, no Redis, no scheduler.
 
-## Scope Separation
+> **Canonical reference:** [[Jobs-Architecture-and-Operations]] wiki page.
 
-| System | Purpose | Trigger |
-|--------|---------|---------|
-| TaskIQ | Scheduled tasks + processing jobs | Scheduler cron, user action |
-| pgmq | Gear sync messages (source -> core) | Source adapter publishes |
+## Container Topology
 
-TaskIQ triggers source adapter sync and handles user-initiated processing. pgmq transports sync messages between source and core databases.
+| Container | Purpose | Consumes | Produces |
+|-----------|---------|----------|----------|
+| `webapp` | User API + event consumers | `source_events`, `audio_events`, `video_events` | `audio_commands`, `video_commands` |
+| `t3k-sync` | Eternal sync loop | -- | `source_events` |
+| `audio-worker` | Audio processing | `audio_commands` | `audio_events` |
+| `video-worker` | Video composition | `video_commands`, `audio_events` | `video_events`, `audio_commands` |
+
+All containers share one PostgreSQL database (`gts_core`). BC isolation via import-linter + table naming.
+
+## Queue Topology
+
+| Queue | Type | Purpose |
+|-------|------|---------|
+| `audio_commands` | Command (point-to-point) | Audio processing requests |
+| `video_commands` | Command (point-to-point) | Video composition requests |
+| `audio_events` | Event (multi-consumer) | Audio processing results |
+| `video_events` | Event (multi-consumer) | Video composition results |
+| `source_events` | Event (multi-consumer) | Gear sync records from sources |
+| `dead_letter` | DLQ (shared) | Failed messages for investigation |
+
+## Message Types
+
+**Commands** (point-to-point, consumed once):
+- `process_chain_audio` — process a single signal chain's audio
+- `produce_master_track` — mix all chain segments into master
+- `compose_shootout` — orchestrate full shootout video
+
+**Events** (multi-consumer via offset tracking):
+- `chain_audio_complete` — single chain audio finished
+- `master_track_complete` — master track finished
+- `video_compose_complete` — video rendering finished
+- `gear_synced` — gear data synced from source
+
+## Consumer Patterns
+
+### Command Consumer (point-to-point)
+
+Uses `pgmq.read_with_poll()` with visibility timeout. Messages archived after processing. Dead-lettered after max retries.
+
+```python
+# CommandConsumer base class in infra/messaging/
+result = await session.execute(
+    sa.text("SELECT * FROM pgmq.read_with_poll(:queue, :vt, :qty)"),
+    {"queue": queue_name, "vt": 60, "qty": 10},
+)
+```
+
+### Event Consumer (multi-consumer)
+
+Uses offset tracking via `msg_consumer_offsets` table. Each consumer reads independently by tracking its last processed message ID. Messages are NOT deleted — they're archived by a periodic janitor.
+
+```python
+# EventConsumer base class in infra/messaging/
+# Each consumer has a unique consumer_id (e.g., "webapp:audio_events")
+# Reads messages with msg_id > last_processed_id
+```
+
+## Transactional Outbox
+
+All pgmq publishes MUST happen within the same database transaction as the domain state change:
+
+```python
+# CORRECT: same transaction
+async with session.begin():
+    session.add(job)
+    await session.execute(
+        sa.text("SELECT pgmq.send(:queue, CAST(:msg AS jsonb))"),
+        {"queue": "video_commands", "msg": json.dumps(command)},
+    )
+
+# WRONG: separate transaction
+await session.commit()  # domain state committed
+await publish(command)   # message could be lost if this fails
+```
 
 ## Job Types
 
-| Job Type | Parent | Purpose |
-|----------|--------|---------|
-| `SOURCE_SYNC` | -- | Source adapter sync (fetch + download + stage + enqueue) |
-| `SHOOTOUT` | -- | Orchestrate shootout creation (parent) |
-| `SHOOTOUT_AUDIO` | SHOOTOUT | Process single tone for shootout (child) |
-| `VIDEO_COMPOSE` | SHOOTOUT | Generate comparison video (child) |
-| `SIGNALCHAIN_AUDIO` | -- | Process chain from library (standalone) |
-| `ORPHAN_CLEANUP` | -- | Clean orphaned files from failed transactions |
+| Job Type | Queue | Purpose |
+|----------|-------|---------|
+| `SHOOTOUT` | -- | Parent job (webapp creates, tracks progress) |
+| `SHOOTOUT_AUDIO` | `audio_commands` | Process single tone for shootout |
+| `VIDEO_COMPOSE` | `video_commands` | Generate comparison video |
+| `SIGNALCHAIN_AUDIO` | `audio_commands` | Process chain from library |
+| `ORPHAN_CLEANUP` | -- | Clean orphaned files (webapp background task) |
 
-## Job Hierarchy
-
-Shootout processing uses parent/child jobs:
-
-```
-SHOOTOUT (parent)
-├── SHOOTOUT_AUDIO (tone A)
-├── SHOOTOUT_AUDIO (tone B)
-├── SHOOTOUT_AUDIO (tone C)
-└── VIDEO_COMPOSE (after all segments complete)
-```
-
-Parent job tracks aggregate progress. Child jobs execute independently and report to parent.
-
-## Scheduled Tasks
-
-| Task | Schedule | Purpose |
-|------|----------|---------|
-| `ensure_source_sync_running` | */5 min | Auto-start source sync if not running |
-| `monitor_stale_jobs` | */2 min | Detect crashed workers |
-| `process_pending_retries` | */2 min | Retry failed jobs |
-| `orphan_cleanup` | Daily | Remove orphaned files |
-| `scheduler_heartbeat` | */1 min | Health monitoring + lock renewal |
+`SOURCE_SYNC` is eliminated — t3k-sync is self-driven.
 
 ## Job Lifecycle
 
 ```
 PENDING -> RUNNING -> COMPLETED
-              ↓
+              |
            FAILED -> RETRY -> RUNNING (up to max_attempts)
-              ↓
+              |
            DEAD (after max retries)
 ```
 
-| Status | Description |
-|--------|-------------|
-| PENDING | Created, waiting for worker |
-| RUNNING | Worker executing |
-| COMPLETED | Finished successfully |
-| FAILED | Error occurred, may retry |
-| RETRY | Scheduled for retry |
-| DEAD | Exceeded max retries |
+Job status updates come from event consumers in the webapp (not from workers directly).
 
-## Containers
+## Background Tasks (Webapp)
 
-| Container | Purpose | Admin Port |
-|-----------|---------|------------|
-| `scheduler` | Triggers scheduled tasks | -- |
-| `worker` | Executes jobs + consumes sync messages + admin API | 8001 |
-
-**Worker container runs:**
-- Admin API (FastAPI on port 8001) -- serves all admin endpoints
-- TaskIQ worker (job execution)
-- pgmq consumer (gear sync messages)
-
-The worker serves T3K admin endpoints (`/admin/t3k/*`) by querying `gts_t3k_source` directly -- it already has this database connection for the pgmq consumer.
-
-Scheduler and worker run with `--profile jobs` (main worktree only).
-
-## Distributed Lock
-
-Single scheduler instance enforced via Redis lock:
-
-| Setting | Value |
-|---------|-------|
-| Lock key | `scheduler:lock` |
-| TTL | 60 seconds |
-| Renewal | Heartbeat task every minute |
-
-Source sync also uses per-source locks to prevent overlapping runs.
-
-## Heartbeat Monitoring
-
-Workers emit heartbeats during job execution:
-
-| Setting | Value |
-|---------|-------|
-| Interval | 30 seconds |
-| Stale threshold | 2 minutes |
-
-Jobs without heartbeat update beyond threshold are marked failed (crash detection).
-
-## Retry Strategy
-
-Exponential backoff with jitter:
-
-| Attempt | Base Delay | Max Delay |
-|---------|------------|-----------|
-| 1 | 30s | 30s |
-| 2 | 60s | 120s |
-| 3 | 120s | 300s |
-
-After max attempts, job moves to DEAD status.
-
-## Progress Reporting
-
-**User-initiated jobs** (SHOOTOUT, SIGNALCHAIN_AUDIO):
-- Real-time progress via Redis pub/sub
-- WebSocket broadcasts to subscribed clients
-- Live progress display in UI
-
-**System jobs** (SOURCE_SYNC, ORPHAN_CLEANUP):
-- Observability stack (metrics, logs, traces)
-- Managed via worker admin API (CLI planned)
+| Task | Schedule | Purpose |
+|------|----------|---------|
+| `monitor_stale_jobs` | */2 min | Detect crashed workers |
+| `process_pending_retries` | */2 min | Retry failed jobs |
+| `event_queue_janitor` | Hourly | Archive processed event messages |
 
 ## Configuration
 
 | Setting | Value | Rationale |
 |---------|-------|-----------|
-| Max attempts | 3 | Balance reliability and resource usage |
-| Heartbeat interval | 30s | Detect crashes without excessive overhead |
-| Stale threshold | 2 min | Allow for slow operations |
-| Concurrency | 4 workers | Match available CPU cores |
+| Max retries (commands) | 5 | Balance reliability and resource usage |
+| Visibility timeout | 60s | Processing time without blocking |
+| Poll interval | 1s | Responsive without excessive load |
+| Batch size | 10 | Small batches for responsiveness |
