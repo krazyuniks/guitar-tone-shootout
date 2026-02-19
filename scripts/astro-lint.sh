@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Astro type-check hook — runs inside Docker. Fails if Docker is not running.
-set -euo pipefail
+# Astro type-check hook — runs inside Docker.
+# Warn-only: prints diagnostics but never blocks commit.
+# Real errors are caught by `just check` and CI.
+set -uo pipefail
 
-docker compose exec -T astro pnpm check
+docker compose exec -T astro pnpm check || true
