@@ -62,3 +62,13 @@ class TestEpicConfigParsing:
         )
         with pytest.raises(ValueError, match="must be different"):
             load_config(DEFAULT_CONFIG_PATH, override)
+
+    def test_unknown_model_key_raises(self, tmp_path):
+        """Config with unknown model role raises ValueError."""
+        override = tmp_path / "config.toml"
+        override.write_text(
+            '[models]\nreviewer = "opus"\n',
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="Unknown model role"):
+            load_config(DEFAULT_CONFIG_PATH, override)

@@ -156,7 +156,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
         )
 
         try:
-            plan_md_path, plan_json_path = generate_plan(epic_dir)
+            plan_md_path, plan_json_path = generate_plan(epic_dir, config=config)
             size = plan_json_path.stat().st_size
             console.print(
                 f"  [green]Written:[/green] {plan_json_path.relative_to(PROJECT_ROOT)} "
@@ -184,7 +184,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
     console.print("[bold]Step 4:[/bold] Verifying plan...")
 
     try:
-        verifier_result, success = verify_with_revision_cycle(epic_dir)
+        verifier_result, success = verify_with_revision_cycle(epic_dir, config=config)
     except PlanVerificationError as exc:
         console.print(f"  [red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc

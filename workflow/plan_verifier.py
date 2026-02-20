@@ -30,6 +30,7 @@ from workflow.dispatch import (
     dispatch_with_fallback,
     get_codex_adapter,
 )
+from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
 from workflow.plan_generator import (
     PlanGenerationError,
@@ -367,8 +368,12 @@ def present_decision_gate(
 
 def verify_plan(
     epic_dir: Path,
+    config: EpicConfig | None = None,
 ) -> dict:
-    """Run Phase C cross-model verification on the plan via Codex."""
+    """Run Phase B cross-model verification on the plan.
+
+    Uses config.models.plan_critic if provided, otherwise falls back to codex.
+    """
     # Read inputs
     plan_json_path = epic_dir / "plan.json"
     epic_md_path = epic_dir / "EPIC.md"
@@ -392,18 +397,21 @@ def verify_plan(
         context_md=context_md,
     )
 
+    critic_model = config.models.plan_critic if config else "codex"
+
     logger.info(
-        "Dispatching Codex verifier (%d chars, ~%d tokens)",
+        "Dispatching %s verifier (%d chars, ~%d tokens)",
+        critic_model,
         len(prompt),
         len(prompt) // 4,
     )
 
-    # Dispatch via Codex read-only (Phase C cross-model critique)
+    # Dispatch via critic model (Phase B cross-model critique)
     critique_budget = BUDGET_DEFAULTS["critique_plan"]
 
     result = dispatch_agent(
         prompt=prompt,
-        model="codex",
+        model=critic_model,
         adapter=get_codex_adapter("read-only"),
         tools=[],
         max_turns=int(critique_budget["max_turns"]),
@@ -437,6 +445,7 @@ def verify_plan(
 
 def verify_with_revision_cycle(
     epic_dir: Path,
+    config: EpicConfig | None = None,
 ) -> tuple[dict, bool]:
     """Run the full two-phase verification with one revision cycle."""
 
@@ -452,7 +461,7 @@ def verify_with_revision_cycle(
 
         # Re-invoke planner with validation errors
         try:
-            _regenerate_plan_with_errors(epic_dir, phase_a_result.error_messages())
+            _regenerate_plan_with_errors(epic_dir, phase_a_result.error_messages(), config=config)
         except PlanGenerationError as exc:
             logger.error("Plan regeneration failed: %s", exc)
             return (
@@ -477,7 +486,7 @@ def verify_with_revision_cycle(
 
     # Phase B: AI verification (attempt 1)
     try:
-        verifier_result = verify_plan(epic_dir)
+        verifier_result = verify_plan(epic_dir, config=config)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed: %s", exc)
         return ({"status": "fail", "error": str(exc)}, False)
@@ -500,7 +509,7 @@ def verify_with_revision_cycle(
     original_plan_md = plan_md_path.read_text(encoding="utf-8") if plan_md_path.exists() else ""
 
     try:
-        _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result)
+        _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result, config=config)
     except PlanGenerationError as exc:
         logger.error("Plan regeneration (verifier feedback) failed: %s", exc)
         return (verifier_result, False)
@@ -524,7 +533,7 @@ def verify_with_revision_cycle(
     # Phase B: AI verification (attempt 2 — final)
     logger.info("Running Phase B verification (attempt 2, final)...")
     try:
-        verifier_result = verify_plan(epic_dir)
+        verifier_result = verify_plan(epic_dir, config=config)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed on second attempt: %s", exc)
         return ({"status": "fail", "error": str(exc)}, False)
@@ -573,6 +582,7 @@ def _write_plan_from_model(plan: Plan, epic_dir: Path) -> None:
 def _regenerate_plan_with_errors(
     epic_dir: Path,
     validation_errors: list[str],
+    config: EpicConfig | None = None,
 ) -> None:
     """Re-invoke the planner with Phase A validation errors.
 
@@ -595,16 +605,30 @@ def _regenerate_plan_with_errors(
     # Build revision prompt with errors
     revision_prompt = build_revision_prompt(original_prompt, validation_errors)
 
-    logger.info("Dispatching planner revision (Phase A errors, %d chars)", len(revision_prompt))
+    # Resolve model and budget from config or defaults
+    planner_model = config.models.planner if config else "opus"
+    if config and "planning" in config.budgets:
+        budget = config.budgets["planning"]
+        max_turns = budget.max_turns
+        max_budget_usd = budget.max_budget_usd
+    else:
+        planning_budget = BUDGET_DEFAULTS["planning"]
+        max_turns = int(planning_budget["max_turns"])
+        max_budget_usd = float(planning_budget["max_budget_usd"])
 
-    planning_budget = BUDGET_DEFAULTS["planning"]
+    logger.info(
+        "Dispatching %s planner revision (Phase A errors, %d chars)",
+        planner_model,
+        len(revision_prompt),
+    )
+
     result = dispatch_with_fallback(
         prompt=revision_prompt,
-        primary_model="opus",
-        fallback_model=FALLBACK_MODELS["opus"],
+        primary_model=planner_model,
+        fallback_model=FALLBACK_MODELS.get(planner_model, planner_model),
         tools=[],
-        max_turns=int(planning_budget["max_turns"]),
-        max_budget_usd=float(planning_budget["max_budget_usd"]),
+        max_turns=max_turns,
+        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
         no_mcp=True,
@@ -623,6 +647,7 @@ def _regenerate_plan_with_errors(
 def _regenerate_plan_with_verifier_feedback(
     epic_dir: Path,
     verifier_result: dict,
+    config: EpicConfig | None = None,
 ) -> None:
     """Re-invoke the planner with Phase B verifier feedback.
 
@@ -642,16 +667,30 @@ def _regenerate_plan_with_verifier_feedback(
     # Build revision prompt with verifier feedback
     revision_prompt = build_verifier_revision_prompt(original_prompt, verifier_result)
 
-    logger.info("Dispatching planner revision (verifier feedback, %d chars)", len(revision_prompt))
+    # Resolve model and budget from config or defaults
+    planner_model = config.models.planner if config else "opus"
+    if config and "planning" in config.budgets:
+        budget = config.budgets["planning"]
+        max_turns = budget.max_turns
+        max_budget_usd = budget.max_budget_usd
+    else:
+        planning_budget = BUDGET_DEFAULTS["planning"]
+        max_turns = int(planning_budget["max_turns"])
+        max_budget_usd = float(planning_budget["max_budget_usd"])
 
-    planning_budget = BUDGET_DEFAULTS["planning"]
+    logger.info(
+        "Dispatching %s planner revision (verifier feedback, %d chars)",
+        planner_model,
+        len(revision_prompt),
+    )
+
     result = dispatch_with_fallback(
         prompt=revision_prompt,
-        primary_model="opus",
-        fallback_model=FALLBACK_MODELS["opus"],
+        primary_model=planner_model,
+        fallback_model=FALLBACK_MODELS.get(planner_model, planner_model),
         tools=[],
-        max_turns=int(planning_budget["max_turns"]),
-        max_budget_usd=float(planning_budget["max_budget_usd"]),
+        max_turns=max_turns,
+        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
         no_mcp=True,

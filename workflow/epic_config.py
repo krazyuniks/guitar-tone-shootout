@@ -105,9 +105,10 @@ def load_config(
 
     # Parse models
     models_data = data.get("models", {})
-    models = ModelConfig(
-        **{k: v for k, v in models_data.items() if k in ModelConfig.__dataclass_fields__}
-    )
+    unknown_model_keys = set(models_data.keys()) - set(ModelConfig.__dataclass_fields__.keys())
+    if unknown_model_keys:
+        raise ValueError(f"Unknown model role(s) in config: {unknown_model_keys}")
+    models = ModelConfig(**models_data)
     _validate_cross_model(models)
 
     # Parse budgets
