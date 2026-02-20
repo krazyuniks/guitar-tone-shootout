@@ -110,13 +110,16 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Epic Workflow
 
-- Epics run via the stateless orchestrator (`workflow/orchestrator.py`). It reads `plan.json`, dispatches agents, logs JSONL, manages retries.
-- `just epic N` — full pipeline: ingest -> plan -> verify -> gate -> execute.
+- **Principle: "No model marks its own homework."** Opus plans, Codex critiques the plan, agents implement, Opus critiques the implementation.
+- Epics run via the stateless orchestrator (`workflow/orchestrator.py`). JSONL log is the only state — enables crash-resume.
+- **6 verification gates:** Phase A (deterministic), Phase B (Codex critique), decision gate (human), story validation (checkpoints), story critique (Opus), epic critique (Opus).
+- `just epic N` — full pipeline: ingest -> plan -> verify -> gate -> execute -> critique.
 - `just epic-status N` — check progress from JSONL logs (read-only).
 - `just epic-validate-plan N` — run Phase A deterministic validation only (read-only).
 - `just map-codebase` — regenerate .planning/codebase/ files.
 - `just index-wiki` — regenerate .planning/wiki-indexes/.
 - NEVER read plan files manually, dispatch sub-agents, or use old V1/V2 commands. The orchestrator handles everything.
+- See `wiki/Epic-Workflow.md` for full pipeline documentation.
 
 ## Infrastructure
 

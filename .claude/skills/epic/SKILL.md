@@ -45,23 +45,27 @@ If no args provided (empty input), ask which epic number. That is the ONLY quest
 
 ### Planning Pipeline
 
-| Phase | Script | Model | Purpose |
+**Principle: "No model marks its own homework."** Every AI artefact is verified by a different model.
+
+| Phase | Module | Model | Purpose |
 |-------|--------|-------|---------|
-| Ingest | `scripts/epic_ingest.py` | (deterministic) | Fetch epic from GitHub, write EPIC.md |
-| Context | `scripts/context_assembler.py` | (deterministic) | Assemble wiki + codebase context into CONTEXT.md |
+| Ingest | `workflow/epic_ingest.py` | (deterministic) | Fetch epic from GitHub, write EPIC.md |
+| Context | `workflow/context_assembler.py` | (deterministic) | Assemble wiki + codebase context into CONTEXT.md |
 | Scope | (orchestrator, interactive) | - | Human confirms scope, resolves gray areas |
-| Plan | `scripts/plan_generator.py` | Opus | Goal-backward analysis -> PLAN.md + plan.json |
-| Validate | `scripts/plan_validator.py` | (deterministic) | Phase A: schema + referential integrity checks |
-| Verify | `scripts/plan_verifier.py` | Sonnet | Phase B: journey completeness, gap detection |
+| Plan | `workflow/plan_generator.py` | Opus | Goal-backward analysis -> PLAN.md + plan.json |
+| Validate | `workflow/plan_validator.py` | (deterministic) | Phase A: schema + referential integrity checks |
+| Verify | `workflow/plan_verifier.py` | Codex | Phase B: adversarial 5-dimension critique |
 | Gate | (orchestrator, interactive) | - | Human approves, revises, or rejects |
 
 ### Execution Pipeline
 
-| Phase | Script | Purpose |
+| Phase | Module | Purpose |
 |-------|--------|---------|
-| Execute | `scripts/orchestrator.py run` | Dispatch stories, run validation checkpoints |
-| Resume | `scripts/orchestrator.py run --resume` | Crash recovery from JSONL log |
-| Status | `scripts/orchestrator.py status` | Read JSONL, report progress |
+| Execute | `workflow/orchestrator.py` | Dispatch stories, run validation checkpoints |
+| Story critique | `workflow/story_executor.py` | Post-story Opus critique of implementation |
+| Epic critique | `workflow/orchestrator.py` | Post-epic Opus holistic review |
+| Resume | `workflow/orchestrator.py` (--resume) | Crash recovery from JSONL log |
+| Status | `workflow/orchestrator.py` (status) | Read JSONL, report progress |
 
 ### File Structure Per Epic
 
@@ -105,7 +109,7 @@ If no args provided (empty input), ask which epic number. That is the ONLY quest
 3. **Interactive Scope** -- User confirms scope, resolves ambiguities, locks decisions
 4. **Plan Generation** -- Opus performs goal-backward analysis: observable truths -> user journeys -> stories -> validation checkpoints. Produces PLAN.md + plan.json
 5. **Schema Validation** -- Phase A: deterministic checks on plan.json (referential integrity, truth coverage, scope coherence, dependency ordering)
-6. **Plan Verification** -- Phase B: Sonnet checks journey completeness, transition coverage, intent alignment, gap detection, validation sufficiency
+6. **Plan Verification** -- Phase B: Codex adversarial critique -- journey completeness, transition coverage, intent alignment, gap detection, validation sufficiency
 7. **Decision Gate** -- Human approves, revises, or rejects
 8. **Commit + Push** -- Planning artefacts committed to remote
 
@@ -130,11 +134,14 @@ For each story in plan.json:
 
 1. Check state assumption (if `"clean"`, reset DB before dispatch)
 2. Run pre-flight checks (verify inputs from previous stories exist)
-3. Construct prompt via `scripts/prompt_builder.py` (7-section: role, plan context, scope, implementation notes, verification, failure feedback, constraints)
-4. Dispatch agent via `scripts/dispatch.py` (model, tools, skills, MCP from plan.json)
-5. If validation checkpoint follows this story, dispatch read-only validation agent
-6. On pass: log `story_complete`, proceed to next story
-7. On fail: classify failure, retry (up to 2 attempts) or exit to human
+3. Construct prompt via `workflow/prompt_builder.py` (7-section: role, plan context, scope, implementation notes, verification, failure feedback, constraints)
+4. Dispatch implementation agent via `workflow/dispatch.py` (model per plan.json: Codex/Sonnet/Opus)
+5. If validation checkpoint follows this story, run validation check
+6. On validation pass: dispatch **post-story Opus critique** (read-only, reviews code diff)
+7. On critique pass: log `story_complete`, proceed to next story
+8. On critique fail: counts against implementation retry budget, retry or exit
+9. On validation fail: classify failure, retry (up to 2 attempts) or exit to human
+10. After all stories pass: run **post-epic Opus critique** (holistic review, terminal on fail)
 
 ### Failure Categories
 
