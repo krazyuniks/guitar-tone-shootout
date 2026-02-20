@@ -47,6 +47,6 @@ After this story, a **process** validation will verify:
 ---
 ## Failure Feedback (Attempt 1)
 
-**Error:** error: Recipe `check-types` failed on line 61 with exit code 1
+**Error:** FAILED tests/unit/worker/test_worker_config.py::TestWorkerSettings::test_t3k_database_url_field_is_required
 **Files modified:** infrastructure/docker/Dockerfile.t3k-sync, infrastructure/docker/Dockerfile.audio-worker, docker-compose.yml, docker-compose.override.yml, pyproject.toml, apps/worker/src/worker/main.py, apps/worker/src/worker/consumers/gear_sync.py, apps/worker/src/worker/jobs/source_sync.py
-**JSONL excerpt:** {"event": "validation_fail", "story_id": "03-containers", "attempt": 1, "check_type": "process", "failure_category": "implementation", "failure_reason": "One or more checks failed", "evidence": "Error references 'libs/core/src/core/records/commands.py' which is owned by completed story '02-messaging'"}
+**JSONL excerpt:** {"event": "validation_fail", "story_id": "03-containers", "attempt": 1, "check_type": "process", "failure_category": "implementation", "failure_reason": "One or more checks failed", "evidence": "Error references 'tests/unit/core/test_messaging.py' which is owned by completed story '02-messaging'"}
