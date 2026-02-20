@@ -51,6 +51,14 @@ def _read_context(epic_dir: Path) -> str:
     return context_path.read_text(encoding="utf-8")
 
 
+def _read_user_decisions(epic_dir: Path) -> str | None:
+    """Read user-decisions.json from the epic directory, if it exists."""
+    decisions_path = epic_dir / "user-decisions.json"
+    if not decisions_path.is_file():
+        return None
+    return decisions_path.read_text(encoding="utf-8")
+
+
 def _read_epic_number(epic_dir: Path) -> int:
     """Extract the epic number from the directory name (e.g. E95 -> 95)."""
     match = re.match(r"^E(\d+)$", epic_dir.name)
@@ -162,9 +170,28 @@ Budget defaults (starting points):
 | Regression tests (Codex) | 30 | $3.00 |"""
 
 
+def _build_decisions_section(user_decisions: str | None) -> str:
+    """Build the user decisions section for the planner prompt."""
+    if not user_decisions:
+        return ""
+    return f"""---
+
+## Scope Decisions (from Gap Detection)
+
+The following decisions were made during interactive gap detection (Stage 2b).
+These are locked — do not redefine or contradict them.
+
+<user_decisions>
+{user_decisions}
+</user_decisions>
+
+"""
+
+
 def _build_planner_prompt(
     context: str,
     epic_number: int,
+    user_decisions: str | None = None,
 ) -> str:
     """Construct the Opus planner prompt.
 
@@ -215,6 +242,7 @@ from GitHub and codebase architecture.
 {context}
 </context>
 
+{_build_decisions_section(user_decisions)}
 ---
 
 ## Planning Methodology: Goal-Backward Analysis
@@ -546,11 +574,13 @@ def generate_plan(
     # Read inputs
     context = _read_context(epic_dir)
     epic_number = _read_epic_number(epic_dir)
+    user_decisions = _read_user_decisions(epic_dir)
 
     # Build the planner prompt (includes JSON schema as context)
     prompt = _build_planner_prompt(
         context=context,
         epic_number=epic_number,
+        user_decisions=user_decisions,
     )
 
     # Resolve model and budget from config or defaults

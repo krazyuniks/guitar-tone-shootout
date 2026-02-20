@@ -83,6 +83,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
     from workflow.context_assembler import AssemblyError, assemble_context
     from workflow.epic_config import ensure_epic_config, load_config
     from workflow.epic_ingest import IngestionError, ingest_epic
+    from workflow.gap_detection import GapDetectionError, run_gap_detection
     from workflow.git_helpers import GitPushError, robust_commit
     from workflow.jsonl_logger import EventLogger
     from workflow.plan_generator import PlanGenerationError, generate_plan
@@ -137,6 +138,20 @@ def _run_planning_pipeline(epic_number: int) -> None:
                 f"({size:,d} bytes, ~{size // 4:,d} tokens)"
             )
         except AssemblyError as exc:
+            console.print(f"  [red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    # Step 2b: Gap Detection
+    decisions_path = epic_dir / "user-decisions.json"
+    if _should_skip(decisions_path, "user-decisions.json"):
+        console.print("[dim]Step 2b: Gap Detection — skipped[/dim]")
+    else:
+        console.print()
+        console.print("[bold]Step 2b:[/bold] Gap detection...")
+        try:
+            path = run_gap_detection(epic_dir, epic_logger, config=config)
+            console.print(f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)}")
+        except GapDetectionError as exc:
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
