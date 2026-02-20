@@ -154,29 +154,9 @@ async def db_session(core_connection: AsyncConnection) -> AsyncGenerator[AsyncSe
 
 
 @pytest.fixture
-async def t3k_session(t3k_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Function-scoped session for T3K staging table tests.
-
-    Same SAVEPOINT isolation pattern as db_session, but depends on t3k_engine
-    to ensure T3K tables exist.
-    """
-    async with t3k_engine.connect() as conn:
-        trans = await conn.begin()
-        await conn.begin_nested()
-
-        session = _SavepointSession(bind=conn, expire_on_commit=False)
-
-        @event.listens_for(session.sync_session, "after_transaction_end")
-        def _reopen_nested(_session, _transaction):
-            if conn.closed:
-                return
-            if not conn.in_nested_transaction():
-                conn.sync_connection.begin_nested()
-
-        yield session
-
-        await session.close()
-        await trans.rollback()
+async def t3k_session(db_session: AsyncSession) -> AsyncSession:
+    """Alias for db_session in single-database mode."""
+    return db_session
 
 
 @pytest.fixture

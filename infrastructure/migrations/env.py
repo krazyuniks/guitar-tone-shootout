@@ -13,6 +13,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import all models to ensure they're registered with Base.metadata
+from source_t3k.adapters.outbound.models import Base as T3KBase
 from webapp.adapters.persistence.models import (
     AudioSegment,
     AuditLog,
@@ -55,7 +56,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, T3KBase.metadata]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

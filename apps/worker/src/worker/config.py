@@ -13,7 +13,7 @@ class WorkerSettings(BaseSettings):
     Attributes:
         redis_url: Redis connection URL for TaskIQ broker
         database_url: PostgreSQL connection URL for gts_core database
-        t3k_database_url: PostgreSQL connection URL for gts_t3k_source database
+        t3k_database_url: Compatibility URL for legacy T3K session callers
     """
 
     redis_url: str

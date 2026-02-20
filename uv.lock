@@ -10,10 +10,12 @@ resolution-markers = [
 members = [
     "gts",
     "gts-audio",
+    "gts-audio-worker",
     "gts-core",
-    "gts-scheduler",
     "gts-source-t3k",
+    "gts-t3k-sync",
     "gts-video",
+    "gts-video-worker",
     "gts-webapp",
     "gts-worker",
 ]
@@ -622,31 +624,43 @@ requires-dist = [
 ]
 
 [[package]]
-name = "gts-core"
+name = "gts-audio-worker"
 version = "0.1.0"
-source = { editable = "libs/core" }
-
-[[package]]
-name = "gts-scheduler"
-version = "0.1.0"
-source = { editable = "apps/scheduler" }
+source = { editable = "apps/audio_worker" }
 dependencies = [
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "gts-audio" },
     { name = "gts-core" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "redis" },
-    { name = "taskiq" },
-    { name = "taskiq-redis" },
+    { name = "pgmq-sqlalchemy" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "gts-audio", editable = "libs/audio" },
     { name = "gts-core", editable = "libs/core" },
+    { name = "pgmq-sqlalchemy", specifier = ">=0.1.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+    { name = "uvicorn", specifier = ">=0.32.0" },
+]
+
+[[package]]
+name = "gts-core"
+version = "0.1.0"
+source = { editable = "libs/core" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.metadata]
+requires-dist = [
     { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.7.0" },
-    { name = "redis", specifier = ">=5.2.0" },
-    { name = "taskiq", specifier = ">=0.11.0" },
-    { name = "taskiq-redis", specifier = ">=1.0.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
 ]
 
 [[package]]
@@ -677,6 +691,43 @@ requires-dist = [
 ]
 
 [[package]]
+name = "gts-t3k-sync"
+version = "0.1.0"
+source = { editable = "apps/t3k_sync" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "gts-core" },
+    { name = "gts-source-t3k" },
+    { name = "gts-webapp" },
+    { name = "gts-worker" },
+    { name = "httpx" },
+    { name = "pgmq-sqlalchemy" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "redis" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "gts-core", editable = "libs/core" },
+    { name = "gts-source-t3k", editable = "sources/t3k" },
+    { name = "gts-webapp", editable = "apps/webapp" },
+    { name = "gts-worker", editable = "apps/worker" },
+    { name = "httpx", specifier = ">=0.28.0" },
+    { name = "pgmq-sqlalchemy", specifier = ">=0.1.0" },
+    { name = "pydantic", specifier = ">=2.10.0" },
+    { name = "pydantic-settings", specifier = ">=2.7.0" },
+    { name = "redis", specifier = ">=5.2.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+    { name = "uvicorn", specifier = ">=0.32.0" },
+]
+
+[[package]]
 name = "gts-video"
 version = "0.1.0"
 source = { editable = "libs/video" }
@@ -695,6 +746,33 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.0.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
+]
+
+[[package]]
+name = "gts-video-worker"
+version = "0.1.0"
+source = { editable = "apps/video_worker" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "gts-core" },
+    { name = "gts-webapp" },
+    { name = "gts-worker" },
+    { name = "pgmq-sqlalchemy" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "gts-core", editable = "libs/core" },
+    { name = "gts-webapp", editable = "apps/webapp" },
+    { name = "gts-worker", editable = "apps/worker" },
+    { name = "pgmq-sqlalchemy", specifier = ">=0.1.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+    { name = "uvicorn", specifier = ">=0.32.0" },
 ]
 
 [[package]]

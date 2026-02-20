@@ -1,6 +1,7 @@
 """Port definitions - abstractions for infrastructure dependencies."""
 
 from core.ports.audio_processor import AudioProcessor
+from core.ports.message_bus import MessageBus, MessageEnvelopeLike, QueueMessage
 from core.ports.repositories import (
     AuditRepository,
     DITrackRepository,
@@ -20,6 +21,9 @@ __all__ = [
     "DITrackRepository",
     "GearRepository",
     "JobRepository",
+    "MessageBus",
+    "MessageEnvelopeLike",
+    "QueueMessage",
     "ShootoutRepository",
     "SignalChainGroupRepository",
     "SignalChainRepository",

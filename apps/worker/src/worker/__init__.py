@@ -1,12 +1,20 @@
 """GTS Worker.
 
 TaskIQ background jobs and pgmq message consumer.
-Bridges gts_core and gts_t3k_source databases.
+Runs against the unified gts_core database.
 """
 
 __version__ = "0.1.0"
 
 from worker import config
-from worker.main import broker
 
 __all__ = ["broker", "config"]
+
+
+def __getattr__(name: str):
+    """Lazily expose broker to avoid importing worker.main at package import time."""
+    if name == "broker":
+        from worker.main import broker
+
+        return broker
+    raise AttributeError(f"module 'worker' has no attribute {name!r}")

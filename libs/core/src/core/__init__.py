@@ -1,7 +1,7 @@
 """GTS Core Domain Library.
 
-Pure Python domain model with zero framework dependencies.
-Contains entities, value objects, ports, records, and domain services.
+Shared core contracts and services for all bounded contexts.
+Contains entities, value objects, ports, records, and messaging services.
 """
 
 __version__ = "0.1.0"

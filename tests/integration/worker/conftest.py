@@ -38,7 +38,7 @@ def worker_env_vars(monkeypatch):
     """Set up worker environment variables for integration tests.
 
     The webapp container only has DATABASE_URL set, but WorkerSettings requires
-    REDIS_URL and T3K_DATABASE_URL as well.
+    REDIS_URL as well.
 
     Uses autouse=True so it applies to all tests in this directory.
     """
@@ -49,11 +49,6 @@ def worker_env_vars(monkeypatch):
 
     # Set standard test URLs that match what tests register engines under
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379")
-    # Keep DATABASE_URL from environment (real PostgreSQL)
-    monkeypatch.setenv(
-        "T3K_DATABASE_URL",
-        os.environ.get("DATABASE_URL", "postgresql+asyncpg://user:pass@db/gts_t3k_source"),
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -63,13 +58,12 @@ async def register_worker_engines(
     """Register the shared PostgreSQL engine for worker tests.
 
     The root conftest provides core_engine (session-scoped, real PostgreSQL).
-    We register it under the worker's expected URL patterns so that
-    get_core_session() and get_t3k_session() resolve correctly.
+    We register it under the worker's expected URL pattern so get_core_session()
+    resolves correctly.
     """
     db_url = os.environ.get("DATABASE_URL", "")
     register_engine(db_url, core_engine)
     register_engine("postgresql+asyncpg://user:pass@db/gts_core", core_engine)
-    register_engine("postgresql+asyncpg://user:pass@db/gts_t3k_source", core_engine)
     yield
     from worker.db import _engine_cache
 

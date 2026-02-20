@@ -521,7 +521,7 @@ class TestBackfillCheckpoint:
                 total_synced=0,
             )
             .on_conflict_do_update(
-                constraint="uq_source_entity",
+                index_elements=["source_name", "entity_type"],
                 set_={"last_record_id": "999"},
             )
         )

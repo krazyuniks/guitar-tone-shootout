@@ -1,7 +1,7 @@
 """GearSyncRecord pgmq publisher for T3K source adapter.
 
 Converts T3K staging records to GearSyncRecord format and publishes them
-to pgmq queues in gts_t3k_source database. Transactional: staging record
+to pgmq queues in gts_core. Transactional: staging record
 update + enqueue happen in the same database transaction.
 """
 

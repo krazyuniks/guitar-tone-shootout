@@ -243,7 +243,7 @@ export const GET: APIRoute = () => {
         </a>
         <!-- View on T3K link -->
         <a
-          href="https://www.tone3000.com/tones/{{ pack.id }}"
+          href="https://www.tone3000.com/tones/{{ pack.source_record_id or pack.id }}"
           target="NAM"
           class="text-xs text-[var(--color-accent-primary)] hover:text-[var(--color-accent-secondary)] transition-colors flex items-center gap-1"
         >

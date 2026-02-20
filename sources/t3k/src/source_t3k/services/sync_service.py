@@ -135,7 +135,6 @@ class T3KSyncService:
                     result = await self._process_existing_tone(tone, existing)
                     if result.skipped:
                         hit_known = True
-                        break
                     tone_results.append(result)
                 else:
                     result = await self._process_new_tone(tone)
@@ -404,7 +403,7 @@ class T3KSyncService:
             pg_insert(SyncCheckpoint)
             .values(**values)
             .on_conflict_do_update(
-                constraint="uq_source_entity",
+                index_elements=["source_name", "entity_type"],
                 set_={
                     "last_synced_at": now,
                     "last_record_id": last_record_id,

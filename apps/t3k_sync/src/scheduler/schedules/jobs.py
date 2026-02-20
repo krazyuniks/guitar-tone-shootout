@@ -1,0 +1,194 @@
+"""Scheduled tasks for job monitoring and retry processing."""
+
+import logging
+import os
+from datetime import UTC, datetime, timedelta
+
+import httpx
+import redis.asyncio as redis
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
+from core.domain.auth_gate import check_auth_status
+from core.domain.value_objects.job_status import JobStatus
+from scheduler.db import get_session
+from scheduler.lock import DistributedLock
+
+_test_engine: AsyncEngine | None = None
+_test_session: AsyncSession | None = None
+logger = logging.getLogger(__name__)
+
+
+async def monitor_stale_jobs(db_engine: AsyncEngine | None = None) -> None:
+    """Monitor for stale jobs and mark them as DEAD_LETTERED."""
+    stale_threshold = datetime.now(UTC) - timedelta(minutes=2)
+
+    stmt = text("""
+        UPDATE jobs SET status = :dead_status, error = :error, completed_at = :now
+        WHERE status = :running_status
+          AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
+          AND (started_at IS NULL OR started_at < :threshold)
+    """)
+    params = {
+        "dead_status": JobStatus.DEAD_LETTERED.value,
+        "error": "Stale heartbeat detected: worker failed to update heartbeat within 2 minutes",
+        "running_status": JobStatus.RUNNING.value,
+        "threshold": stale_threshold,
+        "now": datetime.now(UTC),
+    }
+
+    if _test_session is not None:
+        await _test_session.execute(stmt, params)
+        return
+
+    engine = _resolve_engine(db_engine)
+    async with get_session(engine) as session:
+        await session.execute(stmt, params)
+
+
+async def process_pending_retries(db_engine: AsyncEngine | None = None) -> None:
+    """Process pending retries for FAILED jobs."""
+    now = datetime.now(UTC)
+
+    stmt = text("""
+        UPDATE jobs SET status = :pending_status
+        WHERE status = :failed_status
+          AND next_retry_at IS NOT NULL
+          AND next_retry_at <= :now
+          AND attempt < max_attempts
+    """)
+    params = {
+        "pending_status": JobStatus.PENDING.value,
+        "failed_status": JobStatus.FAILED.value,
+        "now": now,
+    }
+
+    if _test_session is not None:
+        await _test_session.execute(stmt, params)
+        return
+
+    engine = _resolve_engine(db_engine)
+    async with get_session(engine) as session:
+        await session.execute(stmt, params)
+
+
+async def scheduler_heartbeat(lock: DistributedLock | None = None) -> None:
+    """Update scheduler health and renew distributed lock."""
+    if lock is not None:
+        await lock.renew()
+
+
+def get_redis_client() -> redis.Redis:
+    """Get Redis client for checking sync locks."""
+    from scheduler.config import SchedulerSettings
+
+    settings = SchedulerSettings()
+    return redis.from_url(settings.redis_url)
+
+
+async def dispatch_pending_jobs() -> None:
+    """Dispatch jobs stuck in PENDING status to the worker."""
+    cutoff = datetime.now(UTC) - timedelta(minutes=5)
+
+    stmt = text("""
+        SELECT id FROM jobs
+        WHERE status = :pending_status
+          AND created_at < :cutoff
+          AND job_type != 'source_sync'
+        LIMIT 50
+    """)
+    params = {"pending_status": JobStatus.PENDING.value, "cutoff": cutoff}
+
+    engine = _resolve_engine(None)
+    async with get_session(engine) as session:
+        result = await session.execute(stmt, params)
+        job_ids = [row[0] for row in result.fetchall()]
+
+    if not job_ids:
+        return
+
+    worker_url = os.getenv("WORKER_ADMIN_URL", "http://worker:8001")
+    dispatched = 0
+    async with httpx.AsyncClient() as client:
+        for job_id in job_ids:
+            try:
+                response = await client.post(
+                    f"{worker_url}/api/admin/enqueue",
+                    json={"job_id": str(job_id)},
+                    timeout=10.0,
+                )
+                if response.status_code < 300:
+                    dispatched += 1
+                else:
+                    logger.warning("Failed to enqueue job %s: %d", job_id, response.status_code)
+            except Exception:
+                logger.exception("Error enqueuing job %s", job_id)
+
+    if dispatched > 0:
+        logger.info("Dispatched %d stuck pending jobs", dispatched)
+
+
+async def ensure_source_sync_running(db_engine: AsyncEngine | None = None) -> None:
+    """Ensure T3K source sync is running by checking Redis lock and dispatching if needed."""
+    status = check_auth_status(os.getenv("GTS_AUTH_FILE", "/.gts-auth.json"))
+    if not status.can_proceed():
+        logger.debug("Skipping sync dispatch: auth status is %s", status.value)
+        return
+
+    lock_key = "t3k:sync:lock"
+    redis_client = get_redis_client()
+    try:
+        lock_exists = await redis_client.exists(lock_key)
+        if lock_exists != 0:
+            return
+
+        sync_enabled = os.getenv("T3K_SYNC_ENABLED", "true").lower() == "true"
+        if not sync_enabled:
+            return
+
+        worker_url = os.getenv("WORKER_ADMIN_URL", "http://worker:8001")
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{worker_url}/api/admin/sources/t3k/sync",
+                timeout=10.0,
+            )
+            if response.status_code < 300:
+                logger.info("Dispatched T3K source sync via admin API")
+            else:
+                logger.warning(
+                    "Failed to dispatch T3K sync: %d %s",
+                    response.status_code,
+                    response.text[:200],
+                )
+    except Exception:
+        logger.exception("Error in ensure_source_sync_running")
+    finally:
+        await redis_client.aclose()
+
+
+def _resolve_engine(db_engine: AsyncEngine | None) -> AsyncEngine:
+    """Resolve database engine from argument, test hook, or registry."""
+    if db_engine is not None:
+        return db_engine
+
+    from scheduler.db import get_registered_engine
+
+    registered = get_registered_engine()
+    if registered is not None:
+        return registered
+
+    database_url = os.getenv("DATABASE_URL", "")
+    if not database_url:
+        msg = "DATABASE_URL environment variable not set"
+        raise ValueError(msg)
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    return create_async_engine(database_url)
+
+
+monitor_stale_jobs.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
+process_pending_retries.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
+dispatch_pending_jobs.labels = {"schedule": [{"interval": 120}]}  # type: ignore[attr-defined]
+scheduler_heartbeat.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]
+ensure_source_sync_running.labels = {"schedule": [{"interval": 60}]}  # type: ignore[attr-defined]

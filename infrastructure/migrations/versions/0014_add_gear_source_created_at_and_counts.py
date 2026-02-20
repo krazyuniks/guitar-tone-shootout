@@ -36,34 +36,51 @@ def upgrade() -> None:
         sa.Column("favorites_count", sa.Integer(), nullable=False, server_default="0"),
     )
 
-    # Backfill source_created_at from T3K staging via dblink
+    # Backfill from whichever local T3K staging table exists. This keeps the
+    # migration chain runnable in both legacy and consolidated single-DB setups.
     op.execute(
         """
-        UPDATE gear g
-        SET source_created_at = t.created_at
-        FROM gear_sources gs,
-             dblink(
-                 'dbname=gts_t3k_source user=gts',
-                 'SELECT id::text, created_at FROM t3k_tones_staging'
-             ) AS t(id text, created_at timestamptz)
-        WHERE g.source_id = gs.id
-          AND gs.source_record_id = t.id
+        DO $$
+        BEGIN
+            IF to_regclass('public.t3k_packs') IS NOT NULL THEN
+                UPDATE gear g
+                SET source_created_at = t.created_at
+                FROM gear_sources gs, t3k_packs t
+                WHERE g.source_id = gs.id
+                  AND gs.source_record_id = t.id::text;
+            ELSIF to_regclass('public.t3k_tones_staging') IS NOT NULL THEN
+                UPDATE gear g
+                SET source_created_at = t.created_at
+                FROM gear_sources gs, t3k_tones_staging t
+                WHERE g.source_id = gs.id
+                  AND gs.source_record_id = t.id::text;
+            END IF;
+        END
+        $$;
         """
     )
 
-    # Backfill downloads_count and favorites_count from T3K staging
     op.execute(
         """
-        UPDATE gear g
-        SET downloads_count = t.downloads_count,
-            favorites_count = t.favorites_count
-        FROM gear_sources gs,
-             dblink(
-                 'dbname=gts_t3k_source user=gts',
-                 'SELECT id::text, downloads_count, favorites_count FROM t3k_tones_staging'
-             ) AS t(id text, downloads_count int, favorites_count int)
-        WHERE g.source_id = gs.id
-          AND gs.source_record_id = t.id
+        DO $$
+        BEGIN
+            IF to_regclass('public.t3k_packs') IS NOT NULL THEN
+                UPDATE gear g
+                SET downloads_count = t.downloads_count,
+                    favorites_count = t.favorites_count
+                FROM gear_sources gs, t3k_packs t
+                WHERE g.source_id = gs.id
+                  AND gs.source_record_id = t.id::text;
+            ELSIF to_regclass('public.t3k_tones_staging') IS NOT NULL THEN
+                UPDATE gear g
+                SET downloads_count = t.downloads_count,
+                    favorites_count = t.favorites_count
+                FROM gear_sources gs, t3k_tones_staging t
+                WHERE g.source_id = gs.id
+                  AND gs.source_record_id = t.id::text;
+            END IF;
+        END
+        $$;
         """
     )
 

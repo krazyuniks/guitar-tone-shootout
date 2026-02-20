@@ -64,13 +64,16 @@ COPY --chown=appuser:appgroup libs/video/pyproject.toml libs/video/README.md lib
 COPY --chown=appuser:appgroup sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
 COPY --chown=appuser:appgroup apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
 COPY --chown=appuser:appgroup apps/worker/pyproject.toml apps/worker/README.md apps/worker/
-COPY --chown=appuser:appgroup apps/scheduler/pyproject.toml apps/scheduler/README.md apps/scheduler/
+COPY --chown=appuser:appgroup apps/t3k_sync/pyproject.toml apps/t3k_sync/README.md apps/t3k_sync/
+COPY --chown=appuser:appgroup apps/audio_worker/pyproject.toml apps/audio_worker/README.md apps/audio_worker/
+COPY --chown=appuser:appgroup apps/video_worker/pyproject.toml apps/video_worker/README.md apps/video_worker/
 
 # Create src directory structure for workspace resolution
 # Each package needs an __init__.py for hatchling to recognize it
 RUN mkdir -p libs/core/src/core libs/audio/src/audio libs/video/src/video \
     sources/t3k/src/source_t3k \
-    apps/webapp/src/webapp apps/worker/src/worker apps/scheduler/src/scheduler \
+    apps/webapp/src/webapp apps/worker/src/worker \
+    apps/t3k_sync/src/t3k_sync apps/audio_worker/src/audio_worker apps/video_worker/src/video_worker \
     src/gts \
     && touch libs/core/src/core/__init__.py \
     && touch libs/audio/src/audio/__init__.py \
@@ -78,7 +81,9 @@ RUN mkdir -p libs/core/src/core libs/audio/src/audio libs/video/src/video \
     && touch sources/t3k/src/source_t3k/__init__.py \
     && touch apps/webapp/src/webapp/__init__.py \
     && touch apps/worker/src/worker/__init__.py \
-    && touch apps/scheduler/src/scheduler/__init__.py \
+    && touch apps/t3k_sync/src/t3k_sync/__init__.py \
+    && touch apps/audio_worker/src/audio_worker/__init__.py \
+    && touch apps/video_worker/src/video_worker/__init__.py \
     && touch src/gts/__init__.py
 
 # Install all dependencies including dev (workspace members included)

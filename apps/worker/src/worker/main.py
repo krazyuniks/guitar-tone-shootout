@@ -90,10 +90,11 @@ async def example_task(message: str) -> str:
     return f"Processed: {message}"
 
 
-# Import job handlers to register them with the broker
+# Import job modules for side-effect registration with the broker.
 from worker.jobs import (  # noqa: E402, F401
-    handle_shootout_audio_job,
-    handle_shootout_job,
-    handle_shootout_master_job,
+    audio,
+    audio_processing,
+    master_audio,
+    shootout,
+    source_sync,
 )
-from worker.jobs.source_sync import handle_source_sync  # noqa: E402, F401

@@ -1,4 +1,8 @@
-"""SQLAlchemy base classes, mixins, and utilities for ORM models."""
+"""SQLAlchemy base classes, mixins, and utilities for ORM models.
+
+Core webapp tables remain unprefixed (e.g. users, gear, jobs). Source BC tables
+use their own prefixed Base classes (e.g. t3k_* in source_t3k).
+"""
 
 import uuid
 from datetime import UTC, datetime

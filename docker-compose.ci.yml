@@ -15,8 +15,7 @@ services:
     container_name: gts-db-ci-${CI_JOB_ID:-local}
     volumes:
       - postgres_data_ci:/var/lib/postgresql/data
-      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
-      - ./infrastructure/docker/init-pgmq.sql:/docker-entrypoint-initdb.d/02-init-pgmq.sql
+      - ./infrastructure/docker/init-core-db.sh:/docker-entrypoint-initdb.d/01-init-core-db.sh
     healthcheck:
       interval: 2s
       timeout: 2s

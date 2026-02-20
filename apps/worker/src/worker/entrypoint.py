@@ -1,9 +1,8 @@
-"""Worker container entrypoint - orchestrates 3 concurrent services.
+"""Worker container entrypoint - orchestrates concurrent worker services.
 
-This module manages 3 concurrent processes in a single worker container:
+This module manages the worker-side processes in a single container:
 1. Admin API (uvicorn on port 8001)
 2. TaskIQ worker
-3. pgmq consumer (initial no-op loop)
 
 Implements fail-fast behaviour: if any child process exits, all processes
 are terminated gracefully.
@@ -164,43 +163,27 @@ async def run_taskiq_worker(manager: ProcessManager) -> None:
 
 
 async def run_pgmq_consumer(manager: ProcessManager) -> None:
-    """Start the pgmq consumer with real GearSyncConsumer.
+    """Compatibility runner for legacy entrypoint imports.
 
-    Args:
-        manager: The process manager to register with
+    PGMQ consumption moved to the dedicated t3k-sync container. This shim keeps
+    `worker.entrypoint.run_pgmq_consumer` importable for existing tests and
+    callers while delegating execution to the new app process.
     """
-    logger.info("Starting pgmq consumer")
-
-    # Run consumer in subprocess with database session setup
-    consumer_script = """
-import asyncio
-from worker.consumers.gear_sync import GearSyncConsumer
-from worker.db import get_core_session_no_tx, get_t3k_session_no_tx
-
-async def main():
-    async with get_core_session_no_tx() as core_session, get_t3k_session_no_tx() as t3k_session:
-        consumer = GearSyncConsumer(
-            core_session=core_session,
-            t3k_session=t3k_session,
-            pack_queue_name="gear_sync",
-            model_queue_name="gear_sync",
-            dead_letter_queue="gear_sync_dlq",
-        )
-        await consumer.run()
-
-if __name__ == "__main__":
-    asyncio.run(main())
-"""
+    logger.info("Starting t3k-sync compatibility process")
 
     process = await asyncio.create_subprocess_exec(
         sys.executable,
-        "-u",  # Unbuffered output
-        "-c",
-        consumer_script,
+        "-m",
+        "uvicorn",
+        "t3k_sync.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8100",
     )
 
     manager.add_process(process)
-    logger.info(f"pgmq consumer started with PID {process.pid}")
+    logger.info(f"t3k-sync compatibility process started with PID {process.pid}")
 
 
 async def monitor_process(process: Process, name: str, manager: ProcessManager) -> None:
@@ -217,11 +200,11 @@ async def monitor_process(process: Process, name: str, manager: ProcessManager) 
 
 
 async def start_all_processes() -> None:
-    """Start all 3 processes and wait for shutdown signal.
+    """Start worker processes and wait for shutdown signal.
 
     This is the main entrypoint function that:
     1. Creates a ProcessManager
-    2. Starts all 3 services concurrently
+    2. Starts worker services
     3. Monitors child processes and triggers shutdown if any exit
     4. Waits for shutdown signal (from signal handler or child exit)
     5. Terminates all processes gracefully
@@ -238,16 +221,14 @@ async def start_all_processes() -> None:
     logger.info("Starting worker container orchestration")
 
     try:
-        # Start all 3 processes
+        # Start worker processes
         await run_admin_api(manager)
         await run_taskiq_worker(manager)
-        await run_pgmq_consumer(manager)
 
         # Create monitoring tasks for each process
         monitor_tasks = [
             asyncio.create_task(monitor_process(manager.processes[0], "Admin API", manager)),
             asyncio.create_task(monitor_process(manager.processes[1], "TaskIQ worker", manager)),
-            asyncio.create_task(monitor_process(manager.processes[2], "pgmq consumer", manager)),
         ]
 
         # Wait for shutdown signal (triggered by signal handler or child exit)

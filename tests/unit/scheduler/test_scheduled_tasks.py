@@ -57,6 +57,7 @@ class TestMonitorStaleJobsLogic:
     ) -> None:
         """RUNNING job with heartbeat older than 2 minutes is marked DEAD_LETTERED."""
         from scheduler.schedules.jobs import monitor_stale_jobs
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create RUNNING job with stale heartbeat (3 minutes ago)
@@ -87,6 +88,7 @@ class TestMonitorStaleJobsLogic:
     ) -> None:
         """RUNNING job with recent heartbeat (<2 minutes) is not marked stale."""
         from scheduler.schedules.jobs import monitor_stale_jobs
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create RUNNING job with recent heartbeat (30 seconds ago)
@@ -115,6 +117,7 @@ class TestMonitorStaleJobsLogic:
     ) -> None:
         """Non-RUNNING job with stale heartbeat is not affected."""
         from scheduler.schedules.jobs import monitor_stale_jobs
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create PENDING job with stale heartbeat
@@ -141,6 +144,7 @@ class TestMonitorStaleJobsLogic:
     async def test_marks_multiple_stale_jobs(self, session: AsyncSession) -> None:
         """All RUNNING jobs with stale heartbeats are marked DEAD_LETTERED."""
         from scheduler.schedules.jobs import monitor_stale_jobs
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         stale_time = datetime.now(UTC) - timedelta(minutes=3)
@@ -192,6 +196,7 @@ class TestProcessPendingRetriesLogic:
     async def test_resets_failed_job_with_retry_time_reached(self, session: AsyncSession) -> None:
         """FAILED job with next_retry_at <= now is reset to PENDING."""
         from scheduler.schedules.jobs import process_pending_retries
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create FAILED job eligible for retry (next_retry_at is now)
@@ -221,6 +226,7 @@ class TestProcessPendingRetriesLogic:
     async def test_does_not_retry_job_before_retry_time(self, session: AsyncSession) -> None:
         """FAILED job with next_retry_at in future is not retried yet."""
         from scheduler.schedules.jobs import process_pending_retries
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create FAILED job with future retry time
@@ -249,6 +255,7 @@ class TestProcessPendingRetriesLogic:
     async def test_does_not_retry_job_at_max_attempts(self, session: AsyncSession) -> None:
         """FAILED job at max_attempts is not retried."""
         from scheduler.schedules.jobs import process_pending_retries
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create FAILED job at max attempts
@@ -277,6 +284,7 @@ class TestProcessPendingRetriesLogic:
     async def test_processes_multiple_eligible_retries(self, session: AsyncSession) -> None:
         """All eligible FAILED jobs are reset to PENDING."""
         from scheduler.schedules.jobs import process_pending_retries
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         retry_time = datetime.now(UTC) - timedelta(seconds=1)
@@ -315,6 +323,7 @@ class TestProcessPendingRetriesLogic:
     async def test_does_not_retry_non_failed_jobs(self, session: AsyncSession) -> None:
         """Non-FAILED jobs are not affected by retry processing."""
         from scheduler.schedules.jobs import process_pending_retries
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create COMPLETED job with retry time in past
@@ -450,6 +459,7 @@ class TestSchedulerDatabaseIntegration:
     async def test_monitor_stale_jobs_uses_database_session(self, session: AsyncSession) -> None:
         """monitor_stale_jobs queries jobs table via database session."""
         from scheduler.schedules.jobs import monitor_stale_jobs
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create test data
@@ -479,6 +489,7 @@ class TestSchedulerDatabaseIntegration:
     ) -> None:
         """process_pending_retries queries jobs table via database session."""
         from scheduler.schedules.jobs import process_pending_retries
+
         from webapp.adapters.persistence.models.job import Job as JobModel
 
         # Create test data

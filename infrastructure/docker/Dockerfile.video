@@ -38,19 +38,36 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Copy workspace configuration for libs/video package
+# Copy workspace configuration
 COPY pyproject.toml uv.lock README.md ./
 COPY libs/core/pyproject.toml libs/core/README.md libs/core/
+COPY libs/audio/pyproject.toml libs/audio/README.md libs/audio/
 COPY libs/video/pyproject.toml libs/video/README.md libs/video/
+COPY sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
+COPY apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
+COPY apps/worker/pyproject.toml apps/worker/README.md apps/worker/
+COPY apps/t3k_sync/pyproject.toml apps/t3k_sync/README.md apps/t3k_sync/
+COPY apps/audio_worker/pyproject.toml apps/audio_worker/README.md apps/audio_worker/
+COPY apps/video_worker/pyproject.toml apps/video_worker/README.md apps/video_worker/
 
 # Create src directory structure for workspace resolution
-RUN mkdir -p libs/core/src/core libs/video/src/video \
+RUN mkdir -p libs/core/src/core libs/audio/src/audio libs/video/src/video \
+    sources/t3k/src/source_t3k \
+    apps/webapp/src/webapp apps/worker/src/worker \
+    apps/t3k_sync/src/t3k_sync apps/audio_worker/src/audio_worker apps/video_worker/src/video_worker \
     && touch libs/core/src/core/__init__.py \
-    && touch libs/video/src/video/__init__.py
+    && touch libs/audio/src/audio/__init__.py \
+    && touch libs/video/src/video/__init__.py \
+    && touch sources/t3k/src/source_t3k/__init__.py \
+    && touch apps/webapp/src/webapp/__init__.py \
+    && touch apps/worker/src/worker/__init__.py \
+    && touch apps/t3k_sync/src/t3k_sync/__init__.py \
+    && touch apps/audio_worker/src/audio_worker/__init__.py \
+    && touch apps/video_worker/src/video_worker/__init__.py
 
-# Install Python dependencies via uv (gts-video workspace member)
+# Install Python dependencies via uv (workspace members included)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package gts-video
+    uv sync --frozen --all-packages
 
 # Source code will be volume mounted at runtime for hot reload
 # Copy placeholder __init__.py files for initial resolution

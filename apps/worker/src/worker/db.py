@@ -202,33 +202,13 @@ async def get_core_session_no_tx() -> AsyncGenerator[AsyncSession, None]:
 
 @asynccontextmanager
 async def get_t3k_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get an async database session for the gts_t3k_source database.
-
-    Yields:
-        AsyncSession: Database session connected to gts_t3k_source with active transaction
-
-    Example:
-        async with get_t3k_session() as session:
-            result = await session.execute(select(Pack))
-            packs = result.scalars().all()
-
-    Note:
-        Uses WorkerSettings.t3k_database_url which is loaded from the T3K_DATABASE_URL
-        environment variable. In tests, this can be overridden by pre-registering
-        an engine under the desired URL using register_engine().
-    """
-    from worker.config import WorkerSettings
-
-    settings = WorkerSettings()  # type: ignore[call-arg]
-    async with get_session(settings.t3k_database_url) as session:
+    """Backward-compatible alias for get_core_session()."""
+    async with get_core_session() as session:
         yield session
 
 
 @asynccontextmanager
 async def get_t3k_session_no_tx() -> AsyncGenerator[AsyncSession, None]:
-    """Get an async database session for gts_t3k_source without implicit transaction."""
-    from worker.config import WorkerSettings
-
-    settings = WorkerSettings()  # type: ignore[call-arg]
-    async with get_session_no_tx(settings.t3k_database_url) as session:
+    """Backward-compatible alias for get_core_session_no_tx()."""
+    async with get_core_session_no_tx() as session:
         yield session

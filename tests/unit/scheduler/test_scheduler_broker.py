@@ -10,9 +10,8 @@ class TestSchedulerBrokerConfiguration:
 
     def test_broker_is_not_in_memory_broker(self) -> None:
         """broker is not InMemoryBroker (should be ListQueueBroker)."""
-        from taskiq import InMemoryBroker
-
         from scheduler.main import broker
+        from taskiq import InMemoryBroker
 
         assert not isinstance(broker, InMemoryBroker), (
             "Scheduler should use Redis ListQueueBroker, not InMemoryBroker"
@@ -20,9 +19,8 @@ class TestSchedulerBrokerConfiguration:
 
     def test_broker_uses_redis_list_queue_broker(self) -> None:
         """broker is a ListQueueBroker instance from taskiq-redis."""
-        from taskiq_redis import ListQueueBroker
-
         from scheduler.main import broker
+        from taskiq_redis import ListQueueBroker
 
         assert isinstance(broker, ListQueueBroker), (
             "Scheduler broker must be ListQueueBroker from taskiq-redis"
@@ -67,9 +65,8 @@ class TestSchedulerConfiguration:
 
     def test_scheduler_is_taskiq_scheduler(self) -> None:
         """scheduler is a TaskiqScheduler instance."""
-        from taskiq import TaskiqScheduler
-
         from scheduler.main import scheduler
+        from taskiq import TaskiqScheduler
 
         assert isinstance(scheduler, TaskiqScheduler), "scheduler must be TaskiqScheduler instance"
 

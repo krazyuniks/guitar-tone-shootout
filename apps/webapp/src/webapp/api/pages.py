@@ -72,6 +72,7 @@ def _gear_to_pack(gear: Gear) -> dict[str, object]:
     return {
         "id": str(gear.id),
         "slug": gear.slug,
+        "source_record_id": (gear.source.source_record_id if gear.source else ""),
         "title": gear.name,
         "gear_type": (
             gear.gear_type.value if hasattr(gear.gear_type, "value") else str(gear.gear_type)

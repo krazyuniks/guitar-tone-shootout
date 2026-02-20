@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models for T3K staging tables.
 
-These models live in the gts_t3k_source database, separate from gts_core.
-They are used to stage T3K data before transformation to GTS format.
+These models live in gts_core using t3k_* table prefixes.
+They are used to stage T3K data before transformation to unified core records.
 """
 
 from datetime import datetime
@@ -32,7 +32,7 @@ class Base(DeclarativeBase):
 class T3KUserStaging(Base):
     """Staging table for T3K users."""
 
-    __tablename__ = "t3k_users_staging"
+    __tablename__ = "t3k_creators"
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
     username: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -63,7 +63,7 @@ class T3KUserStaging(Base):
 class T3KToneStaging(Base):
     """Staging table for T3K tones (formerly packs)."""
 
-    __tablename__ = "t3k_tones_staging"
+    __tablename__ = "t3k_packs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -129,7 +129,7 @@ class T3KToneStaging(Base):
 class T3KModelStaging(Base):
     """Staging table for T3K models."""
 
-    __tablename__ = "t3k_models_staging"
+    __tablename__ = "t3k_models"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     tone_id: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -170,7 +170,7 @@ class T3KModelStaging(Base):
 class SyncCheckpoint(Base):
     """Tracks synchronisation progress for T3K entities."""
 
-    __tablename__ = "sync_checkpoints"
+    __tablename__ = "t3k_sync_checkpoints"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     source_name: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -179,4 +179,10 @@ class SyncCheckpoint(Base):
     last_record_id: Mapped[str] = mapped_column(String(255), nullable=False)
     total_synced: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    __table_args__ = (UniqueConstraint("source_name", "entity_type", name="uq_source_entity"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "source_name",
+            "entity_type",
+            name="uq_t3k_sync_checkpoints_source_entity",
+        ),
+    )

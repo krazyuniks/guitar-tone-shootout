@@ -17,7 +17,7 @@ up-d:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Main worktree runs jobs profile (worker, scheduler, redis)
+    # Main worktree runs jobs profile (worker + BC workers + redis)
     PROFILE_ARGS=""
     if [ "$(basename "$(pwd)")" = "main" ]; then
         PROFILE_ARGS="--profile jobs"
@@ -170,22 +170,21 @@ db-restore file:
 db-export: db-backup
 db-import file: (db-restore file)
 
-# Run migrations (core + T3K source)
+# Run migrations (single gts_core migration chain)
 migrate:
     docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini upgrade head
-    docker compose exec -T worker alembic -c sources/t3k/alembic.ini upgrade head
 
 # Create a new migration
 migration NAME:
-    docker compose exec -T webapp alembic revision --autogenerate -m "{{NAME}}"
+    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini revision --autogenerate -m "{{NAME}}"
 
 # Show migration history
 migration-history:
-    docker compose exec -T webapp alembic history
+    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini history
 
 # Rollback last migration
 migrate-down:
-    docker compose exec -T webapp alembic downgrade -1
+    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini downgrade -1
 
 # =============================================================================
 # Frontend (Astro)
@@ -294,10 +293,6 @@ repl:
 # Open psql to gts_core database
 psql:
     docker compose exec db psql -U gts -d gts_core
-
-# Open psql to gts_t3k_source database
-psql-t3k:
-    docker compose exec db psql -U gts -d gts_t3k_source
 
 # Open redis-cli
 redis-cli:

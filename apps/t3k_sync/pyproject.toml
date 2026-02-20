@@ -1,0 +1,33 @@
+[project]
+name = "gts-t3k-sync"
+version = "0.1.0"
+description = "GTS T3K Sync - source sync scheduler and gear sync consumer"
+requires-python = ">=3.14"
+dependencies = [
+    "gts-core",
+    "gts-source-t3k",
+    "gts-webapp",
+    "gts-worker",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "pgmq-sqlalchemy>=0.1.0",
+    "redis>=5.2.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "httpx>=0.28.0",
+]
+
+[tool.uv.sources]
+gts-core = { workspace = true }
+gts-source-t3k = { workspace = true }
+gts-webapp = { workspace = true }
+gts-worker = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/t3k_sync", "src/scheduler"]

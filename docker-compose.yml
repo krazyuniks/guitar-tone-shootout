@@ -10,7 +10,7 @@
 
 services:
   # ==========================================================================
-  # PostgreSQL - Dual database with pgmq extension
+  # PostgreSQL - Single gts_core database with pgmq extension
   # ==========================================================================
   db:
     image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
@@ -20,8 +20,7 @@ services:
       POSTGRES_DB: gts_core
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
-      - ./infrastructure/docker/init-pgmq.sql:/docker-entrypoint-initdb.d/02-init-pgmq.sql
+      - ./infrastructure/docker/init-core-db.sh:/docker-entrypoint-initdb.d/01-init-core-db.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gts -d gts_core"]
       interval: 5s
@@ -31,8 +30,8 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Redis - Job broker for worker/scheduler (jobs profile only)
-  # Feature worktrees don't need Redis - only main runs background jobs
+  # Redis - lock + TaskIQ broker for jobs profile services
+  # Feature worktrees don't need background workers
   # ==========================================================================
   redis:
     profiles:
@@ -78,8 +77,10 @@ services:
     volumes:
       - ./libs:/app/libs
       - ./apps/webapp:/app/apps/webapp
-      - ./apps/scheduler:/app/apps/scheduler
       - ./apps/worker:/app/apps/worker
+      - ./apps/t3k_sync:/app/apps/t3k_sync
+      - ./apps/audio_worker:/app/apps/audio_worker
+      - ./apps/video_worker:/app/apps/video_worker
       - ./frontend/astro/dist:/app/static
       - ./frontend/astro:/app/frontend/astro
       - ../gts-storage:/app/storage
@@ -94,6 +95,7 @@ services:
       - ./docker-compose.yml:/app/docker-compose.yml
       - ./justfile:/app/justfile
       - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
       - ./scripts:/app/scripts
     depends_on:
       db:
@@ -127,7 +129,7 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Worker - TaskIQ background jobs and pgmq consumer
+  # Worker - admin API and transitional TaskIQ jobs
   # ==========================================================================
   worker:
     profiles:
@@ -141,11 +143,12 @@ services:
     command: ["python", "-m", "worker.entrypoint"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
-      T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_t3k_source
+      T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       GTS_STORAGE_ROOT: /app/storage
+      PYTHONPATH: /app/apps/t3k_sync/src:/app/apps/audio_worker/src:/app/apps/video_worker/src
     env_file:
       - path: .env
         required: false
@@ -156,6 +159,9 @@ services:
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/worker:/app/apps/worker
+      - ./apps/t3k_sync:/app/apps/t3k_sync:ro
+      - ./apps/audio_worker:/app/apps/audio_worker:ro
+      - ./apps/video_worker:/app/apps/video_worker:ro
       - ./apps/webapp:/app/apps/webapp:ro
       - ./sources:/app/sources:ro
       - ../gts-storage:/app/storage
@@ -172,24 +178,24 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Scheduler - TaskIQ cron job scheduler
+  # T3K Sync - embedded scheduler + gear_sync consumer
   # ==========================================================================
-  scheduler:
+  t3k-sync:
     profiles:
       - jobs
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.dev
+      dockerfile: infrastructure/docker/Dockerfile.t3k-sync
       args:
         UID: ${UID:-1000}
         GID: ${GID:-1000}
-    command: ["taskiq", "scheduler", "scheduler.main:scheduler"]
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
-      DB_PASSWORD: ${DB_PASSWORD:-gts_dev_password}
+      T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
+      GTS_STORAGE_ROOT: /app/storage
     env_file:
       - path: .env
         required: false
@@ -199,14 +205,119 @@ services:
         required: false
     volumes:
       - ./libs:/app/libs:ro
-      - ./apps/scheduler:/app/apps/scheduler
-      - ../backups:/app/backups
+      - ./apps/t3k_sync:/app/apps/t3k_sync
+      - ./apps/worker:/app/apps/worker:ro
+      - ./apps/webapp:/app/apps/webapp:ro
       - ./sources:/app/sources:ro
+      - ../gts-storage:/app/storage
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Audio Worker - process_audio queue consumer
+  # ==========================================================================
+  audio-worker:
+    profiles:
+      - jobs
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.audio-worker
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    environment:
+      DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
+      T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
+      REDIS_URL: redis://redis:6379
+      ENV: ${ENV:-development}
+      GTS_STORAGE_ROOT: /app/storage
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
+      - path: .env.secrets
+        required: false
+    volumes:
+      - ./libs:/app/libs:ro
+      - ./apps/audio_worker:/app/apps/audio_worker
+      - ./apps/worker:/app/apps/worker:ro
+      - ../gts-storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ==========================================================================
+  # Video Worker - render_video queue consumer (Remotion runtime base)
+  # ==========================================================================
+  video-worker:
+    profiles:
+      - jobs
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile.video
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    command:
+      [
+        "uvicorn",
+        "--app-dir",
+        "apps/video_worker/src",
+        "video_worker.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8002",
+      ]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
+      T3K_DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
+      REDIS_URL: redis://redis:6379
+      ENV: ${ENV:-development}
+      GTS_STORAGE_ROOT: /app/storage
+      PYTHONPATH: /app/apps/webapp/src:/app/apps/worker/src:/app/sources/t3k/src
+    env_file:
+      - path: .env
+        required: false
+      - path: .env.local
+        required: false
+      - path: .env.secrets
+        required: false
+    volumes:
+      - ./libs/core:/app/libs/core:ro
+      - ./libs/video:/app/libs/video
+      - ./apps/video_worker:/app/apps/video_worker
+      - ./apps/webapp:/app/apps/webapp:ro
+      - ./apps/worker:/app/apps/worker:ro
+      - ./sources:/app/sources:ro
+      - ../gts-storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ==========================================================================
@@ -225,39 +336,6 @@ services:
       - ./frontend/astro:/app
       - /app/node_modules
     working_dir: /app
-    restart: unless-stopped
-
-  # ==========================================================================
-  # Video - Remotion video rendering service (Node.js + Chromium + Python)
-  # ==========================================================================
-  video:
-    profiles:
-      - jobs
-    build:
-      context: .
-      dockerfile: infrastructure/docker/Dockerfile.video
-      args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
-    environment:
-      ENV: ${ENV:-development}
-      GTS_STORAGE_ROOT: /app/storage
-    env_file:
-      - path: .env
-        required: false
-      - path: .env.local
-        required: false
-      - path: .env.secrets
-        required: false
-    volumes:
-      - ./libs/core:/app/libs/core:ro
-      - ./libs/video:/app/libs/video
-      - ../gts-storage:/app/storage
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     restart: unless-stopped
 
   # ==========================================================================

@@ -43,14 +43,32 @@ torch = { index = "pytorch-cpu" }
 torchaudio = { index = "pytorch-cpu" }
 
 [tool.uv.workspace]
-members = ["libs/*", "sources/*", "apps/*"]
+members = [
+    "libs/*",
+    "sources/*",
+    "apps/webapp",
+    "apps/worker",
+    "apps/t3k_sync",
+    "apps/audio_worker",
+    "apps/video_worker",
+]
 
 # =============================================================================
 # Import Linter - Dependency Enforcement
 # =============================================================================
 
 [tool.importlinter]
-root_packages = ["core", "audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
+root_packages = [
+    "core",
+    "audio",
+    "video",
+    "source_t3k",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
 include_external_packages = true
 
 # Core has zero dependencies on other packages
@@ -58,13 +76,22 @@ include_external_packages = true
 name = "core-isolation"
 type = "forbidden"
 source_modules = ["core"]
-forbidden_modules = ["audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
+forbidden_modules = [
+    "audio",
+    "video",
+    "source_t3k",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
 
-# Core must not import any framework libraries
+# Core domain models must remain framework-agnostic.
 [[tool.importlinter.contracts]]
-name = "core-no-frameworks"
+name = "core-domain-no-frameworks"
 type = "forbidden"
-source_modules = ["core"]
+source_modules = ["core.domain"]
 forbidden_modules = [
     "sqlalchemy",
     "fastapi",
@@ -77,26 +104,97 @@ forbidden_modules = [
     "torch",
 ]
 
+# Core ports must remain framework-agnostic.
+[[tool.importlinter.contracts]]
+name = "core-ports-no-frameworks"
+type = "forbidden"
+source_modules = ["core.ports"]
+forbidden_modules = [
+    "sqlalchemy",
+    "fastapi",
+    "starlette",
+    "pydantic",
+    "redis",
+    "taskiq",
+    "httpx",
+    "pedalboard",
+    "torch",
+]
+
+# Core records should remain transport contracts, not framework adapters.
+[[tool.importlinter.contracts]]
+name = "core-records-no-adapter-frameworks"
+type = "forbidden"
+source_modules = ["core.records"]
+forbidden_modules = [
+    "sqlalchemy",
+    "fastapi",
+    "starlette",
+    "redis",
+    "taskiq",
+    "httpx",
+    "pedalboard",
+    "torch",
+]
+
+# Core services may use SQLAlchemy/pydantic for messaging, but not web frameworks.
+[[tool.importlinter.contracts]]
+name = "core-services-no-web-frameworks"
+type = "forbidden"
+source_modules = ["core.services"]
+forbidden_modules = [
+    "fastapi",
+    "starlette",
+    "redis",
+    "taskiq",
+    "httpx",
+    "pedalboard",
+    "torch",
+]
+
 # Audio can only depend on core
 [[tool.importlinter.contracts]]
 name = "audio-dependencies"
 type = "forbidden"
 source_modules = ["audio"]
-forbidden_modules = ["video", "source_t3k", "webapp", "worker", "scheduler"]
+forbidden_modules = [
+    "video",
+    "source_t3k",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
 
 # Video can only depend on core
 [[tool.importlinter.contracts]]
 name = "video-dependencies"
 type = "forbidden"
 source_modules = ["video"]
-forbidden_modules = ["audio", "source_t3k", "webapp", "worker", "scheduler"]
+forbidden_modules = [
+    "audio",
+    "source_t3k",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
 
 # Source adapters can only depend on core
 [[tool.importlinter.contracts]]
 name = "source-dependencies"
 type = "forbidden"
 source_modules = ["source_t3k"]
-forbidden_modules = ["audio", "webapp", "worker", "scheduler"]
+forbidden_modules = [
+    "audio",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
 
 # Webapp cannot depend on sources (worker is the bridge)
 [[tool.importlinter.contracts]]
@@ -104,20 +202,6 @@ name = "webapp-no-sources"
 type = "forbidden"
 source_modules = ["webapp"]
 forbidden_modules = ["source_t3k"]
-
-# Scheduler should not depend on video
-[[tool.importlinter.contracts]]
-name = "scheduler-no-video"
-type = "forbidden"
-source_modules = ["scheduler"]
-forbidden_modules = ["video"]
-
-# Scheduler must not depend on source adapters (only core; worker bridges sources)
-[[tool.importlinter.contracts]]
-name = "scheduler-no-sources"
-type = "forbidden"
-source_modules = ["scheduler"]
-forbidden_modules = ["source_t3k", "audio"]
 
 # =============================================================================
 # Ruff Configuration
@@ -152,7 +236,17 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["core", "audio", "video", "source_t3k", "webapp", "worker", "scheduler"]
+known-first-party = [
+    "core",
+    "audio",
+    "video",
+    "source_t3k",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["ARG001", "ARG002", "E402", "B017", "B011", "RUF043"]

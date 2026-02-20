@@ -42,7 +42,6 @@ class TestSchedulerSettings:
     def test_settings_inherits_from_base_settings(self) -> None:
         """SchedulerSettings inherits from pydantic_settings.BaseSettings."""
         from pydantic_settings import BaseSettings
-
         from scheduler.config import SchedulerSettings
 
         assert issubclass(SchedulerSettings, BaseSettings)
@@ -50,7 +49,6 @@ class TestSchedulerSettings:
     def test_redis_url_field_is_required(self) -> None:
         """redis_url field is required (no default)."""
         from pydantic import ValidationError
-
         from scheduler.config import SchedulerSettings
 
         # Attempt to create settings without redis_url

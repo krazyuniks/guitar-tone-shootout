@@ -66,18 +66,8 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_t3k_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for getting a gts_t3k_source database session.
-
-    Uses get_t3k_session() which reads WorkerSettings.t3k_database_url and uses
-    the engine cache. In tests, the engine cache is pre-populated by the
-    db_engine fixture, so this dependency will use the test database.
-
-    Yields:
-        AsyncSession: Database session connected to gts_t3k_source with active transaction
-    """
-    from worker.db import get_t3k_session
-
-    async with get_t3k_session() as session:
+    """Compatibility dependency for T3K endpoints (uses gts_core session)."""
+    async with get_core_session() as session:
         yield session
 
 

@@ -1,13 +1,13 @@
-"""Background jobs - TaskIQ job definitions."""
+"""Background jobs package.
 
-from worker.jobs.audio import handle_shootout_audio_job
-from worker.jobs.audio_processing import handle_audio_processing
-from worker.jobs.master_audio import handle_shootout_master_job
-from worker.jobs.shootout import handle_shootout_job
+This module intentionally avoids eager imports to prevent circular-import
+issues with ``worker.main`` during broker bootstrap.
+"""
 
 __all__ = [
-    "handle_audio_processing",
-    "handle_shootout_audio_job",
-    "handle_shootout_job",
-    "handle_shootout_master_job",
+    "audio",
+    "audio_processing",
+    "master_audio",
+    "shootout",
+    "source_sync",
 ]
