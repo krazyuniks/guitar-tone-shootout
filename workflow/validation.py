@@ -154,14 +154,15 @@ def _run_checks_directly(
         cmd = _resolve_command(check)
 
         if cmd is None:
-            logger.warning("Cannot map criterion to command (skipping): %s", criterion)
+            logger.warning("Cannot map criterion to command (failing): %s", criterion)
             per_criterion_results.append(
                 {
                     "criterion": criterion,
-                    "status": "skip",
+                    "status": "fail",
                     "evidence": {"note": f"No command mapping for: {criterion}"},
                 }
             )
+            all_pass = False
             continue
 
         logger.info("Running direct check for story '%s': %s", story_id, cmd)

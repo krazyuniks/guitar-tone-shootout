@@ -883,8 +883,8 @@ def _run_story_critique(
             critique_model=critique_model,
             error=result.output[:500] if result.output else "Unknown error",
         )
-        # Treat dispatch failure as a pass — don't block on infra issues
-        return (True, [], result.cost_usd)
+        # Dispatch failure is fail-closed (invariant S2)
+        return (False, [{"error": "Critique dispatch failed"}], result.cost_usd)
 
     # Parse JSON result
     output = (result.output or "").strip()
@@ -905,7 +905,8 @@ def _run_story_critique(
             critique_model=critique_model,
             error=f"Invalid JSON: {output[:200]}",
         )
-        return (True, [], result.cost_usd)
+        # Parse failure is fail-closed (invariant S2)
+        return (False, [{"error": "Critique returned invalid JSON"}], result.cost_usd)
 
     status = critique.get("status", "pass")
     findings = critique.get("findings", [])
@@ -1116,17 +1117,18 @@ def _dispatch_and_validate_loop(
 
             continue  # Retry
 
-        # Agent succeeded -- now run validation if a checkpoint exists
+        # Agent succeeded -- now run validation (checkpoint required)
         if checkpoint is None:
-            # No validation checkpoint -- story is complete
+            # No validation checkpoint -- planning error (invariant S1)
             event_logger.log_event(
-                "story_complete",
+                "story_failed",
                 story_id=story_id,
                 attempt=attempt,
-                commit=_get_latest_commit_hash(),
+                reason="No validation checkpoint defined for story",
+                failure_category="scope",
             )
-            logger.info("Story '%s' completed (no validation checkpoint)", story_id)
-            return True
+            logger.error("Story '%s' has no validation checkpoint — planning error", story_id)
+            return False
 
         # Run validation checkpoint
         validation_result = run_validation_checkpoint(

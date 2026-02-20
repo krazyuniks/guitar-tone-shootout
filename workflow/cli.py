@@ -249,15 +249,14 @@ def _run_planning_pipeline(epic_number: int) -> None:
                 "[red]Decision Gate: auto-rejected (non-interactive, Phase A failed).[/red]"
             )
         else:
-            # Phase B-only failure: plan is structurally valid, verifier wants
-            # deeper checkpoints. Safe to auto-approve.
+            # Phase B-only failure: reject in non-interactive mode (invariant P1)
             gate_result = DecisionGateResult(
-                "approve",
-                reason="Auto-approved (non-interactive, Phase B-only failure — plan structurally valid)",
+                "reject",
+                reason="Rejected (non-interactive mode, Phase B failure — requires human review)",
             )
             console.print(
-                "[yellow]Decision Gate: auto-approved (Phase B-only failure, "
-                "plan structurally valid).[/yellow]"
+                "[red]Decision Gate: rejected (non-interactive, Phase B failure "
+                "— requires human review).[/red]"
             )
     else:
         gate_result = present_decision_gate(plan_md_path, verifier_result)

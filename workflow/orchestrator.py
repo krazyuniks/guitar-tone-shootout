@@ -613,8 +613,8 @@ def _run_epic_critique(
             critique_model=critique_model,
             error=result.output[:500] if result.output else "Dispatch failed",
         )
-        # Treat dispatch failure as a pass — don't block on infra issues
-        return (True, [], result.cost_usd)
+        # Dispatch failure is fail-closed (invariant E2)
+        return (False, [{"error": "Epic critique dispatch failed"}], result.cost_usd)
 
     # Parse JSON result
     output = (result.output or "").strip()
@@ -633,7 +633,8 @@ def _run_epic_critique(
             critique_model=critique_model,
             error=f"Invalid JSON: {output[:200]}",
         )
-        return (True, [], result.cost_usd)
+        # Parse failure is fail-closed (invariant E2)
+        return (False, [{"error": "Epic critique returned invalid JSON"}], result.cost_usd)
 
     status = critique.get("status", "pass")
     findings = critique.get("findings", [])
