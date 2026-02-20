@@ -87,6 +87,49 @@ def _escape_yaml_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+REQUIRED_SECTIONS = ["Summary", "Observable Outcomes", "Decisions", "Regression Boundaries"]
+
+
+def validate_epic_structure(body: str) -> list[str]:
+    """Validate the enriched epic format.
+
+    Checks:
+    1. Required sections (Summary, Observable Outcomes, Decisions, Regression Boundaries)
+       must be present as markdown headings.
+    2. Each required section must have non-empty content after the heading.
+    3. Observable Outcomes section must contain at least one checkbox (``- [ ]``).
+
+    Returns a list of error messages. Empty list means valid.
+    """
+    errors: list[str] = []
+    body_lower = body.lower()
+
+    for section in REQUIRED_SECTIONS:
+        # Check for ## heading (case-insensitive)
+        heading_pattern = f"## {section.lower()}"
+        if heading_pattern not in body_lower:
+            errors.append(f"Missing required section: '## {section}'")
+            continue
+
+        # Check section has non-empty content
+        # Find the heading, then check content until next ## or end
+        idx = body_lower.index(heading_pattern)
+        after_heading = body[idx + len(f"## {section}") :]
+        # Find next ## heading or end of string
+        next_heading = after_heading.find("\n## ")
+        section_content = after_heading[:next_heading] if next_heading != -1 else after_heading
+        # Strip the heading line itself and check for non-whitespace content
+        section_content = section_content.strip()
+        if not section_content:
+            errors.append(f"Section '## {section}' is empty")
+
+    # Check for at least one outcome checkbox
+    if "- [ ]" not in body:
+        errors.append("Observable Outcomes must contain at least one checkbox ('- [ ]')")
+
+    return errors
+
+
 def ingest_epic(epic_number: int) -> Path:
     """Fetch a GitHub epic and write it to .planning/epics/E<N>/EPIC.md.
 
@@ -103,6 +146,16 @@ def ingest_epic(epic_number: int) -> Path:
         IngestionError: If the GitHub fetch fails.
     """
     data = _run_gh_issue_view(epic_number)
+
+    # Structural validation of the enriched epic format
+    body = data.get("body", "")
+    validation_errors = validate_epic_structure(body)
+    if validation_errors:
+        error_list = "\n".join(f"  - {e}" for e in validation_errors)
+        raise IngestionError(
+            f"Epic #{epic_number} fails structural validation:\n{error_list}\n"
+            "The issue must be enriched (Stage 0 brainstorming) before ingestion."
+        )
 
     epic_dir = PLANNING_DIR / f"E{epic_number}"
     epic_dir.mkdir(parents=True, exist_ok=True)

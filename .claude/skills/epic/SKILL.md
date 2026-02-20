@@ -24,6 +24,7 @@ Parse the arguments above and run the matching command. Do NOT ask clarifying qu
 | Args pattern | Run this immediately |
 |-----------|---------------------|
 | `<N>`, `run <N>`, `/epic <N>`, `/epic run <N>` | `yes \| just epic <N>` |
+| `brainstorm <N>`, `/epic brainstorm <N>` | Load `brainstorm.md` skill and follow it |
 | `status <N>`, `/epic status <N>` | `just epic-status <N>` |
 | `validate-plan <N>`, `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
 

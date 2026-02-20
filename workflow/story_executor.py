@@ -12,12 +12,15 @@ Reference: Research doc Section 2 (Story Flow, Failure Model,
 File-to-story ownership). Section 8.5 Decision 2 (failure feedback).
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from workflow.dispatch import (
     FALLBACK_MODELS,
@@ -27,10 +30,14 @@ from workflow.dispatch import (
     estimate_tokens,
     get_dispatch_metadata,
 )
-from workflow.jsonl_logger import EventLogger
+from workflow.epic_config import BudgetConfig
 from workflow.models import ValidationCheckpoint
 from workflow.prompt_builder import build_story_prompt
 from workflow.validation import run_validation_checkpoint
+
+if TYPE_CHECKING:
+    from workflow.epic_config import EpicConfig
+    from workflow.jsonl_logger import EventLogger
 
 logger = logging.getLogger(__name__)
 
@@ -598,6 +605,7 @@ def execute_story(
     epic_dir: Path,
     event_logger: EventLogger,
     completed_stories: list[str] | None = None,
+    config: EpicConfig | None = None,
 ) -> bool:
     """Execute a single story: pre-flight -> dispatch -> validate -> retry/proceed.
 
@@ -625,6 +633,8 @@ def execute_story(
         event_logger: JSONL event logger for recording events.
         completed_stories: List of already-completed story IDs (for
             upstream failure detection). If None, defaults to empty list.
+        config: Epic configuration profile. If None, falls back to
+            plan.json agent defaults for backward compatibility.
 
     Returns:
         True if the story completed successfully, False otherwise.
@@ -770,6 +780,7 @@ def execute_story(
         file_ownership=file_ownership,
         completed_stories=completed_stories,
         plan_scope_paths=plan_scope_paths,
+        config=config,
     )
 
 
@@ -779,10 +790,11 @@ def _run_story_critique(
     event_logger: EventLogger,
     attempt: int,
     model: str,
+    config: EpicConfig | None = None,
 ) -> tuple[bool, list, float | None]:
-    """Run post-story Opus critique on the implementation.
+    """Run post-story critique on the implementation.
 
-    Dispatches an Opus read-only agent with the critique_story template
+    Dispatches a read-only agent with the critique_story template
     to review the code changes made by the implementation agent.
 
     Args:
@@ -791,6 +803,7 @@ def _run_story_critique(
         event_logger: JSONL event logger.
         attempt: The current attempt number.
         model: The model that produced the implementation (for logging).
+        config: Epic configuration profile. If None, falls back to defaults.
 
     Returns:
         Tuple of (passed, findings_list, cost_usd).
@@ -823,6 +836,12 @@ def _run_story_critique(
     prompt = prompt.replace("{{ git_diff }}", git_diff)
     prompt = prompt.replace("{{ validation_results }}", validation_results)
 
+    # Resolve model and budget from config
+    critique_model = config.models.story_critic if config else "opus"
+    critique_budget = (
+        config.budgets.get("critique_story", BudgetConfig()) if config else BudgetConfig()
+    )
+
     # Log critique dispatch
     prompt_hash = compute_prompt_hash(prompt)
     prompt_tokens = estimate_tokens(prompt)
@@ -831,7 +850,7 @@ def _run_story_critique(
         story_id=story_id,
         attempt=attempt,
         critique_type="story",
-        critique_model="opus",
+        critique_model=critique_model,
         target_model=model,
         adapter="claude",
         role="critique_story",
@@ -839,14 +858,14 @@ def _run_story_critique(
         prompt_tokens=prompt_tokens,
     )
 
-    # Dispatch Opus read-only
+    # Dispatch read-only critique agent
     result = dispatch_agent(
         prompt=prompt,
-        model="opus",
+        model=critique_model,
         tools=["Read", "Bash", "Glob", "Grep"],
         no_mcp=True,
-        max_turns=15,
-        max_budget_usd=3.0,
+        max_turns=critique_budget.max_turns,
+        max_budget_usd=critique_budget.max_budget_usd,
         cwd=PROJECT_ROOT,
     )
 
@@ -861,11 +880,11 @@ def _run_story_critique(
             story_id=story_id,
             attempt=attempt,
             critique_type="story",
-            critique_model="opus",
+            critique_model=critique_model,
             error=result.output[:500] if result.output else "Unknown error",
         )
-        # Treat dispatch failure as a pass — don't block on infra issues
-        return (True, [], result.cost_usd)
+        # Dispatch failure is fail-closed (invariant S2)
+        return (False, [{"error": "Critique dispatch failed"}], result.cost_usd)
 
     # Parse JSON result
     output = (result.output or "").strip()
@@ -883,10 +902,11 @@ def _run_story_critique(
             story_id=story_id,
             attempt=attempt,
             critique_type="story",
-            critique_model="opus",
+            critique_model=critique_model,
             error=f"Invalid JSON: {output[:200]}",
         )
-        return (True, [], result.cost_usd)
+        # Parse failure is fail-closed (invariant S2)
+        return (False, [{"error": "Critique returned invalid JSON"}], result.cost_usd)
 
     status = critique.get("status", "pass")
     findings = critique.get("findings", [])
@@ -898,7 +918,7 @@ def _run_story_critique(
             story_id=story_id,
             attempt=attempt,
             critique_type="story",
-            critique_model="opus",
+            critique_model=critique_model,
             cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=0,
@@ -909,7 +929,7 @@ def _run_story_critique(
             story_id=story_id,
             attempt=attempt,
             critique_type="story",
-            critique_model="opus",
+            critique_model=critique_model,
             cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=len(findings),
@@ -928,6 +948,7 @@ def _dispatch_and_validate_loop(
     file_ownership: dict[str, str],
     completed_stories: list[str],
     plan_scope_paths: list[str],
+    config: EpicConfig | None = None,
 ) -> bool:
     """Run the dispatch-validate loop with retry handling.
 
@@ -944,18 +965,26 @@ def _dispatch_and_validate_loop(
         file_ownership: File-to-story ownership map.
         completed_stories: List of completed story IDs.
         plan_scope_paths: File paths from current story's scope.
+        config: Epic configuration profile. If None, falls back to
+            plan.json agent defaults for backward compatibility.
 
     Returns:
         True if the story completed successfully, False otherwise.
     """
     story_id = story.get("story_id", "unknown")
 
-    # Read agent config directly from story dict
+    # Read agent config — prefer epic config, fall back to story dict
     agent = story.get("agent", {})
-    model = agent.get("model", "sonnet")
+    if config:
+        model = config.models.implementor
+        impl_budget = config.budgets.get("implementation", BudgetConfig())
+        max_turns = impl_budget.max_turns
+        max_budget_usd = impl_budget.max_budget_usd
+    else:
+        model = agent.get("model", "sonnet")
+        max_turns = agent.get("max_turns", 40)
+        max_budget_usd = agent.get("max_budget_usd", 4.0)
     tools = agent.get("tools", ["Read", "Edit", "Write", "Bash", "Glob", "Grep"])
-    max_turns = agent.get("max_turns", 40)
-    max_budget_usd = agent.get("max_budget_usd", 4.0)
 
     retry_context: dict | None = None
     max_attempts = MAX_RETRIES + 1  # initial + retries
@@ -1088,17 +1117,18 @@ def _dispatch_and_validate_loop(
 
             continue  # Retry
 
-        # Agent succeeded -- now run validation if a checkpoint exists
+        # Agent succeeded -- now run validation (checkpoint required)
         if checkpoint is None:
-            # No validation checkpoint -- story is complete
+            # No validation checkpoint -- planning error (invariant S1)
             event_logger.log_event(
-                "story_complete",
+                "story_failed",
                 story_id=story_id,
                 attempt=attempt,
-                commit=_get_latest_commit_hash(),
+                reason="No validation checkpoint defined for story",
+                failure_category="scope",
             )
-            logger.info("Story '%s' completed (no validation checkpoint)", story_id)
-            return True
+            logger.error("Story '%s' has no validation checkpoint — planning error", story_id)
+            return False
 
         # Run validation checkpoint
         validation_result = run_validation_checkpoint(
@@ -1120,6 +1150,7 @@ def _dispatch_and_validate_loop(
                 event_logger=event_logger,
                 attempt=attempt,
                 model=model,
+                config=config,
             )
 
             if critique_passed:

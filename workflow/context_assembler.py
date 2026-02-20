@@ -363,16 +363,27 @@ def _resolve_wiki_sections(
         wiki_sections = AREA_TO_WIKI_SECTIONS.get(area, [])
         needed_sections.update(wiki_sections)
 
-    # 2. Extract sections from the main architecture doc
+    # 2. Extract sections from the main architecture doc (hard error if missing)
     arch_path = wiki_dir / "GTS-Technical-Architecture.md"
     arch_content = _read_file_safe(arch_path)
-    if arch_content is not None and needed_sections:
+    if arch_content is None:
+        raise AssemblyError(
+            f"Wiki architecture file not found: {arch_path}. "
+            "Architecture context is mandatory for planning."
+        )
+    if needed_sections:
         extracted = extract_sections(arch_content, sorted(needed_sections))
+        missing_sections = needed_sections - set(extracted.keys())
+        if missing_sections:
+            raise AssemblyError(
+                f"Missing CONTEXT markers in {arch_path.name}: {sorted(missing_sections)}. "
+                "Architecture sections are mandatory for planning."
+            )
         for section_name, section_content in extracted.items():
             label = f"GTS-Technical-Architecture :: {section_name}"
             result[label] = section_content
 
-    # 3. Load domain-specific wiki files in full when area is detected
+    # 3. Load domain-specific wiki files in full when area is detected (hard error if missing)
     for area in detected_areas:
         wiki_file = AREA_TO_WIKI_FILES.get(area)
         if wiki_file is None:
@@ -382,15 +393,24 @@ def _resolve_wiki_sections(
             continue  # Already loaded
         path = wiki_dir / f"{wiki_file}.md"
         content = _read_file_safe(path)
-        if content is not None:
-            result[label] = content
+        if content is None:
+            raise AssemblyError(
+                f"Wiki file not found: {path}. "
+                f"Required by detected area '{area}'. "
+                "Architecture context is mandatory for planning."
+            )
+        result[label] = content
 
     # 4. Load Remotion architecture when both audio and job processing detected
     if REMOTION_AREAS.issubset(detected_areas):
         remotion_path = wiki_dir / "GTS-Remotion-Architecture.md"
         content = _read_file_safe(remotion_path)
-        if content is not None:
-            result["GTS-Remotion-Architecture"] = content
+        if content is None:
+            raise AssemblyError(
+                f"Wiki file not found: {remotion_path}. "
+                "Required when both audio_processing and job_processing areas are detected."
+            )
+        result["GTS-Remotion-Architecture"] = content
 
     return result
 

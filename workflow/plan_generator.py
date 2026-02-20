@@ -22,6 +22,7 @@ from workflow.dispatch import (
     FALLBACK_MODELS,
     dispatch_with_fallback,
 )
+from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -48,6 +49,14 @@ def _read_context(epic_dir: Path) -> str:
             "Run context assembly first: python -m workflow.context_assembler <number>"
         )
     return context_path.read_text(encoding="utf-8")
+
+
+def _read_user_decisions(epic_dir: Path) -> str | None:
+    """Read user-decisions.json from the epic directory, if it exists."""
+    decisions_path = epic_dir / "user-decisions.json"
+    if not decisions_path.is_file():
+        return None
+    return decisions_path.read_text(encoding="utf-8")
 
 
 def _read_epic_number(epic_dir: Path) -> int:
@@ -161,9 +170,28 @@ Budget defaults (starting points):
 | Regression tests (Codex) | 30 | $3.00 |"""
 
 
+def _build_decisions_section(user_decisions: str | None) -> str:
+    """Build the user decisions section for the planner prompt."""
+    if not user_decisions:
+        return ""
+    return f"""---
+
+## Scope Decisions (from Gap Detection)
+
+The following decisions were made during interactive gap detection (Stage 2b).
+These are locked — do not redefine or contradict them.
+
+<user_decisions>
+{user_decisions}
+</user_decisions>
+
+"""
+
+
 def _build_planner_prompt(
     context: str,
     epic_number: int,
+    user_decisions: str | None = None,
 ) -> str:
     """Construct the Opus planner prompt.
 
@@ -214,6 +242,7 @@ from GitHub and codebase architecture.
 {context}
 </context>
 
+{_build_decisions_section(user_decisions)}
 ---
 
 ## Planning Methodology: Goal-Backward Analysis
@@ -520,10 +549,11 @@ def _parse_structured_plan(result) -> Plan:
 
 def generate_plan(
     epic_dir: Path,
+    config: EpicConfig | None = None,
 ) -> tuple[Path, Path]:
     """Generate PLAN.md and plan.json from assembled context.
 
-    Dispatches a single Opus invocation with tools=[] to produce plan JSON.
+    Dispatches a single planner invocation with tools=[] to produce plan JSON.
     The JSON schema is included in the prompt text (not via --json-schema
     constrained decoding, which fails on large outputs). PLAN.md is rendered
     deterministically from the validated Pydantic model.
@@ -531,6 +561,8 @@ def generate_plan(
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
             Must contain CONTEXT.md from context assembly.
+        config: Optional epic config. If provided, uses config.models.planner
+            and config.budgets for dispatch parameters.
 
     Returns:
         Tuple of (plan_md_path, plan_json_path).
@@ -542,15 +574,29 @@ def generate_plan(
     # Read inputs
     context = _read_context(epic_dir)
     epic_number = _read_epic_number(epic_dir)
+    user_decisions = _read_user_decisions(epic_dir)
 
     # Build the planner prompt (includes JSON schema as context)
     prompt = _build_planner_prompt(
         context=context,
         epic_number=epic_number,
+        user_decisions=user_decisions,
     )
 
+    # Resolve model and budget from config or defaults
+    planner_model = config.models.planner if config else "opus"
+    if config and "planning" in config.budgets:
+        budget = config.budgets["planning"]
+        max_turns = budget.max_turns
+        max_budget_usd = budget.max_budget_usd
+    else:
+        planning_budget = BUDGET_DEFAULTS["planning"]
+        max_turns = int(planning_budget["max_turns"])
+        max_budget_usd = float(planning_budget["max_budget_usd"])
+
     logger.info(
-        "Dispatching Opus planner for epic #%d (%d chars, ~%d tokens)",
+        "Dispatching %s planner for epic #%d (%d chars, ~%d tokens)",
+        planner_model,
         epic_number,
         len(prompt),
         len(prompt) // 4,
@@ -559,14 +605,13 @@ def generate_plan(
     # Dispatch with tools=[] — no constrained decoding.
     # The prompt instructs the model to produce raw JSON; we validate
     # with Pydantic after parsing.
-    planning_budget = BUDGET_DEFAULTS["planning"]
     result = dispatch_with_fallback(
         prompt=prompt,
-        primary_model="opus",
-        fallback_model=FALLBACK_MODELS["opus"],
+        primary_model=planner_model,
+        fallback_model=FALLBACK_MODELS.get(planner_model, planner_model),
         tools=[],
-        max_turns=int(planning_budget["max_turns"]),
-        max_budget_usd=float(planning_budget["max_budget_usd"]),
+        max_turns=max_turns,
+        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
         no_mcp=True,

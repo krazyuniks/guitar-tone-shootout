@@ -1,0 +1,51 @@
+# Default epic configuration profile.
+# Copied to .planning/epics/E{N}/config.toml per epic.
+# User selects options interactively during Stage 4 setup.
+
+[models]
+# Planner and plan critic (Stage 3)
+planner = "opus"
+plan_critic = "codex"
+
+# Story implementor and critics (Stage 4)
+# Constraint: story_critic != implementor, epic_critic != implementor
+implementor = "codex"
+story_critic = "opus"
+epic_critic = "opus"
+
+[budgets.planning]
+max_turns = 50
+max_budget_usd = 5.00
+
+[budgets.implementation]
+max_turns = 40
+max_budget_usd = 4.00
+
+[budgets.validation]
+max_turns = 15
+max_budget_usd = 0.50
+
+[budgets.critique_plan]
+max_turns = 20
+max_budget_usd = 5.00
+
+[budgets.critique_story]
+max_turns = 15
+max_budget_usd = 3.00
+
+[budgets.critique_epic]
+max_turns = 20
+max_budget_usd = 8.00
+
+[budgets.gap_detection]
+max_turns = 30
+max_budget_usd = 3.00
+
+# MCP servers per dispatch role.
+# Empty list = --strict-mcp-config --mcp-config '{"mcpServers":{}}'
+# Named servers are resolved from ~/.claude/settings.json + ~/.claude.json
+[mcp]
+implementation = []
+critique = []
+validation = []
+gap_detection = []
