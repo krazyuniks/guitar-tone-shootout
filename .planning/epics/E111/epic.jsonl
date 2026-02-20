@@ -1,2 +1,0 @@
-{"schema_v": 1, "run_id": "1117507e-c57a-4719-887a-662a1004c134", "ts": "2026-02-15T02:49:58.848513+00:00", "event": "planner_dispatched", "epic": 111, "attempt": 1, "tier": "high"}
-{"schema_v": 1, "run_id": "1117507e-c57a-4719-887a-662a1004c134", "ts": "2026-02-15T02:53:26.418810+00:00", "event": "planner_complete", "epic": 111, "attempt": 1, "response_path": ".planning/epics/E111/plan.json"}

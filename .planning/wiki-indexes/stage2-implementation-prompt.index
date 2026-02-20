@@ -1,2 +1,0 @@
-# stage2-implementation-prompt.md
-stage-2-context-assembly-implementation-prompt:L1-L7:~50tok|objective:L8-L11:~50tok|execution-model:L12-L22:~150tok|dependency-graph:L23-L47:~200tok|task-dispatch-instructions:L48-L106:~1050tok|commit-strategy:L107-L127:~200tok|verification-gate:L128-L134:~50tok|important-context:L135-L142:~200tok|start:L143-L145:~44tok
