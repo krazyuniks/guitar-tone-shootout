@@ -15,7 +15,9 @@ context: fork
 
 ## Dispatch (EXECUTE IMMEDIATELY)
 
-The user's arguments are provided as the input to this skill. Parse them and run the matching command. Do NOT ask clarifying questions. Do NOT search for commands.
+**User arguments: `$ARGUMENTS`**
+
+Parse the arguments above and run the matching command. Do NOT ask clarifying questions. Do NOT search for commands.
 
 **Argument matching rules** (args may arrive as just the number, or with the full `/epic` prefix):
 
@@ -27,7 +29,7 @@ The user's arguments are provided as the input to this skill. Parse them and run
 
 Where `<N>` is a number (the epic/issue number). A bare number like `112` means **run** that epic.
 
-If no args provided (empty input), ask which epic number. That is the ONLY question you may ask.
+If args are empty (blank or whitespace only), ask which epic number. That is the ONLY question you may ask.
 
 ---
 
