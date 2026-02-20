@@ -87,6 +87,7 @@ services:
       - ./src:/app/src
       - ./sources:/app/sources
       - ./tests:/app/tests
+      - ./workflow:/app/workflow
       - ./infrastructure/migrations:/app/infrastructure/migrations
       - ./infrastructure/docker:/app/infrastructure/docker
       - ./infrastructure/nginx:/app/infrastructure/nginx
