@@ -28,7 +28,9 @@
       "Bash(pip install:*)",
       "WebFetch(domain:github.com)"
     ],
-    "deny": []
+    "deny": [
+      "Read(.planning/epics/**)"
+    ]
   },
   "statusLine": {
     "type": "command",

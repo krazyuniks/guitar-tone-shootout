@@ -1,127 +1,175 @@
-# Epic Builder Question Bank
+# Epic Question Bank
 
-GTS-specific questions for structured epic planning.
-
-## Core Understanding Questions
-
-### Vision
-- What feature are you building? (one sentence)
-- What problem does this solve?
-
-### User Stories
-- Who benefits from this feature?
-- What can they do that they couldn't before?
-- Are there secondary users or personas?
-
-### Completeness
-- What does DONE look like? List every capability.
-- What are ALL the things that must work?
-- Are there any assumptions about what's included that need confirming?
-
-### Constraints
-- Any technical constraints? (existing systems, performance)
-- Any business constraints? (timeline, budget, compliance)
-- Any dependencies on other teams or systems?
+Questions for the scope discussion phase of epic planning. Organised by architecture layer, following the GTS codebase structure. The orchestrator presents only the sections relevant to detected areas.
 
 ---
 
-## GTS-Specific Gray Area Questions
+## 1. Scope & Intent
 
-### Signal Chain
-- Does this feature involve signal chains?
-- Which block types are affected? (amp, IR, pedal, built-in)
-- HEAD vs FULL_RIG considerations? (IR required vs forbidden)
-- Loop effects allowed? (not with FULL_RIG)
-- Block ordering constraints?
-- Permutation support needed? (SignalChainGroup)
+- What feature are you building? (one sentence)
+- What problem does this solve?
+- Who benefits from this feature?
+- What can they do that they couldn't before?
+- What does DONE look like? List every capability.
+- Any dependencies on other epics or systems?
+
+---
+
+## 2. Architecture
+
+Which layers of the stack does this epic touch?
+
+### Bounded Contexts
+
+- Which BCs are involved? (core, audio, video, source_t3k)
+- Does this cross BC boundaries? If so, what messages flow between them?
+- Are new pgmq queues needed, or do existing queues carry the messages?
+
+### Database
+
+- Which BC's tables are involved? (core_*, t3k_*, audio_*, video_*)
+- Any new tables or columns?
+- Cross-BC joins forbidden — is messaging needed instead?
+
+### Messaging
+
+- Does this involve pgmq commands (point-to-point) or events (multi-consumer)?
+- Which queue(s)? Existing or new?
+- Transactional outbox — does the publish happen in the same transaction as the state change?
+
+---
+
+## 3. Domain Model (`libs/core`)
+
+Core domain entities, value objects, and business rules.
+
+### Entities & Relationships
+
+- What's the primary entity?
+- What fields are required vs optional?
+- What's the status/lifecycle?
+- Relations to existing tables?
+- Indexes or constraints needed?
+- Soft delete or hard delete?
 
 ### Gear Model
-- Does this feature involve gear?
+
 - Unified Gear model or source-specific?
 - GearModel files involved? (NAM, IR)
 - Source attribution needed?
 - User-uploaded (community) or synced from source?
 - UserGear library implications?
 
-### Database
-- Which BC's tables are involved? (core_*, t3k_*, audio_*, video_*)
-- pgmq messages involved?
-- Sync records needed?
+### Signal Chain
 
-### Frontend Layers
-- Is this a static page (Astro SSG)?
-- Is this a dynamic page (Jinja2 SSR)?
-- Does it need HTMX fragments?
-- Is it the SignalChainBuilder (React)?
-- Design tokens from Astro CSS?
-
-### Job Processing
-- Does this trigger background jobs?
-- Which BC worker handles this? (t3k-sync, audio-worker, video-worker)
-- Parent/child job hierarchy? (like SHOOTOUT)
-- Retry strategy and max attempts?
-- Progress reporting (WebSocket for user jobs)?
-
-### Audio Processing
-- Does this involve audio processing?
-- NAM model loading?
-- IR convolution?
-- Loudness normalization?
-- libs/audio or apps/worker?
+- Which block types are affected? (amp, IR, pedal, built-in)
+- HEAD vs FULL_RIG considerations? (IR required vs forbidden)
+- Loop effects allowed? (not with FULL_RIG)
+- Block ordering constraints?
+- Permutation support needed? (SignalChainGroup)
 
 ---
 
-## Standard Gray Area Questions
+## 4. Libraries
 
-### Data Model
-- What's the primary entity?
-- What fields are required vs optional?
-- What's the status/lifecycle?
-- Relations to existing tables in gts_core?
-- Indexes or constraints needed?
-- Soft delete or hard delete?
+### Audio (`libs/audio`)
 
-### ORM Patterns
+- NAM model loading?
+- IR convolution?
+- Loudness normalisation?
+- Processing pipeline stages?
+
+### Video (`libs/video`)
+
+- Remotion composition involved?
+- Image preparation (waveform, spectrogram)?
+- Video rendering pipeline?
+
+---
+
+## 5. Applications
+
+### Webapp (`apps/webapp`)
+
+The user-facing web application: FastAPI + Jinja2 SSR + HTMX.
+
+#### Persistence (ORM)
+
 - Follow existing repository pattern?
 - Which existing repository to reference?
-- Eager or lazy loading for relations?
+- Eager loading with joinedload? (lazy="raise" is mandatory)
 - Transaction boundaries (service owns)?
 
-### API Contract
-- REST endpoint path? (/api/v1/...)
-- HTML endpoint path? (/api/v1/html/...)
+#### Services
+
+- New service or extend existing?
+- What business logic beyond CRUD?
+- Transaction scope — what must be atomic?
+
+#### API
+
+- REST endpoint path? (`/api/v1/...`)
+- HTML endpoint path? (`/api/v1/html/...`)
 - Pydantic request/response schemas?
 - Validation error format?
 - Pagination approach (offset or cursor)?
 
-### Security
+#### Frontend
+
+- Is this a static page (Astro SSG)?
+- Is this a dynamic page (Jinja2 SSR)?
+- Does it need HTMX fragments?
+- Is it the SignalChainBuilder (React island)?
+- Navigation: standard `<a href>` links?
+- Design tokens from `astro/src/styles/global.css`?
+
+#### Security
+
 - Does endpoint require authentication?
 - CurrentUser dependency?
 - Ownership check (user_id match)?
 - Return 404 for unauthorised (not 403)?
-- Rate limiting?
+
+### T3K Sync Worker (`apps/t3k_sync`)
+
+- New sync entity or extending existing?
+- T3K API endpoints involved?
+- Sync record lifecycle (pending → synced → failed)?
+- pgmq command consumption pattern?
+
+### Audio Worker (`apps/audio_worker`)
+
+- Which processing pipeline? (NAM, IR, loudness)
+- Input/output file formats?
+- pgmq command consumption pattern?
+- Error handling for processing failures?
+
+### Video Worker (`apps/video_worker`)
+
+- Remotion composition template?
+- Input assets (images, audio, metadata)?
+- pgmq command consumption pattern?
+- Rendering output format and storage?
 
 ---
 
-## Testing Strategy Questions
+## 6. Testing Strategy
 
-### Unit Tests
-- What pure functions need testing? (tests/unit/)
+### Unit Tests (`tests/unit/`)
+
+- What pure functions need testing?
 - Domain logic in libs/core?
-- Runs in Docker via `just test-unit`
 
-### Integration Tests
-- What API flows need testing? (tests/integration/)
+### Integration Tests (`tests/integration/`)
+
+- What API flows need testing?
 - What repository operations?
-- What job enqueue/consume flows?
-- Runs in Docker via `just test-integration`
+- What message enqueue/consume flows?
 
-### E2E Tests
-- What user journeys are critical? (tests/e2e/python/)
+### E2E Tests (`tests/e2e/python/`)
+
+- What user journeys are critical?
 - Playwright page interactions?
 - Three-layer validation (UI > DOM > Database)?
-- Runs on HOST via `just test-golden-path`
 
-### Mocking
-- No mocking — all tests use real services
-- Real: PostgreSQL, T3K API, pgmq (Docker containers)
+No mocking — all tests use real services (PostgreSQL, pgmq, Docker containers).

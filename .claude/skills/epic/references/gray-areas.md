@@ -1,25 +1,43 @@
 # Gray Area Detection Patterns
 
-GTS-specific patterns for identifying which areas need discussion.
+Keyword-based area detection for filtering the question bank to relevant sections. Used by `context_assembler.py` to determine which wiki sections, codebase files, and question bank sections to present.
+
+## Area Definitions
+
+Areas map to sections in the question bank and to wiki/codebase content sources.
+
+| ID | Name | Question Bank Section | Description |
+|----|------|-----------------------|-------------|
+| `data_model` | Data Model | 3. Domain Model | Entities, relationships, lifecycle |
+| `gear_model` | Gear Model | 3. Domain Model / Gear Model | Unified gear, sources, sync records |
+| `signal_chain` | Signal Chain | 3. Domain Model / Signal Chain | Block types, ordering, validation rules |
+| `audio_processing` | Audio | 4. Libraries / Audio | NAM, IR, loudness normalisation |
+| `frontend_layers` | Frontend | 5. Applications / Webapp / Frontend | Astro SSG, Jinja2 SSR, HTMX, React islands |
+| `orm_patterns` | ORM Patterns | 5. Applications / Webapp / Persistence | Repository pattern, transactions |
+| `api_contract` | API Contract | 5. Applications / Webapp / API | Endpoints, Pydantic schemas, errors |
+| `job_processing` | Messaging & Workers | 2. Architecture / Messaging + 5. Applications / Workers | pgmq consumers, per-BC worker containers |
+| `dual_database` | Database | 2. Architecture / Database | BC table isolation, pgmq queues |
+| `security` | Security | 5. Applications / Webapp / Security | Auth, ownership checks |
+| `testing` | Testing | 6. Testing Strategy | Unit/integration/E2E boundaries |
+
+---
 
 ## Keyword Detection
 
-Based on feature keywords, suggest relevant GTS areas:
-
 ### GTS Domain-Specific Patterns
 
-| Keywords | Suggested Areas |
+| Keywords | Activated Areas |
 |----------|-----------------|
 | signal chain, chain, block, processing | signal_chain, audio_processing, gear_model |
-| amp, pedal, ir, cabinet, capture, nam | gear_model, signal_chain, database |
+| amp, pedal, ir, cabinet, capture, nam | gear_model, signal_chain, dual_database |
 | shootout, compare, comparison, a/b | signal_chain, audio_processing, job_processing, frontend_layers |
 | gear, library, collection, my gear | gear_model, frontend_layers, data_model |
-| sync, t3k, tone3000, source | database, job_processing, gear_model |
+| sync, t3k, tone3000, source | dual_database, job_processing, gear_model |
 | process, render, audio, video | audio_processing, job_processing, signal_chain |
 
 ### Standard Patterns
 
-| Keywords | Suggested Areas |
+| Keywords | Activated Areas |
 |----------|-----------------|
 | form, submit, input, create, add | data_model, api_contract, security, frontend_layers |
 | notification, alert, email | job_processing |
@@ -30,67 +48,35 @@ Based on feature keywords, suggest relevant GTS areas:
 
 ---
 
-## Area Definitions
+## Required Area Rules
 
-### GTS-Specific Areas
+If the epic mentions these keywords, always include these areas regardless of other detection:
 
-| ID | Name | Description | Key Questions |
-|----|------|-------------|---------------|
-| signal_chain | Signal Chain | Block types, ordering, validation rules | HEAD vs FULL_RIG, IR requirements, loop effects |
-| gear_model | Gear Model | Unified gear, sources, sync records | Source attribution, GearModel files, UserGear |
-| database | Database | Single gts_core database, BC table isolation | BC table boundaries, pgmq messages |
-| frontend_layers | Frontend Layers | Astro SSG vs Jinja2 SSR vs HTMX fragments | Page type, React island, navigation patterns |
-| job_processing | Jobs/Queues | pgmq consumers, per-BC worker containers | Retry strategy, progress reporting |
-| audio_processing | Audio Processing | NAM, IR, loudness normalization | libs/audio vs apps/worker, processing pipeline |
-
-### Standard Areas
-
-| ID | Name | Description | Key Questions |
-|----|------|-------------|---------------|
-| data_model | Data Model | Tables, columns, relations (SQLAlchemy ORM) | Primary entity, lifecycle, indexes |
-| orm_patterns | ORM Patterns | Repository pattern, transactions | Reference repository, eager/lazy loading |
-| api_contract | API Contract | Endpoints, Pydantic schemas, errors | REST vs HTML endpoints, validation, pagination |
-| security | Security | Auth, session cookies, ownership checks | Authentication required, CurrentUser, rate limiting |
-| testing | Testing Strategy | Unit/integration/E2E boundaries, no-mock policy | What to test at each level, all real services |
+| Keywords | Required Areas |
+|----------|----------------|
+| signal chain, block, amp, IR | signal_chain, gear_model |
+| processing, render, audio | audio_processing, job_processing |
+| sync, T3K, source | dual_database |
+| page, template, form | frontend_layers |
+| background, job, queue | job_processing |
 
 ---
 
-## Detection Rules
+## Presentation
 
-**If feature mentions... Always include these areas:**
-
-| Feature Mention | Required Areas |
-|-----------------|----------------|
-| Signal chain, block, amp, IR | signal_chain, gear_model |
-| Processing, render, audio | audio_processing, job_processing |
-| Sync, T3K, source | database |
-| Page, template, form | frontend_layers |
-| Background, job, queue | job_processing |
-
----
-
-## Presentation Format
-
-Present areas as multi-select to user:
+Present detected areas as multi-select for the human to confirm/adjust before questions are asked:
 
 ```
-Based on GTS architecture, I've identified these areas to discuss:
+Detected areas (confirm or adjust):
 
-[1] Data Model - Tables, columns, relations (SQLAlchemy ORM)
-[2] Signal Chain - Block types, ordering, validation rules
-[3] Gear Model - Unified gear, sources, sync records
-[4] Database - Single gts_core database, BC table isolation
-[5] API Contract - Endpoints, Pydantic schemas, errors
-[6] Jobs/Queues - pgmq consumers, per-BC worker containers
-[7] Frontend Layers - Astro SSG vs Jinja2 SSR vs HTMX fragments
-[8] Security - Auth, session cookies, ownership checks
-[9] Testing - Unit/integration/E2E boundaries, mock policy
-
-Select areas to discuss (comma-separated, or 'all'):
+[x] Data Model - Entities, relationships, lifecycle
+[x] Gear Model - Unified gear, sources, sync records
+[ ] Signal Chain - Block types, ordering, validation rules
+[x] Frontend - Astro SSG, Jinja2 SSR, HTMX, React islands
+[x] API Contract - Endpoints, Pydantic schemas, errors
+[ ] Messaging & Workers - pgmq consumers, per-BC workers
+[x] Security - Auth, ownership checks
+[ ] Testing - Unit/integration/E2E boundaries
 ```
 
----
-
-## Deep-Dive Templates
-
-For each selected area, ask 3-5 targeted questions from the question bank. Capture answers as locked decisions in CONTEXT.md.
+After confirmation, present only the matching question bank sections.
