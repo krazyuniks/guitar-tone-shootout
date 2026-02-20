@@ -1,175 +1,61 @@
-# Epic Question Bank
+# Gap Detection Guide
 
-Questions for the scope discussion phase of epic planning. Organised by architecture layer, following the GTS codebase structure. The orchestrator presents only the sections relevant to detected areas.
-
----
-
-## 1. Scope & Intent
-
-- What feature are you building? (one sentence)
-- What problem does this solve?
-- Who benefits from this feature?
-- What can they do that they couldn't before?
-- What does DONE look like? List every capability.
-- Any dependencies on other epics or systems?
+Prompt reference for the gap detection agent (Stage 2b). The agent reads the enriched epic + CONTEXT.md and identifies implementation gaps — ambiguities, assumptions, contradictions, and missing information between the epic requirements and the current architecture/codebase. This guide is NOT a static questionnaire. The agent generates context-specific questions from what it actually finds.
 
 ---
 
-## 2. Architecture
+## 1. Observable Outcomes (Always Asked)
 
-Which layers of the stack does this epic touch?
+Before detecting gaps, confirm the observable outcomes from the enriched epic are concrete and verifiable:
 
-### Bounded Contexts
+- For each outcome: what is the observable result? (user sees X, API returns Y, database contains Z, process produces W)
+- What are the entry points? (URLs, API endpoints, CLI commands, queue messages, triggers)
+- What are the success states? What does "it worked" look like from the observer's perspective?
+- What are the error/edge states? What happens when things go wrong?
+- What existing behaviour must remain unchanged? (regression boundaries)
 
-- Which BCs are involved? (core, audio, video, source_t3k)
-- Does this cross BC boundaries? If so, what messages flow between them?
-- Are new pgmq queues needed, or do existing queues carry the messages?
-
-### Database
-
-- Which BC's tables are involved? (core_*, t3k_*, audio_*, video_*)
-- Any new tables or columns?
-- Cross-BC joins forbidden — is messaging needed instead?
-
-### Messaging
-
-- Does this involve pgmq commands (point-to-point) or events (multi-consumer)?
-- Which queue(s)? Existing or new?
-- Transactional outbox — does the publish happen in the same transaction as the state change?
+Each outcome feeds directly into `plan.json` observable truths and verification criteria.
 
 ---
 
-## 3. Domain Model (`libs/core`)
+## 2. Gap Detection (Agent-Driven)
 
-Core domain entities, value objects, and business rules.
+Compare the epic requirements against the full architecture and codebase. Look for these gap types:
 
-### Entities & Relationships
-
-- What's the primary entity?
-- What fields are required vs optional?
-- What's the status/lifecycle?
-- Relations to existing tables?
-- Indexes or constraints needed?
-- Soft delete or hard delete?
-
-### Gear Model
-
-- Unified Gear model or source-specific?
-- GearModel files involved? (NAM, IR)
-- Source attribution needed?
-- User-uploaded (community) or synced from source?
-- UserGear library implications?
-
-### Signal Chain
-
-- Which block types are affected? (amp, IR, pedal, built-in)
-- HEAD vs FULL_RIG considerations? (IR required vs forbidden)
-- Loop effects allowed? (not with FULL_RIG)
-- Block ordering constraints?
-- Permutation support needed? (SignalChainGroup)
+| Gap Type | What to Look For | Example |
+|----------|------------------|---------|
+| **Ambiguity** | Requirement could be interpreted multiple ways | "The epic mentions 'processing audio' — this could mean NAM inference, IR convolution, or loudness normalisation. Which?" |
+| **Assumption** | Epic assumes something exists or works that doesn't | "The epic assumes gear can be compared, but no comparison UI exists yet" |
+| **Contradiction** | Epic conflicts with existing architecture or rules | "The epic wants real-time updates but the architecture is request/response only" |
+| **Missing information** | Epic doesn't specify something the planner needs | "The epic describes a new page but doesn't specify whether it needs authentication" |
+| **BC ownership** | Unclear which bounded context owns the logic | "This feature touches both core and audio — which BC owns the primary logic?" |
+| **New cross-BC flow** | Feature requires communication that doesn't exist | "This requires T3K sync data to trigger audio processing — no message flow connects these today" |
 
 ---
 
-## 4. Libraries
+## 3. Coverage Checklist
 
-### Audio (`libs/audio`)
+The agent must confirm it has checked for gaps across ALL of these architecture concerns. Not every area will have gaps — but every area must be checked:
 
-- NAM model loading?
-- IR convolution?
-- Loudness normalisation?
-- Processing pipeline stages?
-
-### Video (`libs/video`)
-
-- Remotion composition involved?
-- Image preparation (waveform, spectrogram)?
-- Video rendering pipeline?
-
----
-
-## 5. Applications
-
-### Webapp (`apps/webapp`)
-
-The user-facing web application: FastAPI + Jinja2 SSR + HTMX.
-
-#### Persistence (ORM)
-
-- Follow existing repository pattern?
-- Which existing repository to reference?
-- Eager loading with joinedload? (lazy="raise" is mandatory)
-- Transaction boundaries (service owns)?
-
-#### Services
-
-- New service or extend existing?
-- What business logic beyond CRUD?
-- Transaction scope — what must be atomic?
-
-#### API
-
-- REST endpoint path? (`/api/v1/...`)
-- HTML endpoint path? (`/api/v1/html/...`)
-- Pydantic request/response schemas?
-- Validation error format?
-- Pagination approach (offset or cursor)?
-
-#### Frontend
-
-- Is this a static page (Astro SSG)?
-- Is this a dynamic page (Jinja2 SSR)?
-- Does it need HTMX fragments?
-- Is it the SignalChainBuilder (React island)?
-- Navigation: standard `<a href>` links?
-- Design tokens from `astro/src/styles/global.css`?
-
-#### Security
-
-- Does endpoint require authentication?
-- CurrentUser dependency?
-- Ownership check (user_id match)?
-- Return 404 for unauthorised (not 403)?
-
-### T3K Sync Worker (`apps/t3k_sync`)
-
-- New sync entity or extending existing?
-- T3K API endpoints involved?
-- Sync record lifecycle (pending → synced → failed)?
-- pgmq command consumption pattern?
-
-### Audio Worker (`apps/audio_worker`)
-
-- Which processing pipeline? (NAM, IR, loudness)
-- Input/output file formats?
-- pgmq command consumption pattern?
-- Error handling for processing failures?
-
-### Video Worker (`apps/video_worker`)
-
-- Remotion composition template?
-- Input assets (images, audio, metadata)?
-- pgmq command consumption pattern?
-- Rendering output format and storage?
+- **Bounded context boundaries and ownership** — which BC(s), does this cross boundaries?
+- **Data and behaviour** — new entities, lifecycles, inputs/outputs, relationships to existing data
+- **Messaging** — new cross-BC flows, queue topology, transactional outbox requirements
+- **API contracts** — new endpoints, auth requirements, request/response shapes
+- **Frontend** — page types, interaction patterns, navigation
+- **Workers and background processing** — which worker(s), processing pipelines, triggers
+- **Testing strategy** — critical journeys, test level (unit/integration/E2E)
+- **Security** — authentication, ownership checks, input validation
+- **Infrastructure** — containers, configuration, MCP server requirements
 
 ---
 
-## 6. Testing Strategy
+## 4. Sufficiency Confirmation
 
-### Unit Tests (`tests/unit/`)
+The agent must confirm:
 
-- What pure functions need testing?
-- Domain logic in libs/core?
+- All architecture areas have been checked for gaps.
+- Every identified gap has been resolved through Q&A.
+- The resolved decisions are sufficient to create a robust and thorough plan.
+- No remaining ambiguities, assumptions, or contradictions.
 
-### Integration Tests (`tests/integration/`)
-
-- What API flows need testing?
-- What repository operations?
-- What message enqueue/consume flows?
-
-### E2E Tests (`tests/e2e/python/`)
-
-- What user journeys are critical?
-- Playwright page interactions?
-- Three-layer validation (UI > DOM > Database)?
-
-No mocking — all tests use real services (PostgreSQL, pgmq, Docker containers).
+The critique agent independently verifies sufficiency before the gap report is presented to the user for acceptance.

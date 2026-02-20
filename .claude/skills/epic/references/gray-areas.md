@@ -1,24 +1,24 @@
-# Gray Area Detection Patterns
+# Area Detection Patterns
 
-Keyword-based area detection for filtering the question bank to relevant sections. Used by `context_assembler.py` to determine which wiki sections, codebase files, and question bank sections to present.
+Keyword-based area detection for context assembly (Stage 2a). Used by `context_assembler.py` to determine which wiki sections and codebase files to include in CONTEXT.md.
 
 ## Area Definitions
 
-Areas map to sections in the question bank and to wiki/codebase content sources.
+Areas map to wiki content sources and codebase index files.
 
-| ID | Name | Question Bank Section | Description |
-|----|------|-----------------------|-------------|
-| `data_model` | Data Model | 3. Domain Model | Entities, relationships, lifecycle |
-| `gear_model` | Gear Model | 3. Domain Model / Gear Model | Unified gear, sources, sync records |
-| `signal_chain` | Signal Chain | 3. Domain Model / Signal Chain | Block types, ordering, validation rules |
-| `audio_processing` | Audio | 4. Libraries / Audio | NAM, IR, loudness normalisation |
-| `frontend_layers` | Frontend | 5. Applications / Webapp / Frontend | Astro SSG, Jinja2 SSR, HTMX, React islands |
-| `orm_patterns` | ORM Patterns | 5. Applications / Webapp / Persistence | Repository pattern, transactions |
-| `api_contract` | API Contract | 5. Applications / Webapp / API | Endpoints, Pydantic schemas, errors |
-| `job_processing` | Messaging & Workers | 2. Architecture / Messaging + 5. Applications / Workers | pgmq consumers, per-BC worker containers |
-| `dual_database` | Database | 2. Architecture / Database | BC table isolation, pgmq queues |
-| `security` | Security | 5. Applications / Webapp / Security | Auth, ownership checks |
-| `testing` | Testing | 6. Testing Strategy | Unit/integration/E2E boundaries |
+| ID | Name | Wiki Sections | Codebase Files |
+|----|------|---------------|----------------|
+| `data_model` | Data Model | domain-model, persistence, design-patterns | SCHEMA |
+| `gear_model` | Gear Model | domain-model, api-design | SCHEMA, ENDPOINTS |
+| `signal_chain` | Signal Chain | domain-model, api-design | SCHEMA, ENDPOINTS |
+| `audio_processing` | Audio | audio, domain-model | IMPORTS |
+| `frontend_layers` | Frontend | frontend | ENDPOINTS |
+| `orm_patterns` | ORM Patterns | domain-model, persistence, design-patterns | SCHEMA |
+| `api_contract` | API Contract | api-design, auth | ENDPOINTS |
+| `job_processing` | Messaging & Workers | data-ingestion, infrastructure | IMPORTS |
+| `dual_database` | Database | persistence, data-ingestion | SCHEMA, IMPORTS |
+| `security` | Security | auth, api-design | ENDPOINTS |
+| `testing` | Testing | testing | TESTS |
 
 ---
 
@@ -59,24 +59,3 @@ If the epic mentions these keywords, always include these areas regardless of ot
 | sync, T3K, source | dual_database |
 | page, template, form | frontend_layers |
 | background, job, queue | job_processing |
-
----
-
-## Presentation
-
-Present detected areas as multi-select for the human to confirm/adjust before questions are asked:
-
-```
-Detected areas (confirm or adjust):
-
-[x] Data Model - Entities, relationships, lifecycle
-[x] Gear Model - Unified gear, sources, sync records
-[ ] Signal Chain - Block types, ordering, validation rules
-[x] Frontend - Astro SSG, Jinja2 SSR, HTMX, React islands
-[x] API Contract - Endpoints, Pydantic schemas, errors
-[ ] Messaging & Workers - pgmq consumers, per-BC workers
-[x] Security - Auth, ownership checks
-[ ] Testing - Unit/integration/E2E boundaries
-```
-
-After confirmation, present only the matching question bank sections.
