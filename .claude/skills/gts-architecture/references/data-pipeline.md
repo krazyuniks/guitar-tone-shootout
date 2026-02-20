@@ -9,7 +9,7 @@ Source adapters are separate workspace members (`sources/*/`), decoupled from we
 1. **Source adapter** fetches changes from external API
 2. **Source adapter** persists durable record to source database (staging/audit log)
 3. **Source adapter** publishes sync record to message queue (same transaction as step 2)
-4. **Core consumer** (`apps/worker/consumers/`) reads from queue
+4. **Core consumer** (t3k-sync container) reads from queue
 5. **Core consumer** validates against `GearSyncRecord` schema and upserts to unified Gear model
 
 **Bulk Reingest:**
@@ -56,7 +56,7 @@ Each source runs a single continuous sync job that:
 1. **Backfill walk** -- Pages through catalog oldest->newest from checkpoint
 2. **Newest check** -- Periodically scans from newest until hitting existing items
 3. **Skip recently synced** -- Items synced within threshold (e.g., 7 days) are skipped
-4. **Stale detection** -- If checkpoint is too old (worker was down), reset to page 1
+4. **Stale detection** -- If checkpoint is too old (container was down), reset to page 1
 
 The two algorithms "meet in the middle" for complete catalog coverage while catching new uploads quickly.
 
@@ -116,34 +116,34 @@ Physical file ingestion is owned by source adapters. Synchronisation records are
 metadata_fetched -> files_downloading -> files_validated -> sync_ready
 ```
 
-Source adapters provide recovery jobs to reconcile metadata with stored files and clean up orphans. Files are stored in `source_downloads/{source}/{source_uuid}/` until consumed by the core worker, which moves them to `models/{core_uuid}.nam`.
+Source adapters provide recovery jobs to reconcile metadata with stored files and clean up orphans. Files are stored in `source_downloads/{source}/{source_uuid}/` until consumed by the t3k-sync container, which moves them to `models/{core_uuid}.nam`.
 
 ## Source Sync Flow
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         Scheduler                                 │
-│  ensure_source_sync_running (*/5 min)                            │
+│                    t3k-sync container                              │
+│  Self-driven polling loop                                        │
 │  - Check if sync enabled (env var)                               │
-│  - Check if sync already running (Redis lock)                    │
-│  - Create SOURCE_SYNC job and queue task                         │
+│  - Continuous sync with configurable interval                    │
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                    SOURCE_SYNC Job (Worker)                       │
-│  1. Acquire sync lock (Redis)                                    │
+│                    SOURCE_SYNC (t3k-sync)                         │
+│  1. Acquire sync lock (DB advisory lock)                         │
 │  2. Fetch gear + metadata from external API                      │
 │  3. Download models to source_downloads/{source}/{source_uuid}   │
 │  4. Stage gear record in source DB                               │
 │  5. Enqueue GearSyncRecord to pgmq (same transaction as step 4)  │
 │  6. Update checkpoint                                            │
 │  7. Release lock                                                 │
+│  8. Sleep until next iteration                                   │
 └──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                    pgmq Consumer (Worker)                         │
+│                    pgmq Consumer (t3k-sync)                       │
 │  1. Consume message from pgmq                                    │
 │  2. Validate GearSyncRecord schema                               │
 │  3. Verify model file exists in source_downloads/                │
@@ -201,9 +201,9 @@ For user-created entities (signal chains, shootouts), standard database-level is
 
 ### Job-Level Concurrency
 
-Single job per source. Scheduler configuration prevents overlapping runs via Redis distributed locks.
+Single container per source. Overlapping runs prevented via PostgreSQL advisory locks.
 
-**Future optimisation path:** For high-volume backfills, internal parallelism (concurrent processing within a single job) or source partitioning into multiple jobs can increase throughput without sacrificing ordering guarantees.
+**Future optimisation path:** For high-volume backfills, internal parallelism (concurrent processing within a single container) or source partitioning into multiple containers can increase throughput without sacrificing ordering guarantees.
 
 ### Orchestration Control
 

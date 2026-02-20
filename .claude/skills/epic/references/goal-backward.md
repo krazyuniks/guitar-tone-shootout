@@ -101,7 +101,7 @@ Artefacts:
 | Service | `apps/webapp/src/webapp/services/` | Transaction owner |
 | API Route | `apps/webapp/src/webapp/api/v1/` | FastAPI router |
 | Pydantic Schema | `apps/webapp/src/webapp/api/v1/schemas/` | Request/response |
-| Job | `apps/worker/src/worker/jobs/` | TaskIQ job |
+| Consumer | `apps/{bc}-worker/src/` | pgmq consumer |
 | Jinja2 Template | `frontend/astro/src/pages/` (source) | `.html.ts` files |
 | HTMX Fragment | `frontend/astro/src/pages/fragments/` | HTML partials |
 | Domain Logic | `libs/core/src/core/` | No framework deps |

@@ -1,25 +1,24 @@
-# Worker Bounded Context
+# Worker Apps
 
-Background job processor via TaskIQ. Port 8001 (admin API, no auth). Bridges gts_core and gts_t3k_source databases.
+Per-BC containers for background processing via pgmq messaging.
+
+| Container | BC | Role |
+|-----------|-----|------|
+| `t3k-sync` | Source: T3K | Polls T3K API, publishes `source_events` via pgmq |
+| `audio-worker` | Audio | Consumes `audio_commands`, produces `audio_events` |
+| `video-worker` | Video | Consumes `video_commands` and `audio_events`, produces `video_events` |
 
 ## Dependencies
 
-Can import: core, audio, video
-Cannot import: sources (consumes pgmq messages instead of direct imports)
+| Container | Can import | Cannot import |
+|-----------|-----------|---------------|
+| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | core, audio, messaging | video, sources, webapp |
+| `video-worker` | core, video, messaging | audio, sources, webapp |
 
 ## Key Patterns
 
-- Admin API on port 8001 has NO authentication — network-level access only
-- Consumes pgmq messages from T3K source adapter via `consumers/`
-- `gear_mapper.py` maps T3K gear data to core domain entities
-- Audio/video processing jobs are CPU-bound — runs in worker, not webapp
-- Redis broker shared with scheduler (TaskIQ ListQueueBroker)
-
-## Key Files
-
-- `src/worker/main.py` — TaskIQ broker initialisation
-- `src/worker/entrypoint.py` — CLI worker runner
-- `src/worker/admin.py` — Admin HTTP API (port 8001)
-- `src/worker/jobs/` — Job handlers (audio, video, source sync)
-- `src/worker/consumers/gear_sync.py` — pgmq gear sync consumer
-- `src/worker/services/gear_mapper.py` — T3K → core gear mapping
+- All containers share one PostgreSQL database (`gts_core`) — BC isolation via table naming and import-linter
+- Messaging via pgmq (PostgreSQL Message Queue)
+- Transactional outbox: all pgmq publishes within the same DB transaction as the domain state change
+- Admin endpoints served by webapp at `/api/admin/*`

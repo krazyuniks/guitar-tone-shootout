@@ -13,10 +13,8 @@ Hexagonal architecture with domain at centre. Dependencies point inward -- adapt
 | Web framework | FastAPI | Async, OpenAPI, Pydantic integration |
 | Database | PostgreSQL | ACID, JSON support, pgmq integration |
 | Message broker | pgmq | PostgreSQL-native, transactional send, upgradeable |
-| Job scheduler | TaskIQ | Async-native, PostgreSQL backend |
 | Schema validation | Pydantic v2 | Performance, strict validation |
 | ORM | SQLAlchemy 2.0 | Async support, mature ecosystem |
-| Caching | Redis | Job broker, sync status tracking (jobs profile only -- not used by webapp) |
 | Encryption | Fernet (symmetric) | Token encryption at rest |
 
 ### Frontend
@@ -97,25 +95,29 @@ gts/
 │   ├── webapp/                 # Web application (user-facing only)
 │   │   ├── pyproject.toml
 │   │   └── src/webapp/
-│   │       ├── api/            # HTTP endpoints (no admin -- moved to worker)
+│   │       ├── api/            # HTTP endpoints + admin API (/api/admin/*)
 │   │       ├── auth/           # OAuth providers (generic)
 │   │       ├── services/       # Application services
 │   │       └── adapters/       # Persistence, external integrations
 │   │
-│   ├── worker/                 # Job consumer + admin API
+│   ├── t3k-sync/              # T3K source sync container
 │   │   ├── pyproject.toml
-│   │   └── src/worker/
-│   │       ├── main.py         # FastAPI app for admin API
-│   │       ├── api/
-│   │       │   └── admin/      # Job management endpoints
-│   │       ├── consumers/      # Queue message handlers
-│   │       ├── jobs/           # Job implementations
-│   │       └── services/       # Admin service
+│   │   └── src/t3k_sync/
+│   │       ├── main.py         # Polling loop entry point
+│   │       ├── consumers/      # pgmq message handlers
+│   │       └── services/       # Sync orchestration
 │   │
-│   └── scheduler/              # Job scheduler
+│   ├── audio-worker/          # Audio processing container
+│   │   ├── pyproject.toml
+│   │   └── src/audio_worker/
+│   │       ├── main.py         # Polling loop entry point
+│   │       └── consumers/      # pgmq message handlers
+│   │
+│   └── video-worker/          # Video processing container
 │       ├── pyproject.toml
-│       └── src/scheduler/
-│           └── schedules/      # Cron-like job definitions
+│       └── src/video_worker/
+│           ├── main.py         # Polling loop entry point
+│           └── consumers/      # pgmq message handlers
 │
 ├── frontend/
 │   └── astro/                  # Astro build system
@@ -129,7 +131,6 @@ gts/
 │   ├── docker/                 # Dockerfiles, init scripts
 │   │   ├── Dockerfile.dev     # Development (bind mounts, uv installed)
 │   │   ├── Dockerfile.backend # Production webapp (multi-stage, no uv)
-│   │   ├── Dockerfile.worker  # Production worker
 │   │   └── init-*.sql         # PostgreSQL init scripts
 │   ├── migrations/             # Alembic migrations (gts_core)
 │   └── nginx/                  # nginx.conf.template
@@ -148,7 +149,7 @@ gts/
 ├── tests/
 │   ├── regression/             # Stack connectivity tests (<1s)
 │   ├── unit/                   # Unit tests (core, audio, webapp)
-│   ├── integration/            # Integration tests (real DB/Redis)
+│   ├── integration/            # Integration tests (real DB, pgmq)
 │   └── e2e/python/             # E2E tests (Playwright, isolated workspace)
 │
 ├── worktree.py                 # Worktree management CLI entry point
@@ -175,13 +176,14 @@ members = [
 | `audio` | core | video, sources, apps |
 | `video` | core, audio | sources, apps |
 | `source_*` | core | audio, video, other sources, apps |
-| `webapp` | core, audio, video | sources |
-| `worker` | core, audio, video | sources |
-| `scheduler` | core | audio, video, sources |
+| `webapp` | core, audio, video, messaging | sources |
+| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | core, audio, messaging | video, sources, webapp |
+| `video-worker` | core, video, messaging | audio, sources, webapp |
 
 Enforced via import-linter in CI.
 
-**Video layer:** `libs/video/` sits above core and audio. It composes domain models and audio segments into videos using Remotion (React-based video framework). Must NOT depend on application-specific concerns (webapp, worker) or data sources (T3K).
+**Video layer:** `libs/video/` sits above core and audio. It composes domain models and audio segments into videos using Remotion (React-based video framework). Must NOT depend on application-specific concerns (webapp, BC containers) or data sources (T3K).
 
 ### Directory Purposes
 
@@ -239,7 +241,7 @@ Enforced via import-linter in CI.
 | | `libs/core/src/core/records/` | Sync record schemas (DTOs owned by core) |
 | **Application** | `libs/audio/src/audio/` | Audio/video processing (standalone library) |
 | | `apps/webapp/src/webapp/services/` | Use case orchestration |
-| | `apps/worker/src/worker/jobs/` | Job implementations |
+| | `apps/*/src/*/consumers/` | pgmq message handlers (BC containers) |
 | **Adapters** | `apps/webapp/src/webapp/api/` | HTTP endpoints (inbound) |
 | | `apps/webapp/src/webapp/adapters/` | Persistence, file storage (outbound) |
 | | `apps/webapp/src/webapp/auth/` | OAuth handlers (inbound) |
@@ -269,11 +271,10 @@ Enforced via import-linter in CI.
 
 `libs/` are shared libraries, not tied to any application. They can be called from:
 - Web application services
-- Background worker jobs
+- BC container consumers (t3k-sync, audio-worker, video-worker)
 - CLI scripts
 - Bulk import scripts
 - Tests
-- Cron jobs
 
 This is enforced by dependency rules -- `libs/audio/` depends only on `libs/core/`, never on `apps/` or `sources/`.
 

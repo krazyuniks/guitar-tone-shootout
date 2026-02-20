@@ -11,10 +11,10 @@ Based on feature keywords, suggest relevant GTS areas:
 | Keywords | Suggested Areas |
 |----------|-----------------|
 | signal chain, chain, block, processing | signal_chain, audio_processing, gear_model |
-| amp, pedal, ir, cabinet, capture, nam | gear_model, signal_chain, dual_database |
+| amp, pedal, ir, cabinet, capture, nam | gear_model, signal_chain, database |
 | shootout, compare, comparison, a/b | signal_chain, audio_processing, job_processing, frontend_layers |
 | gear, library, collection, my gear | gear_model, frontend_layers, data_model |
-| sync, t3k, tone3000, source | dual_database, job_processing, gear_model |
+| sync, t3k, tone3000, source | database, job_processing, gear_model |
 | process, render, audio, video | audio_processing, job_processing, signal_chain |
 
 ### Standard Patterns
@@ -38,9 +38,9 @@ Based on feature keywords, suggest relevant GTS areas:
 |----|------|-------------|---------------|
 | signal_chain | Signal Chain | Block types, ordering, validation rules | HEAD vs FULL_RIG, IR requirements, loop effects |
 | gear_model | Gear Model | Unified gear, sources, sync records | Source attribution, GearModel files, UserGear |
-| dual_database | Dual Database | gts_core vs gts_t3k_source boundaries | Which database, worker access, pgmq messages |
+| database | Database | Single gts_core database, BC table isolation | BC table boundaries, pgmq messages |
 | frontend_layers | Frontend Layers | Astro SSG vs Jinja2 SSR vs HTMX fragments | Page type, React island, navigation patterns |
-| job_processing | Jobs/Queues | TaskIQ jobs, pgmq consumers, parent/child | Retry strategy, progress reporting, Redis locks |
+| job_processing | Jobs/Queues | pgmq consumers, per-BC worker containers | Retry strategy, progress reporting |
 | audio_processing | Audio Processing | NAM, IR, loudness normalization | libs/audio vs apps/worker, processing pipeline |
 
 ### Standard Areas
@@ -63,7 +63,7 @@ Based on feature keywords, suggest relevant GTS areas:
 |-----------------|----------------|
 | Signal chain, block, amp, IR | signal_chain, gear_model |
 | Processing, render, audio | audio_processing, job_processing |
-| Sync, T3K, source | dual_database |
+| Sync, T3K, source | database |
 | Page, template, form | frontend_layers |
 | Background, job, queue | job_processing |
 
@@ -79,9 +79,9 @@ Based on GTS architecture, I've identified these areas to discuss:
 [1] Data Model - Tables, columns, relations (SQLAlchemy ORM)
 [2] Signal Chain - Block types, ordering, validation rules
 [3] Gear Model - Unified gear, sources, sync records
-[4] Dual Database - gts_core vs gts_t3k_source boundaries
+[4] Database - Single gts_core database, BC table isolation
 [5] API Contract - Endpoints, Pydantic schemas, errors
-[6] Jobs/Queues - TaskIQ jobs, pgmq consumers, parent/child
+[6] Jobs/Queues - pgmq consumers, per-BC worker containers
 [7] Frontend Layers - Astro SSG vs Jinja2 SSR vs HTMX fragments
 [8] Security - Auth, session cookies, ownership checks
 [9] Testing - Unit/integration/E2E boundaries, mock policy

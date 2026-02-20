@@ -19,7 +19,7 @@ GTS integrates via OAuth2:
 
 The T3K source adapter authenticates via API key, not OAuth tokens.
 
-1. `T3K_API_KEY` env var set in worker/scheduler containers
+1. `T3K_API_KEY` env var set in t3k-sync container
 2. `T3KTokenManager` exchanges API key for JWT via `POST /api/v1/auth/session`
 3. JWT cached in memory, auto-refreshed before expiry (5 min buffer)
 4. No database token storage — purely in-memory lifecycle

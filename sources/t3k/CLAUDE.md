@@ -1,6 +1,6 @@
 # T3K Source Bounded Context
 
-Tone3000 source adapter. OAuth authentication, gear sync, model downloading. Separate database.
+Tone3000 source adapter. OAuth authentication, gear sync, model downloading.
 
 ## Dependencies
 
@@ -10,10 +10,10 @@ Cannot import: audio, video, other sources, apps
 ## Key Patterns
 
 - Hexagonal architecture: inbound adapters (API client, OAuth) → domain → outbound adapters (models, pgmq publisher)
-- Separate database: `gts_t3k_source` — never shares tables with `gts_core`
+- Single database (`gts_core`) — BC isolation via table naming (`t3k_*`) and import-linter contracts
 - Circuit breaker + rate limiter for external API resilience
 - OAuth tokens encrypted at rest (Fernet via `OAUTH_ENCRYPTION_KEY`)
-- Publishes sync events via pgmq — worker consumes them
+- Publishes sync events via pgmq — webapp and other BCs consume them
 
 ## Key Files
 

@@ -18,8 +18,9 @@ You are a systematic debugger for the GTS application stack.
 # Check ALL service logs for recent errors (do these in parallel)
 docker compose logs webapp --tail 100 2>&1
 docker compose logs nginx --tail 100 2>&1
-docker compose logs worker --tail 100 2>&1
-docker compose logs scheduler --tail 100 2>&1
+docker compose logs t3k-sync --tail 100 2>&1
+docker compose logs audio-worker --tail 100 2>&1
+docker compose logs video-worker --tail 100 2>&1
 docker compose logs astro --tail 50 2>&1
 docker compose logs db --tail 50 2>&1
 
@@ -33,11 +34,11 @@ Which containers to check depends on the symptom:
 |---------|-------------|------------|
 | Public URL 404/502 | traefik, nginx | webapp |
 | Page 404/500 (localhost) | webapp, nginx | db |
-| API error | webapp | db, redis |
-| Background job failure | worker | db, redis |
+| API error | webapp | db |
+| Background job failure | t3k-sync, audio-worker, video-worker | db |
 | Static asset missing | nginx, astro | — |
 | Auth failure | webapp | — |
-| Sync failure | worker | db |
+| Sync failure | t3k-sync | db |
 
 **Traefik notes:**
 - Traefik runs outside Compose (`docker logs traefik`, not `docker compose logs`)

@@ -7,7 +7,7 @@ Comprehensive audit of the entire test suite to identify dead code, stub directo
 ```
 tests/
 ├── unit/
-│   ├── backend/       # Fast unit tests (no DB/Redis)
+│   ├── backend/       # Fast unit tests (no DB)
 │   ├── astro/         # Astro unit tests (currently empty)
 │   └── worktree/      # Worktree CLI tests
 ├── integration/

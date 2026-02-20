@@ -16,7 +16,7 @@ Read the relevant reference file for your current task:
 | T3K sync, data ingestion | references/data-pipeline.md |
 | API endpoints, web routes | references/web-application.md |
 | Database schema, pgmq, migrations | references/database.md |
-| Background jobs, TaskIQ | references/job-scheduling.md |
+| Background jobs, pgmq messaging | references/job-scheduling.md |
 | Audio/video processing | references/audio-video.md |
 | Docker, deployment, CI | references/infrastructure.md |
 | Test strategy, fixtures | references/testing.md |

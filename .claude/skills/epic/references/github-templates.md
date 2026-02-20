@@ -115,8 +115,9 @@ Blocked by: #{issue_number}, #{issue_number}
 - `project:core` - libs/core (domain logic)
 - `project:audio` - libs/audio (audio processing)
 - `project:webapp` - apps/webapp (FastAPI, templates)
-- `project:worker` - apps/worker (jobs, consumers)
-- `project:scheduler` - apps/scheduler (cron)
+- `project:t3k-sync` - apps/t3k-sync (T3K sync consumer)
+- `project:audio-worker` - apps/audio-worker (audio processing consumer)
+- `project:video-worker` - apps/video-worker (video processing consumer)
 - `project:t3k` - sources/t3k (T3K integration)
 
 ### Execution Order Labels (optional)

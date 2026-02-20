@@ -43,11 +43,11 @@ Thoroughly read and analyse these files:
 Perform deep dependency analysis on GTS-Technical-Architecture.md sections:
 
 1. **Extract all architectural components** from the document
-   - Infrastructure (Docker, DB, Redis, nginx)
+   - Infrastructure (Docker, DB, nginx)
    - Core domain entities and services
    - API layers (REST, HTML fragments)
    - Frontend components (Astro, Jinja2, HTMX)
-   - Background processing (TaskIQ)
+   - Background processing (pgmq per-BC workers)
    - External integrations (T3K)
 
 2. **Build dependency graph**

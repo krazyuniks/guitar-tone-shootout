@@ -14,7 +14,7 @@ The goal is to replace the current unit-only `test-regression` command with a me
 **Current state:**
 - Phase 3 (Adapters) is nearly complete: ORM models, repositories, audio processing
 - Phase 4 (Webapp) hasn't started: no FastAPI app, no services, no API
-- Docker services are running (db, redis, webapp, nginx)
+- Docker services are running (db, webapp, nginx)
 - Integration tests exist for repositories and work against real PostgreSQL
 
 **Archive reference:**
@@ -37,7 +37,7 @@ Design a regression test that:
 2. **Is simple and fast**
    - Single test file: `tests/regression/test_stack.py`
    - Runs in < 10 seconds
-   - No external dependencies (no frontend, no Redis required)
+   - No external dependencies (no frontend, only PostgreSQL required)
 
 3. **Provides clear success signal**
    - Pass = stack works, code is functional

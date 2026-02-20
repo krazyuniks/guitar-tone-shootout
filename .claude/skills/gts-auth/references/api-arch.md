@@ -13,11 +13,11 @@ GTS separates user-facing APIs from internal admin operations. Admin APIs are de
 User endpoints require `CurrentUser` authentication via session cookie.
 Users can only access their own resources.
 
-## Internal Admin API (Worker -- port 8001)
+## Internal Admin API (Webapp -- `/api/admin/*`)
 
-Admin endpoints have NO authentication. Access is controlled at the network level -- port not exposed publicly.
+Admin endpoints have NO authentication. Access is controlled at the network level.
 
-All admin endpoints served by the worker container:
+All admin endpoints served by the webapp container:
 
 ```
 /admin/jobs/              # Job list with status filter
@@ -31,12 +31,12 @@ All admin endpoints served by the worker container:
 /health                   # Composite health check
 ```
 
-**Why worker serves T3K endpoints:** Worker already connects to `gts_t3k_source` for the pgmq consumer, so it can query sync status from the same database.
+**Why webapp serves admin endpoints:** All containers share the single `gts_core` database. The webapp already has database access and serves the admin API at `/api/admin/*`. T3K sync operations run in the dedicated t3k-sync container.
 
 ## CLI Tool
 
 ```bash
-# All commands target Worker (port 8001)
+# All commands target Webapp admin API (/api/admin/*)
 gts-admin jobs            # List all jobs
 gts-admin job <id>        # Get job details
 gts-admin t3k-status      # Sync status

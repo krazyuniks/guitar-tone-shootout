@@ -1,3 +1,3 @@
 # gts-t3k-sync
 
-Standalone T3K sync container with embedded scheduler and gear sync consumer.
+T3K sync container with self-driven polling loop and gear sync consumer.

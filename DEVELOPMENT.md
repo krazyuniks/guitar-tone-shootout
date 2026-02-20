@@ -27,13 +27,13 @@ just up-d                   # Start services (existing worktree)
 | Layer | Technology |
 |-------|------------|
 | **Package Management** | uv workspaces (monorepo) |
-| **Backend** | FastAPI, SQLAlchemy 2.0, PostgreSQL (dual DB), Redis, TaskIQ, pgmq |
+| **Backend** | FastAPI, SQLAlchemy 2.0, PostgreSQL, pgmq |
 | **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
 | **Audio Processing** | NAM, IR convolution, pedalboard |
 | **Video Processing** | Remotion (React-based video composition) |
 | **Testing** | pytest, Playwright |
 | **Quality** | ruff, mypy, import-linter |
-| **Infrastructure** | Docker (db, redis, webapp, nginx, worker, scheduler) |
+| **Infrastructure** | Docker (postgres, webapp, nginx, t3k-sync, audio-worker, video-worker) |
 
 ---
 
@@ -78,13 +78,15 @@ gts/
 │   │           └── persistence/
 │   │               ├── models/     # SQLAlchemy ORM models
 │   │               └── repositories/  # Repository implementations
-│   ├── worker/                 # TaskIQ + pgmq consumer
-│   │   └── src/worker/
-│   │       ├── consumers/      # pgmq message handlers
-│   │       └── jobs/           # Background job definitions
-│   └── scheduler/              # TaskIQ scheduler
-│       └── src/scheduler/
-│           └── schedules/      # Cron definitions
+│   ├── t3k-sync/              # T3K source sync (pgmq producer)
+│   │   └── src/t3k_sync/
+│   │       └── consumers/     # T3K API polling, event publishing
+│   ├── audio-worker/          # Audio BC worker (pgmq consumer)
+│   │   └── src/audio_worker/
+│   │       └── consumers/     # Audio command handlers
+│   └── video-worker/          # Video BC worker (pgmq consumer)
+│       └── src/video_worker/
+│           └── consumers/     # Video command handlers
 ├── frontend/
 │   └── astro/                  # Build system (pre-bundled)
 │       ├── src/
@@ -125,7 +127,7 @@ gts/
 
 - **Domain** (`libs/core/`) - Pure business logic, no framework dependencies
 - **Ports** (`libs/core/ports/`) - Interfaces (protocols) for external systems
-- **Adapters** (`apps/webapp/adapters/`) - Implementations (SQLAlchemy, Redis, etc.)
+- **Adapters** (`apps/webapp/adapters/`) - Implementations (SQLAlchemy, pgmq, etc.)
 
 ### Dependency Rules
 
@@ -135,20 +137,20 @@ gts/
 | `audio` | core | video, sources, apps |
 | `video` | core, audio | sources, apps |
 | `source_*` | core | audio, video, other sources, apps |
-| `webapp` | core, audio, video | sources |
-| `worker` | core, audio, video | sources |
-| `scheduler` | core | audio, video, sources |
+| `webapp` | core, audio, video, messaging | sources |
+| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | core, audio, messaging | video, sources, webapp |
+| `video-worker` | core, video, messaging | audio, sources, webapp |
 
 **Enforcement:** import-linter contracts in root `pyproject.toml`.
 
-### Dual Database Architecture
+### Single Database Architecture
 
 | Database | Purpose | Access |
 |----------|---------|--------|
-| `gts_core` | Application data (users, shootouts, chains) | Webapp, worker |
-| `gts_t3k_source` | T3K source data (packs, models, presets) | Worker only |
+| `gts_core` | All application data | All containers |
 
-**Critical:** Webapp has NO direct access to T3K source database. Worker bridges the two via pgmq.
+**BC separation:** Enforced via `import-linter` contracts and table naming conventions (`core_*`, `t3k_*`). Each BC's ORM models only reference their own BC's tables. Cross-BC communication via pgmq messaging.
 
 ---
 
@@ -157,7 +159,7 @@ gts/
 ### Runtime Stack
 
 ```
-db, redis, webapp, nginx, worker, scheduler
+postgres, webapp, nginx, t3k-sync, audio-worker, video-worker
 ```
 
 ### Build-Only Services
@@ -214,7 +216,6 @@ Parallel development with isolated Docker environments.
 | nginx | 9000 | 9010 | 9000 + (offset * 10) |
 | webapp | 8000 | 8010 | 8000 + (offset * 10) |
 | PostgreSQL | 5432 | 5433 | 5432 + (offset * 1) |
-| Redis | 6379 | 6380 | 6379 + (offset * 1) |
 | Astro | 4321 | 4331 | 4321 + (offset * 10) |
 
 ### Shared Resources
@@ -233,7 +234,7 @@ Parallel development with isolated Docker environments.
 |-----------|----------|---------|---------|---------|
 | Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM → Repo → DB) |
 | Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
-| Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
+| Integration | `tests/integration/` | Docker | `just test-integration` | Real DB, pgmq |
 | E2E | `tests/e2e/python/` | Host | `just test-golden-path` | Full user journey |
 
 ### Test Commands
@@ -248,7 +249,7 @@ just test-golden-path # Golden path tests (host, requires running containers)
 ### Philosophy
 
 - Test against **real services** — no mocking
-- All services available in Docker: PostgreSQL, Redis, T3K API, pgmq
+- All services available in Docker: PostgreSQL, T3K API, pgmq
 
 ---
 
@@ -300,7 +301,6 @@ just check-types  # Type checking
 just migrate           # Run migrations
 just migration "name"  # Create new migration
 just psql              # Connect to gts_core
-just psql-t3k          # Connect to gts_t3k_source
 ```
 
 ### Frontend

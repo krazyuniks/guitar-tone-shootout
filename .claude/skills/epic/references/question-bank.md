@@ -43,12 +43,10 @@ GTS-specific questions for structured epic planning.
 - User-uploaded (community) or synced from source?
 - UserGear library implications?
 
-### Dual Database
-- Which database is this for? (gts_core or gts_t3k_source)
-- If source data, is worker the access point?
+### Database
+- Which BC's tables are involved? (core_*, t3k_*, audio_*, video_*)
 - pgmq messages involved?
 - Sync records needed?
-- Cross-database implications?
 
 ### Frontend Layers
 - Is this a static page (Astro SSG)?
@@ -59,11 +57,10 @@ GTS-specific questions for structured epic planning.
 
 ### Job Processing
 - Does this trigger background jobs?
-- TaskIQ job or pgmq consumer?
+- Which BC worker handles this? (t3k-sync, audio-worker, video-worker)
 - Parent/child job hierarchy? (like SHOOTOUT)
 - Retry strategy and max attempts?
 - Progress reporting (WebSocket for user jobs)?
-- Redis locks needed?
 
 ### Audio Processing
 - Does this involve audio processing?
@@ -127,4 +124,4 @@ GTS-specific questions for structured epic planning.
 
 ### Mocking
 - No mocking — all tests use real services
-- Real: PostgreSQL, Redis, T3K API, pgmq (Docker containers)
+- Real: PostgreSQL, T3K API, pgmq (Docker containers)

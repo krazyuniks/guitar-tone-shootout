@@ -6,7 +6,7 @@ Web application for comparing guitar tones through blind A/B listening tests ("s
 ## Tech Stack
 - **Backend**: FastAPI + SQLAlchemy 2.0 + PostgreSQL + Alembic migrations
 - **Frontend**: Astro SSG (pre-built to `frontend/astro/dist/`) + Jinja2 SSR + HTMX + Alpine.js
-- **Infrastructure**: Docker Compose, nginx reverse proxy, Redis (job queues)
+- **Infrastructure**: Docker Compose, nginx reverse proxy, pgmq (PostgreSQL message queues)
 - **Auth**: T3K passwordless OAuth (external provider)
 - **Testing**: pytest (unit/integration in Docker), Playwright (E2E on host)
 
@@ -16,9 +16,9 @@ Monorepo with uv workspaces:
 - `libs/audio/` — audio processing (gts_audio)
 - `libs/video/` — video composition with Remotion (gts_video)
 - `apps/webapp/` — FastAPI web application (gts_webapp)
-- `apps/worker/` — background job worker (gts_worker)
-- `apps/scheduler/` — cron-like scheduler (gts_scheduler)
-- `sources/t3k/` — T3K data source integration (gts_t3k_source)
+- `apps/t3k-sync/` — T3K data source sync worker (gts_t3k_sync)
+- `apps/audio-worker/` — audio processing worker (gts_audio_worker)
+- `apps/video-worker/` — video composition worker (gts_video_worker)
 - `frontend/astro/` — Astro SSG frontend (TypeScript)
 - `templates/` — Jinja2 server-rendered templates
 - `tests/` — all tests (unit, integration, e2e)

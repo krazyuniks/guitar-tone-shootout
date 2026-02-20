@@ -55,7 +55,7 @@ tests/
     backend/               # Pure logic, no external deps
     video/                 # Video composition tests
   integration/
-    backend/               # Real DB/Redis tests
+    backend/               # Real DB, pgmq tests
     video/                 # Video API tests
   regression/              # Stack connectivity (<1s)
   e2e/
@@ -69,7 +69,7 @@ tests/
 | Question | Yes | No |
 |---|---|---|
 | Browser-based? | `tests/e2e/python/tests/` (HOST) | Continue below |
-| Needs real DB/Redis? | `tests/integration/` (Docker) | `tests/unit/` (Docker) |
+| Needs real DB/pgmq? | `tests/integration/` (Docker) | `tests/unit/` (Docker) |
 
 ---
 
@@ -190,7 +190,7 @@ For CRUD operations, verify persistence across three layers:
 | Marker | Use When | Auto-Applied |
 |--------|----------|--------------|
 | `unit` | Single function/class | `tests/unit/` |
-| `integration` | Real DB/Redis | `tests/integration/` |
+| `integration` | Real DB, pgmq | `tests/integration/` |
 | `e2e` | Browser-based | `tests/e2e/` |
 | `e2e_quick` / `e2e_full` | Fast/comprehensive E2E | Manual |
 | `smoke` | Critical path | Manual |

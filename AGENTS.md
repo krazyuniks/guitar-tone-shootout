@@ -83,7 +83,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 ### Authentication
 
 - T3K = passwordless OAuth. No user credentials stored by GTS. Only OAuth access/refresh tokens.
-- Token-based auth (stateless). JWT validated per request. No server-side sessions, no Redis for webapp.
+- Token-based auth (stateless). JWT validated per request. No server-side sessions.
 - Admin API (Webapp, port 8000, `/api/admin/*`): NO authentication. Network-level access control only.
 - User API (Webapp, port 8000): all `/api/v1/*` routes require `CurrentUser` token authentication.
 
@@ -127,7 +127,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 - NEVER edit `docker-compose.override.yml` or `.env.local` — they are auto-generated.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
 - For ANY infrastructure problem: `./worktree.py setup <name>` (idempotent).
-- **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx. No Redis, no scheduler, no monolithic worker.
+- **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx.
 - **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main worktree only.
 - **Messaging:** pgmq queues in PostgreSQL. Command queues (point-to-point) and event queues (multi-consumer via offset tracking). See wiki for queue topology.
 

@@ -1,3 +1,3 @@
-# GTS Worker
+# GTS Workers
 
-GTS Worker - TaskIQ background jobs and pgmq message consumer
+Per-BC containers (t3k-sync, audio-worker, video-worker) with pgmq messaging.

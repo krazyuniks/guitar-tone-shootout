@@ -22,7 +22,6 @@ Distributed tracing with OTLP export:
 | FastAPI requests | http.method, http.route, http.status_code |
 | SQLAlchemy queries | db.system, db.statement, db.operation |
 | HTTPX outbound | http.url, http.status_code |
-| Redis commands | db.system, db.statement |
 
 Trace context propagation to background workers via inject/extract.
 
@@ -132,7 +131,7 @@ Circuit breakers wrap retry logic -- when open, retries are skipped entirely.
 - Respect rate limit headers (`X-RateLimit-*`, `Retry-After`)
 - Adaptive throttling on 429 responses
 - Token bucket algorithm for smooth request distribution
-- Redis-backed for coordination across processes
+- Database-backed for coordination across processes
 
 **Source Ingestion:**
 - Source sync jobs respect configured rate limits per source
@@ -163,7 +162,7 @@ RUNNING -> FAILED -> [retry if attempts remain] -> PENDING
 
 **Retry scheduling:**
 - Jobs marked FAILED with `next_retry_at` timestamp
-- Scheduler polls for jobs ready for retry
+- BC container polling loops check for jobs ready for retry
 - Exponential backoff between attempts
 
 **Dead-letter handling:**
@@ -173,7 +172,7 @@ RUNNING -> FAILED -> [retry if attempts remain] -> PENDING
 
 ### Heartbeat Monitoring
 
-Long-running jobs emit heartbeats to detect worker crashes:
+Long-running jobs emit heartbeats to detect container crashes:
 
 | Parameter | Value |
 |-----------|-------|
@@ -224,11 +223,12 @@ Errors are classified for appropriate handling:
 4. **Close connections** -- Release database and queue connections
 5. **Exit cleanly** -- Return exit code 0
 
-**Job scheduler shutdown:**
-1. Stop scheduling new jobs
-2. Wait for running jobs to complete (or timeout)
-3. Persist scheduler state
-4. Exit cleanly
+**BC container shutdown (t3k-sync, audio-worker, video-worker):**
+1. Stop polling loop (no new messages consumed)
+2. Complete processing of current message
+3. Persist checkpoint/offset state
+4. Close database connections
+5. Exit cleanly
 
 ### Failure Scenarios
 

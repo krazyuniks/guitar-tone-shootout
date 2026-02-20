@@ -67,7 +67,6 @@ ls -lt ../backups/*.dump 2>/dev/null | head -5
 | Database | Last Backup | Age |
 |----------|-------------|-----|
 | gts_core | 20260217_1000 | 2h |
-| gts_t3k_source | 20260216_2200 | 14h |
 
 ### Next Actions
 [Contextual suggestions based on current state]

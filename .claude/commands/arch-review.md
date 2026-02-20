@@ -111,7 +111,7 @@ API Layer → Service Layer → Domain Layer
 
 ```bash
 # Core isolation (libs/core should have no framework imports)
-grep -r "sqlalchemy\|fastapi\|redis" libs/core/
+grep -r "sqlalchemy\|fastapi" libs/core/
 
 # Import boundary violations (use import-linter for full check)
 uv run lint-imports

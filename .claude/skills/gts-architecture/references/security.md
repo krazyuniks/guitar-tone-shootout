@@ -20,7 +20,7 @@ Token-based authentication (stateless):
 | **Token storage** | `.gts-auth.json` file (shared across worktrees) |
 | **Token transfer** | Browser login, token copied to server via scp |
 | **Validation** | Stateless token validation on each request |
-| **No sessions** | No server-side session state, no Redis for webapp |
+| **No sessions** | No server-side session state |
 
 GTS stores only the user's identity (ID, email, display name) and encrypted OAuth tokens in the auth file.
 

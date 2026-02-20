@@ -1,6 +1,6 @@
 # Job Scheduling & Event-Driven Messaging
 
-Event-driven architecture using pgmq for all inter-BC communication. No TaskIQ, no Redis, no scheduler.
+Event-driven architecture using pgmq for all inter-BC communication.
 
 > **Canonical reference:** [[Jobs-Architecture-and-Operations]] wiki page.
 

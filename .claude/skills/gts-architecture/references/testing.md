@@ -8,7 +8,7 @@ Testing uses pytest with Playwright for browser automation. The suite is structu
 |-------|---------|----------------|----------|
 | Regression | Stack connectivity (ORM -> Repo -> DB) | Real PostgreSQL | `tests/regression/` |
 | Unit | Domain logic, validators | None | `tests/unit/` |
-| Integration | Repository operations, services | Real PostgreSQL/Redis | `tests/integration/` |
+| Integration | Repository operations, services | Real PostgreSQL, pgmq | `tests/integration/` |
 | E2E | User journeys, UI flows | Browser + full stack | `tests/e2e/python/` |
 
 ## Test Execution
@@ -19,7 +19,7 @@ Testing uses pytest with Playwright for browser automation. The suite is structu
 |-----------|----------|---------|---------|---------|
 | Regression | `tests/regression/` | Docker | `just test-regression` | Stack connectivity (ORM -> Repo -> DB) |
 | Unit | `tests/unit/` | Docker | `just test-unit` | Isolated logic, no I/O |
-| Integration | `tests/integration/` | Docker | `just test-integration` | Real DB/Redis |
+| Integration | `tests/integration/` | Docker | `just test-integration` | Real DB, pgmq |
 | E2E | `tests/e2e/python/` | Host | `just test-golden-path` | Full user journey |
 
 ## Regression Tests
@@ -47,12 +47,11 @@ This pattern catches issues at any layer: frontend rendering, API communication,
 
 ## Mocking Policy
 
-**No mocking.** Tests use real services — real databases, real Redis, real T3K API, real pgmq. The `test_quality_check.py` gate bans all `unittest.mock` imports with zero exceptions.
+**No mocking.** Tests use real services — real databases, real T3K API, real pgmq. The `test_quality_check.py` gate bans all `unittest.mock` imports with zero exceptions.
 
 | Category | Approach |
 |----------|----------|
 | PostgreSQL | Real database — all test levels use PostgreSQL with SAVEPOINT isolation |
-| Redis | Real Redis instance in Docker |
 | T3K API | Real T3K API with auth tokens |
 | pgmq | Real pgmq extension in PostgreSQL |
 

@@ -95,7 +95,7 @@ Shootouts are optional -- users can build chains, process audio, and manage thei
 | `/api/v1/html/` | HTML fragments (HTMX responses) |
 | `/` | SSR pages |
 
-**Note:** Admin APIs (`/admin/*`) are not in webapp. See Admin API Architecture for worker (port 8001) admin endpoints.
+**Note:** Admin APIs are served by the webapp at `/api/admin/*` (port 8000). See Admin API Architecture below.
 
 ## Admin API Architecture
 
@@ -105,13 +105,13 @@ Internal admin API for infrastructure management. Not exposed publicly -- access
 
 | Principle | Rationale |
 |-----------|-----------|
-| **Centralised in worker** | Worker already has all database connections needed |
-| **No authentication** | Network-level access control (port not exposed) |
+| **Centralised in webapp** | Webapp already has all database connections needed (single `gts_core` DB) |
+| **No authentication** | Network-level access control (routes not exposed publicly) |
 | **Composite health** | Single `/health` endpoint reports all component status |
 
-### Admin API (Worker -- port 8001)
+### Admin API (Webapp -- port 8000, `/api/admin/*`)
 
-All admin endpoints served by the worker container:
+All admin endpoints served by the webapp container:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -128,21 +128,20 @@ All admin endpoints served by the worker container:
 | `/admin/t3k/errors/summary` | GET | Error aggregation by type |
 | `/health` | GET | Composite health check |
 
-**Why worker serves T3K endpoints:** The worker already connects to `gts_t3k_source` for the pgmq consumer. It can query sync status, stats, and checkpoints from the same database connection. No need for a separate T3K HTTP server.
+**Why webapp serves admin endpoints:** All BCs share the single `gts_core` database. The webapp already has the database connection needed to query sync status, job state, stats, and checkpoints. No separate admin server required.
 
-**Future sources:** When AIDA-X or other sources are added, their admin endpoints (`/admin/aidax/*`) will also be served by the worker, which will have connections to those source databases for their pgmq queues.
+**Future sources:** When AIDA-X or other sources are added, their admin endpoints (`/api/admin/aidax/*`) will also be served by the webapp, querying the shared `gts_core` database.
 
 ### Composite Health Endpoint
 
-The `/health` endpoint reports on all worker components:
+The `/health` endpoint reports on all webapp components:
 
 ```json
 {
   "status": "healthy",
   "components": {
-    "admin_api": "ok",
-    "taskiq_broker": "connected",
-    "pgmq_consumer": "polling"
+    "database": "connected",
+    "pgmq": "available"
   }
 }
 ```
@@ -151,17 +150,17 @@ Docker healthchecks use this endpoint. If any component is unhealthy, the contai
 
 ### Admin API Access
 
-> **Note:** A `gts-admin` CLI is planned. Currently, use `curl` to access the worker admin API directly.
+> **Note:** A `gts-admin` CLI is planned. Currently, use `curl` to access the webapp admin API directly.
 
 ```bash
-# All requests -> Worker (port 8001)
-curl http://localhost:8001/admin/jobs           # List all jobs
-curl http://localhost:8001/admin/jobs/{id}      # Get job details
-curl http://localhost:8001/admin/jobs/dead-lettered  # Dead-lettered jobs
-curl http://localhost:8001/admin/t3k/sync/status     # Sync status
-curl -X POST http://localhost:8001/admin/t3k/sync    # Trigger sync
-curl http://localhost:8001/admin/t3k/auth/status     # T3K auth check
-curl http://localhost:8001/health               # Health check
+# All requests -> Webapp (port 8000)
+curl http://localhost:8000/api/admin/jobs           # List all jobs
+curl http://localhost:8000/api/admin/jobs/{id}      # Get job details
+curl http://localhost:8000/api/admin/jobs/dead-lettered  # Dead-lettered jobs
+curl http://localhost:8000/api/admin/t3k/sync/status     # Sync status
+curl -X POST http://localhost:8000/api/admin/t3k/sync    # Trigger sync
+curl http://localhost:8000/api/admin/t3k/auth/status     # T3K auth check
+curl http://localhost:8000/health                        # Health check
 ```
 
 ### Port Allocation
@@ -169,9 +168,8 @@ curl http://localhost:8001/health               # Health check
 | Port | Container | Profile |
 |------|-----------|---------|
 | 8000 | webapp | default |
-| 8001 | worker | jobs |
 
-Worktree offsets apply: main uses 8001, worktree with offset 10 uses 8011.
+Worktree offsets apply: main uses 8000, worktree with offset 10 uses 8010.
 
 ### Dependency Flow
 
@@ -181,13 +179,12 @@ Worktree offsets apply: main uses 8001, worktree with offset 10 uses 8011.
 │  (client)   │
 └──────┬──────┘
        │
-       └──── all requests ──▶ Worker Admin API (:8001)
+       └──── all requests ──▶ Webapp Admin API (:8000/api/admin/*)
                                     │
-                        ┌───────────┼───────────┐
-                        │           │           │
-                  ┌─────▼─────┐ ┌───▼───┐ ┌─────▼─────────┐
-                  │ gts_core  │ │ Redis │ │gts_t3k_source │
-                  └───────────┘ └───────┘ └───────────────┘
+                              ┌─────▼─────┐
+                              │ gts_core  │
+                              │  (pgmq)   │
+                              └───────────┘
 ```
 
 ## File Storage
