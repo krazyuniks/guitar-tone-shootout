@@ -14,6 +14,8 @@ Reference: Epic-Workflow-Reference.md (Stages 1-4, Observability).
 All imports reference workflow.*, never scripts.*.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import subprocess
@@ -26,6 +28,7 @@ from workflow.dispatch import (
     dispatch_agent,
     estimate_tokens,
 )
+from workflow.epic_config import BudgetConfig, EpicConfig, ensure_epic_config, load_config
 from workflow.git_helpers import (
     GitConflictError,
     GitPushError,
@@ -491,10 +494,11 @@ def _run_epic_critique(
     epic_dir: Path,
     events: list[dict],
     epic_logger: EventLogger,
+    config: EpicConfig | None = None,
 ) -> tuple[bool, list, float | None]:
-    """Run post-epic Opus critique on the full implementation.
+    """Run post-epic critique on the full implementation.
 
-    Dispatches an Opus read-only agent with the critique_epic template
+    Dispatches a read-only agent with the critique_epic template
     to review the entire epic holistically.
 
     Args:
@@ -502,6 +506,7 @@ def _run_epic_critique(
         epic_dir: Path to the epic directory.
         events: All JSONL events (epic + story combined).
         epic_logger: Epic-level JSONL event logger.
+        config: Epic configuration profile. If None, falls back to defaults.
 
     Returns:
         Tuple of (passed, findings_list, cost_usd).
@@ -567,27 +572,33 @@ def _run_epic_critique(
     prompt = prompt.replace("{{ git_diff }}", git_diff)
     prompt = prompt.replace("{{ event_summary }}", event_summary)
 
+    # Resolve model and budget from config
+    critique_model = config.models.epic_critic if config else "opus"
+    critique_budget = (
+        config.budgets.get("critique_epic", BudgetConfig()) if config else BudgetConfig()
+    )
+
     # Log critique dispatch
     prompt_hash = compute_prompt_hash(prompt)
     prompt_tokens = estimate_tokens(prompt)
     epic_logger.log_event(
         "epic_critique_dispatched",
         critique_type="epic",
-        critique_model="opus",
+        critique_model=critique_model,
         adapter="claude",
         role="critique_epic",
         prompt_hash=prompt_hash,
         prompt_tokens=prompt_tokens,
     )
 
-    # Dispatch Opus read-only
+    # Dispatch read-only critique agent
     result = dispatch_agent(
         prompt=prompt,
-        model="opus",
+        model=critique_model,
         tools=["Read", "Bash", "Glob", "Grep"],
         no_mcp=True,
-        max_budget_usd=8.0,
-        max_turns=20,
+        max_budget_usd=critique_budget.max_budget_usd,
+        max_turns=critique_budget.max_turns,
         cwd=PROJECT_ROOT,
     )
 
@@ -599,7 +610,7 @@ def _run_epic_critique(
         epic_logger.log_event(
             "epic_critique_fail",
             critique_type="epic",
-            critique_model="opus",
+            critique_model=critique_model,
             error=result.output[:500] if result.output else "Dispatch failed",
         )
         # Treat dispatch failure as a pass — don't block on infra issues
@@ -619,7 +630,7 @@ def _run_epic_critique(
         epic_logger.log_event(
             "epic_critique_fail",
             critique_type="epic",
-            critique_model="opus",
+            critique_model=critique_model,
             error=f"Invalid JSON: {output[:200]}",
         )
         return (True, [], result.cost_usd)
@@ -632,7 +643,7 @@ def _run_epic_critique(
         epic_logger.log_event(
             "epic_critique_pass",
             critique_type="epic",
-            critique_model="opus",
+            critique_model=critique_model,
             cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=0,
@@ -641,7 +652,7 @@ def _run_epic_critique(
         epic_logger.log_event(
             "epic_critique_fail",
             critique_type="epic",
-            critique_model="opus",
+            critique_model=critique_model,
             cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=len(findings),
@@ -774,6 +785,10 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
         logger.error("No stories found in plan.json for epic #%d", epic_number)
         sys.exit(1)
 
+    # Load epic configuration profile
+    config_path = ensure_epic_config(epic_dir)
+    config = load_config(override_path=config_path)
+
     epic_log_path = epic_dir / "epic.jsonl"
     events = read_log(epic_log_path)
 
@@ -872,6 +887,7 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
                 epic_dir=epic_dir,
                 events=all_events,
                 epic_logger=epic_logger,
+                config=config,
             )
 
             if not critique_passed:
@@ -978,6 +994,7 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
             epic_dir=epic_dir,
             event_logger=story_logger,
             completed_stories=completed_stories,
+            config=config,
         )
 
         # Re-read all events for comment building

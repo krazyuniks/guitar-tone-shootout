@@ -81,6 +81,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
     import uuid
 
     from workflow.context_assembler import AssemblyError, assemble_context
+    from workflow.epic_config import ensure_epic_config, load_config
     from workflow.epic_ingest import IngestionError, ingest_epic
     from workflow.git_helpers import GitPushError, robust_commit
     from workflow.jsonl_logger import EventLogger
@@ -100,6 +101,10 @@ def _run_planning_pipeline(epic_number: int) -> None:
     if _check_plan_committed(epic_dir):
         console.print("[green]Plan already committed.[/green]")
         return
+
+    # Load epic configuration profile
+    config_path = ensure_epic_config(epic_dir)
+    config = load_config(override_path=config_path)
 
     # Set up JSONL logging for planning events
     run_id = str(uuid.uuid4())
@@ -147,7 +152,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
             "planner_dispatched",
             epic=epic_number,
             attempt=1,
-            tier="high",
+            planner_model=config.models.planner,
         )
 
         try:
