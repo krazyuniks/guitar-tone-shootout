@@ -508,12 +508,17 @@ def dispatch_agent(
     fallback_model: str | None = None,
     adapter: AgentAdapter | None = None,
     no_mcp: bool = False,
+    conversation_log: Path | None = None,
 ) -> AgentResult:
     """Dispatch a prompt to an agent and return the structured result.
 
     Constructs CLI arguments via the adapter, runs the subprocess,
     and parses the result into an AgentResult. Logs dispatch metadata
     (model, prompt_hash, prompt_tokens).
+
+    When ``conversation_log`` is provided, uses ``subprocess.Popen`` with
+    line-by-line stdout reading and a ConversationLogger for full transcript
+    capture. Stderr is redirected to a tempfile to prevent pipe deadlocks.
 
     Args:
         prompt: The full agent prompt text.
@@ -526,6 +531,9 @@ def dispatch_agent(
         fallback_model: Model to fall back to on HTTP 529 overload.
         adapter: Provider adapter (auto-selected from model if None).
         no_mcp: If True, pass --no-mcp to skip MCP server startup.
+        conversation_log: Path to write per-dispatch conversation JSONL.
+            When provided, enables streaming Popen mode with full
+            transcript capture.
 
     Returns:
         AgentResult with success status, output, cost, and turn count.
@@ -566,9 +574,50 @@ def dispatch_agent(
         no_mcp=no_mcp,
     )
 
-    # Run subprocess — prompt piped via stdin to avoid OS arg length limits.
     # Clear CLAUDECODE env var to allow nested dispatch from within a Claude session.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
+    if conversation_log is not None:
+        # Streaming mode: Popen with line-by-line reading + conversation logger.
+        # Stderr goes to a tempfile to prevent pipe buffer deadlock.
+        result = _dispatch_streaming(
+            args=args,
+            prompt=prompt,
+            model=model,
+            adapter=adapter,
+            env=env,
+            cwd=cwd,
+            conversation_log=conversation_log,
+        )
+    else:
+        # Simple mode: subprocess.run (no conversation logging)
+        result = _dispatch_simple(
+            args=args,
+            prompt=prompt,
+            adapter=adapter,
+            env=env,
+            cwd=cwd,
+        )
+
+    logger.info(
+        "Agent complete: success=%s, exit_code=%d, cost=$%s, turns=%s",
+        result.success,
+        result.exit_code,
+        result.cost_usd or "unknown",
+        result.turns or "unknown",
+    )
+
+    return result
+
+
+def _dispatch_simple(
+    args: list[str],
+    prompt: str,
+    adapter: AgentAdapter,
+    env: dict,
+    cwd: Path,
+) -> AgentResult:
+    """Run agent via subprocess.run (no streaming, no conversation logging)."""
     try:
         completed = subprocess.run(
             args,
@@ -592,18 +641,83 @@ def dispatch_agent(
     if completed.returncode != 0 and completed.stderr:
         logger.warning("Agent stderr: %s", completed.stderr[:500])
 
-    # Parse result
-    result = adapter.parse_result(completed)
+    return adapter.parse_result(completed)
 
-    logger.info(
-        "Agent complete: success=%s, exit_code=%d, cost=$%s, turns=%s",
-        result.success,
-        result.exit_code,
-        result.cost_usd or "unknown",
-        result.turns or "unknown",
+
+def _dispatch_streaming(
+    args: list[str],
+    prompt: str,
+    model: str,
+    adapter: AgentAdapter,
+    env: dict,
+    cwd: Path,
+    conversation_log: Path,
+) -> AgentResult:
+    """Run agent via Popen with line-by-line stdout reading + conversation logger.
+
+    Stderr is redirected to a tempfile to prevent pipe buffer deadlock.
+    """
+    from workflow.conversation_logger import ConversationLogger
+
+    stdout_lines: list[str] = []
+
+    with (
+        tempfile.TemporaryFile(mode="w+") as stderr_tmp,
+        ConversationLogger(conversation_log, adapter.name, model) as conv_logger,
+    ):
+        try:
+            process = subprocess.Popen(
+                args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=stderr_tmp,
+                text=True,
+                cwd=cwd,
+                env=env,
+            )
+        except OSError as exc:
+            logger.error("Failed to start agent process: %s", exc)
+            return AgentResult(
+                success=False,
+                output=f"Failed to start process: {exc}",
+                exit_code=-1,
+            )
+
+        # Write prompt to stdin and close it
+        if process.stdin is not None:
+            try:
+                process.stdin.write(prompt)
+                process.stdin.close()
+            except OSError as exc:
+                logger.warning("Failed to write prompt to stdin: %s", exc)
+
+        # Read stdout line by line, feeding to conversation logger
+        if process.stdout is not None:
+            for line in process.stdout:
+                stdout_lines.append(line)
+                conv_logger.process_line(line)
+
+        process.wait()
+
+        # Read stderr from the tempfile (safe — process is done)
+        stderr_tmp.seek(0)
+        stderr_output = stderr_tmp.read()
+
+    exit_code = process.returncode
+    stdout_output = "".join(stdout_lines)
+
+    if exit_code != 0 and stderr_output:
+        logger.warning("Agent stderr: %s", stderr_output[:500])
+
+    # Create a CompletedProcess for the adapter to parse
+    completed = subprocess.CompletedProcess(
+        args=args,
+        returncode=exit_code,
+        stdout=stdout_output,
+        stderr=stderr_output,
     )
 
-    return result
+    return adapter.parse_result(completed)
 
 
 def dispatch_with_fallback(
