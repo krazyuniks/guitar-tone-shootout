@@ -6,7 +6,7 @@ with YAML frontmatter.  Creates the stories subdirectory.  Idempotent:
 re-running overwrites the local copy.
 
 Usage:
-    python scripts/epic_ingest.py <epic_number>
+    python -m workflow.epic_ingest <epic_number>
 """
 
 import json
@@ -123,9 +123,15 @@ def validate_epic_structure(body: str) -> list[str]:
         if not section_content:
             errors.append(f"Section '## {section}' is empty")
 
-    # Check for at least one outcome checkbox
-    if "- [ ]" not in body:
-        errors.append("Observable Outcomes must contain at least one checkbox ('- [ ]')")
+    # Check for at least one outcome checkbox within Observable Outcomes section
+    outcomes_heading = "## observable outcomes"
+    if outcomes_heading in body_lower:
+        outcomes_idx = body_lower.index(outcomes_heading)
+        after_outcomes = body[outcomes_idx + len("## Observable Outcomes") :]
+        next_h = after_outcomes.find("\n## ")
+        outcomes_content = after_outcomes[:next_h] if next_h != -1 else after_outcomes
+        if "- [ ]" not in outcomes_content:
+            errors.append("Observable Outcomes must contain at least one checkbox ('- [ ]')")
 
     return errors
 
@@ -171,7 +177,7 @@ def ingest_epic(epic_number: int) -> Path:
 
 
 def main() -> None:
-    """CLI entry point: python scripts/epic_ingest.py <epic_number>."""
+    """CLI entry point: python -m workflow.epic_ingest <epic_number>."""
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <epic_number>", file=sys.stderr)
         sys.exit(1)

@@ -52,6 +52,24 @@ class TestEpicStructureValidation:
         errors = validate_epic_structure(body)
         assert any("checkbox" in e.lower() for e in errors)
 
+    def test_checkbox_in_other_section_not_counted(self):
+        """Checkbox in Decisions should not satisfy Observable Outcomes requirement."""
+        body = """\
+## Summary
+A feature that adds gear management.
+
+## Observable Outcomes
+- User can see gear list at /gear
+
+## Decisions
+- [ ] BC ownership: core
+
+## Regression Boundaries
+- Existing navigation must not break
+"""
+        errors = validate_epic_structure(body)
+        assert any("checkbox" in e.lower() for e in errors)
+
     def test_multiple_errors_reported(self):
         body = "Nothing here"
         errors = validate_epic_structure(body)

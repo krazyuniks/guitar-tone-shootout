@@ -37,6 +37,10 @@ console = Console()
 GAP_DETECTION_GUIDE = Path(__file__).parent / "references" / "gap-detection-guide.md"
 
 
+class GapDetectionError(Exception):
+    """Raised when gap detection fails."""
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models
 # ---------------------------------------------------------------------------
@@ -250,8 +254,17 @@ def run_gap_detection(
         Path to the written user-decisions.json.
 
     Raises:
-        GapDetectionError: If agent dispatch fails or output is unparseable.
+        GapDetectionError: If agent dispatch fails or output is unparseable,
+            or if stdin is not interactive (would hang on typer.prompt).
     """
+    import sys
+
+    if not sys.stdin.isatty():
+        raise GapDetectionError(
+            "Gap detection requires interactive input (stdin is not a TTY). "
+            "Run the pipeline interactively or provide user-decisions.json manually."
+        )
+
     epic_md_path = epic_dir / "EPIC.md"
     context_md_path = epic_dir / "CONTEXT.md"
 
@@ -276,14 +289,14 @@ def run_gap_detection(
     critique_model = config.models.plan_critic if config else "codex"
 
     # Resolve budget
-    if config and "planning" in config.budgets:
-        budget = config.budgets["planning"]
+    if config and "gap_detection" in config.budgets:
+        budget = config.budgets["gap_detection"]
         max_turns = budget.max_turns
         max_budget_usd = budget.max_budget_usd
     else:
-        planning_budget = BUDGET_DEFAULTS["planning"]
-        max_turns = int(planning_budget["max_turns"])
-        max_budget_usd = float(planning_budget["max_budget_usd"])
+        gap_budget = BUDGET_DEFAULTS["gap_detection"]
+        max_turns = int(gap_budget["max_turns"])
+        max_budget_usd = float(gap_budget["max_budget_usd"])
 
     # --- Step 1: Gap Detection Agent ---
     console.print("[bold]Step 2b.1:[/bold] Detecting gaps...")
@@ -318,12 +331,21 @@ def run_gap_detection(
     gap_report_json = gap_report.model_dump_json(indent=2)
 
     critique_prompt = _build_critique_prompt(epic_md, context_md, gap_report_json)
+    if config and "critique_plan" in config.budgets:
+        critique_budget = config.budgets["critique_plan"]
+        critique_max_turns = critique_budget.max_turns
+        critique_max_budget = critique_budget.max_budget_usd
+    else:
+        critique_defaults = BUDGET_DEFAULTS["critique_plan"]
+        critique_max_turns = int(critique_defaults["max_turns"])
+        critique_max_budget = float(critique_defaults["max_budget_usd"])
+
     critique_result = dispatch_agent(
         prompt=critique_prompt,
         model=critique_model,
         tools=get_tools_for_role("critique"),
-        max_turns=int(BUDGET_DEFAULTS["critique_plan"]["max_turns"]),
-        max_budget_usd=float(BUDGET_DEFAULTS["critique_plan"]["max_budget_usd"]),
+        max_turns=critique_max_turns,
+        max_budget_usd=critique_max_budget,
         no_mcp=True,
     )
 
@@ -399,7 +421,3 @@ def run_gap_detection(
 
     console.print(f"  [green]Written:[/green] {output_path.name}")
     return output_path
-
-
-class GapDetectionError(Exception):
-    """Raised when gap detection fails."""

@@ -3,7 +3,7 @@
 
 Reads EPIC.md, performs keyword-based area detection, and injects only
 the wiki sections and codebase files relevant to the detected areas.
-Replaces the wholesale concatenation approach in scripts/context_assembler.py.
+Replaces the wholesale concatenation approach from V1.
 
 All pure Python I/O -- zero AI tokens spent.
 
@@ -329,7 +329,7 @@ def _read_epic_md(epic_dir: Path) -> str:
     if content is None:
         raise AssemblyError(
             f"EPIC.md not found at {epic_md}. Run epic ingestion first: "
-            f"python scripts/epic_ingest.py <number>"
+            f"python -m workflow.epic_ingest <number>"
         )
     return content
 

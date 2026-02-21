@@ -133,8 +133,6 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Git & GitHub
 
-Never commit to main directly. Feature branches from GitHub issues. Run `just check` before PR.
-
 **GitHub issues are the source of truth.** All work traces back to a GitHub issue.
 
 ## Session Context Management

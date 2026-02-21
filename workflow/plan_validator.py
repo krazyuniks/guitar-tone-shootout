@@ -12,7 +12,7 @@ runs but only produces warnings, not errors.
 Reference: Research doc Section 8.4 Decision 8.
 
 Usage:
-    python scripts/plan_validator.py <epic_number>
+    python -m workflow.plan_validator <epic_number>
 """
 
 import json
@@ -361,6 +361,27 @@ def _check_command_coverage(plan: Plan) -> list[ValidationError]:
 # ---------------------------------------------------------------------------
 
 
+def _check_empty_checkpoints(plan: Plan) -> list[ValidationError]:
+    """Check 9: No checkpoint should have an empty checks list.
+
+    An empty checks list means the story has no verification criteria,
+    which would silently pass validation without proving anything.
+    """
+    errors: list[ValidationError] = []
+
+    for cp in plan.validation_checkpoints:
+        if not cp.checks:
+            errors.append(
+                ValidationError(
+                    check="empty_checkpoint",
+                    message=f"Checkpoint after '{cp.after_story}' has no checks. "
+                    f"Every checkpoint must have at least one verification criterion.",
+                )
+            )
+
+    return errors
+
+
 def validate_plan(epic_dir: Path) -> ValidationResult:
     """Run 7 deterministic validation checks on plan.json.
 
@@ -423,6 +444,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_scope_coherence(plan))
     all_errors.extend(_check_dependency_ordering(plan))
     all_errors.extend(_check_budget_sanity(plan))
+    all_errors.extend(_check_empty_checkpoints(plan))
 
     # Check 8: Command coverage (warnings only — doesn't fail validation)
     command_warnings = _check_command_coverage(plan)
@@ -441,7 +463,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
 
 
 def main() -> None:
-    """CLI entry point: python scripts/plan_validator.py <epic_number>."""
+    """CLI entry point: python -m workflow.plan_validator <epic_number>."""
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <epic_number>", file=sys.stderr)
         sys.exit(1)
