@@ -245,7 +245,7 @@ class T3KAPIClient:
         return T3KTone(
             id=int(d["id"]),
             title=d.get("title", ""),
-            description=d.get("description", ""),
+            description=d.get("description") or "",
             tags=_extract_names(d.get("tags", [])),
             makes=_extract_names(d.get("makes", [])),
             gear=_safe_enum(T3KGearKind, d.get("gear", "amp"), T3KGearKind.AMP),
