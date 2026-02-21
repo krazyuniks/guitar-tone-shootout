@@ -9,6 +9,18 @@ export default defineConfig({
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
+    build: {
+      rollupOptions: {
+        output: {
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.names?.[0]?.endsWith('.css')) {
+              return '_astro/styles[extname]';
+            }
+            return '_astro/[name].[hash][extname]';
+          },
+        },
+      },
+    },
   },
   build: {
     format: 'file',
