@@ -15,7 +15,7 @@ One revision cycle is budgeted: planner -> verifier -> planner -> verifier.
 If the second attempt also fails Phase B, exit to human.
 
 Usage:
-    python scripts/plan_verifier.py <epic_number>
+    python -m workflow.plan_verifier <epic_number>
 """
 
 import json
@@ -28,7 +28,6 @@ from workflow.dispatch import (
     FALLBACK_MODELS,
     dispatch_agent,
     dispatch_with_fallback,
-    get_codex_adapter,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
@@ -95,7 +94,23 @@ You must check 5 dimensions and return structured JSON output.
 
 ## Verification Dimensions
 
-Check each dimension independently. For each, set status to "pass" or "fail".
+Check each dimension independently.
+
+### Severity Classification
+
+Every finding MUST have a severity level:
+
+- **must_fix**: The plan will produce incorrect or incomplete results if this
+  is not addressed. Examples: missing story for a required feature, no
+  validation for a critical user path, a story that contradicts the epic.
+- **note**: An observation worth reporting but not blocking. Examples:
+  a test could be more thorough, a defensive fallback was added beyond
+  the spec, a checkpoint implicitly covers something rather than
+  explicitly naming it.
+
+**A dimension passes if it has zero `must_fix` findings.** Dimensions with
+only `note` findings still pass. Do NOT fail a dimension for observations
+that are merely imperfect rather than broken.
 
 ### 1. Journey Completeness
 
@@ -142,6 +157,9 @@ each feature:
 - If Story 1 creates an entity and Story 3 builds UI for it, but no
   story creates the API endpoint connecting them, flag the gap
 
+Chains that stay within a single story (e.g. route -> response with no
+persistence layer) do not need to be flagged as gaps.
+
 Set `gaps` to an empty array if no logical gaps exist.
 
 ### 5. Validation Sufficiency
@@ -156,6 +174,10 @@ Flag checks that:
 - Miss critical user-facing behaviour
 - Could pass even if the feature is broken
 
+A test that asserts field presence and correct values is sufficient — it
+does not also need to assert the exact key count or negative-auth cases
+unless the epic explicitly requires it.
+
 Set `weak_checks` to an empty array if all checkpoints are sufficient.
 
 ---
@@ -166,6 +188,10 @@ Set `weak_checks` to an empty array if all checkpoints are sufficient.
 - Whether file paths in scope are the best choice (planner's domain)
 - Whether story sizing is optimal (learned from experience)
 - Subjective plan quality (human's job at Decision Gate)
+- Whether defensive defaults (fallback values) are appropriate — that is
+  an implementation detail, not a plan flaw
+- Whether CI/CD or deployment pipelines set environment variables — that
+  is outside the scope of the code plan
 
 ---
 
@@ -175,11 +201,16 @@ Your ENTIRE response must be a single JSON object — no markdown, no analysis t
 no explanation before or after. Output ONLY the JSON object.
 
 The JSON must have this structure:
-- "status": "pass" or "fail" (pass only if ALL 5 dimensions pass)
-- "dimensions": object with keys for each dimension, each containing "status" and "findings"
+- "status": "pass" or "fail" (fail if ANY dimension has must_fix findings)
+- "dimensions": object with keys for each dimension, each containing:
+  - "status": "pass" or "fail" (fail only if must_fix findings exist)
+  - "findings": array of objects, each with "severity" ("must_fix" or "note"),
+    plus the dimension-specific fields
 - "summary": brief overall summary string
 
-Be rigorous but fair. Flag real issues, not stylistic preferences.
+Be rigorous but fair. Flag real issues, not stylistic preferences. A plan
+that covers the epic's requirements with reasonable tests passes — it does
+not need to be perfect.
 """
 
     return prompt
@@ -407,15 +438,21 @@ def verify_plan(
     )
 
     # Dispatch via critic model (Phase B cross-model critique)
-    critique_budget = BUDGET_DEFAULTS["critique_plan"]
+    if config and "critique_plan" in config.budgets:
+        budget = config.budgets["critique_plan"]
+        max_turns = budget.max_turns
+        max_budget_usd = budget.max_budget_usd
+    else:
+        critique_defaults = BUDGET_DEFAULTS["critique_plan"]
+        max_turns = int(critique_defaults["max_turns"])
+        max_budget_usd = float(critique_defaults["max_budget_usd"])
 
     result = dispatch_agent(
         prompt=prompt,
         model=critic_model,
-        adapter=get_codex_adapter("read-only"),
         tools=[],
-        max_turns=int(critique_budget["max_turns"]),
-        max_budget_usd=float(critique_budget["max_budget_usd"]),
+        max_turns=max_turns,
+        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
     )
@@ -430,7 +467,8 @@ def verify_plan(
     verifier_result = _parse_verifier_result(result.output)
 
     logger.info(
-        "Codex verifier result: status=%s, cost=$%s",
+        "Plan verifier result: model=%s, status=%s, cost=$%s",
+        critic_model,
         verifier_result.get("status", "unknown"),
         result.cost_usd or "unknown",
     )
@@ -596,10 +634,17 @@ def _regenerate_plan_with_errors(
 
     context, epic_number = _read_original_prompt_context(epic_dir)
 
+    # Read user-decisions.json so revision doesn't contradict Stage 2b answers
+    decisions_path = epic_dir / "user-decisions.json"
+    user_decisions = (
+        decisions_path.read_text(encoding="utf-8") if decisions_path.is_file() else None
+    )
+
     # Rebuild the original prompt
     original_prompt = _build_planner_prompt(
         context=context,
         epic_number=epic_number,
+        user_decisions=user_decisions,
     )
 
     # Build revision prompt with errors
@@ -658,10 +703,17 @@ def _regenerate_plan_with_verifier_feedback(
 
     context, epic_number = _read_original_prompt_context(epic_dir)
 
+    # Read user-decisions.json so revision doesn't contradict Stage 2b answers
+    decisions_path = epic_dir / "user-decisions.json"
+    user_decisions = (
+        decisions_path.read_text(encoding="utf-8") if decisions_path.is_file() else None
+    )
+
     # Rebuild the original prompt
     original_prompt = _build_planner_prompt(
         context=context,
         epic_number=epic_number,
+        user_decisions=user_decisions,
     )
 
     # Build revision prompt with verifier feedback
@@ -712,7 +764,7 @@ def _regenerate_plan_with_verifier_feedback(
 
 
 def main() -> None:
-    """CLI entry point: python scripts/plan_verifier.py <epic_number> [--full-cycle]."""
+    """CLI entry point: python -m workflow.plan_verifier <epic_number> [--full-cycle]."""
     if len(sys.argv) < 2:
         print(
             f"Usage: {sys.argv[0]} <epic_number> [--full-cycle]",

@@ -23,6 +23,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from workflow.config_validator import validate_config
 from workflow.dispatch import (
     compute_prompt_hash,
     dispatch_agent,
@@ -585,7 +586,7 @@ def _run_epic_critique(
         "epic_critique_dispatched",
         critique_type="epic",
         critique_model=critique_model,
-        adapter="claude",
+        adapter="codex" if critique_model == "codex" else "claude",
         role="critique_epic",
         prompt_hash=prompt_hash,
         prompt_tokens=prompt_tokens,
@@ -788,7 +789,19 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
 
     # Load epic configuration profile
     config_path = ensure_epic_config(epic_dir)
-    config = load_config(override_path=config_path)
+    try:
+        config = load_config(override_path=config_path)
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("Configuration error: %s", exc)
+        sys.exit(1)
+
+    # Pre-execution validation (skip golden path by default — it's slow)
+    logger.info("Running pre-execution configuration validation...")
+    validation = validate_config(PROJECT_ROOT, skip_golden_path=True)
+    if not validation.passed:
+        logger.error("Pre-execution validation failed:\n%s", validation.summary())
+        sys.exit(1)
+    logger.info("Pre-execution validation passed.")
 
     epic_log_path = epic_dir / "epic.jsonl"
     events = read_log(epic_log_path)

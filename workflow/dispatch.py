@@ -35,6 +35,7 @@ BUDGET_DEFAULTS: dict[str, dict[str, int | float]] = {
     "implementation": {"max_turns": 40, "max_budget_usd": 4.00},
     "validation": {"max_turns": 15, "max_budget_usd": 0.50},
     "regression": {"max_turns": 30, "max_budget_usd": 3.00},
+    "gap_detection": {"max_turns": 30, "max_budget_usd": 3.00},
     "critique_plan": {"max_turns": 20, "max_budget_usd": 5.00},
     "critique_story": {"max_turns": 15, "max_budget_usd": 3.00},
     "critique_epic": {"max_turns": 20, "max_budget_usd": 8.00},
@@ -269,10 +270,12 @@ class CodexAdapter:
         """
         binary = self._find_binary()
 
-        # Create a temp file for -o output capture before building args
+        # Create a temp file for -o output capture before building args.
+        # Create a temp file for -o output capture. parse_result extracts
+        # the path from completed.args rather than reading instance state,
+        # so sequential dispatches on a shared adapter can't clobber.
         fd, output_path = tempfile.mkstemp(suffix=".txt", prefix="codex-output-")
         os.close(fd)
-        self._output_path = output_path
 
         args = [
             binary,
@@ -299,20 +302,31 @@ class CodexAdapter:
 
         Codex --json emits structured JSON to stdout with cost/turns info.
         The -o flag captures the last assistant message to a file.
+        The output path is extracted from the subprocess args to avoid
+        reliance on instance state (which could be clobbered by sequential
+        dispatches on a shared adapter).
         """
         raw = completed.stdout or ""
         exit_code = completed.returncode
         success = exit_code == 0
 
-        # Read the -o output file for the agent's text response
+        # Extract -o output path from the args used for this invocation
         output = ""
-        output_path = Path(self._output_path)
-        try:
-            if output_path.exists():
-                output = output_path.read_text(encoding="utf-8")
-        finally:
-            with contextlib.suppress(OSError):
-                output_path.unlink(missing_ok=True)
+        output_path_str = None
+        args = completed.args if isinstance(completed.args, list) else []
+        for i, arg in enumerate(args):
+            if arg == "-o" and i + 1 < len(args):
+                output_path_str = args[i + 1]
+                break
+
+        if output_path_str:
+            output_path = Path(output_path_str)
+            try:
+                if output_path.exists():
+                    output = output_path.read_text(encoding="utf-8")
+            finally:
+                with contextlib.suppress(OSError):
+                    output_path.unlink(missing_ok=True)
 
         structured_output = None
         cost_usd = None
@@ -360,7 +374,7 @@ ADAPTER_MAP: dict[str, AgentAdapter] = {
     "opus": _claude_adapter,
     "sonnet": _claude_adapter,
     "haiku": _claude_adapter,
-    "codex": _codex_impl_adapter,
+    "codex": _codex_critique_adapter,  # default to read-only for safety
 }
 
 
@@ -731,6 +745,7 @@ def dispatch_with_fallback(
     cwd: Path = PROJECT_ROOT,
     adapter: AgentAdapter | None = None,
     no_mcp: bool = False,
+    conversation_log: Path | None = None,
 ) -> AgentResult:
     """Dispatch with orchestrator-level retry for transient provider failures.
 
@@ -773,6 +788,7 @@ def dispatch_with_fallback(
         fallback_model=fallback_model,
         adapter=adapter,
         no_mcp=no_mcp,
+        conversation_log=conversation_log,
     )
 
     if result.success:
@@ -800,6 +816,7 @@ def dispatch_with_fallback(
         fallback_model=None,  # No further fallback
         adapter=adapter,
         no_mcp=no_mcp,
+        conversation_log=conversation_log,
     )
 
     return fallback_result

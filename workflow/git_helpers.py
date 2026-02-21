@@ -1,7 +1,6 @@
-"""Git helper utilities for the V2 epic workflow.
+"""Git helper utilities for the epic workflow.
 
 Provides robust commit, sync, and branch inspection functions.
-No dependency on run_epic.py or any V1 code.
 """
 
 import subprocess
@@ -97,31 +96,21 @@ def robust_commit(message: str, paths: list[str]) -> str:
 
 
 def git_sync() -> None:
-    """Fetch from origin, merge current branch, and push.
+    """Pull with rebase from origin and push.
 
-    Merges origin/<current_branch> into the working tree. If a conflict
-    is detected, the merge is aborted and a GitConflictError is raised
-    with the list of conflicting files. On success, pushes with
-    --force-with-lease.
+    Uses rebase (not merge) to match project conventions. If a conflict
+    is detected, the rebase is aborted and a GitConflictError is raised
+    with the list of conflicting files.
 
     Raises:
-        GitConflictError: If merge conflicts are detected.
+        GitConflictError: If rebase conflicts are detected.
         GitPushError: If the push fails.
     """
     branch = get_current_branch()
 
-    # Fetch origin
-    subprocess.run(
-        ["git", "fetch", "origin", branch],
-        cwd=PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    # Attempt merge
+    # Pull with rebase
     result = subprocess.run(
-        ["git", "merge", f"origin/{branch}", "--no-edit"],
+        ["git", "pull", "--rebase", "origin", branch],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
@@ -138,9 +127,9 @@ def git_sync() -> None:
         conflicting = [f for f in check_unmerged.stdout.strip().splitlines() if f]
 
         if conflicting:
-            # Abort merge to keep tree clean
+            # Abort rebase to keep tree clean
             subprocess.run(
-                ["git", "merge", "--abort"],
+                ["git", "rebase", "--abort"],
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
@@ -148,12 +137,12 @@ def git_sync() -> None:
             )
             raise GitConflictError(conflicting)
 
-        # Non-conflict merge failure (e.g. nothing to merge, already up-to-date)
+        # Non-conflict failure (e.g. nothing to pull, already up-to-date)
         # This is not an error — proceed to push
 
-    # Push
+    # Push (no force needed after rebase on own feature branch)
     result = subprocess.run(
-        ["git", "push", "--force-with-lease"],
+        ["git", "push"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,

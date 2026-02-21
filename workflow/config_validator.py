@@ -103,6 +103,8 @@ def check_database(project_root: Path) -> ValidationCheck:
         return ValidationCheck("database", True)
     except subprocess.TimeoutExpired:
         return ValidationCheck("database", False, "Database check timed out")
+    except FileNotFoundError:
+        return ValidationCheck("database", False, "docker command not found")
 
 
 def check_auth_tokens(project_root: Path) -> ValidationCheck:
@@ -149,6 +151,8 @@ def check_website(project_root: Path) -> ValidationCheck:
         return ValidationCheck("website", True)
     except subprocess.TimeoutExpired:
         return ValidationCheck("website", False, "Website check timed out")
+    except FileNotFoundError:
+        return ValidationCheck("website", False, "docker command not found")
 
 
 def check_golden_path(project_root: Path) -> ValidationCheck:
@@ -161,6 +165,8 @@ def check_golden_path(project_root: Path) -> ValidationCheck:
         return ValidationCheck("golden_path", True)
     except subprocess.TimeoutExpired:
         return ValidationCheck("golden_path", False, "Golden path tests timed out (>5min)")
+    except FileNotFoundError:
+        return ValidationCheck("golden_path", False, "just command not found")
 
 
 def validate_config(

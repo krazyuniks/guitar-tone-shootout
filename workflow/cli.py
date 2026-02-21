@@ -105,7 +105,11 @@ def _run_planning_pipeline(epic_number: int) -> None:
 
     # Load epic configuration profile
     config_path = ensure_epic_config(epic_dir)
-    config = load_config(override_path=config_path)
+    try:
+        config = load_config(override_path=config_path)
+    except (ValueError, FileNotFoundError) as exc:
+        console.print(f"[red]Configuration error:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     # Set up JSONL logging for planning events
     run_id = str(uuid.uuid4())

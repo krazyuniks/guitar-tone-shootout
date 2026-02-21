@@ -5,8 +5,7 @@ validate -> retry/proceed. Includes the full failure model with 5-type
 classification (env, scope, implementation, upstream, unknown) and
 category-aware retry policy.
 
-Adapted from scripts/story_executor.py (V2) to use the V3 workflow
-module APIs. All imports reference workflow.*, never scripts.*.
+Uses the V3 workflow module APIs. All imports reference workflow.*.
 
 Reference: Research doc Section 2 (Story Flow, Failure Model,
 File-to-story ownership). Section 8.5 Decision 2 (failure feedback).
@@ -560,8 +559,8 @@ def _is_minor_preflight_issue(issues: list[str], story: dict) -> bool:
 def handle_state_assumption(state_assumption: str) -> bool:
     """Handle the story's state assumption before dispatch.
 
-    If state_assumption is "clean", run just db-reset to reset the
-    database to a clean state. Most stories are "cumulative" (default)
+    If state_assumption is "clean", rollback and re-apply migrations to
+    reset the database schema. Most stories are "cumulative" (default)
     and need no action.
 
     Args:
@@ -573,19 +572,34 @@ def handle_state_assumption(state_assumption: str) -> bool:
     if state_assumption != "clean":
         return True
 
-    logger.info("State assumption is 'clean' -- running database reset")
+    logger.info("State assumption is 'clean' -- running migrate-down + migrate")
 
+    # Rollback last migration
     result = subprocess.run(
-        ["just", "db-reset"],
+        ["just", "migrate-down"],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
         timeout=120,
     )
-
     if result.returncode != 0:
         logger.error(
-            "Database reset failed: %s",
+            "migrate-down failed: %s",
+            result.stderr.strip() or result.stdout.strip(),
+        )
+        return False
+
+    # Re-apply migrations
+    result = subprocess.run(
+        ["just", "migrate"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if result.returncode != 0:
+        logger.error(
+            "migrate failed: %s",
             result.stderr.strip() or result.stdout.strip(),
         )
         return False
@@ -791,6 +805,7 @@ def _run_story_critique(
     attempt: int,
     model: str,
     config: EpicConfig | None = None,
+    base_commit: str | None = None,
 ) -> tuple[bool, list, float | None]:
     """Run post-story critique on the implementation.
 
@@ -804,6 +819,8 @@ def _run_story_critique(
         attempt: The current attempt number.
         model: The model that produced the implementation (for logging).
         config: Epic configuration profile. If None, falls back to defaults.
+        base_commit: Commit hash before story execution started. Used to
+            produce the full story diff (not just HEAD~1).
 
     Returns:
         Tuple of (passed, findings_list, cost_usd).
@@ -814,10 +831,12 @@ def _run_story_critique(
     template_path = Path(__file__).resolve().parent / "templates" / "critique_story.md"
     template = template_path.read_text(encoding="utf-8")
 
-    # Get git diff for story scope paths
+    # Get git diff for story scope paths — diff from pre-story base commit
+    # to capture all changes across retry attempts, not just last commit
     scope = story.get("scope", {})
     scope_paths = list(scope.get("create", [])) + list(scope.get("modify", []))
-    diff_args = ["git", "diff", "HEAD~1", "--", *scope_paths]
+    diff_ref = f"{base_commit}..HEAD" if base_commit else "HEAD~1"
+    diff_args = ["git", "diff", diff_ref, "--", *scope_paths]
     try:
         diff_result = subprocess.run(
             diff_args,
@@ -852,7 +871,7 @@ def _run_story_critique(
         critique_type="story",
         critique_model=critique_model,
         target_model=model,
-        adapter="claude",
+        adapter="codex" if critique_model == "codex" else "claude",
         role="critique_story",
         prompt_hash=prompt_hash,
         prompt_tokens=prompt_tokens,
@@ -988,6 +1007,7 @@ def _dispatch_and_validate_loop(
 
     retry_context: dict | None = None
     max_attempts = MAX_RETRIES + 1  # initial + retries
+    base_commit = _get_latest_commit_hash()  # snapshot before any dispatch
 
     for attempt in range(1, max_attempts + 1):
         logger.info(
@@ -1027,7 +1047,10 @@ def _dispatch_and_validate_loop(
         # Determine fallback model
         fallback_model = FALLBACK_MODELS.get(model, model)
 
-        # Dispatch the implementation agent
+        # Dispatch the implementation agent (with conversation transcript)
+        story_dir = epic_dir / "stories" / story_id
+        story_dir.mkdir(parents=True, exist_ok=True)
+        conv_log = story_dir / f"dispatch-{attempt}.jsonl"
         agent_result = dispatch_with_fallback(
             prompt=prompt,
             primary_model=model,
@@ -1036,6 +1059,7 @@ def _dispatch_and_validate_loop(
             max_turns=max_turns,
             max_budget_usd=max_budget_usd,
             cwd=PROJECT_ROOT,
+            conversation_log=conv_log,
         )
 
         # Log agent result
@@ -1151,6 +1175,7 @@ def _dispatch_and_validate_loop(
                 attempt=attempt,
                 model=model,
                 config=config,
+                base_commit=base_commit,
             )
 
             if critique_passed:
