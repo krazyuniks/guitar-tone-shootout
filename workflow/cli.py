@@ -51,9 +51,15 @@ def _should_skip(artefact_path: Path, label: str) -> bool:
     """Prompt the user to skip a step if its output artefact already exists.
 
     Returns True if the user wants to skip, False to re-run.
+    In non-interactive mode, auto-skips (returns True) when the artefact exists.
     """
     if not artefact_path.exists():
         return False
+
+    import sys as _sys
+
+    if not _sys.stdin.isatty():
+        return True
 
     skip = typer.confirm(
         f"{label} already exists at {artefact_path.name}. Skip?",
