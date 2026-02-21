@@ -100,8 +100,8 @@ def generate_compose_override(worktree: Worktree, output_path: Path) -> None:
                 "ports": [f"127.0.0.1:{ports.redis}:6379"],
                 "volumes": [f"{volumes.redis}:/data"],
             },
-            "video": {
-                "container_name": f"{worktree.compose_project}-video",
+            "video-worker": {
+                "container_name": f"{worktree.compose_project}-video-worker",
                 "ports": [f"127.0.0.1:{ports.video}:8002"],
             },
         },

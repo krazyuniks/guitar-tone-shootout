@@ -278,6 +278,10 @@ services:
     volumes:
       - ./libs:/app/libs:ro
       - ./apps/worker:/app/apps/worker
+      - ./apps/t3k_sync:/app/apps/t3k_sync:ro
+      - ./apps/audio_worker:/app/apps/audio_worker:ro
+      - ./apps/video_worker:/app/apps/video_worker:ro
+      - ./apps/webapp:/app/apps/webapp:ro
       - ./sources:/app/sources:ro
       # Shared storage bind mount
       - ../gts-storage:/app/storage
@@ -287,11 +291,48 @@ services:
       - GTS_AUTH_FILE=/worktrees/.gts-auth.json
       - GTS_STORAGE_ROOT=/app/storage
 
-  scheduler:
-    container_name: {worktree.compose_project}-scheduler
+  t3k-sync:
+    container_name: {worktree.compose_project}-t3k-sync
     volumes:
       - ./libs:/app/libs:ro
-      - ./apps/scheduler:/app/apps/scheduler
+      - ./apps/t3k_sync:/app/apps/t3k_sync
+      - ./apps/worker:/app/apps/worker:ro
+      - ./apps/webapp:/app/apps/webapp:ro
+      - ./sources:/app/sources:ro
+      # Shared storage bind mount
+      - ../gts-storage:/app/storage
+      # Parent dir for shared auth file (.gts-auth.json)
+      - ../:/worktrees
+    environment:
+      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
+      - GTS_STORAGE_ROOT=/app/storage
+
+  audio-worker:
+    container_name: {worktree.compose_project}-audio-worker
+    volumes:
+      - ./libs:/app/libs:ro
+      - ./apps/audio_worker:/app/apps/audio_worker
+      - ./apps/worker:/app/apps/worker:ro
+      # Shared storage bind mount
+      - ../gts-storage:/app/storage
+    environment:
+      - GTS_STORAGE_ROOT=/app/storage
+
+  video-worker:
+    container_name: {worktree.compose_project}-video-worker
+    ports:
+      - "127.0.0.1:{ports.video}:8002"
+    volumes:
+      - ./libs/core:/app/libs/core:ro
+      - ./libs/video:/app/libs/video
+      - ./apps/video_worker:/app/apps/video_worker
+      - ./apps/webapp:/app/apps/webapp:ro
+      - ./apps/worker:/app/apps/worker:ro
+      - ./sources:/app/sources:ro
+      # Shared storage bind mount
+      - ../gts-storage:/app/storage
+    environment:
+      - GTS_STORAGE_ROOT=/app/storage
 
   db:
     container_name: {worktree.compose_project}-db

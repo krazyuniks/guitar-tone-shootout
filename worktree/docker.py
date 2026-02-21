@@ -106,15 +106,16 @@ def start_services(worktree_path: Path, detach: bool = True, cleanup: bool = Tru
         cleanup: Run cleanup before starting (default True for idempotency)
 
     Note:
-        Main worktree includes background job services (worker, scheduler)
-        via --profile jobs. Feature branches don't need them.
+        Main worktree includes background job services (worker, t3k-sync,
+        audio-worker, video-worker) via --profile jobs. Feature branches
+        don't need them.
     """
     if cleanup:
         cleanup_containers(worktree_path)
 
     args = []
 
-    # Main worktree runs background jobs (worker, scheduler)
+    # Main worktree runs background jobs (worker, t3k-sync, audio-worker, video-worker)
     # Feature branches don't need them - they use data synced from main
     main_path = get_main_worktree_path()
     if worktree_path.resolve() == main_path.resolve():
@@ -260,10 +261,10 @@ def is_healthy(worktree_path: Path) -> bool:
     # Astro runs as a chokidar file watcher (auto-rebuilds on source changes)
     expected_services = {"nginx", "webapp", "db", "astro"}
 
-    # Worker, scheduler, Redis, and video only run on main worktree (via --profile jobs)
+    # Worker, t3k-sync, audio-worker, video-worker, and Redis only run on main worktree (via --profile jobs)
     main_path = get_main_worktree_path()
     if worktree_path.resolve() == main_path.resolve():
-        expected_services.update({"worker", "scheduler", "redis", "video"})
+        expected_services.update({"worker", "t3k-sync", "audio-worker", "video-worker", "redis"})
 
     for service in expected_services:
         if service not in status:
@@ -582,10 +583,10 @@ def collect_container_logs(
         # Core services for feature worktrees (astro is the chokidar file watcher)
         services = ["nginx", "webapp", "db", "astro"]
 
-        # Main worktree includes jobs profile services (redis, worker, scheduler, video)
+        # Main worktree includes jobs profile services (redis, worker, t3k-sync, audio-worker, video-worker)
         main_path = get_main_worktree_path()
         if worktree_path.resolve() == main_path.resolve():
-            services.extend(["redis", "worker", "scheduler", "video"])
+            services.extend(["redis", "worker", "t3k-sync", "audio-worker", "video-worker"])
 
     logs = {}
     for service in services:
@@ -867,8 +868,9 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
             "webapp",
             "nginx",
             "worker",
-            "scheduler",
-            "video",  # Runtime services
+            "t3k-sync",
+            "audio-worker",
+            "video-worker",  # Runtime services
             "astro",
             "cloudbeaver",  # Build-only and tool services
         }
