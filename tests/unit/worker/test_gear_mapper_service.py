@@ -17,13 +17,13 @@ from sqlalchemy.orm import joinedload
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.domain.value_objects.download_status import DownloadStatus
 from core.records.gear_sync import GearSyncRecord, SyncOperation
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
 from worker.services.gear_mapper import (
     GearMapperService,
-    ModelFileNotReadyError,
     ParentGearNotReadyError,
 )
 
@@ -506,14 +506,14 @@ class TestAggregateSyncRecord:
         assert model.download_status == DownloadStatus.COMPLETED
         assert model.file_path is not None
 
-    async def test_process_sync_record_raises_retryable_error_when_model_file_missing(
+    async def test_process_sync_record_creates_pending_model_when_file_missing(
         self,
         mapper: GearMapperService,
         session: AsyncSession,
         tmp_path,
         monkeypatch,
     ) -> None:
-        """Missing model files should fail atomically and be retried by consumer."""
+        """Missing model files create models with PENDING status (no error)."""
         suffix = _unique_id()
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
 
@@ -540,28 +540,24 @@ class TestAggregateSyncRecord:
             },
         )
 
-        with pytest.raises(ModelFileNotReadyError, match="Model file not ready"):
-            await mapper.process_sync_record(record)
+        await mapper.process_sync_record(record)
 
-        # Consumer rolls back on retryable errors; emulate that to verify
-        # aggregate creation is atomic and idempotent.
-        await session.rollback()
-
-        gear_count = (
-            (
-                await session.execute(
-                    select(Gear).where(Gear.slug == f"aggregate-pack-missing-{suffix}")
-                )
+        result = await session.execute(
+            select(GearModel).where(
+                GearModel.gear_id
+                == (
+                    select(Gear.id).where(Gear.slug == f"aggregate-pack-missing-{suffix}")
+                ).scalar_subquery()
             )
-            .scalars()
-            .all()
         )
-        assert len(gear_count) == 0
+        model = result.scalar_one()
+        assert model.download_status == DownloadStatus.PENDING
+        assert model.file_path is None
 
-    async def test_process_sync_record_rolls_back_bundle_when_one_file_missing(
+    async def test_process_sync_record_mixed_bundle_one_file_missing(
         self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
     ) -> None:
-        """A mixed bundle retries as a unit; no partial models should persist."""
+        """Mixed bundle: available file is COMPLETED, missing file stays PENDING."""
         suffix = _unique_id()
         model_ok_id = f"model-ok-{suffix}"
 
@@ -601,14 +597,21 @@ class TestAggregateSyncRecord:
             },
         )
 
-        with pytest.raises(ModelFileNotReadyError, match="Model file not ready"):
-            await mapper.process_sync_record(record)
+        await mapper.process_sync_record(record)
 
-        await session.rollback()
-
-        gear_count = (
-            (await session.execute(select(Gear).where(Gear.slug == f"mixed-bundle-pack-{suffix}")))
-            .scalars()
-            .all()
+        result = await session.execute(
+            select(GearModel)
+            .where(
+                GearModel.gear_id
+                == (
+                    select(Gear.id).where(Gear.slug == f"mixed-bundle-pack-{suffix}")
+                ).scalar_subquery()
+            )
+            .order_by(GearModel.download_status)
         )
-        assert len(gear_count) == 0
+        models = result.scalars().all()
+        assert len(models) == 2
+
+        statuses = {m.download_status for m in models}
+        assert DownloadStatus.COMPLETED in statuses
+        assert DownloadStatus.PENDING in statuses

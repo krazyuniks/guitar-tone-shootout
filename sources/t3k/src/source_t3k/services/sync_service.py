@@ -288,12 +288,20 @@ class T3KSyncService:
     # ── Publishing ─────────────────────────────────────────────────────────
 
     async def _publish_tone(self, publisher: GearSyncPublisher, tone_id: int) -> None:
-        """Publish a tone + models to pgmq. Errors are logged, not raised."""
+        """Publish a tone + models to pgmq when the full package is ready.
+
+        Only publishes when all staged models have their files downloaded
+        (file_synced_at IS NOT NULL). Incomplete packages are skipped silently
+        and will be published on a future backfill pass once files arrive.
+        """
         try:
             staging_tone = await self._get_existing_tone(tone_id)
             staged_models = await self._get_staged_models(tone_id)
-            if staging_tone is not None and staged_models:
-                await publisher.publish_tone(staging_tone, models=staged_models)
+            if staging_tone is None or not staged_models:
+                return
+            if not all(m.file_synced_at is not None for m in staged_models):
+                return
+            await publisher.publish_tone(staging_tone, models=staged_models)
         except Exception as e:
             logger.warning("Failed to publish tone %d: %s", tone_id, e)
 

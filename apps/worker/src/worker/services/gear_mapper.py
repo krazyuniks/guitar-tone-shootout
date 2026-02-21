@@ -34,10 +34,6 @@ class ParentGearNotReadyError(RetryableGearSyncError):
     """Model record arrived before its parent gear is present."""
 
 
-class ModelFileNotReadyError(RetryableGearSyncError):
-    """Model file not yet available on disk for migration."""
-
-
 class GearMapperService:
     """Maps GearSyncRecords to Gear/GearModel entities in gts_core."""
 
@@ -286,15 +282,12 @@ class GearMapperService:
                 model.file_path = file_path
                 model.download_status = DownloadStatus.COMPLETED
             else:
-                logger.debug(
-                    "Model file not ready: source=%s source_record_id=%s filename=%s",
+                logger.error(
+                    "Model file missing despite publisher gate: "
+                    "source=%s source_record_id=%s filename=%s",
                     record.source_name,
                     record.source_record_id,
                     filename,
-                )
-                raise ModelFileNotReadyError(
-                    f"Model file not ready for source={record.source_name} "
-                    f"source_record_id={record.source_record_id} filename={filename}"
                 )
 
     async def _update_model(self, model: GearModel, record: GearSyncRecord) -> None:
