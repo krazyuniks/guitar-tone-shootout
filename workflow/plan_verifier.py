@@ -495,7 +495,7 @@ def verify_plan(
     result = dispatch_agent(
         prompt=prompt,
         model=critic_model,
-        tools=[],
+        tools=get_tools_for_role("critique"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
