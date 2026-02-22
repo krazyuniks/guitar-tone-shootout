@@ -481,12 +481,10 @@ def dispatch_agent(
     prompt_tokens = estimate_tokens(prompt)
 
     logger.info(
-        "Dispatching agent: model=%s, tools=%s, max_turns=%d, "
-        "json_schema=%s, prompt_hash=%s, prompt_tokens=%d",
+        "Dispatching agent: model=%s, tools=%s, max_turns=%d, prompt_hash=%s, prompt_tokens=%d",
         model,
         tools,
         max_turns,
-        bool(json_schema),
         prompt_hash,
         prompt_tokens,
     )
