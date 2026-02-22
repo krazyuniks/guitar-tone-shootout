@@ -38,38 +38,20 @@ class TestWorkerDbModule:
 class TestAsyncSessionFactory:
     """Test async_session_factory creates valid session factories."""
 
-    async def test_creates_sessionmaker_from_database_url(self) -> None:
-        """async_session_factory returns async_sessionmaker."""
+    async def test_creates_sessionmaker_from_engine(self, core_engine: AsyncEngine) -> None:
+        """async_session_factory returns async_sessionmaker when engine is registered."""
         from worker.db import async_session_factory
 
-        factory = async_session_factory("sqlite+aiosqlite:///:memory:")
+        factory = async_session_factory(str(core_engine.url))
 
         assert factory is not None
         assert isinstance(factory, async_sessionmaker)
 
-    async def test_factory_creates_async_sessions(self) -> None:
+    async def test_factory_creates_async_sessions(self, core_engine: AsyncEngine) -> None:
         """Session factory creates AsyncSession instances."""
         from worker.db import async_session_factory
 
-        factory = async_session_factory("sqlite+aiosqlite:///:memory:")
-        session = factory()
-
-        assert isinstance(session, AsyncSession)
-        await session.close()
-
-    async def test_uses_database_url_from_worker_settings(self) -> None:
-        """async_session_factory uses DATABASE_URL from WorkerSettings."""
-        from worker.config import WorkerSettings
-        from worker.db import async_session_factory
-
-        # Create a settings instance with explicit database_url
-        settings = WorkerSettings(
-            redis_url="redis://localhost:6379",
-            database_url="sqlite+aiosqlite:///:memory:",
-            t3k_database_url="postgresql+asyncpg://user:pass@localhost/t3k",
-        )
-
-        factory = async_session_factory(settings.database_url)
+        factory = async_session_factory(str(core_engine.url))
         session = factory()
 
         assert isinstance(session, AsyncSession)
@@ -81,47 +63,41 @@ class TestAsyncSessionFactory:
 class TestGetSession:
     """Test get_session context manager."""
 
-    async def test_is_async_context_manager(self) -> None:
+    async def test_is_async_context_manager(self, core_engine: AsyncEngine) -> None:
         """get_session is an async context manager."""
         from worker.db import get_session
 
-        # Check that get_session returns something with __aenter__/__aexit__
-        cm = get_session("sqlite+aiosqlite:///:memory:")
+        cm = get_session(core_engine)
         assert hasattr(cm, "__aenter__")
         assert hasattr(cm, "__aexit__")
 
-    async def test_yields_async_session(self) -> None:
+    async def test_yields_async_session(self, core_engine: AsyncEngine) -> None:
         """get_session yields an AsyncSession."""
         from worker.db import get_session
 
-        async with get_session("sqlite+aiosqlite:///:memory:") as session:
+        async with get_session(core_engine) as session:
             assert isinstance(session, AsyncSession)
 
     async def test_session_can_execute_queries(self, core_engine: AsyncEngine) -> None:
         """Session from get_session can execute queries."""
         from worker.db import get_session
 
-        # Create a database URL from the test engine
-        database_url = str(core_engine.url)
-
-        async with get_session(database_url) as session:
+        async with get_session(core_engine) as session:
             result = await session.execute(text("SELECT 1 as value"))
             row = result.fetchone()
             assert row is not None
             assert row[0] == 1
 
-    async def test_session_auto_closes_on_exit(self) -> None:
+    async def test_session_auto_closes_on_exit(self, core_engine: AsyncEngine) -> None:
         """Session closes automatically when exiting context."""
         from worker.db import get_session
 
         session_ref = None
-        async with get_session("sqlite+aiosqlite:///:memory:") as session:
+        async with get_session(core_engine) as session:
             session_ref = session
             assert not session.is_active or session.in_transaction()
 
-        # After exiting context, session should be closed
         assert session_ref is not None
-        # Verify session is no longer in an active transaction
         assert not session_ref.in_transaction()
 
 
@@ -135,7 +111,6 @@ class TestDatabaseConnectivity:
         from worker.db import get_session
 
         async with get_session(core_engine) as session:
-            # Query jobs table (should be empty in fresh test DB)
             result = await session.execute(text("SELECT count(*) FROM jobs"))
             count = result.scalar()
             assert count == 0
@@ -146,7 +121,6 @@ class TestDatabaseConnectivity:
         from worker.db import get_session
 
         async with get_session(core_engine) as session:
-            # Query jobs using ORM
             stmt = select(Job)
             result = await session.execute(stmt)
             jobs = result.scalars().all()
@@ -156,12 +130,9 @@ class TestDatabaseConnectivity:
         """Session factory uses asyncpg driver for PostgreSQL URLs."""
         from worker.db import async_session_factory
 
-        # PostgreSQL URL MUST use asyncpg driver
         pg_url = "postgresql+asyncpg://user:pass@localhost/gts_core"
         factory = async_session_factory(pg_url)
 
-        # Verify the engine uses asyncpg
-        # The driver is embedded in the URL, so we check the factory's bind
         session = factory()
         engine = session.get_bind()
         assert "asyncpg" in str(engine.url)
@@ -172,7 +143,6 @@ class TestDatabaseConnectivity:
         from worker.config import WorkerSettings
         from worker.db import async_session_factory
 
-        # WorkerSettings.database_url should point to gts_core
         settings = WorkerSettings(
             redis_url="redis://localhost:6379",
             database_url="postgresql+asyncpg://user:pass@db/gts_core",
@@ -182,7 +152,6 @@ class TestDatabaseConnectivity:
         factory = async_session_factory(settings.database_url)
         session = factory()
 
-        # Verify the database URL references gts_core
         engine = session.get_bind()
         assert "gts_core" in str(engine.url)
         await session.close()

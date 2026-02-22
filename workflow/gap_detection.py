@@ -1,9 +1,11 @@
-"""Stage 2b gap detection — interactive scope refinement.
+"""Stage 2b gap detection — scope refinement with locked decisions.
 
-Identifies implementation gaps between the enriched epic and the current
-architecture/codebase, then resolves them through interactive Q&A with
-the user. Produces user-decisions.json — the locked-down scope artifact
-consumed by the planner.
+The agent autonomously resolves most gaps by reading the codebase. Only
+genuine architectural decisions — where multiple valid approaches exist and
+the user's preference matters — are escalated as interactive questions.
+
+Produces user-decisions.json: locked decisions (agent-resolved) + user
+answers (escalated). This is the scope contract consumed by the planner.
 
 Reference: wiki/Epic-Workflow.md, Stage 2b Gap Detection.
 """
@@ -46,28 +48,41 @@ class GapDetectionError(Exception):
 # ---------------------------------------------------------------------------
 
 
-class Gap(BaseModel):
-    """A single identified gap between epic requirements and codebase."""
+class LockedDecision(BaseModel):
+    """A gap the agent resolved autonomously by reading the codebase."""
 
-    id: str = Field(description="Short unique identifier, e.g. 'gap-auth-1'")
-    gap_type: str = Field(
-        description="ambiguity | assumption | contradiction | missing | bc_ownership | cross_bc_flow"
-    )
-    area: str = Field(description="Architecture area: data_model, api, frontend, security, etc.")
-    description: str = Field(description="What the gap is")
-    question: str = Field(description="Question to resolve this gap")
+    id: str = Field(description="Short unique identifier, e.g. 'decision-imports-1'")
+    area: str = Field(description="Architecture area: data_model, api, infrastructure, etc.")
+    description: str = Field(description="What the gap was")
+    decision: str = Field(description="What the agent decided")
+    rationale: str = Field(description="Why — reference to codebase evidence")
+
+
+class EscalatedQuestion(BaseModel):
+    """A genuine architectural decision requiring user input."""
+
+    id: str = Field(description="Short unique identifier, e.g. 'question-bc-1'")
+    area: str = Field(description="Architecture area")
+    description: str = Field(description="What the gap is — 1-2 sentences")
+    question: str = Field(description="The specific question — 1 sentence")
     options: list[str] = Field(
-        default_factory=list, description="Multiple choice options (if applicable)"
+        min_length=2,
+        max_length=4,
+        description="2-4 concrete options, each 1 sentence max",
     )
-    recommendation: str = Field(
-        default="", description="Agent's recommended option (if applicable)"
+    recommendation: int = Field(
+        description="1-indexed option number the agent recommends",
+    )
+    reasoning: str = Field(
+        description="Why the agent recommends this option — 1-2 sentences",
     )
 
 
 class GapReport(BaseModel):
     """Full gap detection report from the agent."""
 
-    gaps: list[Gap] = Field(default_factory=list)
+    locked_decisions: list[LockedDecision] = Field(default_factory=list)
+    escalated_questions: list[EscalatedQuestion] = Field(default_factory=list)
     coverage_areas_checked: list[str] = Field(default_factory=list)
 
 
@@ -83,6 +98,7 @@ class UserDecisions(BaseModel):
     """Schema-validated output artifact for user-decisions.json."""
 
     epic_number: int
+    locked_decisions: list[LockedDecision] = Field(default_factory=list)
     answers: list[GapAnswer] = Field(default_factory=list)
     sufficiency_confirmed: bool = Field(default=False)
 
@@ -97,9 +113,9 @@ def _build_gap_detection_prompt(epic_md: str, context_md: str, guide: str) -> st
     return f"""\
 # Task: Gap Detection for Epic
 
-You are analysing an enriched epic and its assembled context to identify \
-implementation gaps. Read both documents carefully, then compare the epic \
-requirements against the architecture and codebase.
+You are a senior architect analysing an enriched epic against the codebase. \
+Your job is to produce a **locked decisions document** — resolving most gaps \
+yourself and escalating only genuine architectural decisions to the user.
 
 ## Gap Detection Guide
 
@@ -115,35 +131,79 @@ requirements against the architecture and codebase.
 
 ## Instructions
 
-1. Read the epic and context thoroughly.
-2. Identify gaps using the gap types from the guide (ambiguity, assumption, \
-contradiction, missing information, BC ownership, cross-BC flow).
-3. For each gap, derive a specific question that would resolve it.
-4. Where multiple valid approaches exist, provide 2-3 options with your \
-recommendation.
-5. Confirm which architecture areas you checked for coverage.
+**You are autonomous.** Resolve everything you can by reading the codebase.
 
-Output your analysis as JSON matching this schema:
+### Step 1: Identify all gaps
+
+Compare the epic requirements against the codebase and architecture. Find \
+ambiguities, assumptions, contradictions, missing information, BC ownership \
+questions, and cross-BC flow gaps.
+
+### Step 2: Auto-resolve mechanical and deterministic gaps
+
+For each gap, ask yourself:
+- Can I answer this by reading the codebase? → Auto-resolve.
+- Is this a mechanical consequence of the epic? → Auto-resolve.
+- Does the codebase have an established pattern? → Follow it, auto-resolve.
+- Is there only one reasonable answer? → Auto-resolve.
+
+Record each auto-resolved gap as a locked decision with your rationale.
+
+### Step 3: Escalate questions where the user's answer changes the plan
+
+The filter is **relevance**, not importance level. A question is worth \
+escalating — whether architectural or low-level — if:
+- You genuinely don't know the answer from reading the codebase, AND
+- A different answer from the user would lead to a different plan
+
+If there's really only one reasonable path, auto-resolve it. If the epic \
+already specifies the answer, auto-resolve it. But if the user's knowledge \
+or preference would change what gets built, escalate it.
+
+For each escalated question:
+- Write 2-4 options, each 1 sentence max
+- Pick a recommended option (by number, 1-indexed)
+- Give 1-2 sentences of reasoning for your recommendation
+
+### Anti-patterns (NEVER do these)
+
+- "Confirm X should happen?" — if the epic says X, auto-resolve it.
+- "Should we also update Y?" — mechanical consequence, auto-resolve.
+- Asking about every architecture area — only escalate genuine gaps.
+- Paragraph-length options — 1 sentence each, max.
+- Two questions in one — 1 question per gap, always.
+- Vague open-ended questions — propose concrete options.
+
+### Output format
+
+Think through your analysis step by step, then emit JSON inside a \
+```json code fence matching this schema:
 
 ```json
 {{
-  "gaps": [
+  "locked_decisions": [
     {{
-      "id": "gap-<area>-<n>",
-      "gap_type": "ambiguity|assumption|contradiction|missing|bc_ownership|cross_bc_flow",
+      "id": "decision-<area>-<n>",
       "area": "<architecture area>",
-      "description": "<what the gap is>",
-      "question": "<question to resolve it>",
-      "options": ["option 1", "option 2"],
-      "recommendation": "<recommended option>"
+      "description": "<what the gap was>",
+      "decision": "<what you decided>",
+      "rationale": "<why — reference codebase evidence>"
+    }}
+  ],
+  "escalated_questions": [
+    {{
+      "id": "question-<area>-<n>",
+      "area": "<architecture area>",
+      "description": "<what the gap is — 1-2 sentences>",
+      "question": "<the specific question — 1 sentence>",
+      "options": ["option 1", "option 2", "option 3"],
+      "recommendation": 1,
+      "reasoning": "<why you recommend this — 1-2 sentences>"
     }}
   ],
   "coverage_areas_checked": ["bounded_contexts", "data_model", "messaging", ...]
 }}
 ```
-
-Think through your analysis step by step, then emit the JSON inside a \
-```json code fence.
 """
 
 
@@ -152,8 +212,9 @@ def _build_critique_prompt(epic_md: str, context_md: str, gap_report_json: str) 
     return f"""\
 # Task: Critique Gap Detection Report
 
-You are reviewing a gap detection report for an epic. Your job is to find \
-problems with the analysis — not to agree with it.
+You are reviewing a gap detection report. Your primary job is to catch \
+**false escalations** — questions that should have been auto-resolved by the \
+agent instead of escalated to the user.
 
 ## Epic (EPIC.md)
 
@@ -169,19 +230,29 @@ problems with the analysis — not to agree with it.
 
 ## Instructions
 
-Review the gap report critically:
+Review critically. Focus on these failure modes, in priority order:
 
-1. **Missing gaps**: Are there gaps the first agent didn't catch? Check all \
-architecture areas: bounded contexts, data model, messaging, API contracts, \
-frontend, workers, testing, security, infrastructure.
-2. **Badly framed questions**: Are any questions too vague, leading, or \
-answerable from the existing context?
-3. **False gaps**: Are any "gaps" actually answered by the existing \
-architecture or codebase?
-4. **Coverage**: Were all architecture areas actually checked?
+1. **False escalations**: Is the agent asking the user about something it \
+could answer itself by reading the codebase? Mechanical consequences? \
+Confirm questions where the answer is obviously "yes"?
 
-Output your critique as plain text. Be specific about what's missing or wrong. \
-If the report is thorough, say so briefly.
+2. **Missing locked decisions**: Did the agent skip obvious gaps instead of \
+recording them as locked decisions? Every mechanical consequence should be \
+documented, not silently assumed.
+
+3. **Badly framed questions**: Are escalated questions vague, leading, or \
+answerable from the context? Do options exceed 1 sentence? Is the \
+recommendation missing or unjustified? Are there two questions in one?
+
+4. **Missing escalations**: Are there genuine questions — architectural or \
+low-level — that the agent missed? If a different answer from the user \
+would change the plan, it should be escalated.
+
+5. **Relevance check**: Does each escalated question pass the test: "Would \
+a different answer lead to a different plan?" If not, auto-resolve it.
+
+Output your critique as plain text. Be specific. If the report is good, \
+say so briefly.
 """
 
 
@@ -190,27 +261,40 @@ If the report is thorough, say so briefly.
 # ---------------------------------------------------------------------------
 
 
-def _ask_gap_questions(gaps: list[Gap]) -> list[GapAnswer]:
-    """Present gaps to the user one at a time, collect answers."""
+def _ask_escalated_questions(questions: list[EscalatedQuestion]) -> list[GapAnswer]:
+    """Present escalated questions to the user, collect answers."""
+    if not questions:
+        console.print("  [dim]No questions to escalate — all gaps auto-resolved.[/dim]")
+        return []
+
     answers: list[GapAnswer] = []
 
-    for i, gap in enumerate(gaps, 1):
+    for i, q in enumerate(questions, 1):
         console.print()
-        console.print(Rule(f"Question {i}/{len(gaps)}"))
-        console.print(f"[bold]Area:[/bold] {gap.area}")
-        console.print(f"[bold]Type:[/bold] {gap.gap_type}")
-        console.print(f"[bold]Gap:[/bold] {gap.description}")
+        console.print(Rule(f" Question {i}/{len(questions)} ", style="bold cyan"))
+        console.print()
+        console.print(f"  {q.description}")
         console.print()
 
-        if gap.options:
-            console.print("[bold]Options:[/bold]")
-            for j, option in enumerate(gap.options, 1):
-                rec = " [green](recommended)[/green]" if option == gap.recommendation else ""
-                console.print(f"  {j}. {option}{rec}")
-            console.print()
+        for j, option in enumerate(q.options, 1):
+            marker = " [green]← recommended[/green]" if j == q.recommendation else ""
+            console.print(f"  [bold]{j}.[/bold] {option}{marker}")
 
-        answer = typer.prompt(gap.question)
-        answers.append(GapAnswer(gap_id=gap.id, question=gap.question, answer=answer))
+        console.print()
+        console.print(f"  [dim]Reasoning: {q.reasoning}[/dim]")
+        console.print()
+
+        raw = typer.prompt(f"Select option (1-{len(q.options)}) or type a custom answer")
+
+        # Accept number or free text
+        answer: str
+        if raw.strip().isdigit():
+            idx = int(raw.strip())
+            answer = q.options[idx - 1] if 1 <= idx <= len(q.options) else raw
+        else:
+            answer = raw
+
+        answers.append(GapAnswer(gap_id=q.id, question=q.question, answer=answer))
 
     return answers
 
@@ -222,12 +306,10 @@ def _ask_gap_questions(gaps: list[Gap]) -> list[GapAnswer]:
 
 def _parse_json_from_response(text: str) -> dict:
     """Extract JSON from a fenced code block or raw JSON response."""
-    # Try extracting from ```json ... ``` fence
     if "```json" in text:
         start = text.index("```json") + len("```json")
         end = text.index("```", start)
         return json.loads(text[start:end])
-    # Try raw JSON parse
     return json.loads(text)
 
 
@@ -238,12 +320,11 @@ def run_gap_detection(
 ) -> Path:
     """Run the full Stage 2b gap detection flow.
 
-    1. Dispatch gap detection agent
-    2. Dispatch critique agent
-    3. Display exchange to user
-    4. Interactive Q&A
-    5. Sufficiency confirmation
-    6. Write user-decisions.json
+    1. Dispatch gap detection agent (auto-resolves + escalates)
+    2. Dispatch critique agent (catches false escalations)
+    3. Show locked decisions + critique to user
+    4. Interactive Q&A for escalated questions only
+    5. Write user-decisions.json (locked + answered)
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -276,12 +357,10 @@ def run_gap_detection(
     epic_md = epic_md_path.read_text(encoding="utf-8")
     context_md = context_md_path.read_text(encoding="utf-8")
 
-    # Read gap detection guide
     if not GAP_DETECTION_GUIDE.exists():
         raise GapDetectionError(f"Gap detection guide not found at {GAP_DETECTION_GUIDE}")
     guide = GAP_DETECTION_GUIDE.read_text(encoding="utf-8")
 
-    # Extract epic number from directory name
     epic_number = int(epic_dir.name.lstrip("E"))
 
     # Resolve models from config
@@ -299,7 +378,7 @@ def run_gap_detection(
         max_budget_usd = float(gap_budget["max_budget_usd"])
 
     # --- Step 1: Gap Detection Agent ---
-    console.print("[bold]Step 2b.1:[/bold] Detecting gaps...")
+    console.print("[bold]Step 2b.1:[/bold] Analysing gaps...")
     event_logger.log_event("gap_detection_started", epic=epic_number, model=gap_model)
 
     gap_prompt = _build_gap_detection_prompt(epic_md, context_md, guide)
@@ -321,8 +400,11 @@ def run_gap_detection(
     except (json.JSONDecodeError, ValueError) as exc:
         raise GapDetectionError(f"Gap detection agent returned unparseable output: {exc}") from exc
 
+    n_locked = len(gap_report.locked_decisions)
+    n_escalated = len(gap_report.escalated_questions)
     console.print(
-        f"  Found [bold]{len(gap_report.gaps)}[/bold] gaps across {len(gap_report.coverage_areas_checked)} areas"
+        f"  Agent resolved [bold]{n_locked}[/bold] gaps autonomously, "
+        f"escalating [bold]{n_escalated}[/bold] for your input"
     )
 
     # --- Step 2: Critique Agent ---
@@ -356,32 +438,48 @@ def run_gap_detection(
         "gap_critique_complete",
         epic=epic_number,
         critique_model=critique_model,
-        findings_count=len(gap_report.gaps),
+        locked_count=n_locked,
+        escalated_count=n_escalated,
     )
 
-    # --- Step 3: Display exchange to user ---
+    # --- Step 3: Display locked decisions + critique ---
+    if gap_report.locked_decisions:
+        console.print()
+        lines = []
+        for d in gap_report.locked_decisions:
+            lines.append(f"[bold]{d.id}[/bold] ({d.area})")
+            lines.append(f"  {d.decision}")
+            lines.append(f"  [dim]{d.rationale}[/dim]")
+            lines.append("")
+        console.print(
+            Panel(
+                "\n".join(lines).rstrip(),
+                title="Locked Decisions (auto-resolved)",
+                border_style="green",
+            )
+        )
+
     console.print()
     console.print(Panel(critique_result.output, title="Critique", border_style="yellow"))
     console.print()
 
-    # Let user review the exchange and add feedback
     user_feedback = typer.prompt(
-        "Review the gaps and critique above. Press Enter to proceed to Q&A, or type feedback",
+        "Press Enter to proceed to questions, or type feedback",
         default="",
     )
     if user_feedback:
         logger.info("User feedback on gap report: %s", user_feedback)
 
-    # --- Step 4: Interactive Q&A ---
+    # --- Step 4: Interactive Q&A (escalated questions only) ---
     console.print()
-    console.print("[bold]Step 2b.3:[/bold] Interactive Q&A")
+    console.print("[bold]Step 2b.3:[/bold] Architectural decisions")
     event_logger.log_event(
         "gap_questions_presented",
         epic=epic_number,
-        question_count=len(gap_report.gaps),
+        question_count=n_escalated,
     )
 
-    answers = _ask_gap_questions(gap_report.gaps)
+    answers = _ask_escalated_questions(gap_report.escalated_questions)
 
     for answer in answers:
         event_logger.log_event(
@@ -405,6 +503,7 @@ def run_gap_detection(
     # --- Step 6: Write user-decisions.json ---
     decisions = UserDecisions(
         epic_number=epic_number,
+        locked_decisions=gap_report.locked_decisions,
         answers=answers,
         sufficiency_confirmed=sufficiency,
     )
@@ -415,6 +514,7 @@ def run_gap_detection(
     event_logger.log_event(
         "gap_detection_complete",
         epic=epic_number,
+        locked_count=n_locked,
         decisions_count=len(answers),
         sufficiency=sufficiency,
     )

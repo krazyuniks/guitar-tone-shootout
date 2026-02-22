@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
 # Module-level engine cache for sharing database connections
-# This is particularly important for SQLite :memory: databases in tests
 _engine_cache: dict[str, AsyncEngine] = {}
 
 
@@ -42,64 +41,28 @@ def async_session_factory(database_url: str) -> async_sessionmaker[AsyncSession]
     """Create an async session factory for the database.
 
     Args:
-        database_url: Database connection string (PostgreSQL with asyncpg or SQLite)
+        database_url: PostgreSQL connection string (asyncpg driver).
 
     Returns:
-        Session factory that creates AsyncSession instances
+        Session factory that creates AsyncSession instances.
 
     Note:
-        Engines are cached by URL to allow sharing connections, particularly
-        important for SQLite :memory: databases in tests. For SQLite :memory:
-        databases, shared cache mode is automatically enabled to allow multiple
-        connections to access the same database.
+        Engines are cached by URL to allow sharing connections. Tests can
+        pre-register engines using register_engine().
     """
-    # Check if we already have an engine for this URL BEFORE transformation
-    # This is critical for tests that register engines under specific URLs
     if database_url in _engine_cache:
         engine = _engine_cache[database_url]
-        return async_sessionmaker(
-            engine,
-            class_=AsyncSession,
-            expire_on_commit=False,
-        )
-
-    # For SQLite :memory: databases, convert to shared cache mode
-    # This allows multiple engine instances to share the same in-memory database
-    original_url = database_url
-    if (
-        "sqlite" in database_url
-        and ":memory:" in database_url
-        and "cache=shared" not in database_url
-    ):
-        # Replace :memory: with file::memory:?cache=shared&uri=true
-        database_url = database_url.replace(":memory:", "file::memory:?cache=shared&uri=true")
-
-    # Check if we already have an engine for the transformed URL
-    if database_url not in _engine_cache:
-        # SQLite doesn't support pool_size/max_overflow
-        if "sqlite" in database_url:
-            engine = create_async_engine(
-                database_url,
-                echo=False,
-            )
-        else:
-            # PostgreSQL with connection pooling
-            engine = create_async_engine(
-                database_url,
-                echo=False,
-                pool_pre_ping=True,
-                pool_size=10,
-                max_overflow=20,
-                pool_timeout=30,
-                pool_recycle=1800,
-            )
-        _engine_cache[database_url] = engine
-
-        # Also register under original URL if it was transformed
-        if original_url != database_url:
-            _engine_cache[original_url] = engine
     else:
-        engine = _engine_cache[database_url]
+        engine = create_async_engine(
+            database_url,
+            echo=False,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            pool_recycle=1800,
+        )
+        _engine_cache[database_url] = engine
 
     return async_sessionmaker(
         engine,
@@ -113,8 +76,7 @@ async def get_session(database_url: str | AsyncEngine) -> AsyncGenerator[AsyncSe
     """Get an async database session context manager.
 
     Args:
-        database_url: Database connection string (PostgreSQL with asyncpg or SQLite)
-                     or an AsyncEngine instance for testing
+        database_url: PostgreSQL connection string or an AsyncEngine instance for testing
 
     Yields:
         AsyncSession: Database session with an active transaction
