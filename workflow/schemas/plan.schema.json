@@ -246,14 +246,9 @@
           "type": "integer",
           "minimum": 1,
           "description": "Maximum conversation turns for the agent."
-        },
-        "max_budget_usd": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "description": "Maximum spend in USD for this agent invocation."
         }
       },
-      "required": ["model", "skills", "tools", "max_turns", "max_budget_usd"],
+      "required": ["model", "skills", "tools", "max_turns"],
       "additionalProperties": false
     },
     "scope": {

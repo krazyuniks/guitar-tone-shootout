@@ -24,10 +24,8 @@ import sys
 from pathlib import Path
 
 from workflow.dispatch import (
-    BUDGET_DEFAULTS,
-    FALLBACK_MODELS,
+    TURN_DEFAULTS,
     dispatch_agent,
-    dispatch_with_fallback,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
@@ -439,20 +437,15 @@ def verify_plan(
 
     # Dispatch via critic model (Phase B cross-model critique)
     if config and "critique_plan" in config.budgets:
-        budget = config.budgets["critique_plan"]
-        max_turns = budget.max_turns
-        max_budget_usd = budget.max_budget_usd
+        max_turns = config.budgets["critique_plan"].max_turns
     else:
-        critique_defaults = BUDGET_DEFAULTS["critique_plan"]
-        max_turns = int(critique_defaults["max_turns"])
-        max_budget_usd = float(critique_defaults["max_budget_usd"])
+        max_turns = TURN_DEFAULTS["critique_plan"]
 
     result = dispatch_agent(
         prompt=prompt,
         model=critic_model,
         tools=[],
         max_turns=max_turns,
-        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
     )
@@ -467,10 +460,9 @@ def verify_plan(
     verifier_result = _parse_verifier_result(result.output)
 
     logger.info(
-        "Plan verifier result: model=%s, status=%s, cost=$%s",
+        "Plan verifier result: model=%s, status=%s",
         critic_model,
         verifier_result.get("status", "unknown"),
-        result.cost_usd or "unknown",
     )
 
     return verifier_result
@@ -650,16 +642,12 @@ def _regenerate_plan_with_errors(
     # Build revision prompt with errors
     revision_prompt = build_revision_prompt(original_prompt, validation_errors)
 
-    # Resolve model and budget from config or defaults
+    # Resolve model and turns from config or defaults
     planner_model = config.models.planner if config else "opus"
     if config and "planning" in config.budgets:
-        budget = config.budgets["planning"]
-        max_turns = budget.max_turns
-        max_budget_usd = budget.max_budget_usd
+        max_turns = config.budgets["planning"].max_turns
     else:
-        planning_budget = BUDGET_DEFAULTS["planning"]
-        max_turns = int(planning_budget["max_turns"])
-        max_budget_usd = float(planning_budget["max_budget_usd"])
+        max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
         "Dispatching %s planner revision (Phase A errors, %d chars)",
@@ -667,13 +655,11 @@ def _regenerate_plan_with_errors(
         len(revision_prompt),
     )
 
-    result = dispatch_with_fallback(
+    result = dispatch_agent(
         prompt=revision_prompt,
-        primary_model=planner_model,
-        fallback_model=FALLBACK_MODELS.get(planner_model, planner_model),
+        model=planner_model,
         tools=[],
         max_turns=max_turns,
-        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
         no_mcp=True,
@@ -719,16 +705,12 @@ def _regenerate_plan_with_verifier_feedback(
     # Build revision prompt with verifier feedback
     revision_prompt = build_verifier_revision_prompt(original_prompt, verifier_result)
 
-    # Resolve model and budget from config or defaults
+    # Resolve model and turns from config or defaults
     planner_model = config.models.planner if config else "opus"
     if config and "planning" in config.budgets:
-        budget = config.budgets["planning"]
-        max_turns = budget.max_turns
-        max_budget_usd = budget.max_budget_usd
+        max_turns = config.budgets["planning"].max_turns
     else:
-        planning_budget = BUDGET_DEFAULTS["planning"]
-        max_turns = int(planning_budget["max_turns"])
-        max_budget_usd = float(planning_budget["max_budget_usd"])
+        max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
         "Dispatching %s planner revision (verifier feedback, %d chars)",
@@ -736,13 +718,11 @@ def _regenerate_plan_with_verifier_feedback(
         len(revision_prompt),
     )
 
-    result = dispatch_with_fallback(
+    result = dispatch_agent(
         prompt=revision_prompt,
-        primary_model=planner_model,
-        fallback_model=FALLBACK_MODELS.get(planner_model, planner_model),
+        model=planner_model,
         tools=[],
         max_turns=max_turns,
-        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
         no_mcp=True,

@@ -35,10 +35,10 @@
           "description": "Fields: epic, attempt, tier, model, prompt_hash, prompt_tokens"
         },
         "planner_complete": {
-          "description": "Fields: epic, attempt, turns, cost_usd, response_path"
+          "description": "Fields: epic, attempt, turns, response_path"
         },
         "planner_failed": {
-          "description": "Fields: epic, attempt, error, turns, cost_usd, response_path"
+          "description": "Fields: epic, attempt, error, turns, response_path"
         },
         "phase_a_pass": {
           "description": "Fields: epic, attempt"
@@ -59,10 +59,10 @@
           "description": "Fields: epic, attempt, model, adapter, prompt_hash, prompt_tokens. Phase C cross-model (Codex) plan verification."
         },
         "phase_c_pass": {
-          "description": "Fields: epic, attempt, cost_usd, turns"
+          "description": "Fields: epic, attempt, turns"
         },
         "phase_c_fail": {
-          "description": "Fields: epic, attempt, cost_usd, turns, findings[]"
+          "description": "Fields: epic, attempt, turns, findings[]"
         },
         "plan_approved": {
           "description": "Fields: epic"
@@ -98,10 +98,10 @@
           "description": "Level: story. Fields: story_id, attempt, tier, model, adapter, prompt_hash, prompt_tokens"
         },
         "agent_complete": {
-          "description": "Level: story. Fields: story_id, attempt, commit, turns, cost_usd, response_path"
+          "description": "Level: story. Fields: story_id, attempt, commit, turns, response_path"
         },
         "agent_failed": {
-          "description": "Level: story. Fields: story_id, attempt, error, turns, cost_usd, response_path"
+          "description": "Level: story. Fields: story_id, attempt, error, turns, response_path"
         },
         "validation_pass": {
           "description": "Level: story. Fields: story_id, check_type, results[]"
@@ -113,10 +113,10 @@
           "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, target_model, adapter, role, prompt_hash, prompt_tokens"
         },
         "critique_pass": {
-          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, cost_usd, turns, findings_count"
+          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, turns, findings_count"
         },
         "critique_fail": {
-          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, cost_usd, turns, findings_count, findings[]"
+          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, turns, findings_count, findings[]"
         },
         "critique_failed": {
           "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, error. Logged when critique dispatch fails (infra issue)."
@@ -125,10 +125,10 @@
           "description": "Level: epic. Fields: critique_type, critique_model, adapter, role, prompt_hash, prompt_tokens"
         },
         "epic_critique_pass": {
-          "description": "Level: epic. Fields: critique_type, critique_model, cost_usd, turns, findings_count"
+          "description": "Level: epic. Fields: critique_type, critique_model, turns, findings_count"
         },
         "epic_critique_fail": {
-          "description": "Level: epic. Fields: critique_type, critique_model, cost_usd, turns, findings_count, findings[]"
+          "description": "Level: epic. Fields: critique_type, critique_model, turns, findings_count, findings[]"
         },
         "story_complete": {
           "description": "Level: story. Fields: story_id, attempt, commit"
@@ -143,7 +143,7 @@
           "description": "Level: epic. Fields: epic, comment_url"
         },
         "epic_complete": {
-          "description": "Level: epic. Fields: epic, stories_completed, total_cost_usd"
+          "description": "Level: epic. Fields: epic, stories_completed"
         },
         "epic_failed": {
           "description": "Level: epic. Fields: epic, reason, stories_completed, stories_failed"

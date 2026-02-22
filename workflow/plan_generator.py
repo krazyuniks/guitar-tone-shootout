@@ -18,9 +18,8 @@ import sys
 from pathlib import Path
 
 from workflow.dispatch import (
-    BUDGET_DEFAULTS,
-    FALLBACK_MODELS,
-    dispatch_with_fallback,
+    TURN_DEFAULTS,
+    dispatch_agent,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
@@ -583,16 +582,12 @@ def generate_plan(
         user_decisions=user_decisions,
     )
 
-    # Resolve model and budget from config or defaults
+    # Resolve model and turns from config or defaults
     planner_model = config.models.planner if config else "opus"
     if config and "planning" in config.budgets:
-        budget = config.budgets["planning"]
-        max_turns = budget.max_turns
-        max_budget_usd = budget.max_budget_usd
+        max_turns = config.budgets["planning"].max_turns
     else:
-        planning_budget = BUDGET_DEFAULTS["planning"]
-        max_turns = int(planning_budget["max_turns"])
-        max_budget_usd = float(planning_budget["max_budget_usd"])
+        max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
         "Dispatching %s planner for epic #%d (%d chars, ~%d tokens)",
@@ -605,13 +600,11 @@ def generate_plan(
     # Dispatch with tools=[] — no constrained decoding.
     # The prompt instructs the model to produce raw JSON; we validate
     # with Pydantic after parsing.
-    result = dispatch_with_fallback(
+    result = dispatch_agent(
         prompt=prompt,
-        primary_model=planner_model,
-        fallback_model=FALLBACK_MODELS.get(planner_model, planner_model),
+        model=planner_model,
         tools=[],
         max_turns=max_turns,
-        max_budget_usd=max_budget_usd,
         json_schema=None,
         cwd=PROJECT_ROOT,
         no_mcp=True,

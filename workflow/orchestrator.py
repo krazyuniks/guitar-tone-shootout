@@ -154,8 +154,7 @@ def build_planning_complete_comment(plan: dict) -> str:
     story_lines = []
     for i, story in enumerate(stories, 1):
         model = story.get("agent", {}).get("model", "sonnet")
-        budget = story.get("agent", {}).get("max_budget_usd", 0)
-        story_lines.append(f"| {i} | {story.get('name', '?')} | {model} | ${budget:.2f} |")
+        story_lines.append(f"| {i} | {story.get('name', '?')} | {model} |")
 
     return f"""\
 ## Planning Complete
@@ -197,9 +196,7 @@ def build_story_comment(story: dict, events: list[dict]) -> str:
             break
 
     turns = agent_event.get("turns", "?") if agent_event else "?"
-    cost = agent_event.get("cost_usd") if agent_event else None
     commit = agent_event.get("commit", "?") if agent_event else "?"
-    cost_str = f"${cost:.2f}" if cost is not None else "?"
 
     # Count files from scope
     scope = story.get("scope", {})
@@ -225,7 +222,7 @@ def build_story_comment(story: dict, events: list[dict]) -> str:
     return f"""\
 ## Story Complete: {name}
 
-**Agent:** {story_id} | **Model:** {model} | **Turns:** {turns} | **Cost:** {cost_str}
+**Agent:** {story_id} | **Model:** {model} | **Turns:** {turns}
 **Files:** {created} created, {modified} modified | **Commit:** {commit}
 
 ### Validation
@@ -292,11 +289,6 @@ def build_completion_comment(plan: dict, events: list[dict]) -> str:
     stories = plan.get("stories", [])
     completed_ids = {e["story_id"] for e in events if e.get("event") == "story_complete"}
 
-    # Total cost
-    total_cost = sum(
-        e.get("cost_usd", 0) or 0 for e in events if e.get("event") == "agent_complete"
-    )
-
     # Commits
     commits = [
         e.get("commit", "?")
@@ -308,7 +300,6 @@ def build_completion_comment(plan: dict, events: list[dict]) -> str:
 ## Epic Complete
 
 **Stories completed:** {len(completed_ids)}/{len(stories)}
-**Total cost:** ${total_cost:.2f}
 **Commits:** {", ".join(commits)}
 
 All stories passed their validation checkpoints. Please verify the results and close this issue when satisfied.
@@ -380,11 +371,6 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
     # Exit to human events
     exit_events = [e for e in events if e.get("event") == "exit_to_human"]
 
-    # Total cost
-    total_cost = sum(
-        e.get("cost_usd", 0) or 0 for e in events if e.get("event") == "agent_complete"
-    )
-
     # Commits
     commits = [
         e.get("commit", "?")
@@ -429,10 +415,6 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
         "",
         f"- **Completed:** {len(completed_ids)}/{len(stories)} ({', '.join(completed_ids) if completed_ids else 'none'})",
         f"- **Failed:** {len(failed_ids)} ({', '.join(failed_ids) if failed_ids else 'none'})",
-        "",
-        "## Cost",
-        "",
-        f"- **Total:** ${total_cost:.2f}",
         "",
         "## Commits",
         "",
@@ -496,7 +478,7 @@ def _run_epic_critique(
     events: list[dict],
     epic_logger: EventLogger,
     config: EpicConfig | None = None,
-) -> tuple[bool, list, float | None]:
+) -> tuple[bool, list]:
     """Run post-epic critique on the full implementation.
 
     Dispatches a read-only agent with the critique_epic template
@@ -510,7 +492,7 @@ def _run_epic_critique(
         config: Epic configuration profile. If None, falls back to defaults.
 
     Returns:
-        Tuple of (passed, findings_list, cost_usd).
+        Tuple of (passed, findings_list).
     """
     # Read template
     template_path = Path(__file__).resolve().parent / "templates" / "critique_epic.md"
@@ -561,7 +543,6 @@ def _run_epic_critique(
                     "event": event_type,
                     "story_id": e.get("story_id", ""),
                     "attempt": e.get("attempt"),
-                    "cost_usd": e.get("cost_usd"),
                 }
             )
     event_summary = json.dumps(summary_events, indent=2)
@@ -598,7 +579,6 @@ def _run_epic_critique(
         model=critique_model,
         tools=["Read", "Bash", "Glob", "Grep"],
         no_mcp=True,
-        max_budget_usd=critique_budget.max_budget_usd,
         max_turns=critique_budget.max_turns,
         cwd=PROJECT_ROOT,
     )
@@ -615,7 +595,7 @@ def _run_epic_critique(
             error=result.output[:500] if result.output else "Dispatch failed",
         )
         # Dispatch failure is fail-closed (invariant E2)
-        return (False, [{"error": "Epic critique dispatch failed"}], result.cost_usd)
+        return (False, [{"error": "Epic critique dispatch failed"}])
 
     # Parse JSON result
     output = (result.output or "").strip()
@@ -635,7 +615,7 @@ def _run_epic_critique(
             error=f"Invalid JSON: {output[:200]}",
         )
         # Parse failure is fail-closed (invariant E2)
-        return (False, [{"error": "Epic critique returned invalid JSON"}], result.cost_usd)
+        return (False, [{"error": "Epic critique returned invalid JSON"}])
 
     status = critique.get("status", "pass")
     findings = critique.get("findings", [])
@@ -646,7 +626,6 @@ def _run_epic_critique(
             "epic_critique_pass",
             critique_type="epic",
             critique_model=critique_model,
-            cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=0,
         )
@@ -655,13 +634,12 @@ def _run_epic_critique(
             "epic_critique_fail",
             critique_type="epic",
             critique_model=critique_model,
-            cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=len(findings),
             findings=findings,
         )
 
-    return (passed, findings, result.cost_usd)
+    return (passed, findings)
 
 
 # ---------------------------------------------------------------------------
@@ -896,7 +874,7 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
 
             all_events = _collect_story_events(epic_dir, plan)
 
-            critique_passed, findings, _critique_cost = _run_epic_critique(
+            critique_passed, findings = _run_epic_critique(
                 plan=plan,
                 epic_dir=epic_dir,
                 events=all_events,
@@ -948,14 +926,10 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
                 break
 
             # Critique passed -- log epic_complete
-            total_cost = sum(
-                e.get("cost_usd", 0) or 0 for e in all_events if e.get("event") == "agent_complete"
-            )
             epic_logger.log_event(
                 "epic_complete",
                 epic=epic_number,
                 stories_completed=len(completed_stories),
-                total_cost_usd=total_cost,
             )
 
             # Post completion comment
@@ -1239,14 +1213,6 @@ def show_status(epic_number: int) -> None:
         sid = story.get("story_id", "?")
         name = story.get("name", "?")
 
-        # Get cost for this story
-        story_cost = sum(
-            e.get("cost_usd", 0) or 0
-            for e in all_events
-            if e.get("event") == "agent_complete" and e.get("story_id") == sid
-        )
-        cost_str = f"${story_cost:.2f}" if story_cost > 0 else ""
-
         if sid in completed_set:
             status = "DONE"
         elif sid == state.get("failed_story_id"):
@@ -1255,14 +1221,7 @@ def show_status(epic_number: int) -> None:
             status = "NEXT"
         else:
             status = "----"
-        print(f"  [{status}] {i}. {sid}: {name} {cost_str}")
-
-    # Cost summary
-    total_cost = sum(
-        e.get("cost_usd", 0) or 0 for e in all_events if e.get("event") == "agent_complete"
-    )
-    if total_cost > 0:
-        print(f"\nTotal cost so far: ${total_cost:.2f}")
+        print(f"  [{status}] {i}. {sid}: {name}")
 
     # Recent failures
     failure_events = [

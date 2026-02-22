@@ -22,10 +22,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from workflow.dispatch import (
-    FALLBACK_MODELS,
     compute_prompt_hash,
     dispatch_agent,
-    dispatch_with_fallback,
     estimate_tokens,
     get_dispatch_metadata,
 )
@@ -806,7 +804,7 @@ def _run_story_critique(
     model: str,
     config: EpicConfig | None = None,
     base_commit: str | None = None,
-) -> tuple[bool, list, float | None]:
+) -> tuple[bool, list]:
     """Run post-story critique on the implementation.
 
     Dispatches a read-only agent with the critique_story template
@@ -823,7 +821,7 @@ def _run_story_critique(
             produce the full story diff (not just HEAD~1).
 
     Returns:
-        Tuple of (passed, findings_list, cost_usd).
+        Tuple of (passed, findings_list).
     """
     story_id = story.get("story_id", "unknown")
 
@@ -884,7 +882,6 @@ def _run_story_critique(
         tools=["Read", "Bash", "Glob", "Grep"],
         no_mcp=True,
         max_turns=critique_budget.max_turns,
-        max_budget_usd=critique_budget.max_budget_usd,
         cwd=PROJECT_ROOT,
     )
 
@@ -903,7 +900,7 @@ def _run_story_critique(
             error=result.output[:500] if result.output else "Unknown error",
         )
         # Dispatch failure is fail-closed (invariant S2)
-        return (False, [{"error": "Critique dispatch failed"}], result.cost_usd)
+        return (False, [{"error": "Critique dispatch failed"}])
 
     # Parse JSON result
     output = (result.output or "").strip()
@@ -925,7 +922,7 @@ def _run_story_critique(
             error=f"Invalid JSON: {output[:200]}",
         )
         # Parse failure is fail-closed (invariant S2)
-        return (False, [{"error": "Critique returned invalid JSON"}], result.cost_usd)
+        return (False, [{"error": "Critique returned invalid JSON"}])
 
     status = critique.get("status", "pass")
     findings = critique.get("findings", [])
@@ -938,7 +935,6 @@ def _run_story_critique(
             attempt=attempt,
             critique_type="story",
             critique_model=critique_model,
-            cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=0,
         )
@@ -949,13 +945,12 @@ def _run_story_critique(
             attempt=attempt,
             critique_type="story",
             critique_model=critique_model,
-            cost_usd=result.cost_usd,
             turns=result.turns,
             findings_count=len(findings),
             findings=findings,
         )
 
-    return (passed, findings, result.cost_usd)
+    return (passed, findings)
 
 
 def _dispatch_and_validate_loop(
@@ -998,11 +993,9 @@ def _dispatch_and_validate_loop(
         model = config.models.implementor
         impl_budget = config.budgets.get("implementation", BudgetConfig())
         max_turns = impl_budget.max_turns
-        max_budget_usd = impl_budget.max_budget_usd
     else:
         model = agent.get("model", "sonnet")
         max_turns = agent.get("max_turns", 40)
-        max_budget_usd = agent.get("max_budget_usd", 4.0)
     tools = agent.get("tools", ["Read", "Edit", "Write", "Bash", "Glob", "Grep"])
 
     retry_context: dict | None = None
@@ -1044,20 +1037,15 @@ def _dispatch_and_validate_loop(
             **metadata,
         )
 
-        # Determine fallback model
-        fallback_model = FALLBACK_MODELS.get(model, model)
-
         # Dispatch the implementation agent (with conversation transcript)
         story_dir = epic_dir / "stories" / story_id
         story_dir.mkdir(parents=True, exist_ok=True)
         conv_log = story_dir / f"dispatch-{attempt}.jsonl"
-        agent_result = dispatch_with_fallback(
+        agent_result = dispatch_agent(
             prompt=prompt,
-            primary_model=model,
-            fallback_model=fallback_model,
+            model=model,
             tools=tools,
             max_turns=max_turns,
-            max_budget_usd=max_budget_usd,
             cwd=PROJECT_ROOT,
             conversation_log=conv_log,
         )
@@ -1070,7 +1058,6 @@ def _dispatch_and_validate_loop(
                 attempt=attempt,
                 commit=_get_latest_commit_hash(),
                 turns=agent_result.turns,
-                cost_usd=agent_result.cost_usd,
             )
         else:
             event_logger.log_event(
@@ -1079,7 +1066,6 @@ def _dispatch_and_validate_loop(
                 attempt=attempt,
                 error=agent_result.output[:500] if agent_result.output else "Unknown error",
                 turns=agent_result.turns,
-                cost_usd=agent_result.cost_usd,
             )
 
             # Classify the agent failure
@@ -1168,7 +1154,7 @@ def _dispatch_and_validate_loop(
                 {"check_type": validation_result.check_type, "status": "pass"},
                 indent=2,
             )
-            critique_passed, findings, _critique_cost = _run_story_critique(
+            critique_passed, findings = _run_story_critique(
                 story=story,
                 validation_results=validation_summary,
                 event_logger=event_logger,

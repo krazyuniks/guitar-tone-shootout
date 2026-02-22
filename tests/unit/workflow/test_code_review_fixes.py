@@ -13,7 +13,7 @@ from workflow.config_validator import (
     check_website,
     validate_config,
 )
-from workflow.dispatch import BUDGET_DEFAULTS, get_adapter
+from workflow.dispatch import TURN_DEFAULTS, get_adapter
 from workflow.epic_config import DEFAULT_CONFIG_PATH, BudgetConfig, load_config
 from workflow.epic_ingest import validate_epic_structure
 
@@ -87,16 +87,14 @@ class TestPlanVerifierAdapterSelection:
 # ---------------------------------------------------------------------------
 
 
-class TestGapDetectionBudgetResolution:
-    """Fix 3: gap_detection.py uses 'gap_detection' budget key,
+class TestGapDetectionTurnDefaults:
+    """Fix 3: gap_detection.py uses 'gap_detection' turn default key,
     not 'planning'."""
 
-    def test_gap_detection_in_budget_defaults(self):
-        """BUDGET_DEFAULTS must include 'gap_detection'."""
-        assert "gap_detection" in BUDGET_DEFAULTS
-        budget = BUDGET_DEFAULTS["gap_detection"]
-        assert budget["max_turns"] == 30
-        assert budget["max_budget_usd"] == 3.00
+    def test_gap_detection_in_turn_defaults(self):
+        """TURN_DEFAULTS must include 'gap_detection'."""
+        assert "gap_detection" in TURN_DEFAULTS
+        assert TURN_DEFAULTS["gap_detection"] == 30
 
     def test_default_config_has_gap_detection_budget(self):
         """default_config.toml must define [budgets.gap_detection]."""
@@ -105,19 +103,18 @@ class TestGapDetectionBudgetResolution:
         budget = config.budgets["gap_detection"]
         assert isinstance(budget, BudgetConfig)
         assert budget.max_turns == 30
-        assert budget.max_budget_usd == 3.00
 
     def test_gap_detection_source_uses_correct_key(self):
         """gap_detection.py must reference 'gap_detection', not 'planning',
-        for its budget resolution."""
+        for its turn resolution."""
         import inspect
 
         from workflow.gap_detection import run_gap_detection
 
         source = inspect.getsource(run_gap_detection)
-        # The budget resolution should check for "gap_detection" in config
+        # The turn resolution should check for "gap_detection" in config
         assert '"gap_detection"' in source
-        # And should NOT use "planning" for its own budget
+        # And should NOT use "planning" for its own turns
         assert 'config.budgets["planning"]' not in source
 
 

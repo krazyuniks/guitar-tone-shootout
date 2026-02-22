@@ -75,7 +75,7 @@ def test_parse():
 
 def dispatch_and_parse():
     """Dispatch a tiny epic and parse the result."""
-    from workflow.dispatch import dispatch_with_fallback
+    from workflow.dispatch import dispatch_agent
     from workflow.plan_generator import _build_planner_prompt
 
     context = """\
@@ -119,13 +119,11 @@ apps/webapp/src/webapp/templates/ — Jinja2 templates
         return
 
     print(f"Dispatching ({len(prompt)} chars, ~{len(prompt) // 4} tokens)...")
-    result = dispatch_with_fallback(
+    result = dispatch_agent(
         prompt=prompt,
-        primary_model="sonnet",
-        fallback_model="haiku",
+        model="sonnet",
         tools=[],
         max_turns=5,
-        max_budget_usd=0.50,
         json_schema=None,
         cwd=current,
     )

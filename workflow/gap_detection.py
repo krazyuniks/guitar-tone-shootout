@@ -24,7 +24,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 
 from workflow.dispatch import (
-    BUDGET_DEFAULTS,
+    TURN_DEFAULTS,
     dispatch_agent,
     get_tools_for_role,
 )
@@ -367,15 +367,11 @@ def run_gap_detection(
     gap_model = config.models.planner if config else "opus"
     critique_model = config.models.plan_critic if config else "codex"
 
-    # Resolve budget
+    # Resolve max turns from config or defaults
     if config and "gap_detection" in config.budgets:
-        budget = config.budgets["gap_detection"]
-        max_turns = budget.max_turns
-        max_budget_usd = budget.max_budget_usd
+        max_turns = config.budgets["gap_detection"].max_turns
     else:
-        gap_budget = BUDGET_DEFAULTS["gap_detection"]
-        max_turns = int(gap_budget["max_turns"])
-        max_budget_usd = float(gap_budget["max_budget_usd"])
+        max_turns = TURN_DEFAULTS["gap_detection"]
 
     # --- Step 1: Gap Detection Agent ---
     console.print("[bold]Step 2b.1:[/bold] Analysing gaps...")
@@ -387,7 +383,6 @@ def run_gap_detection(
         model=gap_model,
         tools=get_tools_for_role("planning"),
         max_turns=max_turns,
-        max_budget_usd=max_budget_usd,
         no_mcp=True,
     )
 
@@ -414,20 +409,15 @@ def run_gap_detection(
 
     critique_prompt = _build_critique_prompt(epic_md, context_md, gap_report_json)
     if config and "critique_plan" in config.budgets:
-        critique_budget = config.budgets["critique_plan"]
-        critique_max_turns = critique_budget.max_turns
-        critique_max_budget = critique_budget.max_budget_usd
+        critique_max_turns = config.budgets["critique_plan"].max_turns
     else:
-        critique_defaults = BUDGET_DEFAULTS["critique_plan"]
-        critique_max_turns = int(critique_defaults["max_turns"])
-        critique_max_budget = float(critique_defaults["max_budget_usd"])
+        critique_max_turns = TURN_DEFAULTS["critique_plan"]
 
     critique_result = dispatch_agent(
         prompt=critique_prompt,
         model=critique_model,
         tools=get_tools_for_role("critique"),
         max_turns=critique_max_turns,
-        max_budget_usd=critique_max_budget,
         no_mcp=True,
     )
 

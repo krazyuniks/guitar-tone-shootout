@@ -58,7 +58,6 @@ class AgentConfig(BaseModel):
     skills: list[str] = Field(default_factory=list, description="Skill names to inject.")
     tools: list[str] = Field(default_factory=list, description="Tools available to the agent.")
     max_turns: int = Field(description="Maximum conversation turns.")
-    max_budget_usd: float = Field(description="Maximum spend in USD.")
 
 
 class CheckCriterion(BaseModel):
@@ -206,7 +205,6 @@ def render_plan_md(plan: Plan) -> str:
         lines.append(f"- skills: [{', '.join(story.agent.skills)}]")
         lines.append(f"- tools: [{', '.join(story.agent.tools)}]")
         lines.append(f"- max_turns: {story.agent.max_turns}")
-        lines.append(f"- max_budget_usd: {story.agent.max_budget_usd}")
         lines.append("")
         lines.append("**Scope:**")
         for fp in story.scope.create:

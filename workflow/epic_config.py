@@ -30,10 +30,9 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class BudgetConfig:
-    """Budget limits for a single role."""
+    """Turn limits for a single role."""
 
     max_turns: int = 30
-    max_budget_usd: float = 3.0
 
 
 @dataclass(frozen=True)

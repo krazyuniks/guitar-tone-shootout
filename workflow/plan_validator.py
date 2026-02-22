@@ -29,9 +29,6 @@ PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
 
 logger = logging.getLogger(__name__)
 
-# Maximum total budget across all stories (sanity check)
-MAX_TOTAL_BUDGET_USD = 50.0
-
 
 # ---------------------------------------------------------------------------
 # Result types
@@ -291,40 +288,7 @@ def _check_dependency_ordering(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
-# Check 7: Budget sanity
-# ---------------------------------------------------------------------------
-
-
-def _check_budget_sanity(plan: Plan) -> list[ValidationError]:
-    """Check 7: Total max_budget_usd is within a reasonable limit."""
-    errors: list[ValidationError] = []
-
-    total_budget = sum(story.agent.max_budget_usd for story in plan.stories)
-
-    if total_budget > MAX_TOTAL_BUDGET_USD:
-        errors.append(
-            ValidationError(
-                check="budget_sanity",
-                message=f"Total max_budget_usd across all stories is ${total_budget:.2f}, "
-                f"which exceeds the sanity limit of ${MAX_TOTAL_BUDGET_USD:.2f}. "
-                f"Review story budgets for reasonableness.",
-            )
-        )
-
-    if total_budget <= 0:
-        errors.append(
-            ValidationError(
-                check="budget_sanity",
-                message="Total max_budget_usd is $0.00 or negative. "
-                "Every story must have a positive budget.",
-            )
-        )
-
-    return errors
-
-
-# ---------------------------------------------------------------------------
-# Check 8: Command coverage
+# Check 7: Command coverage
 # ---------------------------------------------------------------------------
 
 
@@ -443,7 +407,6 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_journey_coverage(plan))
     all_errors.extend(_check_scope_coherence(plan))
     all_errors.extend(_check_dependency_ordering(plan))
-    all_errors.extend(_check_budget_sanity(plan))
     all_errors.extend(_check_empty_checkpoints(plan))
 
     # Check 8: Command coverage (warnings only — doesn't fail validation)

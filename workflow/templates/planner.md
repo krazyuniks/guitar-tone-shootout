@@ -145,7 +145,6 @@ Covers happy path from entry point through all critical transitions.}}
 - skills: [{{skill1}}, {{skill2}}]
 - tools: [Read, Edit, Write, Bash, Glob, Grep]
 - max_turns: {{number}}
-- max_budget_usd: {{number}}
 
 **Scope:**
 - Create: `{{path/to/new/file.py}}`

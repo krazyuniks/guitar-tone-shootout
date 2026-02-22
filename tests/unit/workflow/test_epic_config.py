@@ -32,7 +32,6 @@ class TestEpicConfigParsing:
         """Each role has budget defaults."""
         config = load_config(DEFAULT_CONFIG_PATH)
         assert config.budgets["implementation"].max_turns > 0
-        assert config.budgets["implementation"].max_budget_usd > 0
         assert config.budgets["planning"].max_turns > 0
 
     def test_mcp_roles_present(self):
