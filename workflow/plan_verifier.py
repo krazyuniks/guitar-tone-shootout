@@ -380,25 +380,37 @@ def present_decision_gate(
             dim = dims.get(dim_name, {})
             if not isinstance(dim, dict):
                 continue
-            # Check both flat layout and nested "findings" layout
             findings = dim.get("findings", dim)
-            for key in [
-                "gaps",
-                "uncovered",
-                "unaddressed_requirements",
-                "scope_creep",
-                "weak_checks",
-            ]:
-                items = findings.get(key, [])
-                if items:
-                    print(f"\n  {dim_name}.{key}:")
-                    for item in items[:3]:
-                        if isinstance(item, dict):
-                            print(f"    - {json.dumps(item)}")
-                        else:
-                            print(f"    - {item}")
-                    if len(items) > 3:
-                        print(f"    ... and {len(items) - 3} more")
+            # Array of finding objects (current verifier format)
+            if isinstance(findings, list):
+                must_fix = [
+                    f for f in findings if isinstance(f, dict) and f.get("severity") == "must_fix"
+                ]
+                if must_fix:
+                    print(f"\n  {dim_name} ({len(must_fix)} must_fix):")
+                    for item in must_fix[:5]:
+                        print(f"    - {json.dumps(item, ensure_ascii=False)}")
+                    if len(must_fix) > 5:
+                        print(f"    ... and {len(must_fix) - 5} more")
+            # Dict with named keys (legacy format)
+            elif isinstance(findings, dict):
+                for key in [
+                    "gaps",
+                    "uncovered",
+                    "unaddressed_requirements",
+                    "scope_creep",
+                    "weak_checks",
+                ]:
+                    items = findings.get(key, [])
+                    if items:
+                        print(f"\n  {dim_name}.{key}:")
+                        for item in items[:3]:
+                            if isinstance(item, dict):
+                                print(f"    - {json.dumps(item)}")
+                            else:
+                                print(f"    - {item}")
+                        if len(items) > 3:
+                            print(f"    ... and {len(items) - 3} more")
 
     print("\nOptions:")
     print("  [a] Approve — proceed to execution")
