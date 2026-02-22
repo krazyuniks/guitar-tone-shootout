@@ -201,35 +201,49 @@ def _check_journey_coverage(plan: Plan) -> list[ValidationError]:
 
 
 def _check_scope_coherence(plan: Plan) -> list[ValidationError]:
-    """Check 5: Files in modify scope exist on disk; files in create scope have existing parent dirs."""
+    """Check 5: Files in modify scope exist on disk or in projected state from earlier stories."""
     errors: list[ValidationError] = []
 
+    # Track files and directories that earlier stories will create
+    projected_files: set[str] = set()
+    projected_dirs: set[str] = set()
+
     for story in plan.stories:
-        # Files in modify must exist on disk
+        # Files in modify must exist on disk OR in projected state from earlier stories
         for fpath in story.scope.modify:
             full_path = PROJECT_ROOT / fpath
-            if not full_path.exists():
+            if not full_path.exists() and fpath not in projected_files:
                 errors.append(
                     ValidationError(
                         check="scope_coherence",
                         message=f"Story '{story.story_id}' lists '{fpath}' in scope.modify, "
-                        f"but the file does not exist on disk.",
+                        f"but the file does not exist on disk and is not created "
+                        f"by a prior story.",
                     )
                 )
 
-        # Files in create must have existing parent directories
+        # Files in create must have existing parent directories (on disk or projected)
         for fpath in story.scope.create:
             full_path = PROJECT_ROOT / fpath
             parent = full_path.parent
-            if not parent.exists():
+            parent_rel = str(parent.relative_to(PROJECT_ROOT))
+            if not parent.exists() and parent_rel not in projected_dirs:
                 errors.append(
                     ValidationError(
                         check="scope_coherence",
                         message=f"Story '{story.story_id}' lists '{fpath}' in scope.create, "
                         f"but the parent directory "
-                        f"'{parent.relative_to(PROJECT_ROOT)}' does not exist.",
+                        f"'{parent_rel}' does not exist and is not created "
+                        f"by a prior story.",
                     )
                 )
+
+            # Add this file and all ancestor directories to projected state
+            projected_files.add(fpath)
+            p = Path(fpath).parent
+            while str(p) != ".":
+                projected_dirs.add(str(p))
+                p = p.parent
 
     return errors
 
