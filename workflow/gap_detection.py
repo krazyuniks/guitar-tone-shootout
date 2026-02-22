@@ -87,6 +87,21 @@ class GapReport(BaseModel):
     coverage_areas_checked: list[str] = Field(default_factory=list)
 
 
+class FalseEscalation(BaseModel):
+    """A question the critique agent identified as falsely escalated."""
+
+    question_id: str = Field(description="ID of the escalated question to demote")
+    reason: str = Field(description="Why this is a false escalation")
+    locked_decision: str = Field(description="The decision to auto-resolve to")
+
+
+class CritiqueReport(BaseModel):
+    """Structured output from the critique agent."""
+
+    false_escalations: list[FalseEscalation] = Field(default_factory=list)
+    verdict: str = Field(description="'pass' or 'fail'")
+
+
 class GapAnswer(BaseModel):
     """A resolved gap with the user's answer."""
 
@@ -102,6 +117,48 @@ class UserDecisions(BaseModel):
     locked_decisions: list[LockedDecision] = Field(default_factory=list)
     answers: list[GapAnswer] = Field(default_factory=list)
     sufficiency_confirmed: bool = Field(default=False)
+
+
+# ---------------------------------------------------------------------------
+# Critique application
+# ---------------------------------------------------------------------------
+
+
+def apply_critique(gap_report: GapReport, critique: CritiqueReport) -> GapReport:
+    """Demote false escalations to locked decisions. Returns a new GapReport."""
+    demote_ids = {fe.question_id for fe in critique.false_escalations}
+    fe_lookup = {fe.question_id: fe for fe in critique.false_escalations}
+
+    remaining_questions: list[EscalatedQuestion] = []
+    new_locked: list[LockedDecision] = list(gap_report.locked_decisions)
+
+    for q in gap_report.escalated_questions:
+        if q.id not in demote_ids:
+            remaining_questions.append(q)
+            continue
+
+        fe = fe_lookup[q.id]
+        decision_id = q.id.replace("question-", "decision-", 1)
+        new_locked.append(
+            LockedDecision(
+                id=decision_id,
+                area=q.area,
+                description=q.description,
+                decision=fe.locked_decision,
+                rationale=f"Demoted by critique: {fe.reason}",
+            )
+        )
+
+    # Warn about unmatched question_ids
+    matched_ids = {q.id for q in gap_report.escalated_questions}
+    for qid in demote_ids - matched_ids:
+        logger.warning("Critique referenced unknown question_id '%s' — skipping", qid)
+
+    return GapReport(
+        locked_decisions=new_locked,
+        escalated_questions=remaining_questions,
+        coverage_areas_checked=list(gap_report.coverage_areas_checked),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -252,8 +309,25 @@ would change the plan, it should be escalated.
 5. **Relevance check**: Does each escalated question pass the test: "Would \
 a different answer lead to a different plan?" If not, auto-resolve it.
 
-Output your critique as plain text. Be specific. If the report is good, \
-say so briefly.
+## Output format
+
+Think through your analysis step by step, then emit JSON inside a \
+```json code fence matching this schema:
+
+```json
+{{
+  "false_escalations": [
+    {{
+      "question_id": "question-area-N",
+      "reason": "Why this should have been auto-resolved",
+      "locked_decision": "What the decision should be"
+    }}
+  ],
+  "verdict": "pass or fail — pass means no false escalations found"
+}}
+```
+
+If there are no false escalations, return an empty list and verdict "pass".
 """
 
 
@@ -432,12 +506,30 @@ def run_gap_detection(
     if not critique_result.success:
         raise GapDetectionError(f"Critique agent failed (exit {critique_result.exit_code})")
 
+    # Parse structured critique
+    critique_report: CritiqueReport | None
+    try:
+        critique_data = _parse_json_from_response(critique_result.output)
+        critique_report = CritiqueReport.model_validate(critique_data)
+    except (json.JSONDecodeError, ValueError):
+        logger.warning("Critique returned unstructured output — skipping demotion")
+        critique_report = None
+
+    # Apply false escalation demotions
+    if critique_report and critique_report.false_escalations:
+        gap_report = apply_critique(gap_report, critique_report)
+        n_demoted = n_escalated - len(gap_report.escalated_questions)
+        n_escalated = len(gap_report.escalated_questions)
+        n_locked = len(gap_report.locked_decisions)
+        console.print(f"  Critique demoted [bold]{n_demoted}[/bold] false escalation(s)")
+
     event_logger.log_event(
         "gap_critique_complete",
         epic=epic_number,
         critique_model=critique_model,
         locked_count=n_locked,
         escalated_count=n_escalated,
+        demoted_count=len(critique_report.false_escalations) if critique_report else 0,
     )
 
     # --- Step 3: Display locked decisions + critique ---
@@ -458,7 +550,18 @@ def run_gap_detection(
         )
 
     console.print()
-    console.print(Panel(critique_result.output, title="Critique", border_style="yellow"))
+    if critique_report:
+        critique_lines = []
+        if critique_report.false_escalations:
+            critique_lines.append(
+                f"[bold]False escalations demoted:[/bold] {len(critique_report.false_escalations)}"
+            )
+            for fe in critique_report.false_escalations:
+                critique_lines.append(f"  • {fe.question_id}: {fe.reason}")
+        critique_lines.append(f"\n[bold]Verdict:[/bold] {critique_report.verdict}")
+        console.print(Panel("\n".join(critique_lines), title="Critique", border_style="yellow"))
+    else:
+        console.print(Panel(critique_result.output, title="Critique", border_style="yellow"))
     console.print()
 
     from workflow.cli import flush_stdin

@@ -3,12 +3,15 @@
 import json
 
 from workflow.gap_detection import (
+    CritiqueReport,
     EscalatedQuestion,
+    FalseEscalation,
     GapAnswer,
     GapReport,
     LockedDecision,
     UserDecisions,
     _parse_json_from_response,
+    apply_critique,
 )
 
 
@@ -166,3 +169,141 @@ class TestParseJsonFromResponse:
         text = '```json\n  {\n    "key": "value"\n  }\n```'
         result = _parse_json_from_response(text)
         assert result["key"] == "value"
+
+
+class TestCritiqueReport:
+    """Test critique report model."""
+
+    def test_critique_report_with_false_escalations(self):
+        report = CritiqueReport(
+            false_escalations=[
+                FalseEscalation(
+                    question_id="question-structure-3",
+                    reason="Epic explicitly specifies the rename",
+                    locked_decision="Rename to gts-domain as epic specifies",
+                ),
+            ],
+            verdict="fail",
+        )
+        assert len(report.false_escalations) == 1
+        assert report.verdict == "fail"
+
+    def test_critique_report_pass(self):
+        report = CritiqueReport(false_escalations=[], verdict="pass")
+        assert report.false_escalations == []
+        assert report.verdict == "pass"
+
+
+class TestApplyCritique:
+    """Test false escalation demotion logic."""
+
+    def _make_gap_report(self) -> GapReport:
+        return GapReport(
+            locked_decisions=[
+                LockedDecision(
+                    id="decision-infra-1",
+                    area="infrastructure",
+                    description="Dockerfiles need updating",
+                    decision="Update all COPY paths",
+                    rationale="Mechanical consequence",
+                ),
+            ],
+            escalated_questions=[
+                EscalatedQuestion(
+                    id="question-bc-1",
+                    area="bounded_contexts",
+                    description="Protocol location unclear",
+                    question="Where should the protocol live?",
+                    options=["Domain layer", "Messaging package"],
+                    recommendation=1,
+                    reasoning="Hexagonal architecture",
+                ),
+                EscalatedQuestion(
+                    id="question-structure-2",
+                    area="structure",
+                    description="Package naming convention",
+                    question="Should we use underscores or hyphens?",
+                    options=["Underscores", "Hyphens"],
+                    recommendation=1,
+                    reasoning="PEP 8 convention",
+                ),
+            ],
+            coverage_areas_checked=["bounded_contexts", "infrastructure", "structure"],
+        )
+
+    def test_demotes_false_escalation(self):
+        gap_report = self._make_gap_report()
+        critique = CritiqueReport(
+            false_escalations=[
+                FalseEscalation(
+                    question_id="question-structure-2",
+                    reason="Codebase already uses underscores everywhere",
+                    locked_decision="Use underscores per existing convention",
+                ),
+            ],
+            verdict="fail",
+        )
+        result = apply_critique(gap_report, critique)
+
+        # Original unchanged
+        assert len(gap_report.escalated_questions) == 2
+
+        # Result has one fewer escalated question
+        assert len(result.escalated_questions) == 1
+        assert result.escalated_questions[0].id == "question-bc-1"
+
+        # And one more locked decision
+        assert len(result.locked_decisions) == 2
+        demoted = result.locked_decisions[1]
+        assert demoted.id == "decision-structure-2"
+        assert demoted.area == "structure"
+        assert demoted.decision == "Use underscores per existing convention"
+        assert "Demoted by critique" in demoted.rationale
+
+    def test_no_false_escalations(self):
+        gap_report = self._make_gap_report()
+        critique = CritiqueReport(false_escalations=[], verdict="pass")
+        result = apply_critique(gap_report, critique)
+
+        assert len(result.escalated_questions) == 2
+        assert len(result.locked_decisions) == 1
+
+    def test_unknown_question_id_skipped(self):
+        gap_report = self._make_gap_report()
+        critique = CritiqueReport(
+            false_escalations=[
+                FalseEscalation(
+                    question_id="question-nonexistent-99",
+                    reason="Doesn't exist",
+                    locked_decision="Irrelevant",
+                ),
+            ],
+            verdict="fail",
+        )
+        result = apply_critique(gap_report, critique)
+
+        # Nothing changed — unknown ID was skipped
+        assert len(result.escalated_questions) == 2
+        assert len(result.locked_decisions) == 1
+
+    def test_multiple_demotions(self):
+        gap_report = self._make_gap_report()
+        critique = CritiqueReport(
+            false_escalations=[
+                FalseEscalation(
+                    question_id="question-bc-1",
+                    reason="Epic specifies domain layer",
+                    locked_decision="Keep in domain layer as epic specifies",
+                ),
+                FalseEscalation(
+                    question_id="question-structure-2",
+                    reason="Codebase convention is clear",
+                    locked_decision="Use underscores",
+                ),
+            ],
+            verdict="fail",
+        )
+        result = apply_critique(gap_report, critique)
+
+        assert len(result.escalated_questions) == 0
+        assert len(result.locked_decisions) == 3
