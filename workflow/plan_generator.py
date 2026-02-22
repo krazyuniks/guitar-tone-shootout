@@ -20,6 +20,8 @@ from pathlib import Path
 from workflow.dispatch import (
     TURN_DEFAULTS,
     dispatch_agent,
+    get_dispatch_params,
+    get_tools_for_role,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
@@ -597,17 +599,19 @@ def generate_plan(
         len(prompt) // 4,
     )
 
-    # Dispatch with tools=[] — no constrained decoding.
+    # Dispatch with planning tools and MCP from config.
     # The prompt instructs the model to produce raw JSON; we validate
     # with Pydantic after parsing.
+    mcp_servers, timeout = get_dispatch_params("planning", config)
     result = dispatch_agent(
         prompt=prompt,
         model=planner_model,
-        tools=[],
+        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
-        no_mcp=True,
+        mcp_servers=mcp_servers,
+        timeout=timeout,
     )
 
     if not result.success:

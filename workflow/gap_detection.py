@@ -26,6 +26,7 @@ from rich.rule import Rule
 from workflow.dispatch import (
     TURN_DEFAULTS,
     dispatch_agent,
+    get_dispatch_params,
     get_tools_for_role,
 )
 
@@ -381,12 +382,14 @@ def run_gap_detection(
     event_logger.log_event("gap_detection_started", epic=epic_number, model=gap_model)
 
     gap_prompt = _build_gap_detection_prompt(epic_md, context_md, guide)
+    mcp_servers_gap, timeout_gap = get_dispatch_params("gap_detection", config)
     gap_result = dispatch_agent(
         prompt=gap_prompt,
         model=gap_model,
         tools=get_tools_for_role("planning"),
         max_turns=max_turns,
-        no_mcp=True,
+        mcp_servers=mcp_servers_gap,
+        timeout=timeout_gap,
     )
 
     if not gap_result.success:
@@ -416,12 +419,14 @@ def run_gap_detection(
     else:
         critique_max_turns = TURN_DEFAULTS["critique_plan"]
 
+    mcp_servers_crit, timeout_crit = get_dispatch_params("critique", config)
     critique_result = dispatch_agent(
         prompt=critique_prompt,
         model=critique_model,
         tools=get_tools_for_role("critique"),
         max_turns=critique_max_turns,
-        no_mcp=True,
+        mcp_servers=mcp_servers_crit,
+        timeout=timeout_crit,
     )
 
     if not critique_result.success:

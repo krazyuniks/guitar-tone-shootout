@@ -28,6 +28,7 @@ from workflow.dispatch import (
     compute_prompt_hash,
     dispatch_agent,
     estimate_tokens,
+    get_dispatch_params,
 )
 from workflow.epic_config import BudgetConfig, EpicConfig, ensure_epic_config, load_config
 from workflow.git_helpers import (
@@ -574,11 +575,13 @@ def _run_epic_critique(
     )
 
     # Dispatch read-only critique agent
+    mcp_servers, timeout = get_dispatch_params("critique", config)
     result = dispatch_agent(
         prompt=prompt,
         model=critique_model,
         tools=["Read", "Bash", "Glob", "Grep"],
-        no_mcp=True,
+        mcp_servers=mcp_servers,
+        timeout=timeout,
         max_turns=critique_budget.max_turns,
         cwd=PROJECT_ROOT,
     )

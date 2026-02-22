@@ -18,7 +18,10 @@ import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from workflow.epic_config import EpicConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -86,7 +89,7 @@ class AgentAdapter(Protocol):
         tools: list[str],
         max_turns: int,
         json_schema: dict | None,
-        no_mcp: bool = False,
+        mcp_servers: list[str] | None = None,
     ) -> list[str]: ...
 
     def parse_result(
@@ -118,9 +121,11 @@ class ClaudeAdapter:
         tools: list[str],
         max_turns: int,
         json_schema: dict | None,
-        no_mcp: bool = False,
+        mcp_servers: list[str] | None = None,
     ) -> list[str]:
         """Build CLI arguments. Prompt is piped via stdin by the caller."""
+        from workflow.mcp import build_mcp_config
+
         args = [
             "claude",
             "-p",
@@ -141,8 +146,10 @@ class ClaudeAdapter:
         if json_schema:
             args.extend(["--json-schema", json.dumps(json_schema)])
 
-        if no_mcp:
-            args.extend(["--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}'])
+        # Always pass --strict-mcp-config with the resolved config.
+        # None or empty list → no MCP servers (same as old no_mcp=True).
+        mcp_config = build_mcp_config(mcp_servers or [])
+        args.extend(["--strict-mcp-config", "--mcp-config", mcp_config])
 
         return args
 
@@ -232,7 +239,7 @@ class CodexAdapter:
         tools: list[str],  # noqa: ARG002
         max_turns: int,  # noqa: ARG002
         json_schema: dict | None,  # noqa: ARG002
-        no_mcp: bool = False,  # noqa: ARG002
+        mcp_servers: list[str] | None = None,  # noqa: ARG002
     ) -> list[str]:
         """Build Codex CLI arguments. Prompt is piped via stdin by the caller.
 
@@ -435,7 +442,8 @@ def dispatch_agent(
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
     adapter: AgentAdapter | None = None,
-    no_mcp: bool = False,
+    mcp_servers: list[str] | None = None,
+    timeout: int = 600,
     conversation_log: Path | None = None,
 ) -> AgentResult:
     """Dispatch a prompt to an agent and return the structured result.
@@ -456,7 +464,8 @@ def dispatch_agent(
         json_schema: JSON schema for structured output (optional).
         cwd: Working directory for the subprocess.
         adapter: Provider adapter (auto-selected from model if None).
-        no_mcp: If True, pass --no-mcp to skip MCP server startup.
+        mcp_servers: MCP server names to include. None or empty = no MCP.
+        timeout: Subprocess timeout in seconds. 0 = no timeout.
         conversation_log: Path to write per-dispatch conversation JSONL.
             When provided, enables streaming Popen mode with full
             transcript capture.
@@ -490,7 +499,7 @@ def dispatch_agent(
         tools=tools,
         max_turns=max_turns,
         json_schema=json_schema,
-        no_mcp=no_mcp,
+        mcp_servers=mcp_servers,
     )
 
     # Clear CLAUDECODE env var to allow nested dispatch from within a Claude session.
@@ -516,6 +525,7 @@ def dispatch_agent(
             adapter=adapter,
             env=env,
             cwd=cwd,
+            timeout=timeout,
         )
 
     logger.info(
@@ -534,8 +544,10 @@ def _dispatch_simple(
     adapter: AgentAdapter,
     env: dict,
     cwd: Path,
+    timeout: int = 600,
 ) -> AgentResult:
     """Run agent via subprocess.run (no streaming, no conversation logging)."""
+    effective_timeout = timeout if timeout > 0 else None
     try:
         completed = subprocess.run(
             args,
@@ -544,10 +556,10 @@ def _dispatch_simple(
             text=True,
             cwd=cwd,
             env=env,
-            timeout=600,  # 10 minute timeout
+            timeout=effective_timeout,
         )
     except subprocess.TimeoutExpired:
-        logger.warning("Agent dispatch timed out after 600s")
+        logger.warning("Agent dispatch timed out after %ds", timeout)
         return AgentResult(
             success=False,
             output="",
@@ -690,3 +702,30 @@ def get_tools_for_role(role: str) -> list[str]:
         List of tool name strings.
     """
     return list(TOOL_SETS.get(role, TOOL_SETS["implementation"]))
+
+
+def get_dispatch_params(
+    role: str,
+    config: "EpicConfig | None",
+) -> tuple[list[str] | None, int]:
+    """Get MCP servers and timeout for a dispatch role from config.
+
+    Resolves the ``[mcp]`` and ``[budgets]`` sections of the epic config
+    into the parameters needed by ``dispatch_agent()``.
+
+    Args:
+        role: The dispatch role key (e.g. "planning", "gap_detection",
+            "critique", "implementation").
+        config: Epic configuration. If None, returns defaults.
+
+    Returns:
+        Tuple of (mcp_servers, timeout).
+    """
+    if config is None:
+        return (None, 600)
+
+    mcp_servers = config.mcp.get(role)
+    budget = config.budgets.get(role)
+    timeout = budget.timeout if budget else 600
+
+    return (mcp_servers, timeout)

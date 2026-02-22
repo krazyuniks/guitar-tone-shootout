@@ -26,6 +26,8 @@ from pathlib import Path
 from workflow.dispatch import (
     TURN_DEFAULTS,
     dispatch_agent,
+    get_dispatch_params,
+    get_tools_for_role,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
@@ -444,6 +446,7 @@ def verify_plan(
     else:
         max_turns = TURN_DEFAULTS["critique_plan"]
 
+    mcp_servers, timeout = get_dispatch_params("critique", config)
     result = dispatch_agent(
         prompt=prompt,
         model=critic_model,
@@ -451,6 +454,8 @@ def verify_plan(
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
+        mcp_servers=mcp_servers,
+        timeout=timeout,
     )
 
     if not result.success:
@@ -658,14 +663,16 @@ def _regenerate_plan_with_errors(
         len(revision_prompt),
     )
 
+    mcp_servers, timeout = get_dispatch_params("planning", config)
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
-        tools=[],
+        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
-        no_mcp=True,
+        mcp_servers=mcp_servers,
+        timeout=timeout,
     )
 
     if not result.success:
@@ -721,14 +728,16 @@ def _regenerate_plan_with_verifier_feedback(
         len(revision_prompt),
     )
 
+    mcp_servers, timeout = get_dispatch_params("planning", config)
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
-        tools=[],
+        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
-        no_mcp=True,
+        mcp_servers=mcp_servers,
+        timeout=timeout,
     )
 
     if not result.success:

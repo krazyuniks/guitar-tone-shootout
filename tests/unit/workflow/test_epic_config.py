@@ -2,6 +2,7 @@
 
 import pytest
 
+from workflow.dispatch import get_dispatch_params
 from workflow.epic_config import DEFAULT_CONFIG_PATH, load_config
 
 
@@ -33,6 +34,21 @@ class TestEpicConfigParsing:
         config = load_config(DEFAULT_CONFIG_PATH)
         assert config.budgets["implementation"].max_turns > 0
         assert config.budgets["planning"].max_turns > 0
+
+    def test_budget_timeout_defaults(self):
+        """Planning and gap_detection get 1800s timeout, others get 600s."""
+        config = load_config(DEFAULT_CONFIG_PATH)
+        assert config.budgets["planning"].timeout == 1800
+        assert config.budgets["gap_detection"].timeout == 1800
+        assert config.budgets["implementation"].timeout == 600
+        assert config.budgets["critique_plan"].timeout == 600
+        assert config.budgets["critique_story"].timeout == 600
+        assert config.budgets["critique_epic"].timeout == 600
+
+    def test_mcp_planning_role_present(self):
+        """MCP config has a planning entry."""
+        config = load_config(DEFAULT_CONFIG_PATH)
+        assert "planning" in config.mcp
 
     def test_mcp_roles_present(self):
         """MCP config has entries for key roles."""
@@ -71,3 +87,34 @@ class TestEpicConfigParsing:
         )
         with pytest.raises(ValueError, match="Unknown model role"):
             load_config(DEFAULT_CONFIG_PATH, override)
+
+
+class TestGetDispatchParams:
+    """get_dispatch_params() resolves MCP + timeout from config."""
+
+    def test_none_config_returns_defaults(self):
+        """None config returns (None, 600)."""
+        mcp_servers, timeout = get_dispatch_params("planning", None)
+        assert mcp_servers is None
+        assert timeout == 600
+
+    def test_planning_role_gets_1800(self):
+        """Planning role resolves to 1800s timeout from default config."""
+        config = load_config(DEFAULT_CONFIG_PATH)
+        mcp_servers, timeout = get_dispatch_params("planning", config)
+        assert timeout == 1800
+        assert mcp_servers == []
+
+    def test_critique_role_gets_600(self):
+        """Critique role resolves to 600s timeout from default config."""
+        config = load_config(DEFAULT_CONFIG_PATH)
+        _, timeout = get_dispatch_params("critique", config)
+        # critique has no budget entry, so falls back to 600
+        assert timeout == 600
+
+    def test_unknown_role_returns_defaults(self):
+        """Unknown role falls back to (None, 600)."""
+        config = load_config(DEFAULT_CONFIG_PATH)
+        mcp_servers, timeout = get_dispatch_params("nonexistent_role", config)
+        assert mcp_servers is None
+        assert timeout == 600

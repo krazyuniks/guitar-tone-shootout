@@ -26,6 +26,7 @@ from workflow.dispatch import (
     dispatch_agent,
     estimate_tokens,
     get_dispatch_metadata,
+    get_dispatch_params,
 )
 from workflow.epic_config import BudgetConfig
 from workflow.models import ValidationCheckpoint
@@ -876,11 +877,13 @@ def _run_story_critique(
     )
 
     # Dispatch read-only critique agent
+    mcp_servers, timeout = get_dispatch_params("critique", config)
     result = dispatch_agent(
         prompt=prompt,
         model=critique_model,
         tools=["Read", "Bash", "Glob", "Grep"],
-        no_mcp=True,
+        mcp_servers=mcp_servers,
+        timeout=timeout,
         max_turns=critique_budget.max_turns,
         cwd=PROJECT_ROOT,
     )
@@ -1041,12 +1044,15 @@ def _dispatch_and_validate_loop(
         story_dir = epic_dir / "stories" / story_id
         story_dir.mkdir(parents=True, exist_ok=True)
         conv_log = story_dir / f"dispatch-{attempt}.jsonl"
+        mcp_servers_impl, _ = get_dispatch_params("implementation", config)
         agent_result = dispatch_agent(
             prompt=prompt,
             model=model,
             tools=tools,
             max_turns=max_turns,
             cwd=PROJECT_ROOT,
+            mcp_servers=mcp_servers_impl,
+            timeout=0,  # streaming mode; no subprocess timeout
             conversation_log=conv_log,
         )
 

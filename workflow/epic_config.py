@@ -30,9 +30,10 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class BudgetConfig:
-    """Turn limits for a single role."""
+    """Turn limits and timeout for a single role."""
 
     max_turns: int = 30
+    timeout: int = 600  # seconds; 0 = no timeout
 
 
 @dataclass(frozen=True)
