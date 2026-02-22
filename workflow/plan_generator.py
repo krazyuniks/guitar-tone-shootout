@@ -584,6 +584,15 @@ def generate_plan(
         user_decisions=user_decisions,
     )
 
+    # Warn if prompt is likely to cause planner timeout
+    prompt_tokens = len(prompt) // 4
+    if prompt_tokens > 25_000:
+        logger.warning(
+            "Planning prompt is ~%d tokens — Opus may struggle or timeout. "
+            "Consider breaking this epic into smaller pieces.",
+            prompt_tokens,
+        )
+
     # Resolve model and turns from config or defaults
     planner_model = config.models.planner if config else "opus"
     if config and "planning" in config.budgets:
