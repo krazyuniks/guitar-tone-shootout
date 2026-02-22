@@ -118,3 +118,78 @@ class TestGetDispatchParams:
         mcp_servers, timeout = get_dispatch_params("nonexistent_role", config)
         assert mcp_servers is None
         assert timeout == 600
+
+
+class TestWriteConfigOverrides:
+    """Test _write_config_overrides writes valid TOML."""
+
+    def test_writes_model_overrides(self, tmp_path):
+        """Model overrides are written and reloadable."""
+        import shutil
+
+        from workflow.epic_config import _write_config_overrides
+
+        config_path = tmp_path / "config.toml"
+        shutil.copy2(DEFAULT_CONFIG_PATH, config_path)
+
+        _write_config_overrides(config_path, {"models": {"implementor": "haiku"}})
+
+        config = load_config(DEFAULT_CONFIG_PATH, config_path)
+        assert config.models.implementor == "haiku"
+        # Other models unchanged
+        assert config.models.planner == "opus"
+        assert config.models.story_critic == "opus"
+
+    def test_writes_budget_overrides(self, tmp_path):
+        """Budget overrides are written and reloadable."""
+        import shutil
+
+        from workflow.epic_config import _write_config_overrides
+
+        config_path = tmp_path / "config.toml"
+        shutil.copy2(DEFAULT_CONFIG_PATH, config_path)
+
+        _write_config_overrides(
+            config_path,
+            {"budgets": {"implementation": {"max_turns": 99}}},
+        )
+
+        config = load_config(DEFAULT_CONFIG_PATH, config_path)
+        assert config.budgets["implementation"].max_turns == 99
+
+    def test_roundtrip_preserves_all_sections(self, tmp_path):
+        """Writing overrides preserves models, budgets, and mcp sections."""
+        import shutil
+
+        from workflow.epic_config import _write_config_overrides
+
+        config_path = tmp_path / "config.toml"
+        shutil.copy2(DEFAULT_CONFIG_PATH, config_path)
+
+        # Write a model override
+        _write_config_overrides(config_path, {"models": {"implementor": "sonnet"}})
+
+        # Reload and verify ALL sections still exist
+        config = load_config(DEFAULT_CONFIG_PATH, config_path)
+        assert config.models.implementor == "sonnet"
+        assert "implementation" in config.budgets
+        assert "planning" in config.budgets
+        assert "planning" in config.mcp
+
+    def test_cross_model_violation_detected_on_reload(self, tmp_path):
+        """Writing invalid cross-model config is caught on reload."""
+        import shutil
+
+        from workflow.epic_config import _write_config_overrides
+
+        config_path = tmp_path / "config.toml"
+        shutil.copy2(DEFAULT_CONFIG_PATH, config_path)
+
+        # Write implementor = opus, story_critic = opus (violates constraint)
+        _write_config_overrides(
+            config_path,
+            {"models": {"implementor": "opus", "story_critic": "opus"}},
+        )
+
+        with pytest.raises(ValueError, match="must be different"):
+            load_config(DEFAULT_CONFIG_PATH, config_path)

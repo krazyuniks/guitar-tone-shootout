@@ -14,6 +14,9 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# Available models for interactive selection
+AVAILABLE_MODELS: list[str] = ["opus", "codex", "sonnet", "haiku"]
+
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "default_config.toml"
 
 
@@ -137,3 +140,140 @@ def ensure_epic_config(epic_dir: Path) -> Path:
         epic_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(DEFAULT_CONFIG_PATH, config_path)
     return config_path
+
+
+def prompt_execution_config(config_path: Path) -> EpicConfig:
+    """Interactive model/effort selection for Stage 4 execution.
+
+    Shows current config and lets the user override execution-phase
+    models (implementor, story_critic, epic_critic) and max_turns.
+    Writes changes back to config.toml and returns the updated config.
+
+    Args:
+        config_path: Path to the epic's config.toml.
+
+    Returns:
+        Updated EpicConfig after user selections.
+    """
+    import typer
+    from rich.console import Console
+    from rich.table import Table
+
+    from workflow.cli import flush_stdin
+
+    console = Console()
+    config = load_config(override_path=config_path)
+
+    # Show current execution config
+    table = Table(title="Stage 4 Execution Config", show_header=True)
+    table.add_column("Role", style="bold")
+    table.add_column("Model", style="cyan")
+    table.add_column("Max Turns", style="green")
+    table.add_column("Timeout", style="yellow")
+
+    role_budget_map = {
+        "implementor": "implementation",
+        "story_critic": "critique_story",
+        "epic_critic": "critique_epic",
+    }
+
+    for role, budget_key in role_budget_map.items():
+        model = getattr(config.models, role)
+        budget = config.budgets.get(budget_key, BudgetConfig())
+        table.add_row(role, model, str(budget.max_turns), f"{budget.timeout}s")
+
+    console.print()
+    console.print(table)
+    console.print()
+
+    flush_stdin()
+    modify = typer.confirm("Modify execution config?", default=False)
+    if not modify:
+        return config
+
+    # Collect overrides
+    overrides: dict[str, dict] = {"models": {}, "budgets": {}}
+    available = ", ".join(AVAILABLE_MODELS)
+
+    for role, budget_key in role_budget_map.items():
+        current_model = getattr(config.models, role)
+        console.print(f"\n[bold]{role}[/bold] (current: {current_model})")
+        console.print(f"  Available: {available}")
+        flush_stdin()
+        new_model = typer.prompt("  Model", default=current_model)
+        if new_model != current_model:
+            overrides["models"][role] = new_model
+
+        current_budget = config.budgets.get(budget_key, BudgetConfig())
+        flush_stdin()
+        new_turns = typer.prompt("  Max turns", default=current_budget.max_turns, type=int)
+        if new_turns != current_budget.max_turns:
+            if budget_key not in overrides["budgets"]:
+                overrides["budgets"][budget_key] = {}
+            overrides["budgets"][budget_key]["max_turns"] = new_turns
+
+    # Remove empty sections
+    overrides = {k: v for k, v in overrides.items() if v}
+
+    if not overrides:
+        console.print("[dim]No changes made.[/dim]")
+        return config
+
+    # Validate before writing
+    models_data = {
+        "planner": config.models.planner,
+        "plan_critic": config.models.plan_critic,
+        "implementor": config.models.implementor,
+        "story_critic": config.models.story_critic,
+        "epic_critic": config.models.epic_critic,
+    }
+    models_data.update(overrides.get("models", {}))
+    test_models = ModelConfig(**models_data)
+    _validate_cross_model(test_models)
+
+    # Write overrides to config.toml
+    _write_config_overrides(config_path, overrides)
+
+    # Reload and return
+    updated = load_config(override_path=config_path)
+    console.print("[green]Config updated.[/green]")
+    return updated
+
+
+def _write_config_overrides(config_path: Path, overrides: dict) -> None:
+    """Write model/budget overrides to a TOML config file.
+
+    Reads existing config, merges overrides, and writes back.
+    """
+    existing = _parse_toml(config_path) if config_path.is_file() else {}
+    merged = _merge_dicts(existing, overrides)
+
+    lines: list[str] = []
+
+    # Write [models] section
+    if "models" in merged:
+        lines.append("[models]")
+        for key, value in sorted(merged["models"].items()):
+            lines.append(f'{key} = "{value}"')
+        lines.append("")
+
+    # Write [budgets.*] sections
+    if "budgets" in merged:
+        for role in sorted(merged["budgets"]):
+            budget = merged["budgets"][role]
+            if isinstance(budget, dict):
+                lines.append(f"[budgets.{role}]")
+                for k, v in sorted(budget.items()):
+                    lines.append(f"{k} = {v}")
+                lines.append("")
+
+    # Write [mcp] section
+    if "mcp" in merged:
+        lines.append("[mcp]")
+        for role, servers in sorted(merged["mcp"].items()):
+            if isinstance(servers, list):
+                server_strs = ", ".join(f'"{s}"' for s in servers)
+                lines.append(f"{role} = [{server_strs}]")
+        lines.append("")
+
+    config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

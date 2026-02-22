@@ -30,7 +30,13 @@ from workflow.dispatch import (
     estimate_tokens,
     get_dispatch_params,
 )
-from workflow.epic_config import BudgetConfig, EpicConfig, ensure_epic_config, load_config
+from workflow.epic_config import (
+    BudgetConfig,
+    EpicConfig,
+    ensure_epic_config,
+    load_config,
+    prompt_execution_config,
+)
 from workflow.git_helpers import (
     GitConflictError,
     GitPushError,
@@ -775,6 +781,14 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
     except (ValueError, FileNotFoundError) as exc:
         logger.error("Configuration error: %s", exc)
         sys.exit(1)
+
+    # Interactive model selection on fresh start
+    if not resume and sys.stdin.isatty():
+        try:
+            config = prompt_execution_config(config_path)
+        except ValueError as exc:
+            logger.error("Invalid configuration: %s", exc)
+            sys.exit(1)
 
     # Pre-execution validation (skip golden path by default — it's slow)
     logger.info("Running pre-execution configuration validation...")
