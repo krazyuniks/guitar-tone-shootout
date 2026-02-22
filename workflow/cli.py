@@ -47,6 +47,23 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # ---------------------------------------------------------------------------
 
 
+def flush_stdin() -> None:
+    """Discard any buffered stdin data before an interactive prompt.
+
+    Earlier prompts (e.g. typer.confirm "Skip?") leave trailing newlines
+    in the stdin buffer. Without flushing, downstream input()/typer.prompt()
+    calls consume these as empty input — causing auto-skips and double-prompts.
+    """
+    import sys
+
+    if not sys.stdin.isatty():
+        return
+
+    import termios
+
+    termios.tcflush(sys.stdin, termios.TCIFLUSH)
+
+
 def _should_skip(artefact_path: Path, label: str) -> bool:
     """Prompt the user to skip a step if its output artefact already exists.
 

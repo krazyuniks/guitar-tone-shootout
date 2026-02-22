@@ -371,8 +371,11 @@ def present_decision_gate(
     print("  [x] Reject  — exit, planning artefacts not committed")
     print()
 
+    from workflow.cli import flush_stdin
+
     while True:
         try:
+            flush_stdin()
             choice = input("Decision [a/r/x]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             print("\nRejected (interrupted)")

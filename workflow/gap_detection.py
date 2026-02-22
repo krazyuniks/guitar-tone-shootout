@@ -267,6 +267,8 @@ def _ask_escalated_questions(questions: list[EscalatedQuestion]) -> list[GapAnsw
         console.print("  [dim]No questions to escalate — all gaps auto-resolved.[/dim]")
         return []
 
+    from workflow.cli import flush_stdin
+
     answers: list[GapAnswer] = []
 
     for i, q in enumerate(questions, 1):
@@ -284,6 +286,7 @@ def _ask_escalated_questions(questions: list[EscalatedQuestion]) -> list[GapAnsw
         console.print(f"  [dim]Reasoning: {q.reasoning}[/dim]")
         console.print()
 
+        flush_stdin()
         raw = typer.prompt(f"Select option (1-{len(q.options)}) or type a custom answer")
 
         # Accept number or free text
@@ -453,6 +456,9 @@ def run_gap_detection(
     console.print(Panel(critique_result.output, title="Critique", border_style="yellow"))
     console.print()
 
+    from workflow.cli import flush_stdin
+
+    flush_stdin()
     user_feedback = typer.prompt(
         "Press Enter to proceed to questions, or type feedback",
         default="",
@@ -488,6 +494,7 @@ def run_gap_detection(
         console.print(f"  - {area}")
     console.print()
 
+    flush_stdin()
     sufficiency = typer.confirm("Are all gaps resolved and scope decisions locked?", default=True)
 
     # --- Step 6: Write user-decisions.json ---
