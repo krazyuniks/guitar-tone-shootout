@@ -431,9 +431,22 @@ def build_verifier_revision_prompt(
         dims = verifier_result
 
     def _get_finding_items(dim_data: dict, key: str) -> list:
-        """Get finding items from either nested or flat layout."""
-        # Nested: dim_data["findings"][key]
+        """Get finding items from nested dict, flat dict, or array layout.
+
+        The verifier prompt asks for findings as an array of objects with
+        severity fields, but earlier code expected a dict with named keys
+        (e.g. ``{"findings": {"gaps": [...]}}``) or flat keys. This now
+        handles all three:
+
+        - Array: ``{"findings": [{"severity": "must_fix", ...}]}``
+        - Nested dict: ``{"findings": {"gaps": [...]}}``
+        - Flat: ``{"gaps": [...]}``
+        """
         findings = dim_data.get("findings")
+        # Array of finding objects — return must_fix items directly
+        if isinstance(findings, list):
+            return [f for f in findings if f.get("severity") == "must_fix"]
+        # Nested dict with named keys
         if isinstance(findings, dict):
             items = findings.get(key, [])
             if items:

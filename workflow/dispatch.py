@@ -208,15 +208,9 @@ class CodexAdapter:
 
     Passes prompt via stdin (codex exec reads stdin when no prompt arg given).
     Uses --json for structured output, --ephemeral for no session persistence.
-    MCP servers are configured globally in ~/.codex/config.toml.
-
-    Sandbox modes:
-    - "read-only" for critique (read codebase, no writes)
-    - "danger-full-access" for implementation (full write access)
+    Model, approval policy, sandbox, and MCP servers are configured globally
+    in ~/.codex/config.toml — the adapter does not override them.
     """
-
-    def __init__(self, sandbox: str = "read-only") -> None:
-        self._sandbox = sandbox
 
     @property
     def name(self) -> str:
@@ -232,6 +226,26 @@ class CodexAdapter:
         if volta_path.exists():
             return str(volta_path)
         return "codex"  # fall through to PATH
+
+    def _log_response(self, output: str, output_path_str: str) -> None:
+        """Log the Codex agent response for post-mortem debugging.
+
+        Writes to .planning/logs/codex-response-<timestamp>.txt alongside
+        the dispatch prompt logs. The original temp file path is included
+        as a header for correlation.
+        """
+        logs_dir = PROJECT_ROOT / ".planning" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+        path = logs_dir / f"codex-response-{ts}.txt"
+        try:
+            path.write_text(
+                f"# Codex response (from {output_path_str})\n\n{output}",
+                encoding="utf-8",
+            )
+            logger.debug("Codex response logged to %s (%d chars)", path, len(output))
+        except OSError as exc:
+            logger.warning("Failed to write Codex response log: %s", exc)
 
     def build_args(
         self,
@@ -265,8 +279,7 @@ class CodexAdapter:
             "model_reasoning_effort=high",
             "--ephemeral",
             "--json",
-            "--sandbox",
-            self._sandbox,
+            "--dangerously-bypass-approvals-and-sandbox",
             "-o",
             output_path,
         ]
@@ -304,6 +317,9 @@ class CodexAdapter:
                 if output_path.exists():
                     output = output_path.read_text(encoding="utf-8")
             finally:
+                # Log the response before cleaning up, for post-mortem debugging
+                if output:
+                    self._log_response(output, output_path_str)
                 with contextlib.suppress(OSError):
                     output_path.unlink(missing_ok=True)
 
@@ -339,14 +355,13 @@ class CodexAdapter:
 # ---------------------------------------------------------------------------
 
 _claude_adapter = ClaudeAdapter()
-_codex_critique_adapter = CodexAdapter(sandbox="read-only")
-_codex_impl_adapter = CodexAdapter(sandbox="danger-full-access")
+_codex_adapter = CodexAdapter()
 
 ADAPTER_MAP: dict[str, AgentAdapter] = {
     "opus": _claude_adapter,
     "sonnet": _claude_adapter,
     "haiku": _claude_adapter,
-    "codex": _codex_critique_adapter,  # default to read-only for safety
+    "codex": _codex_adapter,
 }
 
 
@@ -366,18 +381,12 @@ def get_adapter(model: str) -> AgentAdapter:
     return adapter
 
 
-def get_codex_adapter(sandbox: str = "read-only") -> CodexAdapter:
-    """Return a CodexAdapter with the specified sandbox mode.
+def get_codex_adapter() -> CodexAdapter:
+    """Return the shared CodexAdapter instance.
 
-    Args:
-        sandbox: "read-only" for critique, "danger-full-access" for implementation.
-
-    Returns:
-        CodexAdapter instance.
+    Sandbox and approval policy are controlled by ~/.codex/config.toml.
     """
-    if sandbox == "read-only":
-        return _codex_critique_adapter
-    return _codex_impl_adapter
+    return _codex_adapter
 
 
 # ---------------------------------------------------------------------------

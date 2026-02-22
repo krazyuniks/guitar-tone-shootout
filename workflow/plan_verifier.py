@@ -282,6 +282,39 @@ def _extract_dimension_failures(result: dict) -> list[str]:
     return failures
 
 
+def _has_extractable_findings(result: dict) -> bool:
+    """Check whether the verifier result contains any must_fix findings.
+
+    Returns False when the verifier reported a fail status but the structured
+    output has no extractable content (e.g. empty findings arrays or an
+    unexpected format). Used to skip planner revision when there is nothing
+    actionable to feed back.
+    """
+    dims = _get_dimensions(result)
+    for dimension in [
+        "journey_completeness",
+        "transition_coverage",
+        "intent_alignment",
+        "gap_detection",
+        "validation_sufficiency",
+    ]:
+        dim = dims.get(dimension, {})
+        if not isinstance(dim, dict) or dim.get("status") != "fail":
+            continue
+        findings = dim.get("findings")
+        if isinstance(findings, list) and any(
+            f.get("severity") == "must_fix" for f in findings if isinstance(f, dict)
+        ):
+            return True
+        if isinstance(findings, dict) and any(findings.values()):
+            return True
+        # Check flat keys (legacy format)
+        for key in ("gaps", "uncovered", "unaddressed_requirements", "scope_creep", "weak_checks"):
+            if dim.get(key):
+                return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Decision Gate
 # ---------------------------------------------------------------------------
@@ -539,6 +572,16 @@ def verify_with_revision_cycle(
         "Phase B failed (dimensions: %s). Re-invoking planner with verifier feedback...",
         ", ".join(failed_dims),
     )
+
+    # Hard stop: if Codex reported fail but produced no extractable findings,
+    # something went wrong with the Codex invocation (instant return, auth
+    # failure, malformed output, etc.). Don't waste money on a blind re-plan.
+    if not _has_extractable_findings(verifier_result):
+        raise PlanVerificationError(
+            "Phase B reported fail but contains no extractable must_fix findings. "
+            "Codex may not have run properly. "
+            f"Raw result: {json.dumps(verifier_result)[:2000]}"
+        )
 
     # Snapshot the current (Phase A-passing) plan before revision
     plan_json_path = epic_dir / "plan.json"
