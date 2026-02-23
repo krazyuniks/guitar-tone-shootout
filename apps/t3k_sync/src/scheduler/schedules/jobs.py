@@ -9,8 +9,8 @@ import redis.asyncio as redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from core.domain.auth_gate import check_auth_status
-from core.domain.value_objects.job_status import JobStatus
+from gts.domain.auth_gate import check_auth_status
+from gts.domain.value_objects.job_status import JobStatus
 from scheduler.db import get_session
 from scheduler.lock import DistributedLock
 

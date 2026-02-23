@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.user import User
 from worker.admin import app, get_db_session, get_redis_client, get_t3k_db_session

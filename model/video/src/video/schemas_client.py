@@ -6,9 +6,10 @@ that communicates with the video BC worker service.
 
 from typing import Any
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
 from pydantic import BaseModel, Field
+
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
 
 
 class SubmitRenderRequest(BaseModel):

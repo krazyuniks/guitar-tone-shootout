@@ -12,9 +12,9 @@ from uuid import UUID
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.entities.base import new_id
-from core.domain.entities.gear import Gear as GearEntity
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.entities.base import new_id
+from gts.domain.entities.gear import Gear as GearEntity
+from gts.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
 )

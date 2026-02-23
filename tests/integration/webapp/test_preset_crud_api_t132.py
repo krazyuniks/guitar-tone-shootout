@@ -13,8 +13,8 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.block_category import BlockCategory
-from core.domain.value_objects.signal_chain_enums import Platform
+from gts.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.signal_chain import (

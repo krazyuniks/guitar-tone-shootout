@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from core.domain.entities.base import Entity, new_id, utcnow
+from gts.domain.entities.base import Entity, new_id, utcnow
 
 
 @dataclass(eq=False, slots=True)

@@ -9,9 +9,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from core.domain.entities.shootout import Shootout, ShootoutChain
-from core.domain.value_objects.job_status import JobStatus, JobType
-from core.domain.value_objects.signal_chain_enums import Platform
+from gts.domain.entities.shootout import Shootout, ShootoutChain
+from gts.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.shootout import (

@@ -25,7 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.value_objects.signal_chain_enums import GearType
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
 

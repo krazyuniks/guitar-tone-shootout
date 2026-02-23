@@ -7,7 +7,7 @@ import json
 import logging
 from pathlib import Path
 
-from core.domain.value_objects.source_auth_status import SourceAuthStatus
+from gts.domain.value_objects.source_auth_status import SourceAuthStatus
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from core.domain.entities.shootout import (
+from gts.domain.entities.shootout import (
     Shootout,
     ShootoutChain,
 )
@@ -53,7 +53,7 @@ async def test_signal_chain(
     test_user: User,
 ) -> SignalChain:
     """Create a test signal chain."""
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
 
     chain = SignalChain(
         user_id=test_user.id,

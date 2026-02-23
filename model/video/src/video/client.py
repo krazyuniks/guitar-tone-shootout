@@ -4,10 +4,10 @@ Provides HTTP/REST communication with the video BC worker service for
 submitting render jobs and polling status.
 """
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
 from httpx import AsyncClient, HTTPStatusError, RequestError
 
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
 from video.schemas_client import (
     PollStatusResponse,
     SubmitRenderRequest,

@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 
-from core.domain.entities.di_track import DITrack as DITrackEntity
-from core.domain.value_objects.audio_checksum import AudioChecksum
+from gts.domain.entities.di_track import DITrack as DITrackEntity
+from gts.domain.value_objects.audio_checksum import AudioChecksum
 from webapp.adapters.persistence.models.shootout import DITrack
 
 if TYPE_CHECKING:

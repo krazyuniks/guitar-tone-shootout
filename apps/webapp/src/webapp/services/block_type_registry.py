@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from sqlalchemy import select
 
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.block_category import BlockCategory
 from webapp.adapters.persistence.models.block_type import BlockType
 
 if TYPE_CHECKING:

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.block_category import BlockCategory
 
 
 class BlockTypeResponse(BaseModel):

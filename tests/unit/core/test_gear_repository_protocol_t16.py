@@ -9,7 +9,7 @@ from __future__ import annotations
 
 def test_gear_repository_protocol_has_get_by_slug_method() -> None:
     """Test that GearRepository protocol defines get_by_slug method."""
-    from core.ports.repositories import GearRepository
+    from gts.ports.repositories import GearRepository
 
     # Protocol should have get_by_slug method
     assert hasattr(GearRepository, "get_by_slug")
@@ -19,7 +19,7 @@ def test_gear_repository_protocol_get_by_slug_signature() -> None:
     """Test that get_by_slug has correct method signature."""
     from inspect import signature
 
-    from core.ports.repositories import GearRepository
+    from gts.ports.repositories import GearRepository
 
     # Get the method from protocol
     method = GearRepository.get_by_slug

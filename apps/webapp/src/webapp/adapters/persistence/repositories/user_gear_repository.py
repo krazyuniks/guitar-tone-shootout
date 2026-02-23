@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, func, select
 
-from core.domain.entities.gear import UserGear as UserGearEntity
+from gts.domain.entities.gear import UserGear as UserGearEntity
 from webapp.adapters.persistence.models.user_gear import UserGear
 
 if TYPE_CHECKING:

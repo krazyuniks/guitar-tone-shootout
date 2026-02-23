@@ -14,8 +14,8 @@ from uuid import uuid4
 
 import pytest
 
-from core.domain.entities.user import User as UserEntity
-from core.domain.entities.user import UserIdentity
+from gts.domain.entities.user import User as UserEntity
+from gts.domain.entities.user import UserIdentity
 from webapp.adapters.persistence.models.job import AuditLog
 from webapp.adapters.persistence.models.notification import UserNotification
 from webapp.adapters.persistence.models.preset import Preset

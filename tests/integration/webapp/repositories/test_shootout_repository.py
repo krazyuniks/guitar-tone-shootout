@@ -13,8 +13,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import event
 
-from core.domain.entities.shootout import Shootout as ShootoutEntity
-from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
+from gts.domain.entities.shootout import Shootout as ShootoutEntity
+from gts.domain.entities.shootout import ShootoutChain as ShootoutChainVO
 from webapp.adapters.persistence.repositories.shootout_repository import (
     SQLAlchemyShootoutRepository,
 )
@@ -100,7 +100,7 @@ async def test_shootout_get_by_id_single_query(
     db_session.add(di_track)
 
     # Create signal chains
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
     from webapp.adapters.persistence.models.signal_chain import SignalChain
 
     chain1 = SignalChain(
@@ -225,7 +225,7 @@ async def test_shootout_get_public_single_query_with_pagination(
         di_tracks.append(di_track)
 
     # Create signal chains for shootout chains
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
     from webapp.adapters.persistence.models.signal_chain import SignalChain
 
     signal_chains = []
@@ -348,7 +348,7 @@ async def test_shootout_get_by_user_id_uses_id_subquery_pattern(
         di_tracks.append(di_track)
 
     # Create signal chains for shootout chains
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
     from webapp.adapters.persistence.models.signal_chain import SignalChain
 
     signal_chains = []

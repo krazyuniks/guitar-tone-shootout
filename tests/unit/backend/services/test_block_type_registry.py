@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.block_category import BlockCategory
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

@@ -6,7 +6,7 @@ Calculates signal chain permutations for group comparisons.
 from itertools import product
 from uuid import UUID
 
-from core.domain.entities.signal_chain_group import SignalChainGroup
+from gts.domain.entities.signal_chain_group import SignalChainGroup
 
 
 class PermutationCalculator:

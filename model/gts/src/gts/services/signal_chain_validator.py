@@ -6,9 +6,9 @@ Validates signal chain compositions against grammar rules.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-from core.domain.value_objects.block_position import BlockPosition
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+from gts.domain.value_objects.block_position import BlockPosition
+from gts.domain.value_objects.signal_chain_enums import GearType
 
 
 class ValidationRule(str, Enum):

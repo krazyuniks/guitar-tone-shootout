@@ -12,8 +12,8 @@ import uuid
 
 import pytest
 
-from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,

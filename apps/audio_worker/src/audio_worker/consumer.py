@@ -6,14 +6,14 @@ import logging
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from core.records.commands import ProcessAudioCommand
-from core.services.consumer_base import BaseConsumer
-from core.services.pgmq_client import PgmqClient
+from messaging.commands import ProcessAudioCommand
+from messaging.consumer_base import BaseConsumer
+from messaging.pgmq_client import PgmqClient
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from core.records.envelope import MessageEnvelope
+    from messaging.envelope import MessageEnvelope
 
 
 async def process_audio_job(job_id: UUID) -> None:

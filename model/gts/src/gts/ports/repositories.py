@@ -11,15 +11,15 @@ sources/t3k. Core only has unified Gear repository.
 from typing import Protocol
 from uuid import UUID
 
-from core.domain.entities.di_track import DITrack
-from core.domain.entities.gear import Gear
-from core.domain.entities.job import Job
-from core.domain.entities.shootout import Shootout
-from core.domain.entities.signal_chain import SignalChain
-from core.domain.entities.signal_chain_group import SignalChainGroup
-from core.domain.entities.user import User
-from core.domain.value_objects.job_status import JobStatus, JobType
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.entities.di_track import DITrack
+from gts.domain.entities.gear import Gear
+from gts.domain.entities.job import Job
+from gts.domain.entities.shootout import Shootout
+from gts.domain.entities.signal_chain import SignalChain
+from gts.domain.entities.signal_chain_group import SignalChainGroup
+from gts.domain.entities.user import User
+from gts.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.signal_chain_enums import GearType
 
 
 class UserRepository(Protocol):

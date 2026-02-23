@@ -20,7 +20,7 @@ from redis.asyncio import Redis
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from source_t3k.adapters.outbound.models import SyncCheckpoint
 from webapp.adapters.persistence.models.job import Job
 from worker.config import WorkerSettings

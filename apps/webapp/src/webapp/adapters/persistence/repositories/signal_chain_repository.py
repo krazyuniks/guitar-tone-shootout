@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
-from core.domain.entities.signal_chain import (
+from gts.domain.entities.signal_chain import (
     SignalChain as SignalChainEntity,
 )
-from core.domain.entities.signal_chain import SignalChainBlock as BlockEntity
+from gts.domain.entities.signal_chain import SignalChainBlock as BlockEntity
 from webapp.adapters.persistence.models.signal_chain import (
     SignalChain,
     SignalChainBlock,

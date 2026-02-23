@@ -58,8 +58,8 @@ check: check-lint check-types check-tests check-imports test-quality
 
 # Run type checking (strict on core, TypeScript on video)
 check-types:
-    docker compose exec -T webapp mypy libs/core/ --strict
-    @cd libs/video && npx tsc --noEmit
+    docker compose exec -T webapp mypy model/gts/ --strict
+    @cd model/video && npx tsc --noEmit
 
 # Run unit tests
 check-tests:
@@ -75,13 +75,13 @@ check-imports:
 
 # Check lint and formatting (read-only — no file modifications)
 check-lint:
-    docker compose exec -T webapp ruff check libs/ sources/ apps/ tests/
-    docker compose exec -T webapp ruff format --check libs/ sources/ apps/ tests/
+    docker compose exec -T webapp ruff check model/ infra/ sources/ apps/ tests/
+    docker compose exec -T webapp ruff format --check model/ infra/ sources/ apps/ tests/
 
 # Fix all lint issues (Python + Astro)
 lint:
-    docker compose exec -T webapp ruff check libs/ sources/ apps/ tests/ --fix
-    docker compose exec -T webapp ruff format libs/ sources/ apps/ tests/
+    docker compose exec -T webapp ruff check model/ infra/ sources/ apps/ tests/ --fix
+    docker compose exec -T webapp ruff format model/ infra/ sources/ apps/ tests/
 
 # =============================================================================
 # Testing
@@ -214,14 +214,14 @@ verify-astro-sync:
     @echo "Astro dist is in sync."
 
 # =============================================================================
-# Video Development (libs/video - Remotion)
+# Video Development (model/video - Remotion)
 # =============================================================================
 
 # Open Remotion Studio for video composition development
 video-studio:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd libs/video
+    cd model/video
     npx remotion studio src/video/remotion/index.ts
 
 # Run video tests (Python + TypeScript)
@@ -232,7 +232,7 @@ video-test:
 video-types:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd libs/video
+    cd model/video
     npx tsc --noEmit
 
 # =============================================================================

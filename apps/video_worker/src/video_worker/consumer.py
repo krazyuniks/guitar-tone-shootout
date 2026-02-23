@@ -10,16 +10,16 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from core.domain.value_objects.job_status import JobStatus, JobType
-from core.records.commands import RenderVideoCommand
-from core.services.consumer_base import BaseConsumer
-from core.services.pgmq_client import PgmqClient
+from gts.domain.value_objects.job_status import JobStatus, JobType
+from messaging.commands import RenderVideoCommand
+from messaging.consumer_base import BaseConsumer
+from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from worker.db import get_session_no_tx as get_session
 
 if TYPE_CHECKING:
-    from core.records.envelope import MessageEnvelope
+    from messaging.envelope import MessageEnvelope
 
 
 async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: str) -> None:

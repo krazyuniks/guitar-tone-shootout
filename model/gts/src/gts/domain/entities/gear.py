@@ -8,9 +8,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from core.domain.entities.base import Entity, new_id, utcnow
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from gts.domain.entities.base import Entity, new_id, utcnow
+from gts.domain.value_objects.download_status import DownloadStatus
+from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 
 
 @dataclass(frozen=True, slots=True)

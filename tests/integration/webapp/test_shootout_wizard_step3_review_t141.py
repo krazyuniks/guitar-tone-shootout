@@ -26,7 +26,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from core.domain.value_objects.signal_chain_enums import Platform
+from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.shootout import DITrack, Shootout
 from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
 from webapp.adapters.persistence.models.user import User

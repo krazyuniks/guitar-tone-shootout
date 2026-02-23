@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from core.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.composition_spec import CompositionSpec
 from video.schemas import (
     HealthResponse,
     RenderRequest,

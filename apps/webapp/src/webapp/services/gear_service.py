@@ -13,8 +13,8 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from core.domain.entities.gear import Gear
-    from core.domain.value_objects.signal_chain_enums import GearType
+    from gts.domain.entities.gear import Gear
+    from gts.domain.value_objects.signal_chain_enums import GearType
 
 
 class GearService:

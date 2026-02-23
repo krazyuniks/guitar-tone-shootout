@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.domain.value_objects.source_auth_status import SourceAuthStatus
+from gts.domain.value_objects.source_auth_status import SourceAuthStatus
 
 
 class TestSourceAuthStatus:

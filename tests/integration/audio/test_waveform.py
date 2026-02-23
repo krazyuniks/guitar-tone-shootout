@@ -10,7 +10,7 @@ import pytest
 import soundfile as sf
 
 from audio.analysis.waveform import extract_waveform
-from core.domain.value_objects.waveform_data import WaveformData  # type: ignore[import-untyped]
+from gts.domain.value_objects.waveform_data import WaveformData  # type: ignore[import-untyped]
 
 
 @pytest.fixture

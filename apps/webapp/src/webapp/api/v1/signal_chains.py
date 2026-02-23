@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.signal_chain import (
     SignalChainCreateRequest,

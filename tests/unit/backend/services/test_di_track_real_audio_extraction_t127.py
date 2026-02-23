@@ -142,7 +142,7 @@ class TestDITrackRealAudioMetadataExtraction:
         tmp_path: Path,
     ) -> None:
         """Upload a real WAV -> waveform should be a WaveformData with peaks."""
-        from core.domain.value_objects.waveform_data import WaveformData
+        from gts.domain.value_objects.waveform_data import WaveformData
 
         audio_file = _create_real_mono_wav(tmp_path / "waveform.wav")
         service = DITrackService(session)

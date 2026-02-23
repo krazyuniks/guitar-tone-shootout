@@ -16,7 +16,7 @@ class TestVideoComposerDeprecation:
             # If it still exists, check for deprecation markers
             import warnings
 
-            from core.ports.video_composer import VideoComposer
+            from gts.ports.video_composer import VideoComposer
 
             # Check if the module has a deprecation notice in docstring
             if VideoComposer.__doc__:
@@ -28,7 +28,7 @@ class TestVideoComposerDeprecation:
             # Check if importing triggers a deprecation warning
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always")
-                from core.ports.video_composer import VideoComposer
+                from gts.ports.video_composer import VideoComposer
 
                 # If no deprecation warning, the test should document this
                 if len(w) == 0:
@@ -44,7 +44,7 @@ class TestVideoComposerDeprecation:
     def test_video_renderer_replaces_video_composer(self) -> None:
         """VideoRenderer should exist as the replacement for VideoComposer."""
         # This test ensures the new port exists
-        from core.ports.video_renderer import VideoRenderer
+        from gts.ports.video_renderer import VideoRenderer
 
         assert VideoRenderer is not None
         assert hasattr(VideoRenderer, "submit")

@@ -61,7 +61,7 @@ class TestDITrackTuningField:
 
     def test_domain_entity_has_tuning_field(self) -> None:
         """DITrack domain entity must have a tuning field."""
-        from core.domain.entities.di_track import DITrack as DITrackEntity
+        from gts.domain.entities.di_track import DITrack as DITrackEntity
 
         # The domain entity must accept tuning as a field
         entity = DITrackEntity(

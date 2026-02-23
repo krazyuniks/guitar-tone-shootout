@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from core.domain.entities.job import Job as JobEntity
-from core.domain.entities.user import User as UserEntity
-from core.domain.entities.user import UserIdentity
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.job import Job as JobEntity
+from gts.domain.entities.user import User as UserEntity
+from gts.domain.entities.user import UserIdentity
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.base import Base
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.job_repository import SQLAlchemyJobRepository

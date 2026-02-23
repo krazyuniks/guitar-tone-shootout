@@ -18,7 +18,7 @@ from sqlalchemy.orm import joinedload
 
 from audio.processing.chain_executor import execute_signal_chain
 from audio.processing.loudness import measure_loudness
-from core.domain.value_objects.job_status import JobStatus
+from gts.domain.value_objects.job_status import JobStatus
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,

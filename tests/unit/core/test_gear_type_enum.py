@@ -12,48 +12,48 @@ class TestGearTypeEnum:
     def test_gear_type_module_exists(self) -> None:
         """Test that gear_type module exists at expected location."""
         # This import will fail if the module doesn't exist
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         assert GearType is not None
 
     def test_gear_type_has_amp(self) -> None:
         """Test that GearType.AMP exists with correct value."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         assert hasattr(GearType, "AMP")
         assert GearType.AMP.value == "amp"
 
     def test_gear_type_has_full_rig(self) -> None:
         """Test that GearType.FULL_RIG exists with correct value."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         assert hasattr(GearType, "FULL_RIG")
         assert GearType.FULL_RIG.value == "full_rig"
 
     def test_gear_type_has_pedal(self) -> None:
         """Test that GearType.PEDAL exists with correct value."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         assert hasattr(GearType, "PEDAL")
         assert GearType.PEDAL.value == "pedal"
 
     def test_gear_type_has_outboard(self) -> None:
         """Test that GearType.OUTBOARD exists with correct value."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         assert hasattr(GearType, "OUTBOARD")
         assert GearType.OUTBOARD.value == "outboard"
 
     def test_gear_type_has_ir(self) -> None:
         """Test that GearType.IR exists with correct value."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         assert hasattr(GearType, "IR")
         assert GearType.IR.value == "ir"
 
     def test_gear_type_all_required_values(self) -> None:
         """Test that GearType has all required values from acceptance criteria."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         # Wiki:304-312 specifies: AMP, FULL_RIG, PEDAL, OUTBOARD, IR
         required_values = {"amp", "full_rig", "pedal", "outboard", "ir"}
@@ -66,7 +66,7 @@ class TestGearTypeEnum:
 
     def test_gear_type_is_string_enum(self) -> None:
         """Test that GearType values are strings."""
-        from core.domain.value_objects.gear_type import GearType
+        from gts.domain.value_objects.gear_type import GearType
 
         for member in GearType:
             assert isinstance(member.value, str), (

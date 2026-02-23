@@ -6,8 +6,8 @@ submit/poll pattern, decoupled from specific composition types.
 
 from typing import Protocol
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
 
 
 class VideoRenderer(Protocol):

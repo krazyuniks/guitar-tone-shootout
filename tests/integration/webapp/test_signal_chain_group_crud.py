@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.entities.signal_chain_group import SignalChainGroup
+from gts.domain.entities.signal_chain_group import SignalChainGroup
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.signal_chain_groups import (

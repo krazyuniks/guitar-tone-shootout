@@ -18,9 +18,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from core.domain.entities.base import Entity, new_id, utcnow
-from core.domain.value_objects.block_position import BlockPosition
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.entities.base import Entity, new_id, utcnow
+from gts.domain.value_objects.block_position import BlockPosition
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
 @dataclass(frozen=True, slots=True)

@@ -13,7 +13,7 @@ from audio.processing.permutation import (
     expand_signal_chain_group,
     generate_permutation_labels,
 )
-from core.domain.entities.signal_chain_group import SignalChainGroup
+from gts.domain.entities.signal_chain_group import SignalChainGroup
 
 
 @pytest.fixture
@@ -217,7 +217,7 @@ def test_permutations_are_unique(simple_group: SignalChainGroup) -> None:
 
 def test_permutations_use_domain_calculator(simple_group: SignalChainGroup) -> None:
     """Test that permutations come from domain PermutationCalculator."""
-    from core.services.permutation_calculator import PermutationCalculator
+    from gts.services.permutation_calculator import PermutationCalculator
 
     # Calculate directly with domain service
     calculator = PermutationCalculator()

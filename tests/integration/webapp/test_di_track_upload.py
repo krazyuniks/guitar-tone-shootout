@@ -53,7 +53,7 @@ async def existing_di_track(
     tmp_path: Path,
 ) -> DITrack:
     """Create an existing DI track for the test user."""
-    from core.domain.value_objects.audio_checksum import AudioChecksum
+    from gts.domain.value_objects.audio_checksum import AudioChecksum
 
     # Create a minimal audio file
     audio_file = tmp_path / "existing.wav"

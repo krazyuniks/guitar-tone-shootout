@@ -3,8 +3,8 @@
 Tests verify the protocol interface exists with correct method signatures.
 """
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.ports.video_render_client import VideoRenderClient
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.ports.video_render_client import VideoRenderClient
 
 
 class TestVideoRenderClientProtocol:

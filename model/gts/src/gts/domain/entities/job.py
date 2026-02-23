@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from core.domain.entities.base import Entity, new_id, utcnow
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.base import Entity, new_id, utcnow
+from gts.domain.value_objects.job_status import JobStatus, JobType
 
 
 class JobError(Exception):

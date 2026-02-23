@@ -12,8 +12,8 @@ import uuid
 
 import pytest
 
-from core.domain.entities.user import User as UserEntity
-from core.domain.entities.user import UserIdentity
+from gts.domain.entities.user import User as UserEntity
+from gts.domain.entities.user import UserIdentity
 from webapp.adapters.persistence.models.user import OAuthProvider
 from webapp.adapters.persistence.repositories.user_repository import (
     SQLAlchemyUserRepository,

@@ -16,11 +16,11 @@ from audio.processing.ir_loader import IRLoadError, load_ir
 from audio.processing.nam_loader import NAMLoadError, get_cached_model
 
 if TYPE_CHECKING:
-    from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-    from core.domain.value_objects.signal_chain_enums import GearType
+    from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+    from gts.domain.value_objects.signal_chain_enums import GearType
 else:
-    from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-    from core.domain.value_objects.signal_chain_enums import (
+    from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+    from gts.domain.value_objects.signal_chain_enums import (
         GearType,  # type: ignore[import-untyped]
     )
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from core.domain.entities.signal_chain import SignalChain
-from core.services.signal_chain_validator import SignalChainValidator
+from gts.domain.entities.signal_chain import SignalChain
+from gts.services.signal_chain_validator import SignalChainValidator
 from webapp.adapters.persistence.repositories.signal_chain_repository import (
     SQLAlchemySignalChainRepository,
 )

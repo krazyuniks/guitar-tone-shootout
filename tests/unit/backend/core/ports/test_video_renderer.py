@@ -3,9 +3,9 @@
 Tests the generic video rendering port interface for composition submissions.
 """
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
-from core.ports.video_renderer import VideoRenderer
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
+from gts.ports.video_renderer import VideoRenderer
 
 
 class TestVideoRendererProtocol:

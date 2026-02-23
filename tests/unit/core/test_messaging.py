@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from pydantic import ValidationError
 
-from core.ports.message_bus import MessageEnvelopeLike, QueueMessage
-from core.records.commands import ProcessAudioCommand
-from core.records.envelope import MessageEnvelope
-from core.records.events import VideoRenderedEvent
-from core.services.consumer_base import BaseConsumer
-from core.services.pgmq_client import PgmqClient
+from messaging.commands import ProcessAudioCommand
+from messaging.consumer_base import BaseConsumer
+from messaging.envelope import MessageEnvelope
+from messaging.events import VideoRenderedEvent
+from messaging.message_bus import MessageEnvelopeLike, QueueMessage
+from messaging.pgmq_client import PgmqClient
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable

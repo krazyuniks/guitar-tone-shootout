@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
 
-from core.domain.entities.job import Job as JobEntity
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.job import Job as JobEntity
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 
 if TYPE_CHECKING:

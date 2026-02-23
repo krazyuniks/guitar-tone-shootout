@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     import pytest
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import (
     DITrack,

@@ -11,11 +11,12 @@ from typing import ClassVar
 import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
-from core.domain.value_objects.audio_result import AudioResult
-from core.domain.value_objects.tone_config import ToneConfig
-from core.domain.value_objects.waveform_data import WaveformData
 from pedalboard import HighpassFilter, Pedalboard  # type: ignore[attr-defined]
 from scipy import signal
+
+from gts.domain.value_objects.audio_result import AudioResult
+from gts.domain.value_objects.tone_config import ToneConfig
+from gts.domain.value_objects.waveform_data import WaveformData
 
 from ..analysis.waveform import extract_waveform as _extract_waveform
 from .ir_loader import load_ir

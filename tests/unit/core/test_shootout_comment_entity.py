@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from core.domain.entities.shootout_comment import ShootoutComment
+from gts.domain.entities.shootout_comment import ShootoutComment
 
 
 class TestShootoutCommentEntity:
@@ -28,7 +28,7 @@ class TestShootoutCommentEntity:
 
     def test_shootout_comment_inherits_entity(self) -> None:
         """ShootoutComment should inherit from Entity base class."""
-        from core.domain.entities.base import Entity
+        from gts.domain.entities.base import Entity
 
         comment = ShootoutComment(
             shootout_id=uuid4(),
@@ -79,7 +79,7 @@ class TestShootoutCommentExport:
     """Tests for ShootoutComment being exported from entities __init__."""
 
     def test_shootout_comment_exported_from_entities(self) -> None:
-        """ShootoutComment should be importable from core.domain.entities."""
-        from core.domain.entities import ShootoutComment as ExportedComment
+        """ShootoutComment should be importable from gts.domain.entities."""
+        from gts.domain.entities import ShootoutComment as ExportedComment
 
         assert ExportedComment is ShootoutComment

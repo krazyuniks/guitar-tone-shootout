@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text
 
-from core.records.gear_sync import GearSyncRecord, SyncOperation
+from gts.records.gear_sync import GearSyncRecord, SyncOperation
 from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
 
 logger = logging.getLogger(__name__)

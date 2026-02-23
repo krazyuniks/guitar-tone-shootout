@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from core.domain.entities.shootout import (
+from gts.domain.entities.shootout import (
     Shootout,
     ShootoutChain,
 )
@@ -63,7 +63,7 @@ async def test_signal_chain(
     test_user: User,
 ) -> SignalChain:
     """Create a test signal chain."""
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
 
     chain = SignalChain(
         user_id=test_user.id,
@@ -543,7 +543,7 @@ async def test_update_removes_deleted_chains(
     shootout.add_chain(chain1)
 
     # Create second chain
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
 
     chain2_model = SignalChain(
         user_id=test_user.id,

@@ -16,11 +16,11 @@ from uuid import uuid4
 
 import pytest
 
-from core.domain.entities.base import new_id
-from core.domain.entities.gear import Gear as GearEntity
-from core.domain.entities.gear import UserGear as UserGearEntity
-from core.domain.entities.user import User as UserEntity
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from gts.domain.entities.base import new_id
+from gts.domain.entities.gear import Gear as GearEntity
+from gts.domain.entities.gear import UserGear as UserGearEntity
+from gts.domain.entities.user import User as UserEntity
+from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,

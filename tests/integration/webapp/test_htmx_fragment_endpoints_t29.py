@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.shootout import Shootout
 from webapp.adapters.persistence.models.signal_chain import SignalChain

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.value_objects.signal_chain_enums import GearType
 
 
 class GearResponse(BaseModel):

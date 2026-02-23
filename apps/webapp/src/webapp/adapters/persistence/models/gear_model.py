@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
+from gts.domain.value_objects.download_status import DownloadStatus
+from gts.domain.value_objects.signal_chain_enums import ModelSize, Platform
 
 from .base import Base, EnumByValue, UUIDMixin, UuidType
 

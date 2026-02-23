@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from core.domain.entities.user import User as UserEntity
-from core.domain.entities.user import UserIdentity as UserIdentityVO
+from gts.domain.entities.user import User as UserEntity
+from gts.domain.entities.user import UserIdentity as UserIdentityVO
 from webapp.adapters.persistence.models.user import (
     OAuthProvider,
     User,

@@ -15,8 +15,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from core.domain.entities.job import Job
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.job import Job
+from gts.domain.value_objects.job_status import JobStatus, JobType
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

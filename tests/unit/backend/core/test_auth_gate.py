@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-from core.domain.auth_gate import check_auth_status
-from core.domain.value_objects.source_auth_status import SourceAuthStatus
+from gts.domain.auth_gate import check_auth_status
+from gts.domain.value_objects.source_auth_status import SourceAuthStatus
 
 
 class TestCheckAuthStatus:

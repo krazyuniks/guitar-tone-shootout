@@ -6,9 +6,9 @@ They are skipped until Phase 5A (worker) is complete.
 
 import pytest
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
-from core.ports.video_render_client import VideoRenderClient
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
+from gts.ports.video_render_client import VideoRenderClient
 from video.client import HttpVideoRenderClient
 
 

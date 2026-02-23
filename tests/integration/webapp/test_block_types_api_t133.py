@@ -189,7 +189,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test category values match BlockCategory enum values."""
-        from core.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.block_category import BlockCategory
 
         valid_categories = {c.value for c in BlockCategory}
 

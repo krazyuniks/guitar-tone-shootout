@@ -1,6 +1,6 @@
 """Unit tests for video props serializer."""
 
-from core.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.composition_spec import CompositionSpec
 from video.props import (
     serialize_composition_props,
     validate_remotion_props,

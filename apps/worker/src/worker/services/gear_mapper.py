@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
-from core.records.gear_sync import GearSyncRecord
+from gts.domain.value_objects.download_status import DownloadStatus
+from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from gts.records.gear_sync import GearSyncRecord
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource

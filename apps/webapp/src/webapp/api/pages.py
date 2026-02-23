@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
@@ -572,7 +572,7 @@ async def chain_duplicate_fragment(
     from datetime import datetime
     from uuid import uuid4
 
-    from core.domain.entities.signal_chain import (
+    from gts.domain.entities.signal_chain import (
         SignalChain as SignalChainEntity,
     )
 

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.block_category import BlockCategory
 
 from .base import Base, EnumByValue, UUIDMixin
 

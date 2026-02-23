@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.gear import Gear, GearTag
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource

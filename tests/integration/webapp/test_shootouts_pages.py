@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.entities.shootout import Shootout
+from gts.domain.entities.shootout import Shootout
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.user import User
 from webapp.api.pages import router

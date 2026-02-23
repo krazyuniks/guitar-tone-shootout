@@ -22,7 +22,7 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from core.domain.value_objects.signal_chain_enums import Platform
+from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.shootout import (
     Shootout,

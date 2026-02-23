@@ -134,7 +134,7 @@ class TestWorkerSmoke:
 
     async def test_domain_value_objects_can_be_imported(self) -> None:
         """Test worker domain imports resolve correctly."""
-        from core.domain.value_objects.job_status import JobStatus, JobType
+        from gts.domain.value_objects.job_status import JobStatus, JobType
 
         # Verify enums exist
         assert JobStatus is not None

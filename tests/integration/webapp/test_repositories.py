@@ -11,17 +11,17 @@ import pytest
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.entities.di_track import DITrack as DITrackEntity
-from core.domain.entities.job import Job as JobEntity
-from core.domain.entities.shootout import Shootout as ShootoutEntity
-from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
-from core.domain.entities.signal_chain import SignalChain as SignalChainEntity
-from core.domain.entities.signal_chain_group import SignalChainGroup as SignalChainGroupEntity
-from core.domain.entities.user import User as UserEntity
-from core.domain.entities.user import UserIdentity
-from core.domain.value_objects.audio_checksum import AudioChecksum
-from core.domain.value_objects.job_status import JobStatus, JobType
-from core.domain.value_objects.signal_chain_enums import Platform
+from gts.domain.entities.di_track import DITrack as DITrackEntity
+from gts.domain.entities.job import Job as JobEntity
+from gts.domain.entities.shootout import Shootout as ShootoutEntity
+from gts.domain.entities.shootout import ShootoutChain as ShootoutChainVO
+from gts.domain.entities.signal_chain import SignalChain as SignalChainEntity
+from gts.domain.entities.signal_chain_group import SignalChainGroup as SignalChainGroupEntity
+from gts.domain.entities.user import User as UserEntity
+from gts.domain.entities.user import UserIdentity
+from gts.domain.value_objects.audio_checksum import AudioChecksum
+from gts.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.repositories.audit_repository import (
     SQLAlchemyAuditRepository,
 )

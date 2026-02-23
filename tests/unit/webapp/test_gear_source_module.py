@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
 class TestGearSourceModule:

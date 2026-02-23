@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.orm import joinedload
 
-from core.domain.entities.gear import Gear as GearEntity
-from core.domain.entities.gear import GearModel as GearModelVO
-from core.domain.entities.gear import GearSource as GearSourceVO
+from gts.domain.entities.gear import Gear as GearEntity
+from gts.domain.entities.gear import GearModel as GearModelVO
+from gts.domain.entities.gear import GearSource as GearSourceVO
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearTag,
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from core.domain.value_objects.signal_chain_enums import GearType
+    from gts.domain.value_objects.signal_chain_enums import GearType
 
 
 def _slugify(text: str, manufacturer: str | None = None) -> str:

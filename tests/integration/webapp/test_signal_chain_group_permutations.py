@@ -9,8 +9,8 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from core.domain.entities.signal_chain_group import SignalChainGroup
-from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+from gts.domain.entities.signal_chain_group import SignalChainGroup
+from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.signal_chain import SignalChain

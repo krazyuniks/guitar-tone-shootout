@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 
-from core.domain.entities.job import Job as DomainJob
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.job import Job as DomainJob
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job as ORMJob
 
 if TYPE_CHECKING:

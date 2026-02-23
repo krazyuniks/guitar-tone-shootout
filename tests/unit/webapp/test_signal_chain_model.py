@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.signal_chain import (

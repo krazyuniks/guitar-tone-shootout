@@ -12,11 +12,11 @@ from datetime import UTC
 
 import pytest
 
-from core.domain.entities.gear import Gear as GearEntity
-from core.domain.entities.gear import GearModel as GearModelVO
-from core.domain.entities.gear import GearSource as GearSourceVO
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import (
+from gts.domain.entities.gear import Gear as GearEntity
+from gts.domain.entities.gear import GearModel as GearModelVO
+from gts.domain.entities.gear import GearSource as GearSourceVO
+from gts.domain.value_objects.download_status import DownloadStatus
+from gts.domain.value_objects.signal_chain_enums import (
     GearType,
     ModelSize,
     Platform,
@@ -76,7 +76,7 @@ def sample_gear_with_models() -> GearEntity:
     )
 
     # Add model files
-    from core.domain.entities.base import new_id
+    from gts.domain.entities.base import new_id
 
     model1 = GearModelVO(
         id=new_id(),

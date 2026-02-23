@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 
 import pytest
 
-from core.domain.entities.gear import Gear as GearEntity
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.entities.gear import Gear as GearEntity
+from gts.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.repositories.gear_repository import (
     SQLAlchemyGearRepository,
 )

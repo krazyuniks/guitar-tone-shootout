@@ -8,9 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-from core.domain.entities.base import Entity, new_id, utcnow
-from core.domain.value_objects.audio_checksum import AudioChecksum
-from core.domain.value_objects.waveform_data import WaveformData
+from gts.domain.entities.base import Entity, new_id, utcnow
+from gts.domain.value_objects.audio_checksum import AudioChecksum
+from gts.domain.value_objects.waveform_data import WaveformData
 
 
 @dataclass(eq=False, slots=True)

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from core.records.envelope import MessageEnvelope
-from core.records.gear_sync import GearSyncRecord
-from core.services.consumer_base import BaseConsumer
-from core.services.pgmq_client import PgmqClient
+from gts.records.gear_sync import GearSyncRecord
+from messaging.consumer_base import BaseConsumer
+from messaging.envelope import MessageEnvelope
+from messaging.pgmq_client import PgmqClient
 from worker.services.gear_mapper import GearMapperService
 
 

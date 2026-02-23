@@ -13,10 +13,10 @@ from uuid import uuid4
 
 import pytest
 
-from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-from core.domain.value_objects.block_position import BlockPosition
-from core.domain.value_objects.signal_chain_enums import GearType
-from core.services.signal_chain_validator import (
+from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+from gts.domain.value_objects.block_position import BlockPosition
+from gts.domain.value_objects.signal_chain_enums import GearType
+from gts.services.signal_chain_validator import (
     SignalChainValidator,
     ValidationError,
     ValidationResult,

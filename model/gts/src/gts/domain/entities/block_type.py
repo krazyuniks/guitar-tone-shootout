@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
-from core.domain.entities.base import Entity, new_id, utcnow
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.entities.base import Entity, new_id, utcnow
+from gts.domain.value_objects.block_category import BlockCategory
 
 
 @dataclass(eq=False, slots=True)
@@ -47,13 +47,13 @@ class BlockType(Entity):
 
     def is_pre_amp(self) -> bool:
         """Check if this block type is valid in pre-amp position."""
-        from core.domain.value_objects.block_category import PRE_AMP_CATEGORIES
+        from gts.domain.value_objects.block_category import PRE_AMP_CATEGORIES
 
         return self.category in PRE_AMP_CATEGORIES
 
     def is_post_amp(self) -> bool:
         """Check if this block type is valid in post-amp position."""
-        from core.domain.value_objects.block_category import POST_AMP_CATEGORIES
+        from gts.domain.value_objects.block_category import POST_AMP_CATEGORIES
 
         return self.category in POST_AMP_CATEGORIES
 

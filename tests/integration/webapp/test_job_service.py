@@ -7,8 +7,8 @@ from uuid import uuid4
 
 import pytest
 
-from core.domain.entities.job import Job
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.job import Job
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.job_repository import (
     SQLAlchemyJobRepository,

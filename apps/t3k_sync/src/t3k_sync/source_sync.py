@@ -11,8 +11,8 @@ from uuid import UUID, uuid4
 import redis.asyncio as redis
 from sqlalchemy import select
 
-from core.domain.auth_gate import check_auth_status
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.auth_gate import check_auth_status
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
 from source_t3k.adapters.inbound.token_manager import T3KTokenManager
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher

@@ -35,7 +35,7 @@ class TestBlockTypeModelLocation:
 
     async def test_block_type_category_uses_block_category_enum(self) -> None:
         """BlockType.category should use BlockCategory enum for validation."""
-        from core.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.block_category import BlockCategory
         from webapp.adapters.persistence.models.block_type import BlockType
 
         # Create instance with valid category
@@ -50,7 +50,7 @@ class TestBlockTypeModelLocation:
         """BlockType should be persistable to database."""
         from sqlalchemy import select
 
-        from core.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.block_category import BlockCategory
         from webapp.adapters.persistence.models.block_type import BlockType
 
         suffix = uuid.uuid4().hex[:8]
@@ -78,7 +78,7 @@ class TestBlockTypeModelLocation:
         import pytest
         from sqlalchemy.exc import IntegrityError
 
-        from core.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.block_category import BlockCategory
         from webapp.adapters.persistence.models.block_type import BlockType
 
         shared_name = f"Reverb_{uuid.uuid4().hex[:8]}"
@@ -128,8 +128,8 @@ class TestPresetModelLocation:
 
         from sqlalchemy import select
 
-        from core.domain.value_objects.block_category import BlockCategory
-        from core.domain.value_objects.signal_chain_enums import Platform
+        from gts.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.signal_chain_enums import Platform
         from webapp.adapters.persistence.models.block_type import BlockType
         from webapp.adapters.persistence.models.preset import Preset
         from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
@@ -192,8 +192,8 @@ class TestPresetModelLocation:
         from sqlalchemy import select
         from sqlalchemy.orm import joinedload
 
-        from core.domain.value_objects.block_category import BlockCategory
-        from core.domain.value_objects.signal_chain_enums import Platform
+        from gts.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.signal_chain_enums import Platform
         from webapp.adapters.persistence.models.block_type import BlockType
         from webapp.adapters.persistence.models.preset import Preset
         from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
@@ -257,8 +257,8 @@ class TestPresetModelLocation:
         """Preset should be deleted when its SignalChainBlock is deleted."""
         from sqlalchemy import select
 
-        from core.domain.value_objects.block_category import BlockCategory
-        from core.domain.value_objects.signal_chain_enums import Platform
+        from gts.domain.value_objects.block_category import BlockCategory
+        from gts.domain.value_objects.signal_chain_enums import Platform
         from webapp.adapters.persistence.models.block_type import BlockType
         from webapp.adapters.persistence.models.preset import Preset
         from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock

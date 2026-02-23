@@ -7,8 +7,8 @@ HTTP implementation.
 import pytest
 from pydantic import ValidationError
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
 from video.schemas_client import (
     PollStatusResponse,
     SubmitRenderRequest,

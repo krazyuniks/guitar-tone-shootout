@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from core.domain.value_objects.signal_chain_enums import Platform
+from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.signal_chain import (
     SignalChain as SignalChainModel,
 )
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from core.domain.entities.signal_chain_group import SignalChainGroup
+    from gts.domain.entities.signal_chain_group import SignalChainGroup
 
 
 class SignalChainGroupService:

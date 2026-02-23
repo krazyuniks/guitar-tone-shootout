@@ -16,8 +16,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from core.domain.value_objects.job_status import JobStatus
-from core.domain.value_objects.signal_chain_enums import GearType
+from gts.domain.value_objects.job_status import JobStatus
+from gts.domain.value_objects.signal_chain_enums import GearType
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.job import Job
@@ -1111,8 +1111,8 @@ async def shootout_create_submit(
     """Create a shootout from the wizard form submission."""
     from uuid import uuid4
 
-    from core.domain.entities.shootout import Shootout as ShootoutEntity
-    from core.domain.entities.shootout import ShootoutChain as ShootoutChainVO
+    from gts.domain.entities.shootout import Shootout as ShootoutEntity
+    from gts.domain.entities.shootout import ShootoutChain as ShootoutChainVO
     from webapp.services.shootout_service import ShootoutService
 
     form = await request.form()

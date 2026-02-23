@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.domain.value_objects.block_position import BlockPosition
+from gts.domain.value_objects.block_position import BlockPosition
 
 
 def test_block_position_enum_exists() -> None:

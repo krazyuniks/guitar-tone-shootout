@@ -20,8 +20,8 @@ from audio.processing.chain_executor import (
     execute_signal_chain,
 )
 from audio.processing.nam_loader import clear_model_cache
-from core.domain.entities.signal_chain import SignalChain, SignalChainBlock
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
 def _create_minimal_nam_file(path: Path) -> None:

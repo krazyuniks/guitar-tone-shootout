@@ -5,7 +5,7 @@ Tests the conversion logic from T3K staging models to GearSyncRecord format.
 
 from datetime import UTC, datetime
 
-from core.records.gear_sync import GearSyncRecord, SyncOperation
+from gts.records.gear_sync import GearSyncRecord, SyncOperation
 from source_t3k.adapters.outbound.models import T3KModelStaging, T3KToneStaging
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
 

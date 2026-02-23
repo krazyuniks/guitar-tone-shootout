@@ -16,7 +16,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet, InvalidToken
 from httpx import AsyncClient
 
-from core.domain.value_objects.source_auth_status import SourceAuthStatus
+from gts.domain.value_objects.source_auth_status import SourceAuthStatus
 from source_t3k.adapters.inbound.exceptions import T3KAPIError
 from source_t3k.adapters.inbound.vercel_solver import is_vercel_challenge, solve_challenge
 

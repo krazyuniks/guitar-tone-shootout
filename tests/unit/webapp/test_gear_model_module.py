@@ -9,8 +9,8 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.download_status import DownloadStatus
-from core.domain.value_objects.signal_chain_enums import ModelSize, Platform
+from gts.domain.value_objects.download_status import DownloadStatus
+from gts.domain.value_objects.signal_chain_enums import ModelSize, Platform
 
 
 class TestGearModelModule:
@@ -56,7 +56,7 @@ class TestGearModelModule:
         from sqlalchemy import select
 
         # Create parent gear first
-        from core.domain.value_objects.signal_chain_enums import GearType
+        from gts.domain.value_objects.signal_chain_enums import GearType
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
 
@@ -94,7 +94,7 @@ class TestGearModelModule:
         """Test that platform enum is stored by value."""
         from sqlalchemy import select
 
-        from core.domain.value_objects.signal_chain_enums import GearType
+        from gts.domain.value_objects.signal_chain_enums import GearType
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
 
@@ -129,7 +129,7 @@ class TestGearModelModule:
         """Test that optional fields can be null."""
         from sqlalchemy import select
 
-        from core.domain.value_objects.signal_chain_enums import GearType
+        from gts.domain.value_objects.signal_chain_enums import GearType
         from webapp.adapters.persistence.models.gear import Gear
         from webapp.adapters.persistence.models.gear_model import GearModel
 

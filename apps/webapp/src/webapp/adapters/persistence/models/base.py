@@ -236,7 +236,7 @@ class AudioChecksumType(TypeDecorator[Any]):
         if value is None:
             return None
         # Import here to avoid circular dependency
-        from core.domain.value_objects.audio_checksum import AudioChecksum
+        from gts.domain.value_objects.audio_checksum import AudioChecksum
 
         if isinstance(value, AudioChecksum):
             return value.value
@@ -255,7 +255,7 @@ class AudioChecksumType(TypeDecorator[Any]):
             return None
 
         # Import here to avoid circular dependency
-        from core.domain.value_objects.audio_checksum import AudioChecksum
+        from gts.domain.value_objects.audio_checksum import AudioChecksum
 
         # Try to create AudioChecksum, but fall back to raw string if validation fails
         try:
@@ -282,7 +282,7 @@ class WaveformDataType(TypeDecorator[Any]):
         if value is None:
             return None
         # Import here to avoid circular dependency
-        from core.domain.value_objects.waveform_data import WaveformData
+        from gts.domain.value_objects.waveform_data import WaveformData
 
         if isinstance(value, WaveformData):
             return {
@@ -302,7 +302,7 @@ class WaveformDataType(TypeDecorator[Any]):
             return None
 
         # Import here to avoid circular dependency
-        from core.domain.value_objects.waveform_data import WaveformData
+        from gts.domain.value_objects.waveform_data import WaveformData
 
         # Try to create WaveformData from stored JSON
         try:

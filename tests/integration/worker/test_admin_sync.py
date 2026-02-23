@@ -18,7 +18,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from source_t3k.adapters.outbound.models import SyncCheckpoint
 from webapp.adapters.persistence.models.job import Job
 

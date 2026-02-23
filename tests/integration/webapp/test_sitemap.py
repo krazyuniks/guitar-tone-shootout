@@ -20,7 +20,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from webapp.adapters.persistence.models.user import User

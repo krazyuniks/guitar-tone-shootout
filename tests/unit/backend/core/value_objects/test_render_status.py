@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from core.domain.value_objects.render_status import RenderStatus, RenderStatusEnum
+from gts.domain.value_objects.render_status import RenderStatus, RenderStatusEnum
 
 
 class TestRenderStatusEnum:

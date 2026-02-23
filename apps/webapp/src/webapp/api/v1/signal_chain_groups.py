@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.entities.signal_chain_group import SignalChainGroup
+from gts.domain.entities.signal_chain_group import SignalChainGroup
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.signal_chain_group import (
     SignalChainGroupCreateRequest,

@@ -5,8 +5,8 @@ Expands SignalChainGroup permutations using the domain PermutationCalculator.
 
 from uuid import UUID
 
-from core.domain.entities.signal_chain_group import SignalChainGroup
-from core.services.permutation_calculator import PermutationCalculator
+from gts.domain.entities.signal_chain_group import SignalChainGroup
+from gts.services.permutation_calculator import PermutationCalculator
 
 
 class PermutationError(Exception):

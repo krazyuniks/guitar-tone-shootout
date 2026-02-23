@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from audio.processing.loudness import normalize_loudness
-from core.domain.value_objects.job_status import JobStatus
+from gts.domain.value_objects.job_status import JobStatus
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import ShootoutStatus
 from worker.db import get_session, get_session_no_tx

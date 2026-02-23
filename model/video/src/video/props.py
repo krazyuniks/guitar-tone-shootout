@@ -5,7 +5,7 @@ Converts GTS domain entities (CompositionSpec) to Remotion-compatible JSON props
 
 from typing import Any
 
-from core.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.composition_spec import CompositionSpec
 
 
 def serialize_composition_props(spec: CompositionSpec) -> dict[str, Any]:

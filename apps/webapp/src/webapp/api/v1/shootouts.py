@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from core.domain.entities.shootout import Shootout
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.entities.shootout import Shootout
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,

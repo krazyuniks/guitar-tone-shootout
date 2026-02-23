@@ -265,7 +265,7 @@ class TestEnsureSourceSyncRunningDispatches:
         await ensure_source_sync_running()
 
         # Verify Job record was created
-        from core.domain.value_objects.job_status import JobType
+        from gts.domain.value_objects.job_status import JobType
 
         result = await db_session.execute(select(Job).where(Job.job_type == JobType.SOURCE_SYNC))
         jobs = result.scalars().all()

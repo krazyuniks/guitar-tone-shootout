@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from core.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.composition_spec import CompositionSpec
 
 
 class TestCompositionSpecCreation:

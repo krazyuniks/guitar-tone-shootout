@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.job import JobResponse

@@ -6,9 +6,9 @@ Defines the interface for audio processing operations.
 from pathlib import Path
 from typing import Protocol
 
-from core.domain.value_objects.audio_result import AudioResult
-from core.domain.value_objects.tone_config import ToneConfig
-from core.domain.value_objects.waveform_data import WaveformData
+from gts.domain.value_objects.audio_result import AudioResult
+from gts.domain.value_objects.tone_config import ToneConfig
+from gts.domain.value_objects.waveform_data import WaveformData
 
 
 class AudioProcessor(Protocol):

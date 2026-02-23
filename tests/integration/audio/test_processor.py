@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from audio.processing.processor import PedalboardAudioProcessor
-from core.domain.value_objects.tone_config import ToneConfig
+from gts.domain.value_objects.tone_config import ToneConfig
 
 
 @pytest.fixture

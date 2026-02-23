@@ -6,8 +6,8 @@ video BC (bounded context) and polling their status.
 
 from typing import Protocol
 
-from core.domain.value_objects.composition_spec import CompositionSpec
-from core.domain.value_objects.render_status import RenderStatus
+from gts.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.render_status import RenderStatus
 
 
 class VideoRenderClient(Protocol):

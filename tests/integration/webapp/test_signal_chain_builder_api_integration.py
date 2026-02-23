@@ -230,7 +230,7 @@ class TestSignalChainAPIForBuilder:
     ) -> None:
         """Builder should be able to update chain by replacing blocks."""
         # Create initial chain
-        from core.domain.value_objects.signal_chain_enums import GearType, Platform
+        from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
         chain = SignalChainModel(
             id=uuid4(),
@@ -287,7 +287,7 @@ class TestSignalChainAPIForBuilder:
     ) -> None:
         """Builder should be able to fetch user's existing chains."""
         # Create test chains
-        from core.domain.value_objects.signal_chain_enums import Platform
+        from gts.domain.value_objects.signal_chain_enums import Platform
 
         chain1 = SignalChainModel(
             id=uuid4(),
@@ -319,7 +319,7 @@ class TestSignalChainAPIForBuilder:
         test_user: User,
     ) -> None:
         """Builder should be able to delete chains."""
-        from core.domain.value_objects.signal_chain_enums import Platform
+        from gts.domain.value_objects.signal_chain_enums import Platform
 
         chain = SignalChainModel(
             id=uuid4(),

@@ -17,8 +17,8 @@ from sqlalchemy.orm import joinedload
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.download_status import DownloadStatus
-from core.records.gear_sync import GearSyncRecord, SyncOperation
+from gts.domain.value_objects.download_status import DownloadStatus
+from gts.records.gear_sync import GearSyncRecord, SyncOperation
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
@@ -317,7 +317,7 @@ class TestModelSyncCreatesGearModel:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """Newly created GearModel should start with PENDING download status."""
-        from core.domain.value_objects.download_status import DownloadStatus
+        from gts.domain.value_objects.download_status import DownloadStatus
 
         pack_record = _pack_record()
         await mapper.process_pack_sync(pack_record)
@@ -460,7 +460,7 @@ class TestAggregateSyncRecord:
         self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
     ) -> None:
         """Model with successfully migrated file should have COMPLETED download status."""
-        from core.domain.value_objects.download_status import DownloadStatus
+        from gts.domain.value_objects.download_status import DownloadStatus
 
         suffix = _unique_id()
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))

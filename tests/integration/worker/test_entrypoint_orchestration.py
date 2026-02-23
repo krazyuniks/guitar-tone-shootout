@@ -15,7 +15,7 @@ import asyncio
 import pytest
 from httpx import AsyncClient
 
-from core.domain.value_objects.job_status import JobStatus
+from gts.domain.value_objects.job_status import JobStatus
 
 
 @pytest.mark.integration

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from core.domain.value_objects.job_status import JobStatus, JobType
+from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.repositories.job_repository import (
     SQLAlchemyJobRepository,
 )
@@ -13,7 +13,7 @@ from webapp.adapters.persistence.repositories.job_repository import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from core.domain.entities.job import Job
+    from gts.domain.entities.job import Job
 
 
 class JobService:

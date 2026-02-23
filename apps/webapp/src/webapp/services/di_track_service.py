@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar
 import soundfile as sf
 from sqlalchemy import select
 
-from core.domain.value_objects.audio_checksum import AudioChecksum
+from gts.domain.value_objects.audio_checksum import AudioChecksum
 from webapp.adapters.persistence.models.shootout import DITrack
 
 if TYPE_CHECKING:

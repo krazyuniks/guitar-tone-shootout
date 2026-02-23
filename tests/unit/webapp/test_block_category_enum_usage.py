@@ -12,7 +12,7 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.block_category import BlockCategory
 
 
 class TestBlockCategoryEnumUsage:

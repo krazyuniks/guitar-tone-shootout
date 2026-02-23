@@ -2,8 +2,9 @@
 
 from typing import Any, Literal
 
-from core.domain.value_objects.composition_spec import CompositionSpec
 from pydantic import BaseModel, Field
+
+from gts.domain.value_objects.composition_spec import CompositionSpec
 
 
 class RenderRequest(BaseModel):

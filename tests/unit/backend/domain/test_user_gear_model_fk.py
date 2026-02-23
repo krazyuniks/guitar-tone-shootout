@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid4
 
-from core.domain.entities.gear import UserGear
+from gts.domain.entities.gear import UserGear
 
 
 class TestUserGearDomainModelFK:

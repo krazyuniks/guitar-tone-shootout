@@ -7,7 +7,7 @@ from uuid import UUID as PyUUID
 
 from sqlalchemy import select
 
-from core.domain.entities.signal_chain_group import (
+from gts.domain.entities.signal_chain_group import (
     SignalChainGroup as SignalChainGroupEntity,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChainGroup

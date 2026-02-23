@@ -189,7 +189,7 @@ class TestGearDetailLicenseSection:
         """
         from uuid import uuid4
 
-        from core.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
+        from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Platform
 
         # Create a gear with no source and no license_text
         gear = Gear(

@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from core.domain.value_objects.block_category import BlockCategory
+from gts.domain.value_objects.block_category import BlockCategory
 from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
 from webapp.adapters.persistence.models.user import User
@@ -56,7 +56,7 @@ async def test_block_type(session: AsyncSession) -> BlockType:
 @pytest.fixture
 async def test_signal_chain(session: AsyncSession, test_user: User) -> SignalChain:
     """Create a test signal chain."""
-    from core.domain.value_objects.signal_chain_enums import Platform
+    from gts.domain.value_objects.signal_chain_enums import Platform
 
     chain = SignalChain(
         id=uuid4(),
