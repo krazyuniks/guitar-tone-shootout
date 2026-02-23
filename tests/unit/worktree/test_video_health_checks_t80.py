@@ -25,26 +25,25 @@ class TestVideoServiceExpectations:
     """Tests for video service expectations based on worktree type."""
 
     def test_main_worktree_expects_video_service(self, monkeypatch: pytest.MonkeyPatch):
-        """Main worktree should expect video service (jobs profile)."""
+        """Main worktree should expect video-worker service (jobs profile)."""
         monkeypatch.setattr("worktree.health.get_main_worktree_path", lambda: Path("/fake/main"))
         expected = _get_expected_services(Path("/fake/main"))
-        assert "video" in expected
+        assert "video-worker" in expected
 
     def test_feature_worktree_does_not_expect_video(self, monkeypatch: pytest.MonkeyPatch):
-        """Feature worktrees should NOT expect video service."""
+        """Feature worktrees should NOT expect video-worker service."""
         monkeypatch.setattr("worktree.health.get_main_worktree_path", lambda: Path("/fake/main"))
         expected = _get_expected_services(Path("/fake/42-feature"))
-        assert "video" not in expected
+        assert "video-worker" not in expected
 
     def test_video_included_with_other_jobs_profile_services(self, monkeypatch: pytest.MonkeyPatch):
-        """Video should be expected alongside worker, scheduler, redis in main."""
+        """Video-worker should be expected alongside worker and redis in main."""
         monkeypatch.setattr("worktree.health.get_main_worktree_path", lambda: Path("/fake/main"))
         expected = _get_expected_services(Path("/fake/main"))
 
         assert "redis" in expected
         assert "worker" in expected
-        assert "scheduler" in expected
-        assert "video" in expected
+        assert "video-worker" in expected
 
 
 class TestHealthCheckWithVideo:
@@ -69,8 +68,9 @@ class TestHealthCheckWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
-                "video": "running",
+                "t3k-sync": "running",
+                "audio-worker": "running",
+                "video-worker": "running",
             },
         )
         monkeypatch.setattr("worktree.health.check_nginx_health", lambda _url: True)
@@ -79,8 +79,8 @@ class TestHealthCheckWithVideo:
         result = check_worktree_health(Path("/fake/main"))
 
         assert result.healthy is True
-        assert "video" in result.services
-        assert result.services["video"] == "running"
+        assert "video-worker" in result.services
+        assert result.services["video-worker"] == "running"
 
     def test_main_worktree_unhealthy_when_video_not_running(self, monkeypatch: pytest.MonkeyPatch):
         """Health check should fail if video service not running in main worktree."""
@@ -101,8 +101,9 @@ class TestHealthCheckWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
-                "video": "exited",
+                "t3k-sync": "running",
+                "audio-worker": "running",
+                "video-worker": "exited",
             },
         )
         monkeypatch.setattr("worktree.health.check_nginx_health", lambda _url: True)
@@ -138,7 +139,7 @@ class TestHealthCheckWithVideo:
         result = check_worktree_health(Path("/fake/42-feature"))
 
         assert result.healthy is True
-        assert "video" not in result.services or result.services.get("video") is None
+        assert "video-worker" not in result.services or result.services.get("video-worker") is None
 
     def test_main_worktree_unhealthy_when_video_missing(self, monkeypatch: pytest.MonkeyPatch):
         """Health check should fail if video service not found in main worktree."""
@@ -159,7 +160,8 @@ class TestHealthCheckWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
+                "t3k-sync": "running",
+                "audio-worker": "running",
             },
         )
         monkeypatch.setattr("worktree.health.check_nginx_health", lambda _url: True)
@@ -188,8 +190,9 @@ class TestQuickHealthCheckWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
-                "video": "running",
+                "t3k-sync": "running",
+                "audio-worker": "running",
+                "video-worker": "running",
             },
         )
 
@@ -208,8 +211,9 @@ class TestQuickHealthCheckWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
-                "video": "exited",
+                "t3k-sync": "running",
+                "audio-worker": "running",
+                "video-worker": "exited",
             },
         )
 
@@ -249,8 +253,9 @@ class TestHealthCheckResultWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
-                "video": "running",
+                "t3k-sync": "running",
+                "audio-worker": "running",
+                "video-worker": "running",
             },
             nginx_responding=True,
             webapp_responding=True,
@@ -275,12 +280,13 @@ class TestHealthCheckResultWithVideo:
                 "astro": "running",
                 "redis": "running",
                 "worker": "running",
-                "scheduler": "running",
-                "video": "exited",
+                "t3k-sync": "running",
+                "audio-worker": "running",
+                "video-worker": "exited",
             },
             nginx_responding=True,
             webapp_responding=True,
-            issues=["Service video is exited"],
+            issues=["Service video-worker is exited"],
             worktree_path=Path("/fake/main"),
         )
 

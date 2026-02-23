@@ -185,7 +185,9 @@ class TestBatchBehaviour:
 
         assert result.mode == SyncMode.BAU
         assert result.tones_processed == 2
-        assert len(fake_publisher.published_tones) == 2
+        # Publishing is gated on file_synced_at IS NOT NULL; no downloader in unit test
+        # so tones are staged but not published until files are downloaded
+        assert len(fake_publisher.published_tones) == 0
 
         # Should have called get_tones for both newest and oldest
         sorts = [c.get("sort") for c in fake_api.get_tones_calls]

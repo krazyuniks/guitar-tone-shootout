@@ -223,7 +223,6 @@ class TestBuilderPageIntegration:
         # Should have link to builder
         assert "/library/chains/build" in html
 
-    @pytest.mark.xfail(reason="Pre-existing: template assertions need update")
     async def test_builder_page_title_is_descriptive(
         self,
         authenticated_client: AsyncClient,

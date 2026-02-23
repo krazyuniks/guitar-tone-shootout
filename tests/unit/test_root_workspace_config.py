@@ -1,7 +1,7 @@
 """Unit tests for root workspace configuration.
 
 Verifies that:
-- Root pyproject.toml includes libs/video in workspace members
+- Root pyproject.toml includes model/* in workspace members (covers model/video)
 - Import-linter contracts enforce video dependency rules
 """
 
@@ -19,16 +19,16 @@ class TestRootWorkspaceConfig:
         return Path("pyproject.toml")
 
     def test_video_in_workspace_members(self, root_pyproject: Path) -> None:
-        """libs/video included in workspace members."""
+        """model/* included in workspace members (covers model/video)."""
         content = root_pyproject.read_text()
 
-        # Workspace members pattern should include libs/*
+        # Workspace members pattern should include model/*
         assert "[tool.uv.workspace]" in content, "must have [tool.uv.workspace] section"
         assert "members = [" in content, "must have workspace members list"
 
-        # libs/* pattern covers libs/video
-        assert '"libs/*"' in content or "'libs/*'" in content, (
-            "workspace members must include libs/* pattern"
+        # model/* pattern covers model/video
+        assert '"model/*"' in content or "'model/*'" in content, (
+            "workspace members must include model/* pattern"
         )
 
     def test_import_linter_has_video_package(self, root_pyproject: Path) -> None:
@@ -86,7 +86,6 @@ class TestRootWorkspaceConfig:
                     assert "source_t3k" in forbidden_block, "video must not depend on source_t3k"
                     assert "webapp" in forbidden_block, "video must not depend on webapp"
                     assert "worker" in forbidden_block, "video must not depend on worker"
-                    assert "scheduler" in forbidden_block, "video must not depend on scheduler"
 
                     # Stop checking after finding forbidden_modules
                     break

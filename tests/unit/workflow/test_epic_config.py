@@ -97,7 +97,7 @@ class TestGetDispatchParams:
         config = load_config(DEFAULT_CONFIG_PATH)
         mcp_servers, timeout = get_dispatch_params("planning", config)
         assert timeout == 1800
-        assert mcp_servers == []
+        assert mcp_servers == ["serena", "pyright"]
 
     def test_critique_role_gets_600(self):
         """Critique role resolves to 600s timeout from default config."""

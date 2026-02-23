@@ -14,8 +14,8 @@ class TestRemotionCompositions:
 
     @pytest.fixture
     def remotion_dir(self) -> Path:
-        """Path to libs/video/src/video/remotion/ directory."""
-        return Path("libs/video/src/video/remotion")
+        """Path to model/video/src/video/remotion/ directory."""
+        return Path("model/video/src/video/remotion")
 
     @pytest.fixture
     def compositions_dir(self, remotion_dir: Path) -> Path:
@@ -23,7 +23,7 @@ class TestRemotionCompositions:
         return remotion_dir / "compositions"
 
     def test_compositions_directory_exists(self, compositions_dir: Path) -> None:
-        """libs/video/src/video/remotion/compositions/ directory exists."""
+        """model/video/src/video/remotion/compositions/ directory exists."""
         assert compositions_dir.exists(), "compositions/ directory must exist"
         assert compositions_dir.is_dir(), "compositions must be a directory"
 
@@ -76,7 +76,7 @@ class TestShootoutVideoComposition:
     @pytest.fixture
     def shootout_video_file(self) -> Path:
         """Path to ShootoutVideo.tsx file."""
-        return Path("libs/video/src/video/remotion/compositions/ShootoutVideo.tsx")
+        return Path("model/video/src/video/remotion/compositions/ShootoutVideo.tsx")
 
     def test_shootout_video_imports_react(self, shootout_video_file: Path) -> None:
         """ShootoutVideo.tsx imports React."""
@@ -103,7 +103,7 @@ class TestGearBlockComponent:
     @pytest.fixture
     def gear_block_file(self) -> Path:
         """Path to GearBlock.tsx file."""
-        return Path("libs/video/src/video/remotion/compositions/GearBlock.tsx")
+        return Path("model/video/src/video/remotion/compositions/GearBlock.tsx")
 
     def test_gear_block_imports_react(self, gear_block_file: Path) -> None:
         """GearBlock.tsx imports React."""
@@ -139,7 +139,7 @@ class TestSignalChainSegmentComponent:
     @pytest.fixture
     def signal_chain_file(self) -> Path:
         """Path to SignalChainSegment.tsx file."""
-        return Path("libs/video/src/video/remotion/compositions/SignalChainSegment.tsx")
+        return Path("model/video/src/video/remotion/compositions/SignalChainSegment.tsx")
 
     def test_signal_chain_imports_react(self, signal_chain_file: Path) -> None:
         """SignalChainSegment.tsx imports React."""
@@ -166,7 +166,7 @@ class TestSlideTransitionComponent:
     @pytest.fixture
     def slide_transition_file(self) -> Path:
         """Path to SlideTransition.tsx file."""
-        return Path("libs/video/src/video/remotion/compositions/SlideTransition.tsx")
+        return Path("model/video/src/video/remotion/compositions/SlideTransition.tsx")
 
     def test_slide_transition_imports_react(self, slide_transition_file: Path) -> None:
         """SlideTransition.tsx imports React."""
@@ -193,7 +193,7 @@ class TestMetadataOverlayComponent:
     @pytest.fixture
     def metadata_overlay_file(self) -> Path:
         """Path to MetadataOverlay.tsx file."""
-        return Path("libs/video/src/video/remotion/compositions/MetadataOverlay.tsx")
+        return Path("model/video/src/video/remotion/compositions/MetadataOverlay.tsx")
 
     def test_metadata_overlay_imports_react(self, metadata_overlay_file: Path) -> None:
         """MetadataOverlay.tsx imports React."""
@@ -220,7 +220,7 @@ class TestRemotionRootRegistration:
     @pytest.fixture
     def root_file(self) -> Path:
         """Path to Root.tsx file."""
-        return Path("libs/video/src/video/remotion/Root.tsx")
+        return Path("model/video/src/video/remotion/Root.tsx")
 
     def test_root_imports_remotion(self, root_file: Path) -> None:
         """Root.tsx imports Remotion."""
@@ -252,7 +252,7 @@ class TestRemotionIndexEntry:
     @pytest.fixture
     def index_file(self) -> Path:
         """Path to index.ts file."""
-        return Path("libs/video/src/video/remotion/index.ts")
+        return Path("model/video/src/video/remotion/index.ts")
 
     def test_index_exports_root(self, index_file: Path) -> None:
         """index.ts exports Root or re-exports from Root."""

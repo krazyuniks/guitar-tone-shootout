@@ -158,7 +158,7 @@ class TestComposeOverrideGeneration:
         generate_compose_override(worktree, override_path)
 
         content = override_path.read_text()
-        assert "video:" in content
+        assert "video-worker:" in content
 
     def test_compose_override_video_port_mapping(self, tmp_path: Path):
         """Video service should have correct port mapping in override."""
