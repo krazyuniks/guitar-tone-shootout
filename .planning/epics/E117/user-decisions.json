@@ -1,0 +1,217 @@
+{
+  "epic_number": 117,
+  "locked_decisions": [
+    {
+      "id": "decision-bc-1",
+      "area": "bounded_contexts",
+      "description": "The epic says `libs/core/` → `model/gts/` but does not mention the existing `src/gts/` root package which currently exists with a virtual `__init__.py`.",
+      "decision": "The `src/gts/` root package (virtual workspace root) will be renamed or merged. Since the new domain package at `model/gts/src/gts/` will claim the `gts` import namespace, the root `src/gts/__init__.py` must be removed or the root package restructured. The root `pyproject.toml` hatch build target (`packages = [\"src/gts\"]`) will be updated to remove this, as the `gts` namespace now belongs to the domain model package.",
+      "rationale": "Both `src/gts/` and `model/gts/src/gts/` would claim the `gts` import namespace, causing a conflict. The `src/gts/__init__.py` currently contains only `\"\"\"GTS workspace root - virtual package.\"\"\"` — it has no functionality. The workspace root `pyproject.toml` references it for hatchling build but the workspace root is not a real distributable package."
+    },
+    {
+      "id": "decision-bc-2",
+      "area": "bounded_contexts",
+      "description": "GearSyncRecord is a dataclass in core.records, not a Pydantic model. The epic says it stays in model/gts/records/ which is correct.",
+      "decision": "GearSyncRecord stays in `model/gts/records/gear_sync.py` as the epic specifies. It has no dependency on messaging infrastructure (no pydantic BaseModel, no MessageEnvelope inheritance). Import path changes from `core.records.gear_sync` to `gts.records.gear_sync`.",
+      "rationale": "GearSyncRecord is a frozen dataclass with zero framework dependencies — it's a domain contract. The sources/t3k publisher imports it directly. This is correctly classified as domain, not messaging."
+    },
+    {
+      "id": "decision-bc-3",
+      "area": "bounded_contexts",
+      "description": "The `source_t3k.adapters.outbound.publisher` imports from `core.records.gear_sync` — this must update to `gts.records.gear_sync`.",
+      "decision": "The T3K publisher import will change from `from core.records.gear_sync import GearSyncRecord, SyncOperation` to `from gts.records.gear_sync import GearSyncRecord, SyncOperation`. The sources/t3k pyproject.toml dependency will change from `gts-core` to `gts-domain`.",
+      "rationale": "Mechanical consequence of the package rename. The publisher is the only source code importing from core.records."
+    },
+    {
+      "id": "decision-data-1",
+      "area": "data_model",
+      "description": "The epic changes no database schema, but the ORM Base class is in `webapp.adapters.persistence.models.base` which imports nothing from core. No schema changes needed.",
+      "decision": "No database migrations required. ORM models remain in `apps/webapp/` unchanged. Only their imports of core domain entities change from `core.` to `gts.`.",
+      "rationale": "ORM models import from `core.domain.entities.*` and `core.domain.value_objects.*` — these paths change to `gts.domain.entities.*` and `gts.domain.value_objects.*` but the ORM models themselves don't move."
+    },
+    {
+      "id": "decision-messaging-1",
+      "area": "messaging",
+      "description": "The messaging files being moved to `infra/messaging/` currently have tight internal cross-references: `pgmq_client.py` imports from `core.ports.message_bus`, `consumer_base.py` imports from `core.records.envelope` and references `core.ports.message_bus`.",
+      "decision": "After the move, the messaging package will be self-contained. The `MessageBus` protocol, `QueueMessage` dataclass, and `MessageEnvelopeLike` protocol (currently in `core.ports.message_bus`) will move to `infra/messaging/`. The `MessageEnvelope` (currently `core.records.envelope`) will also be in `infra/messaging/`. Internal imports become `from messaging.` instead of `from core.`. The consumer_base and pgmq_client will import from their sibling modules within the messaging package.",
+      "rationale": "The epic specifies that `message_bus.py` moves from ports/, `envelope.py` from records/, and `pgmq_client.py`/`consumer_base.py` from services/. These files form a cohesive messaging module. Moving them all together makes the package self-contained with pydantic + sqlalchemy as its only external dependencies, matching the epic's specification."
+    },
+    {
+      "id": "decision-messaging-2",
+      "area": "messaging",
+      "description": "Commands and events (`commands.py`, `events.py`) subclass `MessageEnvelope`. After the move, their import path changes.",
+      "decision": "Commands (`ProcessAudioCommand`, `RenderVideoCommand`, `SyncGearCommand`) and events (`GearSyncedEvent`, `AudioProcessedEvent`, `VideoRenderedEvent`) will import `MessageEnvelope` from within the messaging package. All consumers in apps/ will import from `messaging.commands`, `messaging.events`, `messaging.envelope` instead of `core.records.*`.",
+      "rationale": "The epic specifies these files move to infra/messaging/. Their only base class dependency is MessageEnvelope which also moves. The import chain is self-contained within the messaging package."
+    },
+    {
+      "id": "decision-messaging-3",
+      "area": "messaging",
+      "description": "Three BC worker consumers (t3k-sync, audio-worker, video-worker) all import from `core.services.consumer_base`, `core.services.pgmq_client`, and `core.records.commands`/`core.records.envelope`. These all change to `messaging.*`.",
+      "decision": "All three consumers will update their imports to `from messaging.consumer_base import BaseConsumer`, `from messaging.pgmq_client import PgmqClient`, `from messaging.commands import ...`, etc. The gts-messaging package will be added as a dependency to the t3k_sync, audio_worker, and video_worker pyproject.toml files.",
+      "rationale": "Mechanical consequence — all three consumers use the same pattern. The files they import from are all moving to the messaging package."
+    },
+    {
+      "id": "decision-infra-1",
+      "area": "infrastructure",
+      "description": "All 7 Dockerfiles reference `libs/core/`, `libs/audio/`, `libs/video/` in COPY paths and mkdir commands. These must change to `model/gts/`, `model/audio/`, `model/video/`.",
+      "decision": "All Dockerfiles (Dockerfile.dev, Dockerfile.backend, Dockerfile.worker, Dockerfile.t3k-sync, Dockerfile.audio-worker, Dockerfile.video, Dockerfile.scheduler) will be updated: `libs/core/` → `model/gts/`, `libs/audio/` → `model/audio/`, `libs/video/` → `model/video/`. New COPY/mkdir entries added for `infra/messaging/`.",
+      "rationale": "Mechanical consequence of directory rename. Every Dockerfile that copies lib pyproject.toml files for workspace resolution needs updating."
+    },
+    {
+      "id": "decision-infra-2",
+      "area": "infrastructure",
+      "description": "docker-compose.yml has volume mounts referencing `./libs` (e.g., `./libs:/app/libs:ro`). These must change to `./model:/app/model:ro` plus `./infra:/app/infra:ro`.",
+      "decision": "docker-compose.yml volume mounts will change: `./libs:/app/libs` → `./model:/app/model` for all services. A new mount `./infra:/app/infra` added where messaging is needed. The video-worker specifically mounts `./libs/core:/app/libs/core:ro` and `./libs/video:/app/libs/video` — these become `./model/gts:/app/model/gts:ro` and `./model/video:/app/model/video`.",
+      "rationale": "Mechanical consequence. The docker-compose.yml base file, the override template (.j2), and the generated override file all need updating."
+    },
+    {
+      "id": "decision-infra-3",
+      "area": "infrastructure",
+      "description": "The worktree template (`worktree/templates/docker-compose.override.yml.j2`) has hardcoded `./libs` references that must be updated.",
+      "decision": "The Jinja2 template will be updated: `./libs:/app/libs:ro` → `./model:/app/model:ro`, and add `./infra:/app/infra:ro` where needed. The video-worker specific mounts also updated.",
+      "rationale": "The template generates the docker-compose.override.yml for all worktrees. Must stay in sync with the base compose file."
+    },
+    {
+      "id": "decision-infra-4",
+      "area": "infrastructure",
+      "description": "docker-compose.ci.yml references a `scheduler` service that doesn't exist in docker-compose.yml base. It also doesn't reference the new directory structure.",
+      "decision": "docker-compose.ci.yml will be updated to reference the correct service names. The `scheduler` service reference is stale and will need to be removed or renamed to match current topology.",
+      "rationale": "The CI compose file overrides services from the base file. It currently references `scheduler` which exists in the base only as a Dockerfile (Dockerfile.scheduler) but not as a compose service. This is a pre-existing inconsistency — the epic should fix it as part of ensuring all compose files are coherent."
+    },
+    {
+      "id": "decision-config-1",
+      "area": "configuration",
+      "description": "Root pyproject.toml workspace members list uses `libs/*`. After rename, this changes to `model/*` plus `infra/*`.",
+      "decision": "Workspace members will change from `\"libs/*\"` to `\"model/*\"`, `\"infra/*\"`. The full list becomes: `model/*`, `infra/*`, `sources/*`, `apps/webapp`, `apps/worker`, `apps/t3k_sync`, `apps/audio_worker`, `apps/video_worker`.",
+      "rationale": "The uv workspace needs to discover the renamed directories and the new infra/messaging package."
+    },
+    {
+      "id": "decision-config-2",
+      "area": "configuration",
+      "description": "import-linter root_packages lists `core` as a root package. After rename to `gts`, plus the new `messaging` package.",
+      "decision": "import-linter `root_packages` will change: `core` → `gts`, and add `messaging`. All contracts referencing `core` will be updated to reference `gts`. New contracts added for messaging isolation (messaging depends only on pydantic/sqlalchemy, importable by all BCs).",
+      "rationale": "Mechanical consequence. The import-linter contracts enforce BC boundaries and must match the new package names."
+    },
+    {
+      "id": "decision-config-3",
+      "area": "configuration",
+      "description": "Ruff known-first-party lists `core`. This changes to `gts` and adds `messaging`.",
+      "decision": "`known-first-party` will change `core` to `gts` and add `messaging`.",
+      "rationale": "Mechanical consequence for correct import sorting."
+    },
+    {
+      "id": "decision-config-4",
+      "area": "configuration",
+      "description": "Coverage source paths reference `libs`. Must change to `model` and `infra`.",
+      "decision": "Coverage `source` will change from `[\"libs\", \"sources\", \"apps\"]` to `[\"model\", \"infra\", \"sources\", \"apps\"]`.",
+      "rationale": "Mechanical consequence for coverage collection paths."
+    },
+    {
+      "id": "decision-config-5",
+      "area": "configuration",
+      "description": "The per-file-ignores in ruff reference paths like `apps/webapp/src/webapp/adapters/persistence/models/*.py`. These don't change because apps/ is not being renamed.",
+      "decision": "Per-file-ignores do not need updating — apps/ paths are unchanged.",
+      "rationale": "Only libs/ is being renamed to model/. The apps/ directory stays where it is."
+    },
+    {
+      "id": "decision-testing-1",
+      "area": "testing",
+      "description": "176 Python files import from `core.`. All need updating to `gts.` (for domain imports) or `messaging.` (for messaging imports).",
+      "decision": "All `from core.domain.*` → `from gts.domain.*`, `from core.ports.repositories` → `from gts.ports.repositories`, `from core.ports.audio_processor` → `from gts.ports.audio_processor`, `from core.ports.video_*` → `from gts.ports.video_*`, `from core.services.signal_chain_validator` → `from gts.services.signal_chain_validator`, `from core.services.permutation_calculator` → `from gts.services.permutation_calculator`, `from core.records.gear_sync` → `from gts.records.gear_sync`. All messaging imports → `from messaging.*`.",
+      "rationale": "Mechanical consequence of the rename. The mapping is deterministic: domain/ports/records/domain-services → gts.*, messaging infrastructure → messaging.*"
+    },
+    {
+      "id": "decision-testing-2",
+      "area": "testing",
+      "description": "tests/conftest.py imports `from webapp.adapters.persistence.models.base import Base as CoreBase` and `from source_t3k.adapters.outbound.models import Base as T3KBase`. These import paths don't change.",
+      "decision": "Test conftest.py imports for ORM models don't change — webapp and source_t3k packages keep their names. But any test that imports from `core.*` must update to `gts.*` or `messaging.*`.",
+      "rationale": "The webapp and source_t3k packages are not being renamed. Only their internal imports from core change."
+    },
+    {
+      "id": "decision-testing-3",
+      "area": "testing",
+      "description": "The Alembic env.py adds project root to sys.path and imports from `webapp.*` and `source_t3k.*`. These imports don't change, but if messaging models exist, they'd need to be registered.",
+      "decision": "Alembic env.py imports don't change — it imports ORM models from webapp and source_t3k, neither of which are being renamed. The messaging package has no ORM models (it uses sqlalchemy only for raw SQL queries in pgmq_client), so no Alembic registration needed.",
+      "rationale": "The messaging package uses `sqlalchemy.text()` for raw SQL — it has no declarative ORM models and no tables. Alembic doesn't need to know about it."
+    },
+    {
+      "id": "decision-config-6",
+      "area": "configuration",
+      "description": "The core pyproject.toml currently has `name = \"gts-core\"` with `packages = [\"src/core\"]`. The epic says rename to `gts-domain` with import as `gts`.",
+      "decision": "The `model/gts/pyproject.toml` will have `name = \"gts-domain\"`, `packages = [\"src/gts\"]`. All downstream pyproject.toml files that depend on `gts-core` will change to `gts-domain`. The `[tool.uv.sources]` entries will change from `gts-core = { workspace = true }` to `gts-domain = { workspace = true }`.",
+      "rationale": "Epic specifies this naming. 8 downstream packages depend on gts-core and all will be updated."
+    },
+    {
+      "id": "decision-infra-5",
+      "area": "infrastructure",
+      "description": "The `infra/messaging/` package needs a `pyproject.toml` with appropriate dependencies.",
+      "decision": "The new `infra/messaging/pyproject.toml` will have `name = \"gts-messaging\"`, `packages = [\"src/messaging\"]`, dependencies on `pydantic>=2.10.0` and `sqlalchemy[asyncio]>=2.0.36` only (matching the epic specification). No dependency on gts-domain — messaging is infrastructure, not domain.",
+      "rationale": "Epic specifies `infra/messaging/` depends on pydantic and sqlalchemy only. The current code confirms: MessageEnvelope uses pydantic, PgmqClient uses sqlalchemy.text, consumer_base uses pydantic ValidationError. MessageBus protocol uses only stdlib + typing. No core domain imports needed."
+    },
+    {
+      "id": "decision-config-7",
+      "area": "configuration",
+      "description": "Consumers in apps/ that currently depend on `gts-core` for messaging need to add `gts-messaging` as a dependency.",
+      "decision": "The t3k_sync, audio_worker, video_worker, and worker pyproject.toml files will add `gts-messaging` as a dependency. They will keep `gts-domain` (renamed from gts-core) for domain model imports. The webapp pyproject.toml may also need gts-messaging if it publishes commands.",
+      "rationale": "These apps import both domain types (entities, value objects) and messaging infrastructure (consumer base, pgmq client, commands, events). After the split, they need both packages."
+    },
+    {
+      "id": "decision-frontend-1",
+      "area": "frontend",
+      "description": "No frontend changes needed — Astro/Jinja2 templates don't import Python packages.",
+      "decision": "No frontend changes required.",
+      "rationale": "The frontend is pure HTML/CSS/JS — it doesn't import from Python packages. The only Python-adjacent connection is the Jinja2 template directory mount which references `frontend/astro/dist`, unchanged."
+    },
+    {
+      "id": "decision-workers-1",
+      "area": "workers",
+      "description": "The docker-compose.yml `worker` service has `PYTHONPATH: /app/apps/t3k_sync/src:/app/apps/audio_worker/src:/app/apps/video_worker/src`. This doesn't reference libs/ but the video-worker has `PYTHONPATH: /app/apps/webapp/src:/app/apps/worker/src:/app/sources/t3k/src`.",
+      "decision": "PYTHONPATH settings in docker-compose.yml don't reference libs/ or model/ directly — Python package resolution works through the uv workspace. No PYTHONPATH changes needed for the rename.",
+      "rationale": "uv workspace handles package resolution via pyproject.toml and editable installs. PYTHONPATH only adds app-level src directories that aren't workspace members for cross-app imports."
+    },
+    {
+      "id": "decision-security-1",
+      "area": "security",
+      "description": "No security changes — auth, CORS, resource ownership patterns are untouched.",
+      "decision": "No security changes required. Authentication, authorization, and CORS configuration are in webapp which is not being renamed.",
+      "rationale": "This is a structural refactor with no functional changes. Security patterns are in the apps layer which is not moving."
+    },
+    {
+      "id": "decision-justfile-1",
+      "area": "infrastructure",
+      "description": "The justfile has commands referencing `libs/` paths: `check-lint` runs ruff on `libs/`, `check-types` runs mypy on `libs/core/`, `video-studio` references `libs/video`.",
+      "decision": "Justfile commands will be updated: `libs/` → `model/` in ruff/format paths, `libs/core/` → `model/gts/` in mypy, `libs/video` → `model/video` in video-studio, and add `infra/` to lint/format scan paths.",
+      "rationale": "Mechanical consequence. The justfile shell commands reference directory paths that are being renamed."
+    },
+    {
+      "id": "decision-precommit-1",
+      "area": "infrastructure",
+      "description": "Pre-commit hooks (ruff-hook.sh) may reference libs/ paths.",
+      "decision": "The ruff-hook.sh scripts call ruff on staged Python files — they typically operate on filenames passed by git, not hardcoded paths. Will need verification but likely no changes needed.",
+      "rationale": "Pre-commit hooks receive file paths from git and pass them to ruff. The ruff configuration in pyproject.toml handles known-first-party, which IS being updated."
+    },
+    {
+      "id": "decision-messaging-1",
+      "area": "messaging",
+      "description": "The `MessageBus` Protocol is currently in `core.ports.message_bus` (domain layer port). After the move, it lives in `infra/messaging/` (infrastructure layer). This inverts the dependency direction — domain ports are supposed to be implemented by infrastructure, not defined within it.",
+      "decision": "Move `MessageBus` and related messaging contract types into `infra/messaging/` and update all imports to `messaging.*`.",
+      "rationale": "Demoted by critique: The epic explicitly says `message_bus.py` moves out of domain ports into `infra/messaging/`; this is a direct mechanical consequence, not an open architectural choice for this epic."
+    },
+    {
+      "id": "decision-messaging-2",
+      "area": "messaging",
+      "description": "The epic says `infra/messaging/` depends on `pydantic` and `sqlalchemy` only — no BC dependencies. But the `consumer_base.py` currently imports `from core.records.envelope import MessageEnvelope` and the `pgmq_client.py` imports `from core.ports.message_bus import MessageBus, MessageEnvelopeLike, QueueMessage`. After the move, these become internal imports within messaging.",
+      "decision": "Apps depend on both `gts-domain` and `gts-messaging` where needed, and keep explicit module imports (e.g., `messaging.commands`, `messaging.events`) without requiring broad package-root re-exports.",
+      "rationale": "Demoted by critique: This is implementation style, not a user-level decision. The agent can resolve it by following existing import patterns and minimizing churn."
+    },
+    {
+      "id": "decision-infra-1",
+      "area": "infrastructure",
+      "description": "The `infra/messaging/` package directory structure needs deciding: should it mirror the current sub-module structure (ports/, records/, services/) or flatten everything into the package root?",
+      "decision": "Use a flat `infra/messaging/src/messaging/` layout with the six moved modules at package root and update imports accordingly.",
+      "rationale": "Demoted by critique: Package internal layout is a mechanical design choice the agent can decide. The epic already enumerates moved files and target module names, so escalation is unnecessary."
+    }
+  ],
+  "answers": [],
+  "sufficiency_confirmed": true
+}

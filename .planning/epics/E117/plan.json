@@ -1,0 +1,463 @@
+{
+  "schema_v": 1,
+  "epic_number": 117,
+  "goal": "Rename libs/ to model/ and create infra/messaging/ to establish the canonical project layout that all subsequent migration epics build upon, with zero functional changes.",
+  "observable_truths": [
+    {
+      "id": 1,
+      "statement": "A developer browsing the project root sees model/gts/, model/audio/, and model/video/ directories containing domain code, and the libs/ directory no longer exists."
+    },
+    {
+      "id": 2,
+      "statement": "A developer browsing infra/messaging/ sees the messaging infrastructure modules: pgmq_client.py, consumer_base.py, message_bus.py, envelope.py, commands.py, and events.py."
+    },
+    {
+      "id": 3,
+      "statement": "A developer reading any Python file in the project sees imports using 'from gts.' for domain code and 'from messaging.' for messaging infrastructure — no references to the old 'from core.' import paths remain."
+    },
+    {
+      "id": 4,
+      "statement": "A developer running 'just up-d' sees all Docker containers (webapp, db, nginx, t3k-sync, audio-worker, video-worker) build and start successfully with healthy status."
+    },
+    {
+      "id": 5,
+      "statement": "A developer running 'just check' sees all quality gates pass: ruff lint, mypy type checking, import-linter BC contracts, and the full test suite."
+    }
+  ],
+  "user_journeys": [
+    {
+      "journey_id": "J1",
+      "persona": "Developer verifying project structure after rename",
+      "narrative": "A developer opens the project root and sees model/ and infra/ directories instead of libs/. They browse model/gts/src/gts/ to confirm domain entities, ports, records, and services are present. They browse infra/messaging/src/messaging/ to confirm pgmq_client, consumer_base, commands, events, envelope, and message_bus modules. They open a Python file such as apps/webapp/src/webapp/services/signal_chain_service.py and see 'from gts.domain.entities' rather than the old 'from core.domain.entities'. They verify no 'from core.' imports remain anywhere with a project-wide search.",
+      "truths_covered": [
+        1,
+        2,
+        3
+      ],
+      "entry_point": "/",
+      "critical_transitions": [
+        {
+          "source": "project root",
+          "to": "model/gts/src/gts/domain/entities/",
+          "mechanism": "file browser navigation"
+        },
+        {
+          "source": "project root",
+          "to": "infra/messaging/src/messaging/",
+          "mechanism": "file browser navigation"
+        },
+        {
+          "source": "infra/messaging/src/messaging/",
+          "to": "apps/webapp/src/webapp/services/",
+          "mechanism": "grep for import statements"
+        }
+      ]
+    },
+    {
+      "journey_id": "J2",
+      "persona": "Developer verifying application functionality is preserved",
+      "narrative": "A developer runs 'just up-d' and all containers start with healthy status. They run 'just check' which executes ruff lint, mypy type checking, import-linter BC boundary contracts, and the full test suite — all pass green. They verify the webapp responds at localhost:9000 with a health check. The T3K sync, audio-worker, and video-worker containers all show healthy in 'just status'.",
+      "truths_covered": [
+        3,
+        4,
+        5
+      ],
+      "entry_point": "terminal",
+      "critical_transitions": [
+        {
+          "source": "terminal",
+          "to": "Docker containers running",
+          "mechanism": "just up-d && just status"
+        },
+        {
+          "source": "Docker containers running",
+          "to": "quality gates pass",
+          "mechanism": "just check"
+        },
+        {
+          "source": "quality gates pass",
+          "to": "webapp health verified",
+          "mechanism": "just health"
+        }
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "story_id": "01-directory-restructure",
+      "name": "Directory rename and package configuration",
+      "purpose": "Rename libs/ to model/, rename the core package to gts, create infra/messaging/ with moved messaging modules, and update all pyproject.toml files and lockfile to reflect the new structure.",
+      "agent": {
+        "model": "codex",
+        "skills": [
+          "gts-architecture"
+        ],
+        "tools": [],
+        "max_turns": 40
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "pyproject.toml",
+          "uv.lock",
+          "libs/core/pyproject.toml",
+          "libs/audio/pyproject.toml",
+          "libs/video/pyproject.toml",
+          "apps/webapp/pyproject.toml",
+          "apps/worker/pyproject.toml",
+          "apps/t3k_sync/pyproject.toml",
+          "apps/audio_worker/pyproject.toml",
+          "apps/video_worker/pyproject.toml",
+          "sources/t3k/pyproject.toml",
+          "src/gts/__init__.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "Create model/ directory and rename libs packages: `mkdir model && git mv libs/core model/gts && git mv model/gts/src/core model/gts/src/gts && git mv libs/audio model/audio && git mv libs/video model/video && rmdir libs`",
+        "Create infra/messaging/ package structure: `mkdir -p infra/messaging/src/messaging`",
+        "Move messaging files from model/gts/ to infra/messaging/src/messaging/ using git mv: pgmq_client.py and consumer_base.py (from src/gts/services/), envelope.py, commands.py, events.py (from src/gts/records/), message_bus.py (from src/gts/ports/)",
+        "Create infra/messaging/pyproject.toml: name='gts-messaging', packages=['src/messaging'], dependencies on pydantic>=2.10.0 and sqlalchemy[asyncio]>=2.0.36 only",
+        "Create infra/messaging/src/messaging/__init__.py with appropriate exports",
+        "Create infra/messaging/README.md (required by Dockerfile COPY patterns)",
+        "Update model/gts/pyproject.toml: name='gts-domain', packages=['src/gts']",
+        "Update model/gts/src/gts/__init__.py, records/__init__.py, services/__init__.py, ports/__init__.py to remove re-exports of moved messaging modules",
+        "Update root pyproject.toml: workspace members from 'libs/*' to 'model/*' and 'infra/*'; import-linter root_packages replace 'core' with 'gts' and add 'messaging'; all import-linter contracts replace 'core' with 'gts' and add messaging contracts; ruff known-first-party replace 'core' with 'gts' and add 'messaging'; coverage source from 'libs' to 'model' and add 'infra'; remove hatch build target for src/gts",
+        "Update all downstream pyproject.toml dependencies: 'gts-core' → 'gts-domain' everywhere; add 'gts-messaging' dependency to apps/worker, apps/t3k_sync, apps/audio_worker, apps/video_worker",
+        "Update model/audio/pyproject.toml and model/video/pyproject.toml: dependency from gts-core to gts-domain",
+        "Delete src/gts/__init__.py (the root virtual package — gts namespace now belongs to model/gts)",
+        "Regenerate the lockfile after all pyproject.toml changes: run `uv lock` to sync uv.lock with the new workspace members and dependency names",
+        "IMPORTANT: gear_sync.py MUST remain in model/gts/src/gts/records/ — it is domain, not messaging. Only move the 6 messaging modules (pgmq_client.py, consumer_base.py, envelope.py, commands.py, events.py, message_bus.py)."
+      ],
+      "truths_addressed": [
+        1,
+        2
+      ],
+      "wiki_sections": [
+        "GTS-Technical-Architecture :: architecture-layers",
+        "GTS-Technical-Architecture :: design-patterns"
+      ]
+    },
+    {
+      "story_id": "02-infrastructure",
+      "name": "Docker and build system updates",
+      "purpose": "Update all Dockerfiles, docker-compose files, justfile, and worktree template to reference the new model/ and infra/ directory paths instead of libs/.",
+      "agent": {
+        "model": "codex",
+        "skills": [
+          "gts-architecture"
+        ],
+        "tools": [],
+        "max_turns": 30
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "infrastructure/docker/Dockerfile.dev",
+          "infrastructure/docker/Dockerfile.backend",
+          "infrastructure/docker/Dockerfile.worker",
+          "infrastructure/docker/Dockerfile.t3k-sync",
+          "infrastructure/docker/Dockerfile.audio-worker",
+          "infrastructure/docker/Dockerfile.video",
+          "infrastructure/docker/Dockerfile.scheduler",
+          "docker-compose.yml",
+          "docker-compose.override.yml",
+          "justfile",
+          "worktree/templates/docker-compose.override.yml.j2"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "All 7 Dockerfiles reference libs/core/, libs/audio/, libs/video/ in COPY and mkdir commands. Update: libs/core/ → model/gts/, libs/audio/ → model/audio/, libs/video/ → model/video/. Add COPY and mkdir entries for infra/messaging/.",
+        "In Dockerfiles, the mkdir line creates placeholder __init__.py files. Update: libs/core/src/core → model/gts/src/gts, libs/audio/src/audio → model/audio/src/audio, libs/video/src/video → model/video/src/video. Add infra/messaging/src/messaging. Remove src/gts directory creation and COPY.",
+        "docker-compose.yml: update webapp volumes from ./libs:/app/libs to ./model:/app/model and add ./infra:/app/infra. Same for worker, t3k-sync, audio-worker services. Video-worker: ./libs/core:/app/libs/core:ro → ./model/gts:/app/model/gts:ro and ./libs/video:/app/libs/video → ./model/video:/app/model/video. Remove ./src:/app/src mount.",
+        "docker-compose.override.yml: same volume mount updates as base compose file for all services",
+        "justfile: update check-types mypy path from libs/core/ to model/gts/; update check-lint and lint ruff paths from libs/ to model/ and add infra/; update video-studio and video-types cd path from libs/video to model/video",
+        "worktree/templates/docker-compose.override.yml.j2: update all ./libs volume mounts to ./model, add ./infra mounts, update video-worker specific mounts from ./libs/core and ./libs/video to ./model/gts and ./model/video"
+      ],
+      "truths_addressed": [
+        4
+      ],
+      "wiki_sections": [
+        "GTS-Technical-Architecture :: infrastructure"
+      ]
+    },
+    {
+      "story_id": "03-import-migration",
+      "name": "Python import updates and quality verification",
+      "purpose": "Update all Python import statements from core.* to gts.* (for domain) and messaging.* (for messaging infrastructure) across the entire codebase, then verify all quality gates pass.",
+      "agent": {
+        "model": "codex",
+        "skills": [
+          "gts-architecture",
+          "gts-backend-dev",
+          "gts-testing"
+        ],
+        "tools": [],
+        "max_turns": 50
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "apps/webapp/src/webapp/adapters/persistence/models/base.py",
+          "apps/webapp/src/webapp/adapters/persistence/repositories/gear_repository.py",
+          "apps/webapp/src/webapp/services/signal_chain_service.py",
+          "apps/webapp/src/webapp/api/v1/html.py",
+          "apps/webapp/src/webapp/api/v1/schemas/gear.py",
+          "apps/webapp/src/webapp/services/job_service.py",
+          "apps/worker/src/worker/services/gear_mapper.py",
+          "apps/worker/src/worker/jobs/audio.py",
+          "apps/t3k_sync/src/t3k_sync/consumer.py",
+          "apps/t3k_sync/src/t3k_sync/source_sync.py",
+          "apps/audio_worker/src/audio_worker/consumer.py",
+          "apps/video_worker/src/video_worker/consumer.py",
+          "sources/t3k/src/source_t3k/adapters/outbound/publisher.py",
+          "tests/regression/test_stack.py",
+          "tests/unit/core/test_messaging.py",
+          "tests/integration/webapp/test_repositories.py",
+          "tests/integration/audio/test_chain_execution.py"
+        ]
+      },
+      "state_assumption": "cumulative",
+      "implementation_notes": [
+        "This story updates 176+ Python files. Use systematic batch replacement for efficiency.",
+        "MESSAGING IMPORTS (do first — these are specific mappings): 'from core.records.envelope' → 'from messaging.envelope'; 'from core.records.commands' → 'from messaging.commands'; 'from core.records.events' → 'from messaging.events'; 'from core.ports.message_bus' → 'from messaging.message_bus'; 'from core.services.pgmq_client' → 'from messaging.pgmq_client'; 'from core.services.consumer_base' → 'from messaging.consumer_base'",
+        "DOMAIN IMPORTS (do second — broad replacement): 'from core.' → 'from gts.' for all remaining references. This covers core.domain.entities, core.domain.value_objects, core.domain.auth_gate, core.ports.repositories, core.ports.audio_processor, core.ports.video_renderer, core.ports.video_render_client, core.services.signal_chain_validator, core.services.permutation_calculator, core.records.gear_sync",
+        "Also update 'import core' → 'import gts' if any bare imports exist",
+        "Update files in ALL directories: apps/ (43 files), sources/ (2 files), tests/ (97 files), AND files within model/gts/, model/audio/, model/video/, infra/messaging/ that have internal cross-references",
+        "Key internal files: model/gts/src/gts/domain/entities/__init__.py (re-exports), model/gts/src/gts/domain/value_objects/__init__.py (re-exports), model/gts/src/gts/ports/__init__.py, model/gts/src/gts/records/__init__.py, model/gts/src/gts/services/__init__.py, model/audio/src/audio/processing/*.py, model/video/src/video/*.py, infra/messaging/src/messaging/*.py",
+        "Update import-linter contract references in test assertions if any tests validate import paths",
+        "After all replacements, run 'just rebuild' to rebuild containers with new paths, then 'just check' to verify lint, types, imports, and tests all pass. Fix any remaining issues.",
+        "Verify no 'from core.' imports remain: grep -r 'from core\\.' apps/ sources/ tests/ model/ infra/ should return zero results"
+      ],
+      "truths_addressed": [
+        3,
+        5
+      ],
+      "wiki_sections": [
+        "GTS-Technical-Architecture :: architecture-layers",
+        "GTS-Technical-Architecture :: domain-model",
+        "GTS-Technical-Architecture :: design-patterns",
+        "GTS-Technical-Architecture :: data-ingestion"
+      ]
+    }
+  ],
+  "validation_checkpoints": [
+    {
+      "after_story": "01-directory-restructure",
+      "check_type": "process",
+      "checks": [
+        {
+          "criterion": "model/gts/, model/audio/, model/video/ directories exist with correct package structure and libs/ directory is gone",
+          "command": "test -d model/gts/src/gts/domain && test -d model/audio/src/audio && test -d model/video/src/video && test -d infra/messaging/src/messaging && ! test -d libs",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Domain entities directory is navigable from project root and contains Python source files",
+          "command": "ls model/gts/src/gts/domain/entities/*.py | head -5 && echo 'OK: domain entities visible'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Messaging modules directory is navigable from project root and contains all six expected modules",
+          "command": "ls infra/messaging/src/messaging/pgmq_client.py infra/messaging/src/messaging/consumer_base.py infra/messaging/src/messaging/message_bus.py infra/messaging/src/messaging/envelope.py infra/messaging/src/messaging/commands.py infra/messaging/src/messaging/events.py && echo 'OK: all 6 messaging modules visible'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Old messaging files are removed from model/gts/ — confirms git mv (not copy)",
+          "command": "! test -f model/gts/src/gts/services/pgmq_client.py && ! test -f model/gts/src/gts/services/consumer_base.py && ! test -f model/gts/src/gts/records/envelope.py && ! test -f model/gts/src/gts/records/commands.py && ! test -f model/gts/src/gts/records/events.py && ! test -f model/gts/src/gts/ports/message_bus.py && echo 'OK: old messaging files removed from model/gts/'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "gear_sync.py remains in model/gts/src/gts/records/ (domain record, not messaging)",
+          "command": "test -f model/gts/src/gts/records/gear_sync.py && echo 'OK: gear_sync.py preserved in domain records'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "signal_chain_validator.py and permutation_calculator.py remain in model/gts/ domain services",
+          "command": "test -f model/gts/src/gts/services/signal_chain_validator.py && test -f model/gts/src/gts/services/permutation_calculator.py && echo 'OK: domain services preserved'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "All pyproject.toml files have valid TOML syntax and correct package names (gts-domain, gts-audio, gts-video, gts-messaging)",
+          "command": "python3 -c \"import tomllib; gts=tomllib.load(open('model/gts/pyproject.toml','rb')); assert gts['project']['name']=='gts-domain', f'expected gts-domain, got {gts[\\\"project\\\"][\\\"name\\\"]}'; aud=tomllib.load(open('model/audio/pyproject.toml','rb')); assert aud['project']['name']=='gts-audio', f'expected gts-audio, got {aud[\\\"project\\\"][\\\"name\\\"]}'; vid=tomllib.load(open('model/video/pyproject.toml','rb')); assert vid['project']['name']=='gts-video', f'expected gts-video, got {vid[\\\"project\\\"][\\\"name\\\"]}'; msg=tomllib.load(open('infra/messaging/pyproject.toml','rb')); assert msg['project']['name']=='gts-messaging', f'expected gts-messaging, got {msg[\\\"project\\\"][\\\"name\\\"]}'; print('OK: all package names correct')\"",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Root pyproject.toml has updated workspace members (model/*, infra/*), ruff known-first-party (gts, messaging), import-linter root_packages (gts, messaging), and coverage source (model, infra) — no stale libs/core references remain",
+          "command": "python3 -c \"import tomllib; cfg=tomllib.load(open('pyproject.toml','rb')); members=cfg['tool']['uv']['workspace']['members']; assert 'model/*' in members, f'model/* missing from workspace: {members}'; assert 'infra/*' in members, f'infra/* missing from workspace: {members}'; assert 'libs/*' not in members, f'libs/* still in workspace: {members}'; roots=cfg['tool']['importlinter']['root_packages']; assert 'gts' in roots, f'gts missing from import-linter roots: {roots}'; assert 'messaging' in roots, f'messaging missing from import-linter roots: {roots}'; assert 'core' not in roots, f'core still in import-linter roots: {roots}'; fp=cfg['tool']['ruff']['lint']['isort']['known-first-party']; assert 'gts' in fp, f'gts missing from ruff first-party: {fp}'; assert 'messaging' in fp, f'messaging missing from ruff first-party: {fp}'; assert 'core' not in fp, f'core still in ruff first-party: {fp}'; cov=cfg['tool']['coverage']['run']['source']; assert 'model' in cov, f'model missing from coverage source: {cov}'; assert 'infra' in cov, f'infra missing from coverage source: {cov}'; assert 'libs' not in cov, f'libs still in coverage source: {cov}'; print('OK: root pyproject.toml fully updated')\"",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "uv.lock is regenerated and consistent with updated pyproject.toml workspace members",
+          "command": "uv lock --check",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        }
+      ]
+    },
+    {
+      "after_story": "02-infrastructure",
+      "check_type": "process",
+      "checks": [
+        {
+          "criterion": "Dockerfiles no longer reference libs/ paths and DO contain model/gts/, model/audio/, model/video/, and infra/messaging/ COPY paths",
+          "command": "! grep -r 'libs/' infrastructure/docker/Dockerfile.* && grep -q 'model/gts/' infrastructure/docker/Dockerfile.dev && grep -q 'model/audio/' infrastructure/docker/Dockerfile.dev && grep -q 'model/video/' infrastructure/docker/Dockerfile.dev && grep -q 'infra/messaging/' infrastructure/docker/Dockerfile.dev && echo 'OK: Dockerfiles reference model/ and infra/ paths'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "docker-compose.yml no longer references ./libs mounts and DOES contain ./model and ./infra volume mounts",
+          "command": "! grep './libs' docker-compose.yml && grep -q './model' docker-compose.yml && grep -q './infra' docker-compose.yml && echo 'OK: compose volumes reference model/ and infra/'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "justfile no longer references libs/ paths and DOES contain model/ paths",
+          "command": "! grep 'libs/' justfile && grep -q 'model/' justfile && echo 'OK: justfile references model/ paths'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "All Docker containers build successfully, start, and are running (no exited or unhealthy containers)",
+          "command": "just rebuild && just up-d && sleep 15 && docker compose ps --format '{{.Service}}: {{.Status}}' && (docker compose ps | grep -qiE 'exit|unhealthy' && echo 'FAIL: exited or unhealthy containers detected' && exit 1 || echo 'OK: all containers running')",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Webapp responds to health check at localhost:9000",
+          "command": "just health | grep -q 'webapp' && echo 'OK: webapp listed in healthy services'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        }
+      ]
+    },
+    {
+      "after_story": "03-import-migration",
+      "check_type": "quality",
+      "checks": [
+        {
+          "criterion": "No 'from core.' imports remain in the Python codebase",
+          "command": "! grep -r 'from core\\.' apps/ sources/ tests/ model/ infra/ --include='*.py'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "No messaging types imported via gts.* re-export paths — all messaging imports use 'from messaging.' directly",
+          "command": "! grep -rE 'from gts\\.(records\\.(envelope|commands|events)|ports\\.message_bus|services\\.(pgmq_client|consumer_base))' apps/ sources/ tests/ model/ infra/ --include='*.py'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Each consumer app (t3k_sync, audio_worker, video_worker) imports from 'messaging.*' namespace, confirming messaging extraction works end-to-end",
+          "command": "grep -rq 'from messaging\\.' apps/t3k_sync/ --include='*.py' && grep -rq 'from messaging\\.' apps/audio_worker/ --include='*.py' && grep -rq 'from messaging\\.' apps/video_worker/ --include='*.py' && echo 'OK: all consumer apps use messaging imports'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "signal_chain_validator.py and permutation_calculator.py remain in model/gts/ domain services after import migration",
+          "command": "test -f model/gts/src/gts/services/signal_chain_validator.py && test -f model/gts/src/gts/services/permutation_calculator.py && echo 'OK: domain services preserved'",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "T3K sync consumer can import all messaging dependencies and process startup succeeds",
+          "command": "docker compose exec -T t3k-sync python -c \"from t3k_sync.consumer import T3KConsumer; from messaging.pgmq_client import PgmqClient; from messaging.consumer_base import BaseConsumer; from messaging.envelope import MessageEnvelope; from messaging.commands import SyncGearCommand; from gts.domain.entities import Gear; print('OK: T3K sync imports verified')\" && just tdd tests/unit/t3k/ -v",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Full quality gate passes: ruff lint, mypy type checking, import-linter BC contracts, and full test suite",
+          "command": "just check",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "All Docker containers build, start, and remain running after import migration (no exited or unhealthy containers)",
+          "command": "just rebuild && just up-d && sleep 15 && docker compose ps --format '{{.Service}}: {{.Status}}' && (docker compose ps | grep -qiE 'exit|unhealthy' && echo 'FAIL: exited or unhealthy containers detected' && exit 1 || echo 'OK: all containers running')",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        },
+        {
+          "criterion": "Webapp responds to health check at localhost:9000 after full migration",
+          "command": "docker compose exec -T webapp python -c \"import urllib.request; r = urllib.request.urlopen('http://localhost:8000/health'); assert r.status == 200; print('OK: webapp health check passed')\"",
+          "evidence_fields": [
+            "command",
+            "exit_code",
+            "output_tail"
+          ]
+        }
+      ]
+    }
+  ]
+}
