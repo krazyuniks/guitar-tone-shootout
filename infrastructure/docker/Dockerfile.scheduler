@@ -23,21 +23,20 @@ WORKDIR /app
 
 # Copy workspace configuration first for layer caching
 COPY pyproject.toml uv.lock ./
-COPY libs/core/pyproject.toml libs/core/
+COPY model/gts/pyproject.toml model/gts/
 COPY apps/scheduler/pyproject.toml apps/scheduler/
 
 # Create empty src directories for workspace resolution
-RUN mkdir -p libs/core/src/core apps/scheduler/src/scheduler src/gts && \
-    touch libs/core/src/core/__init__.py apps/scheduler/src/scheduler/__init__.py src/gts/__init__.py
+RUN mkdir -p model/gts/src/gts apps/scheduler/src/scheduler && \
+    touch model/gts/src/gts/__init__.py apps/scheduler/src/scheduler/__init__.py
 
 # Install dependencies only (no project yet for better caching)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --package gts-scheduler
 
 # Copy source code
-COPY libs/core/src libs/core/src/
+COPY model/gts/src model/gts/src/
 COPY apps/scheduler/src apps/scheduler/src/
-COPY src/gts src/gts/
 
 # Install project (non-editable for production)
 RUN --mount=type=cache,target=/root/.cache/uv \

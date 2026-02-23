@@ -29,9 +29,10 @@ WORKDIR /app
 USER appuser
 
 COPY --chown=appuser:appgroup pyproject.toml uv.lock README.md ./
-COPY --chown=appuser:appgroup libs/core/pyproject.toml libs/core/README.md libs/core/
-COPY --chown=appuser:appgroup libs/audio/pyproject.toml libs/audio/README.md libs/audio/
-COPY --chown=appuser:appgroup libs/video/pyproject.toml libs/video/README.md libs/video/
+COPY --chown=appuser:appgroup model/gts/pyproject.toml model/gts/README.md model/gts/
+COPY --chown=appuser:appgroup model/audio/pyproject.toml model/audio/README.md model/audio/
+COPY --chown=appuser:appgroup model/video/pyproject.toml model/video/README.md model/video/
+COPY --chown=appuser:appgroup infra/messaging/pyproject.toml infra/messaging/README.md infra/messaging/
 COPY --chown=appuser:appgroup sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
 COPY --chown=appuser:appgroup apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
 COPY --chown=appuser:appgroup apps/worker/pyproject.toml apps/worker/README.md apps/worker/
@@ -39,26 +40,24 @@ COPY --chown=appuser:appgroup apps/t3k_sync/pyproject.toml apps/t3k_sync/README.
 COPY --chown=appuser:appgroup apps/audio_worker/pyproject.toml apps/audio_worker/README.md apps/audio_worker/
 COPY --chown=appuser:appgroup apps/video_worker/pyproject.toml apps/video_worker/README.md apps/video_worker/
 
-RUN mkdir -p libs/core/src/core libs/audio/src/audio libs/video/src/video \
+RUN mkdir -p model/gts/src/gts model/audio/src/audio model/video/src/video \
+    infra/messaging/src/messaging \
     sources/t3k/src/source_t3k \
     apps/webapp/src/webapp apps/worker/src/worker \
     apps/t3k_sync/src/t3k_sync apps/audio_worker/src/audio_worker apps/video_worker/src/video_worker \
-    src/gts \
-    && touch libs/core/src/core/__init__.py \
-    && touch libs/audio/src/audio/__init__.py \
-    && touch libs/video/src/video/__init__.py \
+    && touch model/gts/src/gts/__init__.py \
+    && touch model/audio/src/audio/__init__.py \
+    && touch model/video/src/video/__init__.py \
+    && touch infra/messaging/src/messaging/__init__.py \
     && touch sources/t3k/src/source_t3k/__init__.py \
     && touch apps/webapp/src/webapp/__init__.py \
     && touch apps/worker/src/worker/__init__.py \
     && touch apps/t3k_sync/src/t3k_sync/__init__.py \
     && touch apps/audio_worker/src/audio_worker/__init__.py \
-    && touch apps/video_worker/src/video_worker/__init__.py \
-    && touch src/gts/__init__.py
+    && touch apps/video_worker/src/video_worker/__init__.py
 
 RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
     uv sync --frozen --all-packages
-
-COPY --chown=appuser:appgroup src/gts src/gts/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

@@ -23,24 +23,25 @@ WORKDIR /app
 
 # Copy workspace configuration first for layer caching
 COPY pyproject.toml uv.lock ./
-COPY libs/core/pyproject.toml libs/core/
-COPY libs/audio/pyproject.toml libs/audio/
+COPY model/gts/pyproject.toml model/gts/
+COPY model/audio/pyproject.toml model/audio/
+COPY infra/messaging/pyproject.toml infra/messaging/
 COPY apps/worker/pyproject.toml apps/worker/
 
 # Create empty src directories for workspace resolution
-RUN mkdir -p libs/core/src/core libs/audio/src/audio apps/worker/src/worker src/gts && \
-    touch libs/core/src/core/__init__.py libs/audio/src/audio/__init__.py \
-          apps/worker/src/worker/__init__.py src/gts/__init__.py
+RUN mkdir -p model/gts/src/gts model/audio/src/audio infra/messaging/src/messaging apps/worker/src/worker && \
+    touch model/gts/src/gts/__init__.py model/audio/src/audio/__init__.py \
+          infra/messaging/src/messaging/__init__.py apps/worker/src/worker/__init__.py
 
 # Install dependencies only (no project yet for better caching)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --package gts-worker
 
 # Copy source code
-COPY libs/core/src libs/core/src/
-COPY libs/audio/src libs/audio/src/
+COPY model/gts/src model/gts/src/
+COPY model/audio/src model/audio/src/
+COPY infra/messaging/src infra/messaging/src/
 COPY apps/worker/src apps/worker/src/
-COPY src/gts src/gts/
 
 # Install project (non-editable for production)
 RUN --mount=type=cache,target=/root/.cache/uv \
