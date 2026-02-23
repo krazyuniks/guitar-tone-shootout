@@ -152,11 +152,19 @@ class ClaudeAdapter:
                 if isinstance(parsed, dict):
                     turns = parsed.get("num_turns") or parsed.get("turns")
                     # Extract the agent's text response as the primary output
+                    result_val = parsed.get("result")
+                    logger.debug(
+                        "parse_result: result type=%s, len=%s",
+                        type(result_val).__name__,
+                        len(result_val) if isinstance(result_val, str) else "N/A",
+                    )
                     if "result" in parsed and isinstance(parsed["result"], str):
                         output = parsed["result"]
             except json.JSONDecodeError:
                 # Raw text output — not structured
                 pass
+        else:
+            logger.warning("parse_result: raw stdout is empty (exit_code=%d)", exit_code)
 
         return AgentResult(
             success=success,
@@ -602,8 +610,17 @@ def _dispatch_simple(
         )
 
     # Log stderr for debugging dispatch failures
+    if completed.stderr:
+        logger.debug("Agent stderr: %s", completed.stderr[:500])
     if completed.returncode != 0 and completed.stderr:
         logger.warning("Agent stderr: %s", completed.stderr[:500])
+
+    # Log raw stdout length for diagnosing empty-response issues
+    stdout_len = len(completed.stdout or "")
+    if stdout_len == 0:
+        logger.warning("Agent returned empty stdout (exit_code=%d)", completed.returncode)
+    else:
+        logger.debug("Agent stdout length: %d chars", stdout_len)
 
     return adapter.parse_result(completed)
 
