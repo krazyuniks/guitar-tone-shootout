@@ -789,8 +789,11 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
     validation = validate_config(PROJECT_ROOT, skip_golden_path=True)
     if not validation.passed:
         logger.warning("Pre-execution validation failed:\n%s", validation.summary())
-        if not typer.confirm("Continue despite preflight failures?", default=False):
-            sys.exit(1)
+        if sys.stdin.isatty():
+            if not typer.confirm("Continue despite preflight failures?", default=False):
+                sys.exit(1)
+        else:
+            logger.warning("Non-interactive mode — continuing despite preflight failures")
     else:
         logger.info("Pre-execution validation passed.")
 

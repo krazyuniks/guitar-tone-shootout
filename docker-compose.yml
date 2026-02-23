@@ -303,8 +303,9 @@ services:
       - path: .env.secrets
         required: false
     volumes:
-      - ./libs/core:/app/libs/core:ro
-      - ./libs/video:/app/libs/video
+      - ./model/gts:/app/model/gts:ro
+      - ./model/video:/app/model/video
+      - ./infra/messaging:/app/infra/messaging:ro
       - ./apps/video_worker:/app/apps/video_worker
       - ./apps/webapp:/app/apps/webapp:ro
       - ./apps/worker:/app/apps/worker:ro

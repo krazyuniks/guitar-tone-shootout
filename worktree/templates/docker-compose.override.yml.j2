@@ -20,10 +20,10 @@ services:
       - "127.0.0.1:{{ worktree.ports.webapp }}:8000"
     volumes:
       # App code (new uv workspace layout)
-      - ./libs:/app/libs:ro
+      - ./model:/app/model:ro
+      - ./infra:/app/infra:ro
       - ./apps/webapp:/app/apps/webapp
       - ./frontend/astro/dist:/app/static:ro
-      - ./src:/app/src:ro
       - ./sources:/app/sources:ro
       - ./tests:/app/tests:ro
       - ./infrastructure/migrations:/app/infrastructure/migrations:ro
@@ -49,7 +49,8 @@ services:
   worker:
     container_name: {{ worktree.compose_project }}-worker
     volumes:
-      - ./libs:/app/libs:ro
+      - ./model:/app/model:ro
+      - ./infra:/app/infra:ro
       - ./apps/worker:/app/apps/worker
       - ./apps/t3k_sync:/app/apps/t3k_sync:ro
       - ./apps/audio_worker:/app/apps/audio_worker:ro
@@ -67,7 +68,8 @@ services:
   t3k-sync:
     container_name: {{ worktree.compose_project }}-t3k-sync
     volumes:
-      - ./libs:/app/libs:ro
+      - ./model:/app/model:ro
+      - ./infra:/app/infra:ro
       - ./apps/t3k_sync:/app/apps/t3k_sync
       - ./apps/worker:/app/apps/worker:ro
       - ./apps/webapp:/app/apps/webapp:ro
@@ -83,7 +85,8 @@ services:
   audio-worker:
     container_name: {{ worktree.compose_project }}-audio-worker
     volumes:
-      - ./libs:/app/libs:ro
+      - ./model:/app/model:ro
+      - ./infra:/app/infra:ro
       - ./apps/audio_worker:/app/apps/audio_worker
       - ./apps/worker:/app/apps/worker:ro
       # Shared storage bind mount
@@ -96,8 +99,9 @@ services:
     ports:
       - "127.0.0.1:{{ worktree.ports.video }}:8002"
     volumes:
-      - ./libs/core:/app/libs/core:ro
-      - ./libs/video:/app/libs/video
+      - ./model/gts:/app/model/gts:ro
+      - ./model/video:/app/model/video
+      - ./infra/messaging:/app/infra/messaging:ro
       - ./apps/video_worker:/app/apps/video_worker
       - ./apps/webapp:/app/apps/webapp:ro
       - ./apps/worker:/app/apps/worker:ro
