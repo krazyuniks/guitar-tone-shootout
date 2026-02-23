@@ -916,12 +916,6 @@ def _run_story_critique(
 
     # Parse JSON result — robust extraction handles text around JSON
     raw_output = result.output or ""
-    logger.info(
-        "Critique raw output for '%s': length=%d, preview=%r",
-        story_id,
-        len(raw_output),
-        raw_output[:300],
-    )
     try:
         critique = extract_json_from_text(raw_output)
     except ValueError:
