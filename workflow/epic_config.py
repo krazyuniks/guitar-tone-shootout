@@ -142,12 +142,34 @@ def ensure_epic_config(epic_dir: Path) -> Path:
     return config_path
 
 
+def _get_available_mcp_servers() -> list[str]:
+    """Return sorted list of available MCP server names."""
+    from workflow.mcp import read_all_servers
+
+    return sorted(read_all_servers().keys())
+
+
+# Map from config role name → dispatch role (for tools and MCP lookup)
+_ROLE_DISPATCH_MAP = {
+    "implementor": "implementation",
+    "story_critic": "critique",
+    "epic_critic": "critique",
+}
+
+# Map from config role name → budget key
+_ROLE_BUDGET_MAP = {
+    "implementor": "implementation",
+    "story_critic": "critique_story",
+    "epic_critic": "critique_epic",
+}
+
+
 def prompt_execution_config(config_path: Path) -> EpicConfig:
-    """Interactive model/effort selection for Stage 4 execution.
+    """Interactive model/effort/MCP selection for Stage 4 execution.
 
     Shows current config and lets the user override execution-phase
-    models (implementor, story_critic, epic_critic) and max_turns.
-    Writes changes back to config.toml and returns the updated config.
+    models, max_turns, and MCP servers per role. Writes changes back
+    to config.toml and returns the updated config.
 
     Args:
         config_path: Path to the epic's config.toml.
@@ -164,26 +186,34 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
     console = Console()
     config = load_config(override_path=config_path)
 
+    # Discover available MCP servers
+    available_mcp = _get_available_mcp_servers()
+
     # Show current execution config
     table = Table(title="Stage 4 Execution Config", show_header=True)
     table.add_column("Role", style="bold")
     table.add_column("Model", style="cyan")
     table.add_column("Max Turns", style="green")
     table.add_column("Timeout", style="yellow")
+    table.add_column("MCP Servers", style="magenta")
 
-    role_budget_map = {
-        "implementor": "implementation",
-        "story_critic": "critique_story",
-        "epic_critic": "critique_epic",
-    }
-
-    for role, budget_key in role_budget_map.items():
+    for role, budget_key in _ROLE_BUDGET_MAP.items():
         model = getattr(config.models, role)
         budget = config.budgets.get(budget_key, BudgetConfig())
-        table.add_row(role, model, str(budget.max_turns), f"{budget.timeout}s")
+        dispatch_role = _ROLE_DISPATCH_MAP[role]
+        mcp_servers = config.mcp.get(dispatch_role, [])
+        table.add_row(
+            role,
+            model,
+            str(budget.max_turns),
+            f"{budget.timeout}s",
+            ", ".join(mcp_servers) if mcp_servers else "(none)",
+        )
 
     console.print()
     console.print(table)
+    if available_mcp:
+        console.print(f"\n[dim]Available MCP servers: {', '.join(available_mcp)}[/dim]")
     console.print()
 
     flush_stdin()
@@ -192,13 +222,16 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
         return config
 
     # Collect overrides
-    overrides: dict[str, dict] = {"models": {}, "budgets": {}}
+    overrides: dict[str, dict] = {"models": {}, "budgets": {}, "mcp": {}}
     available = ", ".join(AVAILABLE_MODELS)
 
-    for role, budget_key in role_budget_map.items():
+    for role, budget_key in _ROLE_BUDGET_MAP.items():
+        dispatch_role = _ROLE_DISPATCH_MAP[role]
         current_model = getattr(config.models, role)
+        current_mcp = config.mcp.get(dispatch_role, [])
+
         console.print(f"\n[bold]{role}[/bold] (current: {current_model})")
-        console.print(f"  Available: {available}")
+        console.print(f"  Available models: {available}")
         flush_stdin()
         new_model = typer.prompt("  Model", default=current_model)
         if new_model != current_model:
@@ -211,6 +244,19 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
             if budget_key not in overrides["budgets"]:
                 overrides["budgets"][budget_key] = {}
             overrides["budgets"][budget_key]["max_turns"] = new_turns
+
+        if available_mcp:
+            current_mcp_str = ",".join(current_mcp) if current_mcp else ""
+            flush_stdin()
+            new_mcp_str = typer.prompt(
+                "  MCP servers (comma-separated, empty for none)",
+                default=current_mcp_str,
+            )
+            new_mcp = (
+                [s.strip() for s in new_mcp_str.split(",") if s.strip()] if new_mcp_str else []
+            )
+            if new_mcp != current_mcp:
+                overrides["mcp"][dispatch_role] = new_mcp
 
     # Remove empty sections
     overrides = {k: v for k, v in overrides.items() if v}
@@ -230,6 +276,15 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
     models_data.update(overrides.get("models", {}))
     test_models = ModelConfig(**models_data)
     _validate_cross_model(test_models)
+
+    # Validate MCP server names
+    if "mcp" in overrides:
+        for mcp_role, servers in overrides["mcp"].items():
+            unknown = [s for s in servers if s not in available_mcp]
+            if unknown:
+                raise ValueError(
+                    f"Unknown MCP server(s) for {mcp_role}: {unknown}. Available: {available_mcp}"
+                )
 
     # Write overrides to config.toml
     _write_config_overrides(config_path, overrides)

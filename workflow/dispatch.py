@@ -44,16 +44,6 @@ TURN_DEFAULTS: dict[str, int] = {
     "critique_epic": 20,
 }
 
-# Tool restrictions per agent role (Section 8.2 Strategy 4)
-TOOL_SETS: dict[str, list[str]] = {
-    "planning": ["Read", "Bash", "Glob", "Grep"],
-    "implementation": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-    "validation_browser": ["Read", "Bash", "Glob", "Grep"],
-    "validation_api": ["Bash", "Read", "Glob", "Grep"],
-    "regression": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
-    "critique": ["Read", "Bash", "Glob", "Grep"],
-}
-
 
 # ---------------------------------------------------------------------------
 # AgentResult dataclass
@@ -86,7 +76,6 @@ class AgentAdapter(Protocol):
     def build_args(
         self,
         model: str,
-        tools: list[str],
         max_turns: int,
         json_schema: dict | None,
         mcp_servers: list[str] | None = None,
@@ -118,7 +107,6 @@ class ClaudeAdapter:
     def build_args(
         self,
         model: str,
-        tools: list[str],
         max_turns: int,
         json_schema: dict | None,
         mcp_servers: list[str] | None = None,
@@ -139,9 +127,6 @@ class ClaudeAdapter:
             "json",
             "--dangerously-skip-permissions",
         ]
-
-        # --tools "" disables all tools; comma-separated list restricts to named tools
-        args.extend(["--tools", ",".join(tools)])
 
         if json_schema:
             args.extend(["--json-schema", json.dumps(json_schema)])
@@ -250,16 +235,14 @@ class CodexAdapter:
     def build_args(
         self,
         model: str,  # noqa: ARG002
-        tools: list[str],  # noqa: ARG002
         max_turns: int,  # noqa: ARG002
         json_schema: dict | None,  # noqa: ARG002
         mcp_servers: list[str] | None = None,  # noqa: ARG002
     ) -> list[str]:
         """Build Codex CLI arguments. Prompt is piped via stdin by the caller.
 
-        Codex CLI does not support --tools or --max-turns flags. Those
-        parameters are accepted for interface compatibility but are not
-        passed to the CLI.
+        Codex CLI does not support --max-turns flags. The parameter is
+        accepted for interface compatibility but not passed to the CLI.
         """
         binary = self._find_binary()
 
@@ -411,6 +394,80 @@ def _log_dispatch_prompt(prompt: str, prompt_hash: str, model: str) -> None:
         logger.warning("Failed to write dispatch prompt log: %s", exc)
 
 
+def extract_json_from_text(text: str) -> dict:
+    """Extract a JSON object from agent output that may contain surrounding text.
+
+    Tries, in order:
+    1. Strip markdown code fences and parse directly
+    2. Find the outermost { ... } and parse that
+
+    Raises ValueError if no valid JSON object can be found.
+    """
+    cleaned = text.strip()
+
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        if lines[-1].strip() == "```":
+            cleaned = "\n".join(lines[1:-1]).strip()
+
+    # Direct parse
+    try:
+        result = json.loads(cleaned)
+        if isinstance(result, dict):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Find outermost { ... } in the original text
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            result = json.loads(text[start : end + 1])
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"No valid JSON object found in: {text[:200]}")
+
+
+# JSON schemas for critique responses
+STORY_CRITIQUE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "status": {"type": "string", "enum": ["pass", "fail"]},
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "file": {"type": "string"},
+                    "line": {},
+                    "issue": {"type": "string"},
+                    "convention_violated": {"type": "string"},
+                    "severity": {"type": "string", "enum": ["critical", "major"]},
+                },
+                "required": ["file", "issue", "severity"],
+            },
+        },
+        "summary": {"type": "string"},
+    },
+    "required": ["status", "findings", "summary"],
+}
+
+EPIC_CRITIQUE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "status": {"type": "string", "enum": ["pass", "fail"]},
+        "findings": {"type": "array"},
+        "summary": {"type": "string"},
+    },
+    "required": ["status", "findings", "summary"],
+}
+
+
 def compute_prompt_hash(prompt: str) -> str:
     """Compute a short hash of the prompt text for JSONL logging.
 
@@ -446,7 +503,6 @@ def estimate_tokens(text: str) -> int:
 def dispatch_agent(
     prompt: str,
     model: str,
-    tools: list[str],
     max_turns: int = 30,
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
@@ -468,7 +524,6 @@ def dispatch_agent(
     Args:
         prompt: The full agent prompt text.
         model: Model identifier (e.g. "opus", "sonnet", "haiku", "codex").
-        tools: List of tool names the agent may use.
         max_turns: Maximum conversation turns.
         json_schema: JSON schema for structured output (optional).
         cwd: Working directory for the subprocess.
@@ -490,9 +545,8 @@ def dispatch_agent(
     prompt_tokens = estimate_tokens(prompt)
 
     logger.info(
-        "Dispatching agent: model=%s, tools=%s, max_turns=%d, prompt_hash=%s, prompt_tokens=%d",
+        "Dispatching agent: model=%s, max_turns=%d, prompt_hash=%s, prompt_tokens=%d",
         model,
-        tools,
         max_turns,
         prompt_hash,
         prompt_tokens,
@@ -503,7 +557,6 @@ def dispatch_agent(
 
     args = adapter.build_args(
         model=model,
-        tools=tools,
         max_turns=max_turns,
         json_schema=json_schema,
         mcp_servers=mcp_servers,
@@ -696,19 +749,6 @@ def get_default_turns(agent_type: str) -> int:
         Default max_turns for the agent type.
     """
     return TURN_DEFAULTS.get(agent_type, TURN_DEFAULTS["implementation"])
-
-
-def get_tools_for_role(role: str) -> list[str]:
-    """Get the tool restriction list for an agent role.
-
-    Args:
-        role: One of "implementation", "validation_browser",
-            "validation_api", "regression", "critique".
-
-    Returns:
-        List of tool name strings.
-    """
-    return list(TOOL_SETS.get(role, TOOL_SETS["implementation"]))
 
 
 def get_dispatch_params(

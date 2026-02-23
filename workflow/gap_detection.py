@@ -26,8 +26,8 @@ from rich.rule import Rule
 from workflow.dispatch import (
     TURN_DEFAULTS,
     dispatch_agent,
+    extract_json_from_text,
     get_dispatch_params,
-    get_tools_for_role,
 )
 
 if TYPE_CHECKING:
@@ -383,12 +383,8 @@ def _ask_escalated_questions(questions: list[EscalatedQuestion]) -> list[GapAnsw
 
 
 def _parse_json_from_response(text: str) -> dict:
-    """Extract JSON from a fenced code block or raw JSON response."""
-    if "```json" in text:
-        start = text.index("```json") + len("```json")
-        end = text.index("```", start)
-        return json.loads(text[start:end])
-    return json.loads(text)
+    """Extract JSON from agent response text."""
+    return extract_json_from_text(text)
 
 
 def run_gap_detection(
@@ -460,7 +456,6 @@ def run_gap_detection(
     gap_result = dispatch_agent(
         prompt=gap_prompt,
         model=gap_model,
-        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         mcp_servers=mcp_servers_gap,
         timeout=timeout_gap,
@@ -497,7 +492,6 @@ def run_gap_detection(
     critique_result = dispatch_agent(
         prompt=critique_prompt,
         model=critique_model,
-        tools=get_tools_for_role("critique"),
         max_turns=critique_max_turns,
         mcp_servers=mcp_servers_crit,
         timeout=timeout_crit,

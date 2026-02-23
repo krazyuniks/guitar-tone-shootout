@@ -26,15 +26,16 @@ from pathlib import Path
 from workflow.dispatch import (
     TURN_DEFAULTS,
     dispatch_agent,
+    extract_json_from_text,
     get_dispatch_params,
-    get_tools_for_role,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
 from workflow.plan_generator import (
     PlanGenerationError,
     _parse_structured_plan,
-    build_verifier_revision_prompt,
+    build_targeted_phase_a_revision_prompt,
+    build_targeted_phase_b_revision_prompt,
 )
 from workflow.plan_validator import validate_plan
 
@@ -227,18 +228,11 @@ def _parse_verifier_result(result_output: str) -> dict:
     The prompt instructs the agent to return ONLY a JSON object.
     Agents commonly wrap JSON in markdown code fences, so we strip those.
     """
-    text = (result_output or "").strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        # Remove first line (```json) and last line (```)
-        if lines[-1].strip() == "```":
-            text = "\n".join(lines[1:-1]).strip()
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError as exc:
+        data = extract_json_from_text(result_output or "")
+    except ValueError as exc:
         raise PlanVerificationError(
-            f"Verifier did not return valid JSON: {exc}\nOutput (first 500 chars): {text[:500]}"
+            f"Verifier did not return valid JSON: {exc}\nOutput (first 500 chars): {(result_output or '')[:500]}"
         ) from exc
     if not isinstance(data, dict) or "status" not in data:
         raise PlanVerificationError(
@@ -345,16 +339,57 @@ class DecisionGateResult:
         return f"DecisionGateResult(decision={self.decision!r}, reason={self.reason!r})"
 
 
+def _print_plan_summary(plan_md_path: Path) -> None:
+    """Print a concise plan summary from plan.json alongside PLAN.md."""
+    plan_json_path = plan_md_path.parent / "plan.json"
+    if not plan_json_path.is_file():
+        return
+
+    try:
+        plan_data = json.loads(plan_json_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+
+    print(f"\nGoal: {plan_data.get('goal', '?')}")
+
+    stories = plan_data.get("stories", [])
+    checkpoints = plan_data.get("validation_checkpoints", [])
+    checkpoint_map = {cp["after_story"]: cp for cp in checkpoints}
+
+    print(f"\nStories ({len(stories)}):")
+    for story in stories:
+        sid = story.get("story_id", "?")
+        name = story.get("name", "?")
+        purpose = story.get("purpose", "")
+        scope = story.get("scope", {})
+        create = scope.get("create", [])
+        modify = scope.get("modify", [])
+        cp = checkpoint_map.get(sid)
+        cp_count = len(cp.get("checks", [])) if cp else 0
+
+        print(f"\n  {sid}: {name}")
+        print(f"    {purpose}")
+        if create:
+            print(f"    Create: {len(create)} files")
+        if modify:
+            print(f"    Modify: {len(modify)} files")
+        print(f"    Checks: {cp_count} validation commands")
+
+
 def present_decision_gate(
     plan_md_path: Path,
     verifier_result: dict,
 ) -> DecisionGateResult:
-    """Present the human with PLAN.md + verifier report and get a decision."""
+    """Present the human with plan summary + verifier report and get a decision."""
     # Display plan location
     print("\n" + "=" * 70)
     print("DECISION GATE")
     print("=" * 70)
-    print(f"\nPlan ready for review: {plan_md_path}")
+
+    # Show plan summary
+    _print_plan_summary(plan_md_path)
+
+    print(f"\nFull plan: {plan_md_path}")
     print(f"Verifier status: {verifier_result.get('status', 'unknown')}")
 
     # Show dimension statuses
@@ -414,7 +449,7 @@ def present_decision_gate(
 
     print("\nOptions:")
     print("  [a] Approve — proceed to execution")
-    print("  [r] Revise  — edit plan.json and PLAN.md, then re-validate")
+    print("  [r] Revise  — re-run planner with findings, then re-verify")
     print("  [x] Reject  — exit, planning artefacts not committed")
     print()
 
@@ -495,7 +530,6 @@ def verify_plan(
     result = dispatch_agent(
         prompt=prompt,
         model=critic_model,
-        tools=get_tools_for_role("critique"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
@@ -585,13 +619,13 @@ def verify_with_revision_cycle(
         ", ".join(failed_dims),
     )
 
-    # Hard stop: if Codex reported fail but produced no extractable findings,
-    # something went wrong with the Codex invocation (instant return, auth
-    # failure, malformed output, etc.). Don't waste money on a blind re-plan.
+    # Hard stop: if verifier reported fail but produced no extractable findings,
+    # something went wrong with the invocation (instant return, auth failure,
+    # malformed output, etc.). Don't waste money on a blind re-plan.
     if not _has_extractable_findings(verifier_result):
         raise PlanVerificationError(
-            "Phase B reported fail but contains no extractable must_fix findings. "
-            "Codex may not have run properly. "
+            "Verifier reported fail but contains no extractable must_fix findings. "
+            "The verifier may not have run properly. "
             f"Raw result: {json.dumps(verifier_result)[:2000]}"
         )
 
@@ -635,10 +669,10 @@ def verify_with_revision_cycle(
         logger.info("Phase B passed on second attempt. Plan verified.")
         return (verifier_result, True)
 
-    # Second attempt also failed — exit to human
+    # Second attempt still has findings — present to human at Decision Gate
     failed_dims = _extract_dimension_failures(verifier_result)
-    logger.error(
-        "Phase B still fails after revision (dimensions: %s). Exiting to human.",
+    logger.info(
+        "Phase B has remaining findings (dimensions: %s). Presenting to human.",
         ", ".join(failed_dims),
     )
     return (verifier_result, False)
@@ -679,33 +713,15 @@ def _regenerate_plan_with_errors(
 ) -> None:
     """Re-invoke the planner with Phase A validation errors.
 
-    Uses structured output (--json-schema, tools=[]) and parses the
-    result with Pydantic.
+    Uses a targeted prompt containing only the current plan.json + errors +
+    JSON schema (~25K) instead of rebuilding the full planning prompt (~150K).
     """
-    from workflow.plan_generator import (
-        _build_planner_prompt,
-        build_revision_prompt,
-    )
+    plan_json_path = epic_dir / "plan.json"
+    plan_json_str = plan_json_path.read_text(encoding="utf-8")
 
-    context, epic_number = _read_original_prompt_context(epic_dir)
+    revision_prompt = build_targeted_phase_a_revision_prompt(plan_json_str, validation_errors)
 
-    # Read user-decisions.json so revision doesn't contradict Stage 2b answers
-    decisions_path = epic_dir / "user-decisions.json"
-    user_decisions = (
-        decisions_path.read_text(encoding="utf-8") if decisions_path.is_file() else None
-    )
-
-    # Rebuild the original prompt
-    original_prompt = _build_planner_prompt(
-        context=context,
-        epic_number=epic_number,
-        user_decisions=user_decisions,
-    )
-
-    # Build revision prompt with errors
-    revision_prompt = build_revision_prompt(original_prompt, validation_errors)
-
-    # Resolve model and turns from config or defaults
+    # Resolve model and turns from config or defaults (same budget as initial planning)
     planner_model = config.models.planner if config else "opus"
     if config and "planning" in config.budgets:
         max_turns = config.budgets["planning"].max_turns
@@ -713,16 +729,16 @@ def _regenerate_plan_with_errors(
         max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
-        "Dispatching %s planner revision (Phase A errors, %d chars)",
+        "Dispatching %s planner revision (Phase A errors, %d chars, ~%d tokens)",
         planner_model,
         len(revision_prompt),
+        len(revision_prompt) // 4,
     )
 
     mcp_servers, timeout = get_dispatch_params("planning", config)
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
-        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,
@@ -747,30 +763,16 @@ def _regenerate_plan_with_verifier_feedback(
 ) -> None:
     """Re-invoke the planner with Phase B verifier feedback.
 
-    Uses structured output (--json-schema, tools=[]) and parses the
-    result with Pydantic.
+    Uses a targeted prompt containing only the current plan.json + must_fix
+    findings + JSON schema (~25K) instead of rebuilding the full planning
+    prompt (~150K).
     """
-    from workflow.plan_generator import _build_planner_prompt
+    plan_json_path = epic_dir / "plan.json"
+    plan_json_str = plan_json_path.read_text(encoding="utf-8")
 
-    context, epic_number = _read_original_prompt_context(epic_dir)
+    revision_prompt = build_targeted_phase_b_revision_prompt(plan_json_str, verifier_result)
 
-    # Read user-decisions.json so revision doesn't contradict Stage 2b answers
-    decisions_path = epic_dir / "user-decisions.json"
-    user_decisions = (
-        decisions_path.read_text(encoding="utf-8") if decisions_path.is_file() else None
-    )
-
-    # Rebuild the original prompt
-    original_prompt = _build_planner_prompt(
-        context=context,
-        epic_number=epic_number,
-        user_decisions=user_decisions,
-    )
-
-    # Build revision prompt with verifier feedback
-    revision_prompt = build_verifier_revision_prompt(original_prompt, verifier_result)
-
-    # Resolve model and turns from config or defaults
+    # Resolve model and turns from config or defaults (same budget as initial planning)
     planner_model = config.models.planner if config else "opus"
     if config and "planning" in config.budgets:
         max_turns = config.budgets["planning"].max_turns
@@ -778,16 +780,16 @@ def _regenerate_plan_with_verifier_feedback(
         max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
-        "Dispatching %s planner revision (verifier feedback, %d chars)",
+        "Dispatching %s planner revision (verifier feedback, %d chars, ~%d tokens)",
         planner_model,
         len(revision_prompt),
+        len(revision_prompt) // 4,
     )
 
     mcp_servers, timeout = get_dispatch_params("planning", config)
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
-        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,

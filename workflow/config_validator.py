@@ -81,18 +81,7 @@ def check_database(project_root: Path) -> ValidationCheck:
     """Check that the database is accessible."""
     try:
         result = subprocess.run(
-            [
-                "docker",
-                "compose",
-                "exec",
-                "-T",
-                "webapp",
-                "python",
-                "-c",
-                "from sqlalchemy import text; "
-                "from infrastructure.database import sync_engine; "
-                "with sync_engine.connect() as c: c.execute(text('SELECT 1'))",
-            ],
+            ["docker", "compose", "exec", "-T", "db", "pg_isready", "-U", "gts"],
             capture_output=True,
             text=True,
             cwd=project_root,
@@ -137,9 +126,10 @@ def check_website(project_root: Path) -> ValidationCheck:
                 "webapp",
                 "python",
                 "-c",
-                "import urllib.request; "
-                "r = urllib.request.urlopen('http://localhost:8000/api/health', timeout=5); "
-                "assert r.status == 200",
+                "import urllib.request\n"
+                "r = urllib.request.urlopen('http://localhost:8000/health', timeout=5)\n"
+                "assert r.status == 200\n"
+                "print('OK')",
             ],
             capture_output=True,
             text=True,

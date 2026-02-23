@@ -25,9 +25,11 @@ from pathlib import Path
 
 from workflow.config_validator import validate_config
 from workflow.dispatch import (
+    EPIC_CRITIQUE_SCHEMA,
     compute_prompt_hash,
     dispatch_agent,
     estimate_tokens,
+    extract_json_from_text,
     get_dispatch_params,
 )
 from workflow.epic_config import (
@@ -580,12 +582,12 @@ def _run_epic_critique(
         prompt_tokens=prompt_tokens,
     )
 
-    # Dispatch read-only critique agent
+    # Dispatch read-only critique agent with schema enforcement
     mcp_servers, timeout = get_dispatch_params("critique", config)
     result = dispatch_agent(
         prompt=prompt,
         model=critique_model,
-        tools=["Read", "Bash", "Glob", "Grep"],
+        json_schema=EPIC_CRITIQUE_SCHEMA,
         mcp_servers=mcp_servers,
         timeout=timeout,
         max_turns=critique_budget.max_turns,
@@ -606,22 +608,17 @@ def _run_epic_critique(
         # Dispatch failure is fail-closed (invariant E2)
         return (False, [{"error": "Epic critique dispatch failed"}])
 
-    # Parse JSON result
-    output = (result.output or "").strip()
-    if output.startswith("```"):
-        lines = output.split("\n")
-        if lines[-1].strip() == "```":
-            output = "\n".join(lines[1:-1]).strip()
-
+    # Parse JSON result — robust extraction handles text around JSON
     try:
-        critique = json.loads(output)
-    except json.JSONDecodeError:
+        critique = extract_json_from_text(result.output or "")
+    except ValueError:
+        output_preview = (result.output or "")[:200]
         logger.warning("Epic critique returned invalid JSON")
         epic_logger.log_event(
             "epic_critique_fail",
             critique_type="epic",
             critique_model=critique_model,
-            error=f"Invalid JSON: {output[:200]}",
+            error=f"Invalid JSON: {output_preview}",
         )
         # Parse failure is fail-closed (invariant E2)
         return (False, [{"error": "Epic critique returned invalid JSON"}])

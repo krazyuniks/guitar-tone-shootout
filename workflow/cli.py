@@ -221,7 +221,8 @@ def _run_planning_pipeline(epic_number: int) -> None:
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 4: Verification (Phase A + Phase B with revision cycle)
+    # Step 4: Verification (structural validation + cross-model review)
+    critic_model = config.models.plan_critic if config else "codex"
     console.print()
     console.print("[bold]Step 4:[/bold] Verifying plan...")
 
@@ -254,7 +255,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
                 attempt=1,
                 checks_failed=phase_a_errors,
             )
-            console.print("  [red]Phase A validation failed after revision.[/red]")
+            console.print("  [red]Structural validation failed after revision.[/red]")
             for err in phase_a_errors[:5]:
                 console.print(f"    - {err}")
         else:
@@ -264,17 +265,20 @@ def _run_planning_pipeline(epic_number: int) -> None:
                 attempt=1,
                 feedback=str(verifier_result),
             )
-            console.print("  [red]Phase B verification failed after revision.[/red]")
+            console.print(
+                f"  [yellow]{critic_model.capitalize()} verifier raised findings"
+                " after revision.[/yellow]"
+            )
 
-        console.print("\n  Plan verification failed. Review plan.json and PLAN.md manually.")
+        console.print("\n  Review findings at the Decision Gate below.")
         # Fall through to Decision Gate — human can still approve
 
     # Step 5: Decision Gate
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
 
-    # Non-TTY: auto-approve if verification passed or Phase B-only failure,
-    # auto-reject only if Phase A failed (structural errors).
+    # Non-TTY: auto-approve if verification passed or verifier-only findings,
+    # auto-reject only if structural validation failed.
     import sys as _sys
 
     phase_a_errors = verifier_result.get("phase_a_errors", []) if not success else []
@@ -285,19 +289,19 @@ def _run_planning_pipeline(epic_number: int) -> None:
             console.print("[green]Decision Gate: auto-approved (non-interactive).[/green]")
         elif phase_a_errors:
             gate_result = DecisionGateResult(
-                "reject", reason="Auto-rejected (non-interactive, Phase A failed)"
+                "reject", reason="Auto-rejected (non-interactive, structural validation failed)"
             )
             console.print(
-                "[red]Decision Gate: auto-rejected (non-interactive, Phase A failed).[/red]"
+                "[red]Decision Gate: auto-rejected (non-interactive, structural validation failed).[/red]"
             )
         else:
-            # Phase B-only failure: reject in non-interactive mode (invariant P1)
+            # Verifier-only findings: reject in non-interactive mode (needs human review)
             gate_result = DecisionGateResult(
                 "reject",
-                reason="Rejected (non-interactive mode, Phase B failure — requires human review)",
+                reason=f"Rejected (non-interactive, {critic_model} verifier findings — requires human review)",
             )
             console.print(
-                "[red]Decision Gate: rejected (non-interactive, Phase B failure "
+                f"[red]Decision Gate: rejected (non-interactive, {critic_model} verifier findings "
                 "— requires human review).[/red]"
             )
     else:
@@ -308,13 +312,70 @@ def _run_planning_pipeline(epic_number: int) -> None:
         console.print("\n[green]Plan approved.[/green]")
     elif gate_result.needs_revision:
         epic_logger.log_event("plan_revised", epic=epic_number)
-        console.print(
-            "\n[yellow]Plan marked for revision.[/yellow] "
-            "Edit plan.json and PLAN.md, then re-run:\n"
-            f"  ./wf epic validate-plan {epic_number}\n"
-            f"  ./wf epic {epic_number}"
-        )
-        return
+
+        # Feed remaining verifier findings back to planner for another revision
+        from workflow.plan_validator import validate_plan
+        from workflow.plan_verifier import _regenerate_plan_with_verifier_feedback
+
+        # Snapshot before revision so we can restore if it breaks
+        plan_json_path = epic_dir / "plan.json"
+        snapshot_json = plan_json_path.read_text(encoding="utf-8")
+        snapshot_md = plan_md_path.read_text(encoding="utf-8") if plan_md_path.exists() else ""
+
+        console.print("\n[yellow]Revising plan with verifier findings...[/yellow]")
+        try:
+            _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result, config=config)
+        except PlanGenerationError as exc:
+            console.print(f"  [red]Revision failed:[/red] {exc}")
+            console.print("  Restoring pre-revision plan.")
+            plan_json_path.write_text(snapshot_json, encoding="utf-8")
+            if snapshot_md:
+                plan_md_path.write_text(snapshot_md, encoding="utf-8")
+            return
+
+        # Re-validate structural checks (must still pass)
+        console.print("  Running structural validation on revised plan...")
+        phase_a_result = validate_plan(epic_dir)
+        if not phase_a_result.valid:
+            console.print(
+                f"  [red]Structural validation failed after revision"
+                f" ({len(phase_a_result.errors)} errors). Restoring pre-revision plan.[/red]"
+            )
+            plan_json_path.write_text(snapshot_json, encoding="utf-8")
+            if snapshot_md:
+                plan_md_path.write_text(snapshot_md, encoding="utf-8")
+            return
+
+        console.print("  [green]Structural validation passed.[/green]")
+
+        # Re-run verifier on the revised plan
+        from workflow.plan_verifier import verify_plan
+
+        console.print(f"  Running {critic_model} verifier on revised plan...")
+        try:
+            verifier_result = verify_plan(epic_dir, config=config)
+        except PlanVerificationError as exc:
+            console.print(f"  [yellow]Verifier failed:[/yellow] {exc}")
+            console.print("  Presenting gate with previous findings.")
+
+        # Present the gate again with fresh verifier results
+        gate_result = present_decision_gate(plan_md_path, verifier_result)
+        if gate_result.approved:
+            epic_logger.log_event("plan_approved", epic=epic_number)
+            console.print("\n[green]Plan approved.[/green]")
+        elif gate_result.rejected:
+            epic_logger.log_event("plan_rejected", epic=epic_number)
+            console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
+            return
+        else:
+            # Second revise — fall back to manual
+            console.print(
+                "\n[yellow]Plan marked for manual revision.[/yellow]\n"
+                "  Edit plan.json and PLAN.md, then re-run:\n"
+                f"    ./wf epic validate-plan {epic_number}\n"
+                f"    ./wf epic {epic_number}"
+            )
+            return
     elif gate_result.rejected:
         epic_logger.log_event("plan_rejected", epic=epic_number)
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")

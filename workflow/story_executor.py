@@ -22,9 +22,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from workflow.dispatch import (
+    STORY_CRITIQUE_SCHEMA,
     compute_prompt_hash,
     dispatch_agent,
     estimate_tokens,
+    extract_json_from_text,
     get_dispatch_metadata,
     get_dispatch_params,
 )
@@ -876,12 +878,12 @@ def _run_story_critique(
         prompt_tokens=prompt_tokens,
     )
 
-    # Dispatch read-only critique agent
+    # Dispatch read-only critique agent with schema enforcement
     mcp_servers, timeout = get_dispatch_params("critique", config)
     result = dispatch_agent(
         prompt=prompt,
         model=critique_model,
-        tools=["Read", "Bash", "Glob", "Grep"],
+        json_schema=STORY_CRITIQUE_SCHEMA,
         mcp_servers=mcp_servers,
         timeout=timeout,
         max_turns=critique_budget.max_turns,
@@ -905,16 +907,11 @@ def _run_story_critique(
         # Dispatch failure is fail-closed (invariant S2)
         return (False, [{"error": "Critique dispatch failed"}])
 
-    # Parse JSON result
-    output = (result.output or "").strip()
-    if output.startswith("```"):
-        lines = output.split("\n")
-        if lines[-1].strip() == "```":
-            output = "\n".join(lines[1:-1]).strip()
-
+    # Parse JSON result — robust extraction handles text around JSON
     try:
-        critique = json.loads(output)
-    except json.JSONDecodeError:
+        critique = extract_json_from_text(result.output or "")
+    except ValueError:
+        output_preview = (result.output or "")[:200]
         logger.warning("Story critique returned invalid JSON for '%s'", story_id)
         event_logger.log_event(
             "critique_failed",
@@ -922,7 +919,7 @@ def _run_story_critique(
             attempt=attempt,
             critique_type="story",
             critique_model=critique_model,
-            error=f"Invalid JSON: {output[:200]}",
+            error=f"Invalid JSON: {output_preview}",
         )
         # Parse failure is fail-closed (invariant S2)
         return (False, [{"error": "Critique returned invalid JSON"}])
@@ -999,8 +996,6 @@ def _dispatch_and_validate_loop(
     else:
         model = agent.get("model", "sonnet")
         max_turns = agent.get("max_turns", 40)
-    tools = agent.get("tools", ["Read", "Edit", "Write", "Bash", "Glob", "Grep"])
-
     retry_context: dict | None = None
     max_attempts = MAX_RETRIES + 1  # initial + retries
     base_commit = _get_latest_commit_hash()  # snapshot before any dispatch
@@ -1048,7 +1043,6 @@ def _dispatch_and_validate_loop(
         agent_result = dispatch_agent(
             prompt=prompt,
             model=model,
-            tools=tools,
             max_turns=max_turns,
             cwd=PROJECT_ROOT,
             mcp_servers=mcp_servers_impl,

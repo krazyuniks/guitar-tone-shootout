@@ -21,7 +21,6 @@ from workflow.dispatch import (
     TURN_DEFAULTS,
     dispatch_agent,
     get_dispatch_params,
-    get_tools_for_role,
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
@@ -364,7 +363,7 @@ Think step by step, then emit the JSON in a ```json code fence."""
 
 
 # ---------------------------------------------------------------------------
-# Revision prompts
+# Revision prompts (legacy — kept for backward compatibility)
 # ---------------------------------------------------------------------------
 
 
@@ -376,6 +375,9 @@ def build_revision_prompt(
 
     Appends the validation errors to the original prompt so the planner
     can fix structural issues in plan.json.
+
+    **Legacy:** No longer called from the revision dispatch path. The
+    targeted ``build_targeted_phase_a_revision_prompt`` is used instead.
     """
     error_list = "\n".join(f"- {err}" for err in validation_errors)
 
@@ -397,6 +399,45 @@ JSON object and NOTHING ELSE — no markdown, no explanation. Raw JSON only.
     return original_prompt + revision_section
 
 
+# ---------------------------------------------------------------------------
+# Finding extraction helpers (used by both legacy and targeted prompts)
+# ---------------------------------------------------------------------------
+
+
+def _extract_finding_items(dim_data: dict, key: str) -> list:
+    """Get finding items from nested dict, flat dict, or array layout.
+
+    The verifier prompt asks for findings as an array of objects with
+    severity fields, but earlier code expected a dict with named keys
+    (e.g. ``{"findings": {"gaps": [...]}}``) or flat keys. This handles
+    all three:
+
+    - Array: ``{"findings": [{"severity": "must_fix", ...}]}``
+    - Nested dict: ``{"findings": {"gaps": [...]}}``
+    - Flat: ``{"gaps": [...]}``
+    """
+    findings = dim_data.get("findings")
+    # Array of finding objects — return must_fix items directly
+    if isinstance(findings, list):
+        return [f for f in findings if f.get("severity") == "must_fix"]
+    # Nested dict with named keys
+    if isinstance(findings, dict):
+        items = findings.get(key, [])
+        if items:
+            return items
+    # Flat: dim_data[key]
+    return dim_data.get(key, [])
+
+
+def _format_finding_item(item: object) -> str:
+    """Format a finding item, handling both str and dict."""
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        return json.dumps(item, ensure_ascii=False)
+    return str(item)
+
+
 def build_verifier_revision_prompt(
     original_prompt: str,
     verifier_result: dict,
@@ -413,6 +454,9 @@ def build_verifier_revision_prompt(
 
     Also handles findings items as either plain strings or dicts with
     structured keys (the verifier is not constrained to one format).
+
+    **Legacy:** No longer called from the revision dispatch path. The
+    targeted ``build_targeted_phase_b_revision_prompt`` is used instead.
     """
     feedback_lines = [
         "",
@@ -430,78 +474,46 @@ def build_verifier_revision_prompt(
     if not isinstance(dims, dict):
         dims = verifier_result
 
-    def _get_finding_items(dim_data: dict, key: str) -> list:
-        """Get finding items from nested dict, flat dict, or array layout.
-
-        The verifier prompt asks for findings as an array of objects with
-        severity fields, but earlier code expected a dict with named keys
-        (e.g. ``{"findings": {"gaps": [...]}}``) or flat keys. This now
-        handles all three:
-
-        - Array: ``{"findings": [{"severity": "must_fix", ...}]}``
-        - Nested dict: ``{"findings": {"gaps": [...]}}``
-        - Flat: ``{"gaps": [...]}``
-        """
-        findings = dim_data.get("findings")
-        # Array of finding objects — return must_fix items directly
-        if isinstance(findings, list):
-            return [f for f in findings if f.get("severity") == "must_fix"]
-        # Nested dict with named keys
-        if isinstance(findings, dict):
-            items = findings.get(key, [])
-            if items:
-                return items
-        # Flat: dim_data[key]
-        return dim_data.get(key, [])
-
-    def _format_item(item) -> str:
-        """Format a finding item, handling both str and dict."""
-        if isinstance(item, str):
-            return item
-        if isinstance(item, dict):
-            return json.dumps(item, ensure_ascii=False)
-        return str(item)
-
     # Journey completeness
     jc = dims.get("journey_completeness", {})
     if isinstance(jc, dict) and jc.get("status") == "fail":
         feedback_lines.append("### Journey Completeness Gaps")
-        for gap in _get_finding_items(jc, "gaps"):
-            feedback_lines.append(f"- {_format_item(gap)}")
+        for gap in _extract_finding_items(jc, "gaps"):
+            feedback_lines.append(f"- {_format_finding_item(gap)}")
         feedback_lines.append("")
 
     # Transition coverage
     tc = dims.get("transition_coverage", {})
     if isinstance(tc, dict) and tc.get("status") == "fail":
         feedback_lines.append("### Uncovered Transitions")
-        for uc in _get_finding_items(tc, "uncovered"):
-            feedback_lines.append(f"- {_format_item(uc)}")
+        for uc in _extract_finding_items(tc, "uncovered"):
+            feedback_lines.append(f"- {_format_finding_item(uc)}")
         feedback_lines.append("")
 
     # Intent alignment
     ia = dims.get("intent_alignment", {})
     if isinstance(ia, dict) and ia.get("status") == "fail":
         feedback_lines.append("### Intent Alignment Issues")
-        for req in _get_finding_items(ia, "unaddressed_requirements"):
-            feedback_lines.append(f"- Unaddressed requirement: {_format_item(req)}")
-        for creep in _get_finding_items(ia, "scope_creep"):
-            feedback_lines.append(f"- Scope creep: {_format_item(creep)}")
+        for req in _extract_finding_items(ia, "unaddressed_requirements"):
+            feedback_lines.append(f"- Unaddressed requirement: {_format_finding_item(req)}")
+        for creep in _extract_finding_items(ia, "scope_creep"):
+            feedback_lines.append(f"- Scope creep: {_format_finding_item(creep)}")
         feedback_lines.append("")
 
     # Gap detection
     gd = dims.get("gap_detection", {})
     if isinstance(gd, dict) and gd.get("status") == "fail":
         feedback_lines.append("### Logical Gaps Between Stories")
-        for gap in _get_finding_items(gd, "gaps"):
-            feedback_lines.append(f"- {_format_item(gap)}")
+        for gap in _extract_finding_items(gd, "gaps"):
+            feedback_lines.append(f"- {_format_finding_item(gap)}")
         feedback_lines.append("")
 
     # Validation sufficiency
     vs = dims.get("validation_sufficiency", {})
     if isinstance(vs, dict) and vs.get("status") == "fail":
         feedback_lines.append("### Weak Validation Checks")
-        for wc in _get_finding_items(vs, "weak_checks"):
-            feedback_lines.append(f"- {_format_item(wc)}")
+        for wc in _extract_finding_items(vs, "weak_checks"):
+            feedback_lines.append(f"- {_format_finding_item(wc)}")
         feedback_lines.append("")
 
     feedback_lines.append(
@@ -510,6 +522,185 @@ def build_verifier_revision_prompt(
     )
 
     return original_prompt + "\n".join(feedback_lines)
+
+
+# ---------------------------------------------------------------------------
+# Targeted revision prompts (send plan.json + feedback, not full context)
+# ---------------------------------------------------------------------------
+
+
+def build_targeted_phase_a_revision_prompt(
+    plan_json_str: str,
+    errors: list[str],
+) -> str:
+    """Build a targeted Phase A revision prompt.
+
+    Sends only the current plan.json + errors + JSON schema (~25K total)
+    instead of rebuilding the entire planning prompt (~150K). The planner
+    makes minimal edits rather than rewriting from scratch.
+
+    Args:
+        plan_json_str: Current plan.json content as a string.
+        errors: List of Phase A validation error messages.
+
+    Returns:
+        The revision prompt string.
+    """
+    plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
+    error_list = "\n".join(f"- {err}" for err in errors)
+
+    return f"""\
+# Task: Fix Plan Validation Errors (Targeted Revision)
+
+The current plan.json failed Phase A structural validation. Fix ONLY the
+listed errors. Preserve all other fields exactly as they are.
+
+## Rules
+
+1. Make the MINIMUM changes necessary to fix each error.
+2. Do NOT rewrite stories, journeys, or scope unless an error specifically
+   requires it.
+3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
+   Use the Glob and Read tools to verify file paths if unsure.
+4. Do NOT add new stories or remove existing ones unless an error requires it.
+5. Output the complete plan JSON in a ```json code fence.
+
+---
+
+## JSON Schema
+
+<json_schema>
+{plan_schema_json}
+</json_schema>
+
+---
+
+## Current Plan
+
+<current_plan>
+{plan_json_str}
+</current_plan>
+
+---
+
+## Validation Errors to Fix
+
+{error_list}
+
+---
+
+Fix the errors above and emit the complete plan JSON in a ```json code fence.
+Do NOT omit any existing fields — the output must be a complete, valid plan."""
+
+
+def build_targeted_phase_b_revision_prompt(
+    plan_json_str: str,
+    verifier_result: dict,
+) -> str:
+    """Build a targeted Phase B revision prompt.
+
+    Sends only the current plan.json + must_fix findings + JSON schema
+    (~25K total) instead of rebuilding the entire planning prompt (~150K).
+    The planner addresses specific findings rather than rewriting from scratch.
+
+    Args:
+        plan_json_str: Current plan.json content as a string.
+        verifier_result: The Phase B verifier result dict.
+
+    Returns:
+        The revision prompt string.
+    """
+    plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
+
+    # Extract must_fix findings into readable feedback
+    feedback_lines: list[str] = []
+
+    dims = verifier_result.get("dimensions")
+    if not isinstance(dims, dict):
+        dims = verifier_result
+
+    jc = dims.get("journey_completeness", {})
+    if isinstance(jc, dict) and jc.get("status") == "fail":
+        feedback_lines.append("### Journey Completeness Gaps")
+        for gap in _extract_finding_items(jc, "gaps"):
+            feedback_lines.append(f"- {_format_finding_item(gap)}")
+        feedback_lines.append("")
+
+    tc = dims.get("transition_coverage", {})
+    if isinstance(tc, dict) and tc.get("status") == "fail":
+        feedback_lines.append("### Uncovered Transitions")
+        for uc in _extract_finding_items(tc, "uncovered"):
+            feedback_lines.append(f"- {_format_finding_item(uc)}")
+        feedback_lines.append("")
+
+    ia = dims.get("intent_alignment", {})
+    if isinstance(ia, dict) and ia.get("status") == "fail":
+        feedback_lines.append("### Intent Alignment Issues")
+        for req in _extract_finding_items(ia, "unaddressed_requirements"):
+            feedback_lines.append(f"- Unaddressed requirement: {_format_finding_item(req)}")
+        for creep in _extract_finding_items(ia, "scope_creep"):
+            feedback_lines.append(f"- Scope creep: {_format_finding_item(creep)}")
+        feedback_lines.append("")
+
+    gd = dims.get("gap_detection", {})
+    if isinstance(gd, dict) and gd.get("status") == "fail":
+        feedback_lines.append("### Logical Gaps Between Stories")
+        for gap in _extract_finding_items(gd, "gaps"):
+            feedback_lines.append(f"- {_format_finding_item(gap)}")
+        feedback_lines.append("")
+
+    vs = dims.get("validation_sufficiency", {})
+    if isinstance(vs, dict) and vs.get("status") == "fail":
+        feedback_lines.append("### Weak Validation Checks")
+        for wc in _extract_finding_items(vs, "weak_checks"):
+            feedback_lines.append(f"- {_format_finding_item(wc)}")
+        feedback_lines.append("")
+
+    findings_text = "\n".join(feedback_lines) if feedback_lines else "(no specific findings)"
+
+    return f"""\
+# Task: Address Verifier Feedback (Targeted Revision)
+
+The current plan.json passed structural validation but failed Phase B
+cross-model verification. Address ONLY the must_fix findings below.
+
+## Rules
+
+1. Make the MINIMUM changes necessary to address each finding.
+2. Do NOT rewrite stories unless feedback specifically requires it.
+3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
+   Use the Glob and Read tools to verify file paths if unsure.
+4. Do NOT change the epic scope, story count, or overall architecture
+   unless a finding specifically requires it.
+5. Output the complete plan JSON in a ```json code fence.
+
+---
+
+## JSON Schema
+
+<json_schema>
+{plan_schema_json}
+</json_schema>
+
+---
+
+## Current Plan
+
+<current_plan>
+{plan_json_str}
+</current_plan>
+
+---
+
+## Must-Fix Findings
+
+{findings_text}
+
+---
+
+Address the findings above and emit the complete plan JSON in a ```json code
+fence. Do NOT omit any existing fields — the output must be a complete, valid
+plan."""
 
 
 # ---------------------------------------------------------------------------
@@ -567,7 +758,7 @@ def generate_plan(
 ) -> tuple[Path, Path]:
     """Generate PLAN.md and plan.json from assembled context.
 
-    Dispatches a single planner invocation with tools=[] to produce plan JSON.
+    Dispatches a single planner invocation to produce plan JSON.
     The JSON schema is included in the prompt text (not via --json-schema
     constrained decoding, which fails on large outputs). PLAN.md is rendered
     deterministically from the validated Pydantic model.
@@ -628,7 +819,6 @@ def generate_plan(
     result = dispatch_agent(
         prompt=prompt,
         model=planner_model,
-        tools=get_tools_for_role("planning"),
         max_turns=max_turns,
         json_schema=None,
         cwd=PROJECT_ROOT,

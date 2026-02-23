@@ -42,11 +42,12 @@ max_turns = 30
 timeout = 1800
 
 # MCP servers per dispatch role.
-# Empty list = --strict-mcp-config --mcp-config '{"mcpServers":{}}'
 # Named servers are resolved from ~/.claude/settings.json + ~/.claude.json
+# Any agent that inspects code gets serena + pyright.
+# Web-facing tasks add chrome-devtools + playwright.
 [mcp]
-planning = []
-implementation = []
-critique = []
+planning = ["serena", "pyright"]
+implementation = ["serena", "pyright"]
+critique = ["serena", "pyright"]
 validation = []
-gap_detection = []
+gap_detection = ["serena", "pyright"]

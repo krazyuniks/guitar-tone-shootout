@@ -122,7 +122,6 @@ apps/webapp/src/webapp/templates/ — Jinja2 templates
     result = dispatch_agent(
         prompt=prompt,
         model="sonnet",
-        tools=[],
         max_turns=5,
         json_schema=None,
         cwd=current,
