@@ -137,7 +137,9 @@ def check_website(project_root: Path) -> ValidationCheck:
             timeout=15,
         )
         if result.returncode != 0:
-            return ValidationCheck("website", False, f"Website check failed: {result.stderr[:200]}")
+            return ValidationCheck(
+                "website", False, "Webapp not responding at localhost:8000/health"
+            )
         return ValidationCheck("website", True)
     except subprocess.TimeoutExpired:
         return ValidationCheck("website", False, "Website check timed out")

@@ -23,6 +23,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import typer
+
 from workflow.config_validator import validate_config
 from workflow.dispatch import (
     EPIC_CRITIQUE_SCHEMA,
@@ -786,9 +788,11 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
     logger.info("Running pre-execution configuration validation...")
     validation = validate_config(PROJECT_ROOT, skip_golden_path=True)
     if not validation.passed:
-        logger.error("Pre-execution validation failed:\n%s", validation.summary())
-        sys.exit(1)
-    logger.info("Pre-execution validation passed.")
+        logger.warning("Pre-execution validation failed:\n%s", validation.summary())
+        if not typer.confirm("Continue despite preflight failures?", default=False):
+            sys.exit(1)
+    else:
+        logger.info("Pre-execution validation passed.")
 
     epic_log_path = epic_dir / "epic.jsonl"
     events = read_log(epic_log_path)
