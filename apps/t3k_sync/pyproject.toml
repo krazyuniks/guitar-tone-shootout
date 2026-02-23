@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "GTS T3K Sync - source sync scheduler and gear sync consumer"
 requires-python = ">=3.14"
 dependencies = [
-    "gts-core",
+    "gts-domain",
+    "gts-messaging",
     "gts-source-t3k",
     "gts-webapp",
     "gts-worker",
@@ -20,7 +21,8 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-gts-core = { workspace = true }
+gts-domain = { workspace = true }
+gts-messaging = { workspace = true }
 gts-source-t3k = { workspace = true }
 gts-webapp = { workspace = true }
 gts-worker = { workspace = true }

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "GTS T3K Source Adapter - Syncs gear data from Tone3000 API"
 requires-python = ">=3.14"
 dependencies = [
-    "gts-core",
+    "gts-domain",
     "httpx>=0.28.0",
     "sqlalchemy[asyncio]>=2.0.36",
     "asyncpg>=0.30.0",
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-gts-core = { workspace = true }
+gts-domain = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

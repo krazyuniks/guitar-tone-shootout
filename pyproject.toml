@@ -9,9 +9,6 @@ readme = "README.md"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/gts"]
-
 [dependency-groups]
 dev = [
     "ruff==0.15.1",
@@ -44,7 +41,8 @@ torchaudio = { index = "pytorch-cpu" }
 
 [tool.uv.workspace]
 members = [
-    "libs/*",
+    "model/*",
+    "infra/*",
     "sources/*",
     "apps/webapp",
     "apps/worker",
@@ -59,7 +57,8 @@ members = [
 
 [tool.importlinter]
 root_packages = [
-    "core",
+    "gts",
+    "messaging",
     "audio",
     "video",
     "source_t3k",
@@ -71,12 +70,13 @@ root_packages = [
 ]
 include_external_packages = true
 
-# Core has zero dependencies on other packages
+# gts domain has zero dependencies on other project packages
 [[tool.importlinter.contracts]]
-name = "core-isolation"
+name = "gts-isolation"
 type = "forbidden"
-source_modules = ["core"]
+source_modules = ["gts"]
 forbidden_modules = [
+    "messaging",
     "audio",
     "video",
     "source_t3k",
@@ -87,11 +87,28 @@ forbidden_modules = [
     "video_worker",
 ]
 
-# Core domain models must remain framework-agnostic.
+# messaging has zero dependencies on other project packages
 [[tool.importlinter.contracts]]
-name = "core-domain-no-frameworks"
+name = "messaging-isolation"
 type = "forbidden"
-source_modules = ["core.domain"]
+source_modules = ["messaging"]
+forbidden_modules = [
+    "gts",
+    "audio",
+    "video",
+    "source_t3k",
+    "webapp",
+    "worker",
+    "t3k_sync",
+    "audio_worker",
+    "video_worker",
+]
+
+# gts domain models must remain framework-agnostic.
+[[tool.importlinter.contracts]]
+name = "gts-domain-no-frameworks"
+type = "forbidden"
+source_modules = ["gts.domain"]
 forbidden_modules = [
     "sqlalchemy",
     "fastapi",
@@ -104,11 +121,11 @@ forbidden_modules = [
     "torch",
 ]
 
-# Core ports must remain framework-agnostic.
+# gts ports must remain framework-agnostic.
 [[tool.importlinter.contracts]]
-name = "core-ports-no-frameworks"
+name = "gts-ports-no-frameworks"
 type = "forbidden"
-source_modules = ["core.ports"]
+source_modules = ["gts.ports"]
 forbidden_modules = [
     "sqlalchemy",
     "fastapi",
@@ -121,11 +138,11 @@ forbidden_modules = [
     "torch",
 ]
 
-# Core records should remain transport contracts, not framework adapters.
+# gts records should remain transport contracts, not framework adapters.
 [[tool.importlinter.contracts]]
-name = "core-records-no-adapter-frameworks"
+name = "gts-records-no-adapter-frameworks"
 type = "forbidden"
-source_modules = ["core.records"]
+source_modules = ["gts.records"]
 forbidden_modules = [
     "sqlalchemy",
     "fastapi",
@@ -137,11 +154,11 @@ forbidden_modules = [
     "torch",
 ]
 
-# Core services may use SQLAlchemy/pydantic for messaging, but not web frameworks.
+# gts services may use SQLAlchemy/pydantic for domain logic, but not web frameworks.
 [[tool.importlinter.contracts]]
-name = "core-services-no-web-frameworks"
+name = "gts-services-no-web-frameworks"
 type = "forbidden"
-source_modules = ["core.services"]
+source_modules = ["gts.services"]
 forbidden_modules = [
     "fastapi",
     "starlette",
@@ -152,7 +169,7 @@ forbidden_modules = [
     "torch",
 ]
 
-# Audio can only depend on core
+# Audio can only depend on gts domain
 [[tool.importlinter.contracts]]
 name = "audio-dependencies"
 type = "forbidden"
@@ -167,7 +184,7 @@ forbidden_modules = [
     "video_worker",
 ]
 
-# Video can only depend on core
+# Video can only depend on gts domain
 [[tool.importlinter.contracts]]
 name = "video-dependencies"
 type = "forbidden"
@@ -182,7 +199,7 @@ forbidden_modules = [
     "video_worker",
 ]
 
-# Source adapters can only depend on core
+# Source adapters can only depend on gts domain
 [[tool.importlinter.contracts]]
 name = "source-dependencies"
 type = "forbidden"
@@ -237,7 +254,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = [
-    "core",
+    "gts",
+    "messaging",
     "audio",
     "video",
     "source_t3k",
@@ -322,7 +340,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["libs", "sources", "apps"]
+source = ["model", "infra", "sources", "apps"]
 branch = true
 omit = ["*/tests/*", "*/__pycache__/*"]
 
