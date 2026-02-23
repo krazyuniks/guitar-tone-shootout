@@ -33,9 +33,8 @@ class ModelConfig:
 
 @dataclass(frozen=True)
 class BudgetConfig:
-    """Turn limits and timeout for a single role."""
+    """Timeout for a single dispatch role."""
 
-    max_turns: int = 30
     timeout: int = 600  # seconds; 0 = no timeout
 
 
@@ -168,7 +167,7 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
     """Interactive model/effort/MCP selection for Stage 4 execution.
 
     Shows current config and lets the user override execution-phase
-    models, max_turns, and MCP servers per role. Writes changes back
+    models, timeouts, and MCP servers per role. Writes changes back
     to config.toml and returns the updated config.
 
     Args:
@@ -193,7 +192,6 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
     table = Table(title="Stage 4 Execution Config", show_header=True)
     table.add_column("Role", style="bold")
     table.add_column("Model", style="cyan")
-    table.add_column("Max Turns", style="green")
     table.add_column("Timeout", style="yellow")
     table.add_column("MCP Servers", style="magenta")
 
@@ -205,7 +203,6 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
         table.add_row(
             role,
             model,
-            str(budget.max_turns),
             f"{budget.timeout}s",
             ", ".join(mcp_servers) if mcp_servers else "(none)",
         )
@@ -225,7 +222,7 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
     overrides: dict[str, dict] = {"models": {}, "budgets": {}, "mcp": {}}
     available = ", ".join(AVAILABLE_MODELS)
 
-    for role, budget_key in _ROLE_BUDGET_MAP.items():
+    for role, _budget_key in _ROLE_BUDGET_MAP.items():
         dispatch_role = _ROLE_DISPATCH_MAP[role]
         current_model = getattr(config.models, role)
         current_mcp = config.mcp.get(dispatch_role, [])
@@ -236,14 +233,6 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
         new_model = typer.prompt("  Model", default=current_model)
         if new_model != current_model:
             overrides["models"][role] = new_model
-
-        current_budget = config.budgets.get(budget_key, BudgetConfig())
-        flush_stdin()
-        new_turns = typer.prompt("  Max turns", default=current_budget.max_turns, type=int)
-        if new_turns != current_budget.max_turns:
-            if budget_key not in overrides["budgets"]:
-                overrides["budgets"][budget_key] = {}
-            overrides["budgets"][budget_key]["max_turns"] = new_turns
 
         if available_mcp:
             current_mcp_str = ",".join(current_mcp) if current_mcp else ""

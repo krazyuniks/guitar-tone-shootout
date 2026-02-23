@@ -144,7 +144,6 @@ Covers happy path from entry point through all critical transitions.}}
 - model: {{sonnet|opus|haiku}}
 - skills: [{{skill1}}, {{skill2}}]
 - tools: [Read, Edit, Write, Bash, Glob, Grep]
-- max_turns: {{number}}
 
 **Scope:**
 - Create: `{{path/to/new/file.py}}`

@@ -33,7 +33,6 @@ from workflow.dispatch import (
     get_dispatch_params,
 )
 from workflow.epic_config import (
-    BudgetConfig,
     EpicConfig,
     ensure_epic_config,
     load_config,
@@ -563,11 +562,8 @@ def _run_epic_critique(
     prompt = prompt.replace("{{ git_diff }}", git_diff)
     prompt = prompt.replace("{{ event_summary }}", event_summary)
 
-    # Resolve model and budget from config
+    # Resolve model from config
     critique_model = config.models.epic_critic if config else "opus"
-    critique_budget = (
-        config.budgets.get("critique_epic", BudgetConfig()) if config else BudgetConfig()
-    )
 
     # Log critique dispatch
     prompt_hash = compute_prompt_hash(prompt)
@@ -590,7 +586,6 @@ def _run_epic_critique(
         json_schema=EPIC_CRITIQUE_SCHEMA,
         mcp_servers=mcp_servers,
         timeout=timeout,
-        max_turns=critique_budget.max_turns,
         cwd=PROJECT_ROOT,
     )
 

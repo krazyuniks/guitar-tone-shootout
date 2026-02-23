@@ -24,7 +24,6 @@ import sys
 from pathlib import Path
 
 from workflow.dispatch import (
-    TURN_DEFAULTS,
     dispatch_agent,
     extract_json_from_text,
     get_dispatch_params,
@@ -520,18 +519,11 @@ def verify_plan(
         len(prompt) // 4,
     )
 
-    # Dispatch via critic model (Phase B cross-model critique)
-    if config and "critique_plan" in config.budgets:
-        max_turns = config.budgets["critique_plan"].max_turns
-    else:
-        max_turns = TURN_DEFAULTS["critique_plan"]
-
+    # Dispatch via critic model (cross-model critique)
     mcp_servers, timeout = get_dispatch_params("critique", config)
     result = dispatch_agent(
         prompt=prompt,
         model=critic_model,
-        max_turns=max_turns,
-        json_schema=None,
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
@@ -721,15 +713,10 @@ def _regenerate_plan_with_errors(
 
     revision_prompt = build_targeted_phase_a_revision_prompt(plan_json_str, validation_errors)
 
-    # Resolve model and turns from config or defaults (same budget as initial planning)
     planner_model = config.models.planner if config else "opus"
-    if config and "planning" in config.budgets:
-        max_turns = config.budgets["planning"].max_turns
-    else:
-        max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
-        "Dispatching %s planner revision (Phase A errors, %d chars, ~%d tokens)",
+        "Dispatching %s planner revision (structural errors, %d chars, ~%d tokens)",
         planner_model,
         len(revision_prompt),
         len(revision_prompt) // 4,
@@ -739,8 +726,6 @@ def _regenerate_plan_with_errors(
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
-        max_turns=max_turns,
-        json_schema=None,
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
@@ -772,12 +757,7 @@ def _regenerate_plan_with_verifier_feedback(
 
     revision_prompt = build_targeted_phase_b_revision_prompt(plan_json_str, verifier_result)
 
-    # Resolve model and turns from config or defaults (same budget as initial planning)
     planner_model = config.models.planner if config else "opus"
-    if config and "planning" in config.budgets:
-        max_turns = config.budgets["planning"].max_turns
-    else:
-        max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
         "Dispatching %s planner revision (verifier feedback, %d chars, ~%d tokens)",
@@ -790,8 +770,6 @@ def _regenerate_plan_with_verifier_feedback(
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
-        max_turns=max_turns,
-        json_schema=None,
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,

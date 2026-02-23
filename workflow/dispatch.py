@@ -32,18 +32,6 @@ logger = logging.getLogger(__name__)
 # Turn defaults per agent type
 # ---------------------------------------------------------------------------
 
-TURN_DEFAULTS: dict[str, int] = {
-    "planning": 50,
-    "architecture": 30,
-    "implementation": 40,
-    "validation": 15,
-    "regression": 30,
-    "gap_detection": 30,
-    "critique_plan": 20,
-    "critique_story": 15,
-    "critique_epic": 20,
-}
-
 
 # ---------------------------------------------------------------------------
 # AgentResult dataclass
@@ -76,7 +64,6 @@ class AgentAdapter(Protocol):
     def build_args(
         self,
         model: str,
-        max_turns: int,
         json_schema: dict | None,
         mcp_servers: list[str] | None = None,
     ) -> list[str]: ...
@@ -107,7 +94,6 @@ class ClaudeAdapter:
     def build_args(
         self,
         model: str,
-        max_turns: int,
         json_schema: dict | None,
         mcp_servers: list[str] | None = None,
     ) -> list[str]:
@@ -120,8 +106,6 @@ class ClaudeAdapter:
             "-",
             "--model",
             model,
-            "--max-turns",
-            str(max_turns),
             "--no-session-persistence",
             "--output-format",
             "json",
@@ -235,15 +219,10 @@ class CodexAdapter:
     def build_args(
         self,
         model: str,  # noqa: ARG002
-        max_turns: int,  # noqa: ARG002
         json_schema: dict | None,  # noqa: ARG002
         mcp_servers: list[str] | None = None,  # noqa: ARG002
     ) -> list[str]:
-        """Build Codex CLI arguments. Prompt is piped via stdin by the caller.
-
-        Codex CLI does not support --max-turns flags. The parameter is
-        accepted for interface compatibility but not passed to the CLI.
-        """
+        """Build Codex CLI arguments. Prompt is piped via stdin by the caller."""
         binary = self._find_binary()
 
         # Create a temp file for -o output capture before building args.
@@ -503,7 +482,6 @@ def estimate_tokens(text: str) -> int:
 def dispatch_agent(
     prompt: str,
     model: str,
-    max_turns: int = 30,
     json_schema: dict | None = None,
     cwd: Path = PROJECT_ROOT,
     adapter: AgentAdapter | None = None,
@@ -524,7 +502,6 @@ def dispatch_agent(
     Args:
         prompt: The full agent prompt text.
         model: Model identifier (e.g. "opus", "sonnet", "haiku", "codex").
-        max_turns: Maximum conversation turns.
         json_schema: JSON schema for structured output (optional).
         cwd: Working directory for the subprocess.
         adapter: Provider adapter (auto-selected from model if None).
@@ -545,9 +522,8 @@ def dispatch_agent(
     prompt_tokens = estimate_tokens(prompt)
 
     logger.info(
-        "Dispatching agent: model=%s, max_turns=%d, prompt_hash=%s, prompt_tokens=%d",
+        "Dispatching agent: model=%s, prompt_hash=%s, prompt_tokens=%d",
         model,
-        max_turns,
         prompt_hash,
         prompt_tokens,
     )
@@ -557,7 +533,6 @@ def dispatch_agent(
 
     args = adapter.build_args(
         model=model,
-        max_turns=max_turns,
         json_schema=json_schema,
         mcp_servers=mcp_servers,
     )
@@ -735,20 +710,6 @@ def get_dispatch_metadata(
         "prompt_hash": compute_prompt_hash(prompt),
         "prompt_tokens": estimate_tokens(prompt),
     }
-
-
-def get_default_turns(agent_type: str) -> int:
-    """Get default max_turns for an agent type.
-
-    Args:
-        agent_type: One of "planning", "architecture", "implementation",
-            "validation", "regression", "critique_plan", "critique_story",
-            "critique_epic".
-
-    Returns:
-        Default max_turns for the agent type.
-    """
-    return TURN_DEFAULTS.get(agent_type, TURN_DEFAULTS["implementation"])
 
 
 def get_dispatch_params(

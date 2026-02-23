@@ -18,7 +18,6 @@ import sys
 from pathlib import Path
 
 from workflow.dispatch import (
-    TURN_DEFAULTS,
     dispatch_agent,
     get_dispatch_params,
 )
@@ -797,12 +796,7 @@ def generate_plan(
             prompt_tokens,
         )
 
-    # Resolve model and turns from config or defaults
     planner_model = config.models.planner if config else "opus"
-    if config and "planning" in config.budgets:
-        max_turns = config.budgets["planning"].max_turns
-    else:
-        max_turns = TURN_DEFAULTS["planning"]
 
     logger.info(
         "Dispatching %s planner for epic #%d (%d chars, ~%d tokens)",
@@ -812,15 +806,10 @@ def generate_plan(
         len(prompt) // 4,
     )
 
-    # Dispatch with planning tools and MCP from config.
-    # The prompt instructs the model to produce raw JSON; we validate
-    # with Pydantic after parsing.
     mcp_servers, timeout = get_dispatch_params("planning", config)
     result = dispatch_agent(
         prompt=prompt,
         model=planner_model,
-        max_turns=max_turns,
-        json_schema=None,
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,

@@ -241,14 +241,9 @@
             "type": "string"
           },
           "description": "Tools available to the agent, e.g. ['Read', 'Edit', 'Write', 'Bash', 'Glob', 'Grep']."
-        },
-        "max_turns": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Maximum conversation turns for the agent."
         }
       },
-      "required": ["model", "skills", "tools", "max_turns"],
+      "required": ["model", "skills", "tools"],
       "additionalProperties": false
     },
     "scope": {

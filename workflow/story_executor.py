@@ -30,7 +30,6 @@ from workflow.dispatch import (
     get_dispatch_metadata,
     get_dispatch_params,
 )
-from workflow.epic_config import BudgetConfig
 from workflow.models import ValidationCheckpoint
 from workflow.prompt_builder import build_story_prompt
 from workflow.validation import run_validation_checkpoint
@@ -856,11 +855,8 @@ def _run_story_critique(
     prompt = prompt.replace("{{ git_diff }}", git_diff)
     prompt = prompt.replace("{{ validation_results }}", validation_results)
 
-    # Resolve model and budget from config
+    # Resolve model from config
     critique_model = config.models.story_critic if config else "opus"
-    critique_budget = (
-        config.budgets.get("critique_story", BudgetConfig()) if config else BudgetConfig()
-    )
 
     # Log critique dispatch
     prompt_hash = compute_prompt_hash(prompt)
@@ -886,7 +882,6 @@ def _run_story_critique(
         json_schema=STORY_CRITIQUE_SCHEMA,
         mcp_servers=mcp_servers,
         timeout=timeout,
-        max_turns=critique_budget.max_turns,
         cwd=PROJECT_ROOT,
     )
 
@@ -989,13 +984,7 @@ def _dispatch_and_validate_loop(
 
     # Read agent config — prefer epic config, fall back to story dict
     agent = story.get("agent", {})
-    if config:
-        model = config.models.implementor
-        impl_budget = config.budgets.get("implementation", BudgetConfig())
-        max_turns = impl_budget.max_turns
-    else:
-        model = agent.get("model", "sonnet")
-        max_turns = agent.get("max_turns", 40)
+    model = config.models.implementor if config else agent.get("model", "sonnet")
     retry_context: dict | None = None
     max_attempts = MAX_RETRIES + 1  # initial + retries
     base_commit = _get_latest_commit_hash()  # snapshot before any dispatch
@@ -1043,7 +1032,6 @@ def _dispatch_and_validate_loop(
         agent_result = dispatch_agent(
             prompt=prompt,
             model=model,
-            max_turns=max_turns,
             cwd=PROJECT_ROOT,
             mcp_servers=mcp_servers_impl,
             timeout=0,  # streaming mode; no subprocess timeout

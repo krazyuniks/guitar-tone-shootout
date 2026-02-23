@@ -17,7 +17,7 @@ from workflow.plan_validator import _check_scope_coherence
 # Helpers
 # ---------------------------------------------------------------------------
 
-_DEFAULT_AGENT = AgentConfig(model="sonnet", max_turns=5)
+_DEFAULT_AGENT = AgentConfig(model="sonnet")
 
 _DEFAULT_TRUTH = ObservableTruth(id=1, statement="placeholder truth")
 

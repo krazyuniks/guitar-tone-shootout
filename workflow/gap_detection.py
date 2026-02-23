@@ -24,7 +24,6 @@ from rich.panel import Panel
 from rich.rule import Rule
 
 from workflow.dispatch import (
-    TURN_DEFAULTS,
     dispatch_agent,
     extract_json_from_text,
     get_dispatch_params,
@@ -441,12 +440,6 @@ def run_gap_detection(
     gap_model = config.models.planner if config else "opus"
     critique_model = config.models.plan_critic if config else "codex"
 
-    # Resolve max turns from config or defaults
-    if config and "gap_detection" in config.budgets:
-        max_turns = config.budgets["gap_detection"].max_turns
-    else:
-        max_turns = TURN_DEFAULTS["gap_detection"]
-
     # --- Step 1: Gap Detection Agent ---
     console.print("[bold]Step 2b.1:[/bold] Analysing gaps...")
     event_logger.log_event("gap_detection_started", epic=epic_number, model=gap_model)
@@ -456,7 +449,6 @@ def run_gap_detection(
     gap_result = dispatch_agent(
         prompt=gap_prompt,
         model=gap_model,
-        max_turns=max_turns,
         mcp_servers=mcp_servers_gap,
         timeout=timeout_gap,
     )
@@ -483,16 +475,10 @@ def run_gap_detection(
     gap_report_json = gap_report.model_dump_json(indent=2)
 
     critique_prompt = _build_critique_prompt(epic_md, context_md, gap_report_json)
-    if config and "critique_plan" in config.budgets:
-        critique_max_turns = config.budgets["critique_plan"].max_turns
-    else:
-        critique_max_turns = TURN_DEFAULTS["critique_plan"]
-
     mcp_servers_crit, timeout_crit = get_dispatch_params("critique", config)
     critique_result = dispatch_agent(
         prompt=critique_prompt,
         model=critique_model,
-        max_turns=critique_max_turns,
         mcp_servers=mcp_servers_crit,
         timeout=timeout_crit,
     )

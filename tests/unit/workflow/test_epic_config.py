@@ -29,12 +29,6 @@ class TestEpicConfigParsing:
         assert config.models.story_critic != config.models.implementor
         assert config.models.epic_critic != config.models.implementor
 
-    def test_budget_defaults_present(self):
-        """Each role has budget defaults."""
-        config = load_config(DEFAULT_CONFIG_PATH)
-        assert config.budgets["implementation"].max_turns > 0
-        assert config.budgets["planning"].max_turns > 0
-
     def test_budget_timeout_defaults(self):
         """Planning and gap_detection get 1800s timeout, others get 600s."""
         config = load_config(DEFAULT_CONFIG_PATH)
@@ -151,11 +145,11 @@ class TestWriteConfigOverrides:
 
         _write_config_overrides(
             config_path,
-            {"budgets": {"implementation": {"max_turns": 99}}},
+            {"budgets": {"implementation": {"timeout": 999}}},
         )
 
         config = load_config(DEFAULT_CONFIG_PATH, config_path)
-        assert config.budgets["implementation"].max_turns == 99
+        assert config.budgets["implementation"].timeout == 999
 
     def test_roundtrip_preserves_all_sections(self, tmp_path):
         """Writing overrides preserves models, budgets, and mcp sections."""
