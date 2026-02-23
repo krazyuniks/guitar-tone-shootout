@@ -104,9 +104,9 @@ class Worktree:
 
     @property
     def subdomain(self) -> str:
-        """Subdomain for Traefik routing (e.g., 'dev' for main, '603' for issue worktrees)."""
+        """Subdomain for Traefik routing (e.g., 'main' for main, '603' for issue worktrees)."""
         if self.worktree_name == "main":
-            return "dev"
+            return "main"
         # Extract issue number from branch like "603/improve-pack-count-display"
         if "/" in self.branch:
             try:

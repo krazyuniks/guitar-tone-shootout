@@ -47,11 +47,11 @@ def get_traefik_subdomain(branch: str) -> str:
         branch: Git branch name (e.g., "main", "526/epic-...")
 
     Returns:
-        Subdomain string (e.g., "dev", "526", "feature-foo")
+        Subdomain string (e.g., "main", "526", "feature-foo")
     """
-    # main branch gets "dev" subdomain
+    # main branch gets "main" subdomain
     if branch == "main":
-        return "dev"
+        return "main"
 
     # Issue branches (e.g., "526/epic-..." or "42-fix-bug") get issue number
     # Check for "N/..." pattern
@@ -69,7 +69,7 @@ def get_traefik_subdomain(branch: str) -> str:
     # Fallback: sanitize branch name for subdomain (max 20 chars, alphanumeric + hyphen)
     sanitized = "".join(c if c.isalnum() or c == "-" else "-" for c in branch.lower())
     sanitized = sanitized.strip("-")[:20].rstrip("-")
-    return sanitized or "dev"
+    return sanitized or "main"
 
 
 def get_public_url(branch: str) -> str | None:

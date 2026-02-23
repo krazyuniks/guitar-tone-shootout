@@ -119,8 +119,8 @@ Self-hosted Docker on dedicated server (Hetzner).
 
 | Environment | URL | Compose Files |
 |-------------|-----|---------------|
-| Development (main) | https://dev.tone-shootout.com | base + override + traefik |
-| Feature worktrees | https://{name}.dev.tone-shootout.com | base + override + traefik |
+| Development (main) | https://main.tone-shootout.com | base + override + traefik |
+| Feature worktrees | https://{issue}.tone-shootout.com | base + override + traefik |
 | CI | -- | base + ci |
 | Production | https://www.tone-shootout.com | prod + traefik |
 

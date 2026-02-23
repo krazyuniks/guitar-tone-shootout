@@ -34,7 +34,7 @@ def _get_public_url(worktree: Worktree) -> str:
         worktree: Worktree configuration
 
     Returns:
-        Public URL (e.g., "https://dev.tone-shootout.com" or "http://localhost:9000")
+        Public URL (e.g., "https://main.tone-shootout.com" or "http://localhost:9000")
     """
     if is_traefik_running():
         subdomain = _get_traefik_subdomain(worktree)
@@ -119,13 +119,13 @@ def _get_traefik_subdomain(worktree: Worktree) -> str:
     """Derive Traefik subdomain from worktree info.
 
     Returns:
-        Subdomain string (e.g., "dev", "526", "feature-foo")
+        Subdomain string (e.g., "main", "526", "feature-foo")
     """
     branch = worktree.branch
 
-    # main branch gets "dev" subdomain
+    # main branch gets "main" subdomain
     if branch == "main":
-        return "dev"
+        return "main"
 
     # Issue branches (e.g., "526/epic-..." or "42-fix-bug") get issue number
     # Check for "N/..." pattern
@@ -143,7 +143,7 @@ def _get_traefik_subdomain(worktree: Worktree) -> str:
     # Fallback: sanitize branch name for subdomain (max 20 chars, alphanumeric + hyphen)
     sanitized = "".join(c if c.isalnum() or c == "-" else "-" for c in branch.lower())
     sanitized = sanitized.strip("-")[:20].rstrip("-")
-    return sanitized or "dev"
+    return sanitized or "main"
 
 
 def _get_traefik_router_name(worktree: Worktree) -> str:
