@@ -37,8 +37,12 @@ venv/
 # dynamic ports override
 docker-compose.override.yml
 
-# Epic planning working files (keep .planning/ tracked for audit trail)
-.planning/epics/.gitkeep
+# Epic planning — track plan artefacts, ignore execution noise
+.planning/logs/
+.planning/epics/*/stories/
+.planning/epics/*/CONTEXT.md
+.planning/epics/*/SUMMARY.md
+.planning/codebase/
 .gemini/
 .agents/
 

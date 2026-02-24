@@ -1,0 +1,3 @@
+# Epic planning artefacts — orchestrator reads these via Python I/O,
+# agents should never browse them directly.
+.planning/
