@@ -1,6 +1,6 @@
-"""Tests for epic ingest structural validation."""
+"""Tests for epic ingest structural validation and sub-issues gate."""
 
-from workflow.epic_ingest import validate_epic_structure
+from workflow.epic_ingest import check_sub_issues, validate_epic_structure
 
 VALID_BODY = """\
 ## Summary
@@ -75,3 +75,46 @@ A feature that adds gear management.
         errors = validate_epic_structure(body)
         # Should report missing sections + missing checkboxes
         assert len(errors) >= 4  # At least one per required section
+
+
+class TestCheckSubIssues:
+    """Test check_sub_issues() with synthetic data (no GitHub calls for zero-child case)."""
+
+    def test_no_children_returns_no_errors(self):
+        """Issue with no sub-issues passes the gate."""
+        data = {"subIssuesSummary": {"total": 0, "completed": 0}}
+        errors = check_sub_issues(999, data)
+        assert errors == []
+
+    def test_missing_sub_issues_summary_returns_no_errors(self):
+        """Issue without subIssuesSummary field (old gh versions) passes the gate."""
+        data = {}
+        errors = check_sub_issues(999, data)
+        assert errors == []
+
+    def test_null_sub_issues_summary_returns_no_errors(self):
+        """Issue with null subIssuesSummary passes the gate."""
+        data = {"subIssuesSummary": None}
+        errors = check_sub_issues(999, data)
+        assert errors == []
+
+    def test_with_children_returns_error(self):
+        """Issue with sub-issues is rejected with child details."""
+        data = {"subIssuesSummary": {"total": 2, "completed": 0}}
+        children = [
+            {"number": 130, "title": "Child A", "state": "open"},
+            {"number": 131, "title": "Child B", "state": "open"},
+        ]
+        errors = check_sub_issues(99, data, children=children)
+        assert len(errors) == 1
+        assert "parent with 2 sub-issue(s)" in errors[0]
+        assert "#130" in errors[0]
+        assert "#131" in errors[0]
+        assert "leaf issues" in errors[0]
+
+    def test_with_children_count_only(self):
+        """Issue with sub-issues but no child list still returns error."""
+        data = {"subIssuesSummary": {"total": 3, "completed": 1}}
+        errors = check_sub_issues(99, data)
+        assert len(errors) == 1
+        assert "parent with 3 sub-issue(s)" in errors[0]

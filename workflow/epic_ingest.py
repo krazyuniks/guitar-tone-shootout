@@ -38,7 +38,7 @@ def _run_gh_issue_view(epic_number: int) -> dict:
             "--repo",
             GH_REPO,
             "--json",
-            "title,state,labels,body",
+            "title,state,labels,body,subIssuesSummary",
         ],
         capture_output=True,
         text=True,
@@ -56,6 +56,97 @@ def _run_gh_issue_view(epic_number: int) -> dict:
         raise IngestionError(f"Failed to parse gh output as JSON: {exc}") from exc
 
     return data
+
+
+def _fetch_sub_issues(epic_number: int) -> list[dict]:
+    """Fetch child sub-issues for a GitHub issue.
+
+    Returns a list of dicts with keys: number, title, state.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{GH_REPO}/issues/{epic_number}/sub_issues",
+            "--jq",
+            "[.[] | {number, title, state}]",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+
+    if result.returncode != 0:
+        raise IngestionError(
+            f"Failed to fetch sub-issues for #{epic_number}: {result.stderr.strip()}"
+        )
+
+    try:
+        return json.loads(result.stdout) if result.stdout.strip() else []
+    except json.JSONDecodeError as exc:
+        raise IngestionError(f"Failed to parse sub-issues response: {exc}") from exc
+
+
+def _fetch_parent_issue(epic_number: int) -> dict | None:
+    """Fetch the parent issue for a GitHub issue, if any.
+
+    Returns a dict with keys: number, title — or None if no parent.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{GH_REPO}/issues/{epic_number}/sub_issue",
+            "--jq",
+            "{number: .parent_issue_number, title: .parent_issue_title}",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+    )
+
+    # 404 means no parent — not an error
+    if result.returncode != 0:
+        if "404" in result.stderr or "Not Found" in result.stderr:
+            return None
+        raise IngestionError(f"Failed to fetch parent for #{epic_number}: {result.stderr.strip()}")
+
+    try:
+        data = json.loads(result.stdout) if result.stdout.strip() else None
+    except json.JSONDecodeError:
+        return None
+
+    return data
+
+
+def check_sub_issues(epic_number: int, data: dict, children: list[dict] | None = None) -> list[str]:
+    """Check whether an issue has sub-issues (making it a parent, not runnable).
+
+    Pure function — only examines the data dict. If children are provided
+    (fetched separately), includes them in the error message.
+
+    Returns a list of error strings. Empty list means the issue is a leaf
+    and can be run as an epic.
+    """
+    errors: list[str] = []
+
+    sub_issues_summary = data.get("subIssuesSummary", {})
+    total = sub_issues_summary.get("total", 0) if sub_issues_summary else 0
+
+    if total > 0:
+        msg = (
+            f"Issue #{epic_number} is a parent with {total} sub-issue(s). "
+            f"Only leaf issues can be run as epics."
+        )
+        if children:
+            child_list = "\n".join(
+                f"  - #{c['number']}: {c['title']} ({c['state']})" for c in children
+            )
+            msg += f"\nChildren:\n{child_list}"
+        msg += "\nRun one of the child issues instead."
+        errors.append(msg)
+
+    return errors
 
 
 def _format_epic_md(epic_number: int, data: dict) -> str:
@@ -152,6 +243,20 @@ def ingest_epic(epic_number: int) -> Path:
         IngestionError: If the GitHub fetch fails.
     """
     data = _run_gh_issue_view(epic_number)
+
+    # Sub-issues gate: reject parent issues (they have children to run instead)
+    sub_issues_summary = data.get("subIssuesSummary", {})
+    total = sub_issues_summary.get("total", 0) if sub_issues_summary else 0
+    children = _fetch_sub_issues(epic_number) if total > 0 else None
+    sub_issue_errors = check_sub_issues(epic_number, data, children=children)
+    if sub_issue_errors:
+        error_list = "\n".join(f"  - {e}" for e in sub_issue_errors)
+        raise IngestionError(f"Epic #{epic_number} cannot be ingested:\n{error_list}")
+
+    # Informational: log if this issue is a child of another
+    parent = _fetch_parent_issue(epic_number)
+    if parent and parent.get("number"):
+        print(f"Note: #{epic_number} is a child of #{parent['number']} ({parent.get('title', '')})")
 
     # Structural validation of the enriched epic format
     body = data.get("body", "")
