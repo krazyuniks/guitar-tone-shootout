@@ -150,8 +150,8 @@ test-golden-path:
     cd tests/e2e/python && uv run pytest tests/ -v
 
 # Run a single test file or test (TDD mode, in Docker)
-tdd PATH:
-    docker compose exec -T webapp pytest {{PATH}} -v --tb=short
+tdd PATH *EXTRA_ARGS='':
+    docker compose exec -T webapp pytest {{PATH}} -v --tb=short {{EXTRA_ARGS}}
 
 # =============================================================================
 # Database

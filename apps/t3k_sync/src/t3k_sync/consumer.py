@@ -48,3 +48,6 @@ class GearSyncConsumer(BaseConsumer):
     async def reset_message_context(self) -> None:
         """Clear session identity state between long-lived message iterations."""
         self._session.expunge_all()
+
+
+T3KConsumer = GearSyncConsumer
