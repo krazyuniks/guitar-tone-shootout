@@ -33,6 +33,16 @@ Read ALL of these before starting:
 
 Read the GitHub issue body. Identify what the user wants to build. If the issue is sparse, that's fine — the brainstorming will fill in the gaps.
 
+### Step 1.5: Size Assessment
+
+Evaluate the issue's scope:
+- Count the distinct observable outcomes or deliverables
+- Identify independent feature areas or bounded contexts involved
+
+**If the issue has >8-10 outcomes or spans multiple independent feature areas**, it needs decomposition into sub-issues before brainstorming. Jump to the **Decomposition Flow** at the bottom of this document.
+
+**If the issue is 4-8 outcomes in a single area**, proceed normally.
+
 ### Step 2: Gap Detection
 
 Compare the issue against the architecture and codebase. Identify:
@@ -134,3 +144,85 @@ After updating the issue, tell the user:
 - The issue has been enriched and is ready for the pipeline
 - Next step: `just epic <N>` (run from terminal, not CC)
 - This CC session can be closed — it served its purpose
+
+---
+
+## Decomposition Flow
+
+Triggered from Step 1.5 when an issue is too large for a single epic run. The goal is to split a large issue into 2-5 child sub-issues, each sized for the orchestrator's sweet spot (4-8 outcomes).
+
+### D1: Identify Groupings
+
+Analyse the outcomes and find natural groupings by:
+- **Bounded context** — outcomes that touch the same BC belong together
+- **Dependency chain** — outcomes where A must complete before B starts
+- **Feature area** — independent functional areas (e.g. API vs frontend vs jobs)
+
+Present the proposed groupings to the user for review.
+
+### D2: Propose Children
+
+For each group, draft a child issue:
+- **Title:** concise, scoped to the group
+- **Outcomes:** 4-8 observable outcomes (subset of the parent's)
+- **Dependencies:** which children must complete before this one can start (`blocked_by`)
+
+Present the full decomposition plan: child titles, outcome assignments, and dependency graph. Get user approval before creating anything.
+
+### D3: Create Sub-Issues
+
+For each approved child:
+
+1. **Create the child issue:**
+   ```bash
+   gh issue create --repo krazyuniks/guitar-tone-shootout \
+     --title "<child title>" \
+     --body "$(cat <<'BODY'
+   <child issue body — same enriched format as Step 5>
+   BODY
+   )"
+   ```
+
+2. **Get the internal issue ID** (GitHub sub-issues API requires the internal `.id`, NOT the `#number`):
+   ```bash
+   gh api repos/krazyuniks/guitar-tone-shootout/issues/<child_number> --jq '.id'
+   ```
+
+3. **Add as sub-issue of the parent:**
+   ```bash
+   gh api repos/krazyuniks/guitar-tone-shootout/issues/<parent_number>/sub_issues \
+     --method POST --field sub_issue_id=<internal_id>
+   ```
+
+4. **Wire blocked_by dependencies** (if this child depends on another):
+   ```bash
+   gh api repos/krazyuniks/guitar-tone-shootout/issues/<child_number>/dependencies/blocked_by \
+     --method POST --field blocked_by_id=<blocker_internal_id>
+   ```
+
+**CRITICAL:** The `sub_issue_id` and `blocked_by_id` fields require the internal `.id` (a large integer like `2934857123`), NOT the issue `#number`. Always fetch the ID with `--jq '.id'` before making these API calls.
+
+### D4: Update Parent
+
+Edit the parent issue body to reference the children:
+
+```bash
+gh issue edit <parent_number> --repo krazyuniks/guitar-tone-shootout \
+  --body "$(cat <<'BODY'
+<original parent body>
+
+## Sub-Issues
+- #<child_1> — <title> (start here)
+- #<child_2> — <title> (blocked by #<child_1>)
+- #<child_3> — <title> (blocked by #<child_2>)
+BODY
+)"
+```
+
+### D5: Completion
+
+Tell the user:
+- The parent issue has been decomposed into N children
+- Dependency chain: `#A → #B → #C`
+- Next step: run `/epic brainstorm <first_child>` to enrich the first unblocked child, or `/epic next` to find the next ready issue
+- The parent issue cannot be run directly — the pipeline will reject it at ingestion
