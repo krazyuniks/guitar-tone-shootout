@@ -27,6 +27,8 @@ Parse the arguments above and run the matching command. Do NOT ask clarifying qu
 | `brainstorm <N>`, `/epic brainstorm <N>` | Load `brainstorm.md` skill and follow it |
 | `status <N>`, `/epic status <N>` | `just epic-status <N>` |
 | `validate-plan <N>`, `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
+| `deps <N>`, `/epic deps <N>` | Load `deps.md` skill and follow it |
+| `next`, `/epic next` | Load `next.md` skill and follow it |
 
 Where `<N>` is a number (the epic/issue number). A bare number like `112` means **run** that epic.
 
