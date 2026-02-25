@@ -43,7 +43,7 @@ status:
 
 # Check service health (used by worktree.py)
 health:
-    @docker compose ps --format 'table {{{{.Service}}}}\t{{{{.Status}}}}' | grep -E 'healthy|running' || echo "No healthy services found"
+    @docker compose ps --format 'table {{{{.Service}}\t{{{{.Status}}' | grep -E 'healthy|running' || echo "No healthy services found"
 
 # Rebuild and restart services
 rebuild *ARGS:
