@@ -116,7 +116,13 @@ initial_prompt: |
   Key directories: src/gts_core/ (domain), src/gts_webapp/ (web app), frontend/astro/ (Astro SSG),
   templates/ (Jinja2), tests/ (pytest + e2e). Docker-based dev via `just` commands.
   Serena provides semantic code intelligence and AST-aware editing (symbol replace, insert, rename).
-
 # override of the corresponding setting in serena_config.yml, see the documentation there.
 # If null or missing, the value from the global config is used.
 symbol_info_budget:
+
+# The language backend to use for this project.
+# If not set, the global setting from serena_config.yml is used.
+# Valid values: LSP, JetBrains
+# Note: the backend is fixed at startup. If a project with a different backend
+# is activated post-init, an error will be returned.
+language_backend:

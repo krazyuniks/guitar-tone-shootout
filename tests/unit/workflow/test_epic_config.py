@@ -18,11 +18,6 @@ class TestEpicConfigParsing:
         assert config.models.story_critic is not None
         assert config.models.epic_critic is not None
 
-    def test_cross_model_constraint_planner(self):
-        """Plan critic must differ from planner."""
-        config = load_config(DEFAULT_CONFIG_PATH)
-        assert config.models.plan_critic != config.models.planner
-
     def test_cross_model_constraint_implementor(self):
         """Story critic and epic critic must differ from implementor."""
         config = load_config(DEFAULT_CONFIG_PATH)

@@ -37,35 +37,52 @@ class AssemblyError(Exception):
 # Extracted from .claude/skills/epic/references/gray-areas.md
 # Each entry maps a set of keywords to the area IDs they suggest.
 
+# Each entry: (keywords, areas).
+# Multi-word phrases match as substrings. Single words use word-boundary
+# matching (\\b) so that "audio" in "audio_commands" doesn't trigger the
+# audio processing area — only prose like "audio processing" or "audio file".
 KEYWORD_AREA_MAP: list[tuple[list[str], list[str]]] = [
-    # GTS domain-specific patterns
+    # GTS domain-specific patterns (multi-word phrases are precise)
     (
-        ["signal chain", "chain", "block", "processing"],
+        ["signal chain", "signal_chain"],
         ["signal_chain", "audio_processing", "gear_model"],
     ),
     (
-        ["amp", "pedal", "ir", "cabinet", "capture", "nam"],
-        ["gear_model", "signal_chain", "dual_database"],
+        ["audio processing", "audio file", "pedalboard", "loudness", "waveform"],
+        ["audio_processing", "job_processing"],
     ),
     (
-        ["shootout", "compare", "comparison", "a/b"],
+        ["video composition", "video render", "remotion"],
+        ["job_processing"],
+    ),
+    (
+        ["amp model", "pedal", "cabinet", "impulse response", "nam model", "capture"],
+        ["gear_model", "signal_chain"],
+    ),
+    (
+        ["shootout", "comparison", "a/b test"],
         ["signal_chain", "audio_processing", "job_processing", "frontend_layers"],
     ),
     (
-        ["gear", "library", "collection", "my gear"],
+        ["gear library", "my gear", "gear collection", "gear list"],
         ["gear_model", "frontend_layers", "data_model"],
     ),
     (
-        ["sync", "t3k", "tone3000", "source"],
-        ["dual_database", "job_processing", "gear_model"],
+        ["t3k sync", "tone3000", "t3k_sync", "source_t3k", "t3k api"],
+        ["dual_database", "job_processing"],
+    ),
+    # Infrastructure patterns
+    (
+        ["pgmq", "queue topology", "consumer offset", "dead letter", "message queue"],
+        ["job_processing", "data_model"],
     ),
     (
-        ["process", "render", "audio", "video"],
-        ["audio_processing", "job_processing", "signal_chain"],
+        ["alembic", "migration", "table rename", "database consolidat"],
+        ["data_model", "dual_database"],
     ),
-    # Standard patterns
+    # Standard patterns (multi-word to avoid false positives)
     (
-        ["form", "submit", "input", "create", "add"],
+        ["form submit", "form validation", "user input", "create new"],
         ["data_model", "api_contract", "security", "frontend_layers"],
     ),
     (
@@ -73,43 +90,44 @@ KEYWORD_AREA_MAP: list[tuple[list[str], list[str]]] = [
         ["job_processing"],
     ),
     (
-        ["upload", "file", "di track", "recording"],
+        ["file upload", "di track", "recording"],
         ["data_model", "api_contract", "security", "job_processing"],
     ),
     (
-        ["search", "filter", "browse", "list"],
+        ["search page", "filter by", "browse", "list page", "sort by"],
         ["data_model", "api_contract", "frontend_layers"],
     ),
     (
-        ["auth", "login", "oauth", "session"],
+        ["auth", "login", "oauth", "user session", "login session"],
         ["security", "data_model", "api_contract"],
     ),
     (
-        ["page", "template", "ui", "display", "show"],
+        ["page template", "jinja template", "ui component", "frontend page"],
         ["frontend_layers", "api_contract"],
     ),
 ]
 
-# Required area mappings -- if feature mentions these, always include the areas
+# Required area mappings -- if feature mentions these, always include the areas.
+# Same word-boundary rules apply.
 REQUIRED_AREA_MAP: list[tuple[list[str], list[str]]] = [
     (
-        ["signal chain", "block", "amp", "ir"],
+        ["signal chain", "signal_chain"],
         ["signal_chain", "gear_model"],
     ),
     (
-        ["processing", "render", "audio"],
+        ["audio processing", "audio file", "pedalboard"],
         ["audio_processing", "job_processing"],
     ),
     (
-        ["sync", "t3k", "source"],
+        ["t3k sync", "t3k_sync", "source_t3k"],
         ["dual_database"],
     ),
     (
-        ["page", "template", "form"],
+        ["page template", "jinja template", "htmx"],
         ["frontend_layers"],
     ),
     (
-        ["background", "job", "queue"],
+        ["background job", "job queue", "pgmq", "worker"],
         ["job_processing"],
     ),
 ]
@@ -251,25 +269,37 @@ FRESHNESS_SOURCE_DIRS: list[str] = [
 # ---------------------------------------------------------------------------
 
 
+def _keyword_matches(keyword: str, text_lower: str) -> bool:
+    """Check if a keyword matches in the text.
+
+    Multi-word phrases (containing a space or underscore) match as substrings.
+    Single words use word-boundary matching to avoid false positives from
+    compound identifiers (e.g. "audio" in "audio_commands").
+    """
+    kw = keyword.lower()
+    if " " in kw or "_" in kw:
+        return kw in text_lower
+    return bool(re.search(rf"\b{re.escape(kw)}\b", text_lower))
+
+
 def scan_keywords(text: str) -> set[str]:
     """Scan text for keywords and return matching area IDs.
 
-    Performs case-insensitive substring matching against the keyword-to-area
-    mapping tables.  Returns a deduplicated set of area IDs.
+    Returns a deduplicated set of area IDs.
     """
     text_lower = text.lower()
     matched_areas: set[str] = set()
 
     for keywords, areas in KEYWORD_AREA_MAP:
         for keyword in keywords:
-            if keyword.lower() in text_lower:
+            if _keyword_matches(keyword, text_lower):
                 matched_areas.update(areas)
                 break  # One keyword match is enough for this group
 
     # Apply required area rules (stricter -- always include these)
     for keywords, areas in REQUIRED_AREA_MAP:
         for keyword in keywords:
-            if keyword.lower() in text_lower:
+            if _keyword_matches(keyword, text_lower):
                 matched_areas.update(areas)
                 break
 

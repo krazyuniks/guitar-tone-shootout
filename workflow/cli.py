@@ -12,9 +12,13 @@ Provides subcommand routing for:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
+
+if TYPE_CHECKING:
+    from workflow.epic_config import EpicConfig
 
 app = typer.Typer(
     name="wf",
@@ -94,6 +98,86 @@ def _check_plan_committed(epic_dir: Path) -> bool:
     return find_last_event(events, "plan_committed") is not None
 
 
+def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
+    """Display pipeline agent roles and let the user confirm or edit.
+
+    Shows all model assignments (planning + execution) in a table and
+    offers to edit config.toml before proceeding.
+    """
+    from rich.table import Table
+
+    from workflow.epic_config import (
+        AVAILABLE_MODELS,
+        BudgetConfig,
+        ModelConfig,
+        _validate_cross_model,
+        _write_config_overrides,
+        load_config,
+    )
+
+    config = load_config(override_path=config_path)
+
+    # All roles: planning phase + execution phase
+    all_roles = [
+        ("planner", "planning", "planning"),
+        ("plan_critic", "critique_plan", "critique"),
+        ("implementor", "implementation", "implementation"),
+        ("story_critic", "critique_story", "critique"),
+        ("epic_critic", "critique_epic", "critique"),
+    ]
+
+    table = Table(title="Agent Roles", show_header=True)
+    table.add_column("Role", style="bold")
+    table.add_column("Model", style="cyan")
+    table.add_column("Timeout", style="yellow")
+
+    for role, budget_key, _dispatch_key in all_roles:
+        model = getattr(config.models, role)
+        budget = config.budgets.get(budget_key, BudgetConfig())
+        table.add_row(role, model, f"{budget.timeout}s")
+
+    console.print()
+    console.print(table)
+    console.print()
+
+    import sys as _sys
+
+    if not _sys.stdin.isatty():
+        return config
+
+    flush_stdin()
+    modify = typer.confirm("Modify agent config?", default=False)
+    if not modify:
+        return config
+
+    overrides: dict[str, dict] = {"models": {}}
+    available = ", ".join(AVAILABLE_MODELS)
+
+    for role, _budget_key, _dispatch_key in all_roles:
+        current_model = getattr(config.models, role)
+        console.print(f"  [bold]{role}[/bold] ({available})")
+        flush_stdin()
+        new_model = typer.prompt("    Model", default=current_model)
+        if new_model != current_model:
+            overrides["models"][role] = new_model
+
+    overrides = {k: v for k, v in overrides.items() if v}
+    if not overrides:
+        console.print("[dim]No changes.[/dim]")
+        return config
+
+    # Validate cross-model constraint
+    models_data = {r: getattr(config.models, r) for r in ModelConfig.__dataclass_fields__}
+    models_data.update(overrides.get("models", {}))
+    test_models = ModelConfig(**models_data)
+    _validate_cross_model(test_models)
+
+    _write_config_overrides(config_path, overrides)
+    updated = load_config(override_path=config_path)
+    console.print("[green]Config updated.[/green]")
+    return updated
+
+
 def _run_planning_pipeline(epic_number: int) -> None:
     """Run Steps 1-6 of the planning pipeline: ingest -> commit+push.
 
@@ -104,7 +188,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
     import uuid
 
     from workflow.context_assembler import AssemblyError, assemble_context
-    from workflow.epic_config import ensure_epic_config, load_config
+    from workflow.epic_config import ensure_epic_config
     from workflow.epic_ingest import IngestionError, ingest_epic
     from workflow.gap_detection import GapDetectionError, run_gap_detection
     from workflow.git_helpers import GitPushError, robust_commit
@@ -126,10 +210,10 @@ def _run_planning_pipeline(epic_number: int) -> None:
         console.print("[green]Plan already committed.[/green]")
         return
 
-    # Load epic configuration profile
+    # Load epic configuration profile and confirm agent roles
     config_path = ensure_epic_config(epic_dir)
     try:
-        config = load_config(override_path=config_path)
+        config = _confirm_pipeline_config(config_path)
     except (ValueError, FileNotFoundError) as exc:
         console.print(f"[red]Configuration error:[/red] {exc}")
         raise typer.Exit(1) from exc

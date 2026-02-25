@@ -438,7 +438,7 @@ def run_gap_detection(
 
     # Resolve models from config
     gap_model = config.models.planner if config else "opus"
-    critique_model = config.models.plan_critic if config else "codex"
+    critique_model = config.models.plan_critic if config else "opus"
 
     # --- Step 1: Gap Detection Agent ---
     console.print("[bold]Step 2b.1:[/bold] Analysing gaps...")

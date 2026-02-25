@@ -25,7 +25,7 @@ class ModelConfig:
     """Model assignments per role."""
 
     planner: str = "opus"
-    plan_critic: str = "codex"
+    plan_critic: str = "opus"
     implementor: str = "codex"
     story_critic: str = "opus"
     epic_critic: str = "opus"
@@ -65,11 +65,13 @@ def _merge_dicts(base: dict, override: dict) -> dict:
 
 
 def _validate_cross_model(models: ModelConfig) -> None:
-    """Enforce: critic models must be different from their target models."""
-    if models.plan_critic == models.planner:
-        raise ValueError(
-            f"plan_critic ({models.plan_critic}) must be different from planner ({models.planner})"
-        )
+    """Enforce: execution critic models must differ from implementor.
+
+    Planning critics (plan_critic vs planner) are NOT constrained — each
+    dispatch is a fresh instance with no shared context, so same-model
+    review is valid.  The constraint only applies to execution where
+    the critic must not have seen the implementation context.
+    """
     if models.story_critic == models.implementor:
         raise ValueError(
             f"story_critic ({models.story_critic}) must be different from "
