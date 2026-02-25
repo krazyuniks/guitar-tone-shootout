@@ -78,6 +78,6 @@ ls -lt ../backups/*.dump 2>/dev/null | head -5
 |-----------|------------|
 | Uncommitted changes | "X files need committing" |
 | Behind main | "Consider rebasing" |
-| No active issue | "Run `/next-issue`" |
+| No active issue | "Run `/epic next`" |
 | Services stopped | "Start: `docker compose up -d`" |
 | Clean + ahead | "Ready to `/merge`" |
