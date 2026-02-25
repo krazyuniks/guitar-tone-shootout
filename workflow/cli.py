@@ -101,8 +101,8 @@ def _check_plan_committed(epic_dir: Path) -> bool:
 def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
     """Display pipeline agent roles and let the user confirm or edit.
 
-    Shows all model assignments (planning + execution) in a table and
-    offers to edit config.toml before proceeding.
+    Shows all model assignments, timeouts, and MCP servers in a table
+    and offers to edit config.toml before proceeding.
     """
     from rich.table import Table
 
@@ -110,6 +110,7 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
         AVAILABLE_MODELS,
         BudgetConfig,
         ModelConfig,
+        _get_available_mcp_servers,
         _validate_cross_model,
         _write_config_overrides,
         load_config,
@@ -117,7 +118,7 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
 
     config = load_config(override_path=config_path)
 
-    # All roles: planning phase + execution phase
+    # (role_name, budget_key, mcp_dispatch_key)
     all_roles = [
         ("planner", "planning", "planning"),
         ("plan_critic", "critique_plan", "critique"),
@@ -126,18 +127,29 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
         ("epic_critic", "critique_epic", "critique"),
     ]
 
+    available_mcp = _get_available_mcp_servers()
+
     table = Table(title="Agent Roles", show_header=True)
     table.add_column("Role", style="bold")
     table.add_column("Model", style="cyan")
     table.add_column("Timeout", style="yellow")
+    table.add_column("MCP Servers", style="magenta")
 
-    for role, budget_key, _dispatch_key in all_roles:
+    for role, budget_key, dispatch_key in all_roles:
         model = getattr(config.models, role)
         budget = config.budgets.get(budget_key, BudgetConfig())
-        table.add_row(role, model, f"{budget.timeout}s")
+        mcp_servers = config.mcp.get(dispatch_key, [])
+        table.add_row(
+            role,
+            model,
+            f"{budget.timeout}s",
+            ", ".join(mcp_servers) if mcp_servers else "(none)",
+        )
 
     console.print()
     console.print(table)
+    if available_mcp:
+        console.print(f"[dim]Available MCP: {', '.join(available_mcp)}[/dim]")
     console.print()
 
     import sys as _sys
@@ -150,16 +162,38 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
     if not modify:
         return config
 
-    overrides: dict[str, dict] = {"models": {}}
+    overrides: dict[str, dict] = {"models": {}, "budgets": {}, "mcp": {}}
     available = ", ".join(AVAILABLE_MODELS)
 
-    for role, _budget_key, _dispatch_key in all_roles:
+    for role, budget_key, dispatch_key in all_roles:
         current_model = getattr(config.models, role)
-        console.print(f"  [bold]{role}[/bold] ({available})")
+        current_budget = config.budgets.get(budget_key, BudgetConfig())
+        current_mcp = config.mcp.get(dispatch_key, [])
+
+        console.print(f"\n  [bold]{role}[/bold] (current: {current_model})")
+        console.print(f"  Available models: {available}")
         flush_stdin()
-        new_model = typer.prompt("    Model", default=current_model)
+        new_model = typer.prompt("  Model", default=current_model)
         if new_model != current_model:
             overrides["models"][role] = new_model
+
+        flush_stdin()
+        new_timeout = typer.prompt("  Timeout (seconds)", default=str(current_budget.timeout))
+        if int(new_timeout) != current_budget.timeout:
+            overrides["budgets"][budget_key] = {"timeout": int(new_timeout)}
+
+        if available_mcp:
+            current_mcp_str = ",".join(current_mcp) if current_mcp else ""
+            flush_stdin()
+            new_mcp_str = typer.prompt(
+                "  MCP servers (comma-separated, empty for none)",
+                default=current_mcp_str,
+            )
+            new_mcp = (
+                [s.strip() for s in new_mcp_str.split(",") if s.strip()] if new_mcp_str else []
+            )
+            if new_mcp != current_mcp:
+                overrides["mcp"][dispatch_key] = new_mcp
 
     overrides = {k: v for k, v in overrides.items() if v}
     if not overrides:
@@ -171,6 +205,15 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
     models_data.update(overrides.get("models", {}))
     test_models = ModelConfig(**models_data)
     _validate_cross_model(test_models)
+
+    # Validate MCP server names
+    if "mcp" in overrides:
+        for mcp_role, servers in overrides["mcp"].items():
+            unknown = [s for s in servers if s not in available_mcp]
+            if unknown:
+                raise ValueError(
+                    f"Unknown MCP server(s) for {mcp_role}: {unknown}. Available: {available_mcp}"
+                )
 
     _write_config_overrides(config_path, overrides)
     updated = load_config(override_path=config_path)
