@@ -18,11 +18,19 @@ class TestEpicConfigParsing:
         assert config.models.story_critic is not None
         assert config.models.epic_critic is not None
 
-    def test_cross_model_constraint_implementor(self):
-        """Story critic and epic critic must differ from implementor."""
-        config = load_config(DEFAULT_CONFIG_PATH)
-        assert config.models.story_critic != config.models.implementor
-        assert config.models.epic_critic != config.models.implementor
+    def test_cross_model_validation_warns(self):
+        """Same-model critic/implementor logs a warning but does not raise."""
+        from workflow.epic_config import ModelConfig, _validate_cross_model
+
+        # Should not raise even when all models are the same
+        models = ModelConfig(
+            planner="opus",
+            plan_critic="opus",
+            implementor="opus",
+            story_critic="opus",
+            epic_critic="opus",
+        )
+        _validate_cross_model(models)  # no exception
 
     def test_budget_timeout_defaults(self):
         """Planning and gap_detection get 1800s timeout, others get 600s."""
@@ -57,15 +65,16 @@ class TestEpicConfigParsing:
         # Non-overridden fields retain defaults
         assert config.models.planner is not None
 
-    def test_invalid_cross_model_raises(self, tmp_path):
-        """Config where critic == implementor raises ValueError."""
+    def test_same_model_critic_implementor_loads(self, tmp_path):
+        """Config where critic == implementor loads (warns, no error)."""
         override = tmp_path / "config.toml"
         override.write_text(
             '[models]\nimplementor = "opus"\nstory_critic = "opus"\n',
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="must be different"):
-            load_config(DEFAULT_CONFIG_PATH, override)
+        config = load_config(DEFAULT_CONFIG_PATH, override)
+        assert config.models.implementor == "opus"
+        assert config.models.story_critic == "opus"
 
     def test_unknown_model_key_raises(self, tmp_path):
         """Config with unknown model role raises ValueError."""
@@ -165,8 +174,8 @@ class TestWriteConfigOverrides:
         assert "planning" in config.budgets
         assert "planning" in config.mcp
 
-    def test_cross_model_violation_detected_on_reload(self, tmp_path):
-        """Writing invalid cross-model config is caught on reload."""
+    def test_same_model_config_roundtrip(self, tmp_path):
+        """Writing same-model critic/implementor config reloads successfully."""
         import shutil
 
         from workflow.epic_config import _write_config_overrides
@@ -174,11 +183,10 @@ class TestWriteConfigOverrides:
         config_path = tmp_path / "config.toml"
         shutil.copy2(DEFAULT_CONFIG_PATH, config_path)
 
-        # Write implementor = opus, story_critic = opus (violates constraint)
         _write_config_overrides(
             config_path,
             {"models": {"implementor": "opus", "story_critic": "opus"}},
         )
-
-        with pytest.raises(ValueError, match="must be different"):
-            load_config(DEFAULT_CONFIG_PATH, config_path)
+        config = load_config(DEFAULT_CONFIG_PATH, config_path)
+        assert config.models.implementor == "opus"
+        assert config.models.story_critic == "opus"

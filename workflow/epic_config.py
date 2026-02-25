@@ -65,22 +65,26 @@ def _merge_dicts(base: dict, override: dict) -> dict:
 
 
 def _validate_cross_model(models: ModelConfig) -> None:
-    """Enforce: execution critic models must differ from implementor.
+    """Warn when critic and target use the same model.
 
-    Planning critics (plan_critic vs planner) are NOT constrained — each
-    dispatch is a fresh instance with no shared context, so same-model
-    review is valid.  The constraint only applies to execution where
-    the critic must not have seen the implementation context.
+    Each dispatch is a fresh instance with no shared context, so
+    same-model review is valid. Cross-model provides diversity of
+    biases but is not required. Log a warning, never raise.
     """
+    import logging
+
+    logger = logging.getLogger(__name__)
     if models.story_critic == models.implementor:
-        raise ValueError(
-            f"story_critic ({models.story_critic}) must be different from "
-            f"implementor ({models.implementor})"
+        logger.warning(
+            "story_critic and implementor are both %s — consider using different models "
+            "for diverse review biases",
+            models.implementor,
         )
     if models.epic_critic == models.implementor:
-        raise ValueError(
-            f"epic_critic ({models.epic_critic}) must be different from "
-            f"implementor ({models.implementor})"
+        logger.warning(
+            "epic_critic and implementor are both %s — consider using different models "
+            "for diverse review biases",
+            models.implementor,
         )
 
 
