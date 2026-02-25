@@ -21,7 +21,7 @@ Display the full dependency and hierarchy graph for a specific GitHub issue.
 1. **Get issue details:**
    ```bash
    gh issue view <number> --repo krazyuniks/guitar-tone-shootout \
-     --json number,title,state,labels,subIssuesSummary
+     --json number,title,state,labels
    ```
 
 2. **Check for parent issue:**
@@ -32,11 +32,11 @@ Display the full dependency and hierarchy graph for a specific GitHub issue.
    If 404, the issue has no parent.
 
 3. **Check for sub-issues (children):**
-   If `subIssuesSummary.total > 0`:
    ```bash
    gh api repos/krazyuniks/guitar-tone-shootout/issues/<number>/sub_issues \
      --jq '.[] | {number, title, state}'
    ```
+   If the result is non-empty, the issue is a parent.
 
 4. **Find issues that BLOCK this one:**
    ```bash

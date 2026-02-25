@@ -30,10 +30,10 @@ Find the highest priority unblocked issue ready for work.
 
 4. **For each candidate, check if it's a parent:**
    ```bash
-   gh issue view <number> --repo krazyuniks/guitar-tone-shootout \
-     --json number,title,subIssuesSummary
+   gh api repos/krazyuniks/guitar-tone-shootout/issues/<number>/sub_issues \
+     --jq '.[] | {number, title, state}'
    ```
-   If `subIssuesSummary.total > 0`, skip it (parent issues can't be run directly) and suggest the unblocked children instead.
+   If the result is non-empty, skip it (parent issues can't be run directly) and suggest the unblocked children instead.
 
 ## Output Format
 
