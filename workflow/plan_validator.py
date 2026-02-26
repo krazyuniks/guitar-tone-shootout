@@ -360,6 +360,29 @@ def _check_empty_checkpoints(plan: Plan) -> list[ValidationError]:
     return errors
 
 
+def _check_checkpoint_coverage(plan: Plan) -> list[ValidationError]:
+    """Check 10: Every story must have a validation checkpoint.
+
+    A story without a checkpoint will fail at runtime with
+    'No validation checkpoint defined for story'. Catch this at
+    plan validation time instead.
+    """
+    errors: list[ValidationError] = []
+    checkpoint_stories = {cp.after_story for cp in plan.validation_checkpoints}
+
+    for story in plan.stories:
+        if story.story_id not in checkpoint_stories:
+            errors.append(
+                ValidationError(
+                    check="missing_checkpoint",
+                    message=f"Story '{story.story_id}' has no validation checkpoint. "
+                    f"Every story must have a validation_checkpoints entry.",
+                )
+            )
+
+    return errors
+
+
 def validate_plan(epic_dir: Path) -> ValidationResult:
     """Run 7 deterministic validation checks on plan.json.
 
@@ -422,6 +445,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_scope_coherence(plan))
     all_errors.extend(_check_dependency_ordering(plan))
     all_errors.extend(_check_empty_checkpoints(plan))
+    all_errors.extend(_check_checkpoint_coverage(plan))
 
     # Check 8: Command coverage (warnings only — doesn't fail validation)
     command_warnings = _check_command_coverage(plan)
