@@ -119,9 +119,9 @@ services:
       WEBAPP_PORT: 8000
       NGINX_PORT: ${NGINX_PORT:-9000}
     volumes:
-      - ./infrastructure/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./frontend/astro/dist:/usr/share/nginx/html/static:ro
-      - ./infrastructure/nginx/error-pages:/usr/share/nginx/html/error-pages:ro
+      - ./infrastructure/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template
+      - ./frontend/astro/dist:/usr/share/nginx/html/static
+      - ./infrastructure/nginx/error-pages:/usr/share/nginx/html/error-pages
     depends_on:
       webapp:
         condition: service_healthy
@@ -157,14 +157,14 @@ services:
       - path: .env.secrets
         required: false
     volumes:
-      - ./model:/app/model:ro
-      - ./infra:/app/infra:ro
+      - ./model:/app/model
+      - ./infra:/app/infra
       - ./apps/worker:/app/apps/worker
-      - ./apps/t3k_sync:/app/apps/t3k_sync:ro
-      - ./apps/audio_worker:/app/apps/audio_worker:ro
-      - ./apps/video_worker:/app/apps/video_worker:ro
-      - ./apps/webapp:/app/apps/webapp:ro
-      - ./sources:/app/sources:ro
+      - ./apps/t3k_sync:/app/apps/t3k_sync
+      - ./apps/audio_worker:/app/apps/audio_worker
+      - ./apps/video_worker:/app/apps/video_worker
+      - ./apps/webapp:/app/apps/webapp
+      - ./sources:/app/sources
       - ../gts-storage:/app/storage
     logging:
       driver: json-file
@@ -204,12 +204,12 @@ services:
       - path: .env.secrets
         required: false
     volumes:
-      - ./model:/app/model:ro
-      - ./infra:/app/infra:ro
+      - ./model:/app/model
+      - ./infra:/app/infra
       - ./apps/t3k_sync:/app/apps/t3k_sync
-      - ./apps/worker:/app/apps/worker:ro
-      - ./apps/webapp:/app/apps/webapp:ro
-      - ./sources:/app/sources:ro
+      - ./apps/worker:/app/apps/worker
+      - ./apps/webapp:/app/apps/webapp
+      - ./sources:/app/sources
       - ../gts-storage:/app/storage
     depends_on:
       db:
@@ -249,10 +249,10 @@ services:
       - path: .env.secrets
         required: false
     volumes:
-      - ./model:/app/model:ro
-      - ./infra:/app/infra:ro
+      - ./model:/app/model
+      - ./infra:/app/infra
       - ./apps/audio_worker:/app/apps/audio_worker
-      - ./apps/worker:/app/apps/worker:ro
+      - ./apps/worker:/app/apps/worker
       - ../gts-storage:/app/storage
     depends_on:
       db:
@@ -302,13 +302,13 @@ services:
       - path: .env.secrets
         required: false
     volumes:
-      - ./model/gts:/app/model/gts:ro
+      - ./model/gts:/app/model/gts
       - ./model/video:/app/model/video
-      - ./infra/messaging:/app/infra/messaging:ro
+      - ./infra/messaging:/app/infra/messaging
       - ./apps/video_worker:/app/apps/video_worker
-      - ./apps/webapp:/app/apps/webapp:ro
-      - ./apps/worker:/app/apps/worker:ro
-      - ./sources:/app/sources:ro
+      - ./apps/webapp:/app/apps/webapp
+      - ./apps/worker:/app/apps/worker
+      - ./sources:/app/sources
       - ../gts-storage:/app/storage
     depends_on:
       db:

@@ -246,13 +246,13 @@ services:
       - "127.0.0.1:{ports.webapp}:8000"
     volumes:
       # App code (new uv workspace layout)
-      - ./libs:/app/libs:ro
+      - ./libs:/app/libs
       - ./apps/webapp:/app/apps/webapp
-      - ./frontend/astro/dist:/app/static:ro
-      - ./src:/app/src:ro
-      - ./sources:/app/sources:ro
-      - ./tests:/app/tests:ro
-      - ./infrastructure/migrations:/app/infrastructure/migrations:ro
+      - ./frontend/astro/dist:/app/static
+      - ./src:/app/src
+      - ./sources:/app/sources
+      - ./tests:/app/tests
+      - ./infrastructure/migrations:/app/infrastructure/migrations
       # Shared storage bind mount
       - ../gts-storage:/app/storage
       # Parent dir for shared auth file (.gts-auth.json)
@@ -276,13 +276,13 @@ services:
   worker:
     container_name: {worktree.compose_project}-worker
     volumes:
-      - ./libs:/app/libs:ro
+      - ./libs:/app/libs
       - ./apps/worker:/app/apps/worker
-      - ./apps/t3k_sync:/app/apps/t3k_sync:ro
-      - ./apps/audio_worker:/app/apps/audio_worker:ro
-      - ./apps/video_worker:/app/apps/video_worker:ro
-      - ./apps/webapp:/app/apps/webapp:ro
-      - ./sources:/app/sources:ro
+      - ./apps/t3k_sync:/app/apps/t3k_sync
+      - ./apps/audio_worker:/app/apps/audio_worker
+      - ./apps/video_worker:/app/apps/video_worker
+      - ./apps/webapp:/app/apps/webapp
+      - ./sources:/app/sources
       # Shared storage bind mount
       - ../gts-storage:/app/storage
       # Parent dir for shared auth file (.gts-auth.json)
@@ -294,11 +294,11 @@ services:
   t3k-sync:
     container_name: {worktree.compose_project}-t3k-sync
     volumes:
-      - ./libs:/app/libs:ro
+      - ./libs:/app/libs
       - ./apps/t3k_sync:/app/apps/t3k_sync
-      - ./apps/worker:/app/apps/worker:ro
-      - ./apps/webapp:/app/apps/webapp:ro
-      - ./sources:/app/sources:ro
+      - ./apps/worker:/app/apps/worker
+      - ./apps/webapp:/app/apps/webapp
+      - ./sources:/app/sources
       # Shared storage bind mount
       - ../gts-storage:/app/storage
       # Parent dir for shared auth file (.gts-auth.json)
@@ -310,9 +310,9 @@ services:
   audio-worker:
     container_name: {worktree.compose_project}-audio-worker
     volumes:
-      - ./libs:/app/libs:ro
+      - ./libs:/app/libs
       - ./apps/audio_worker:/app/apps/audio_worker
-      - ./apps/worker:/app/apps/worker:ro
+      - ./apps/worker:/app/apps/worker
       # Shared storage bind mount
       - ../gts-storage:/app/storage
     environment:
@@ -323,12 +323,12 @@ services:
     ports:
       - "127.0.0.1:{ports.video}:8002"
     volumes:
-      - ./libs/core:/app/libs/core:ro
+      - ./libs/core:/app/libs/core
       - ./libs/video:/app/libs/video
       - ./apps/video_worker:/app/apps/video_worker
-      - ./apps/webapp:/app/apps/webapp:ro
-      - ./apps/worker:/app/apps/worker:ro
-      - ./sources:/app/sources:ro
+      - ./apps/webapp:/app/apps/webapp
+      - ./apps/worker:/app/apps/worker
+      - ./sources:/app/sources
       # Shared storage bind mount
       - ../gts-storage:/app/storage
     environment:
