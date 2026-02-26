@@ -192,7 +192,6 @@ services:
         GID: ${GID:-1000}
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
-      REDIS_URL: redis://redis:6379
       ENV: ${ENV:-development}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       GTS_STORAGE_ROOT: /app/storage

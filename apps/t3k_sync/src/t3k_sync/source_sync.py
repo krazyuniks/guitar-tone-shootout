@@ -8,8 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-import redis.asyncio as redis
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus, JobType
@@ -20,13 +19,12 @@ from source_t3k.domain.value_objects import SyncMode
 from source_t3k.services.model_downloader import ModelDownloader
 from source_t3k.services.sync_service import T3KSyncService
 from webapp.adapters.persistence.models.job import Job
-from worker.config import WorkerSettings
 from worker.db import get_core_session, get_core_session_no_tx
 
 logger = logging.getLogger(__name__)
 
 SYNC_SOURCE = "t3k"
-SYNC_LOCK_TTL_SECONDS = 600
+_PG_ADVISORY_LOCK_KEY = 7356951
 
 
 def _check_auth_gate(auth_file_path: str | None = None) -> None:
@@ -119,80 +117,80 @@ async def run_source_sync(job_id: UUID | None = None) -> UUID:
         )
         raise
 
-    settings = WorkerSettings()  # type: ignore[call-arg]
-    redis_client = redis.from_url(settings.redis_url, decode_responses=True)
-    lock_key = f"{SYNC_SOURCE}:sync:lock"
-    lock_value = str(tracked_job_id)
-
-    acquired = await redis_client.set(lock_key, lock_value, nx=True, ex=SYNC_LOCK_TTL_SECONDS)
-    if not acquired:
-        logger.info("Sync lock already held, skipping run")
-        await redis_client.aclose()
-        await _update_job_status(
-            tracked_job_id,
-            JobStatus.COMPLETED,
-            message="Superseded by an active sync run",
-            completed_at=datetime.now(UTC),
-        )
-        return tracked_job_id
-
-    now = datetime.now(UTC)
-    await _update_job_status(tracked_job_id, JobStatus.RUNNING, started_at=now, last_heartbeat=now)
-
     token_manager: T3KTokenManager | None = None
-    try:
-        async with get_core_session_no_tx() as session:
-            token_manager, api_client = _build_api_client()
-            model_downloader = _build_model_downloader(api_client)
-            publisher = GearSyncPublisher(session=session, queue_name="source_events")
-            sync_service = T3KSyncService(
-                api_client=api_client,
-                session=session,
-                model_downloader=model_downloader,
+    async with get_core_session_no_tx() as lock_session:
+        result = await lock_session.execute(
+            text("SELECT pg_try_advisory_lock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
+        )
+        acquired = result.scalar()
+        if not acquired:
+            logger.info("Sync lock already held, skipping run")
+            await _update_job_status(
+                tracked_job_id,
+                JobStatus.COMPLETED,
+                message="Superseded by an active sync run",
+                completed_at=datetime.now(UTC),
             )
+            return tracked_job_id
 
-            async def renew_lock() -> None:
-                await redis_client.expire(lock_key, SYNC_LOCK_TTL_SECONDS)
-                await _update_job_status(
-                    tracked_job_id,
-                    JobStatus.RUNNING,
-                    last_heartbeat=datetime.now(UTC),
+        now = datetime.now(UTC)
+        await _update_job_status(
+            tracked_job_id, JobStatus.RUNNING, started_at=now, last_heartbeat=now
+        )
+
+        try:
+            async with get_core_session_no_tx() as session:
+                token_manager, api_client = _build_api_client()
+                model_downloader = _build_model_downloader(api_client)
+                publisher = GearSyncPublisher(session=session, queue_name="source_events")
+                sync_service = T3KSyncService(
+                    api_client=api_client,
+                    session=session,
+                    model_downloader=model_downloader,
                 )
 
-            mode = _get_sync_mode()
-            result = await sync_service.run_sync_batch(publisher, mode=mode, on_progress=renew_lock)
+                async def renew_lock() -> None:
+                    await _update_job_status(
+                        tracked_job_id,
+                        JobStatus.RUNNING,
+                        last_heartbeat=datetime.now(UTC),
+                    )
 
-            logger.info(
-                "Sync batch complete: mode=%s tones=%d skipped=%d models=%d files=%d api_calls=%d hit_known=%s",
-                result.mode.value,
-                result.tones_processed,
-                result.tones_skipped,
-                result.models_staged,
-                result.files_downloaded,
-                result.api_calls_made,
-                result.hit_known_tone,
+                mode = _get_sync_mode()
+                result = await sync_service.run_sync_batch(
+                    publisher, mode=mode, on_progress=renew_lock
+                )
+
+                logger.info(
+                    "Sync batch complete: mode=%s tones=%d skipped=%d models=%d files=%d api_calls=%d hit_known=%s",
+                    result.mode.value,
+                    result.tones_processed,
+                    result.tones_skipped,
+                    result.models_staged,
+                    result.files_downloaded,
+                    result.api_calls_made,
+                    result.hit_known_tone,
+                )
+
+            await _update_job_status(
+                tracked_job_id,
+                JobStatus.COMPLETED,
+                completed_at=datetime.now(UTC),
             )
+        except Exception:
+            logger.exception("Sync batch failed")
+            await _update_job_status(
+                tracked_job_id,
+                JobStatus.FAILED,
+                error="Sync batch failed",
+                completed_at=datetime.now(UTC),
+            )
+        finally:
+            if token_manager is not None:
+                await token_manager.close()
 
-        await _update_job_status(
-            tracked_job_id,
-            JobStatus.COMPLETED,
-            completed_at=datetime.now(UTC),
-        )
-    except Exception:
-        logger.exception("Sync batch failed")
-        await _update_job_status(
-            tracked_job_id,
-            JobStatus.FAILED,
-            error="Sync batch failed",
-            completed_at=datetime.now(UTC),
-        )
-    finally:
-        if token_manager is not None:
-            await token_manager.close()
-
-        current = await redis_client.get(lock_key)
-        if current == lock_value:
-            await redis_client.delete(lock_key)
-        await redis_client.aclose()
+            await lock_session.execute(
+                text("SELECT pg_advisory_unlock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
+            )
 
     return tracked_job_id
