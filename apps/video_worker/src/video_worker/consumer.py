@@ -42,13 +42,14 @@ async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: st
         pgmq = PgmqClient(session)
         for child in pending_children:
             cmd = ProcessAudioCommand(
+                source_bc="video-worker",
                 payload={
                     "job_id": str(child.id),
                     "shootout_id": str(parent_job.entity_id),
                     "user_id": str(child.user_id),
-                }
+                },
             )
-            await pgmq.publish("audio_commands", cmd)
+            await pgmq.send("audio_commands", cmd)
             child.status = JobStatus.QUEUED
             child.message = "Queued for chain processing"
 
@@ -66,13 +67,14 @@ async def _dispatch_master_job(master_job_id: UUID, database_url: str) -> None:
 
         pgmq = PgmqClient(session)
         cmd = ProcessAudioCommand(
+            source_bc="video-worker",
             payload={
                 "job_id": str(master_job.id),
                 "shootout_id": str(master_job.entity_id),
                 "user_id": str(master_job.user_id),
-            }
+            },
         )
-        await pgmq.publish("audio_commands", cmd)
+        await pgmq.send("audio_commands", cmd)
         master_job.status = JobStatus.QUEUED
         master_job.message = "Queued for master audio creation"
         await session.commit()

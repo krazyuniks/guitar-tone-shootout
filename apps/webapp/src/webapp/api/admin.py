@@ -232,7 +232,7 @@ async def enqueue_job(
         )
     elif job.job_type == JobType.SHOOTOUT:
         cmd = RenderVideoCommand(source_bc="webapp", payload={"job_id": str(job.id)})
-        await pgmq.publish("video_commands", cmd)
+        await pgmq.send("video_commands", cmd)
     elif (
         job.job_type in (JobType.SHOOTOUT_AUDIO, JobType.SHOOTOUT_MASTER)
         or job.job_type == JobType.AUDIO_PROCESSING
@@ -245,7 +245,7 @@ async def enqueue_job(
                 "user_id": str(job.user_id),
             },
         )
-        await pgmq.publish("audio_commands", cmd_audio)
+        await pgmq.send("audio_commands", cmd_audio)
     else:
         raise HTTPException(
             status_code=400,
