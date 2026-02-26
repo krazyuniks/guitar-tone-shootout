@@ -1,4 +1,4 @@
-"""Tests for scheduled token refresh job."""
+"""Tests for scheduled token refresh task."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -26,10 +26,10 @@ def _make_auth_file(tmp_path: Path, fernet: Fernet, **overrides) -> Path:
     return auth_file
 
 
-class TestRefreshTokenJob:
+class TestRefreshTokenTask:
     async def test_skips_when_login_required(self, tmp_path: Path) -> None:
-        """Job does nothing when auth_status is login_required."""
-        from scheduler.schedules.auth import refresh_t3k_token
+        """Task does nothing when auth_status is login_required."""
+        from t3k_sync.tasks import refresh_t3k_token
 
         key = Fernet.generate_key()
         fernet = Fernet(key)
@@ -44,8 +44,8 @@ class TestRefreshTokenJob:
         assert data["auth_status"] == "login_required"  # unchanged
 
     async def test_skips_when_token_not_expiring(self, tmp_path: Path) -> None:
-        """Job does nothing when token expires in >10 minutes."""
-        from scheduler.schedules.auth import refresh_t3k_token
+        """Task does nothing when token expires in >10 minutes."""
+        from t3k_sync.tasks import refresh_t3k_token
 
         key = Fernet.generate_key()
         fernet = Fernet(key)
@@ -60,8 +60,8 @@ class TestRefreshTokenJob:
         assert data["auth_status"] == "valid"  # unchanged, no refresh
 
     async def test_skips_when_file_missing(self) -> None:
-        """Job does nothing when auth file doesn't exist."""
-        from scheduler.schedules.auth import refresh_t3k_token
+        """Task does nothing when auth file doesn't exist."""
+        from t3k_sync.tasks import refresh_t3k_token
 
         await refresh_t3k_token(
             auth_file_path="/nonexistent/path/auth.json",
