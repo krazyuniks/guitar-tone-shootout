@@ -254,13 +254,13 @@ def build_story_prompt(
         checkpoint: Validation checkpoint that will run after this story
             (from plan.validation_checkpoints, resolved by the caller).
         inline_rules: If True, inline rule file contents into the prompt.
-        epic_dir: Path to the epic directory. If provided and EPIC_STATUS.md
+        epic_dir: Path to the epic directory. If provided and STORY_CONTEXT.md
             exists, a reference line is added to the prompt.
 
     Returns the prompt string with:
     1. Compressed doc index line (lists rules, skills, wiki sections)
     2. AGENTS.md pointer
-    3. Epic status reference (if EPIC_STATUS.md exists)
+    3. Story context reference (if STORY_CONTEXT.md exists)
     4. Optionally, inlined rules file contents (domain-filtered)
     5. Story-specific instructions
     6. Validation checkpoint criteria (if any)
@@ -286,11 +286,14 @@ def build_story_prompt(
     parts.append("Follow project conventions in AGENTS.md.")
     parts.append("")
 
-    # 3. Epic status reference (if available)
+    # 3. Story context reference (if available)
     if epic_dir is not None:
-        status_path = epic_dir / "EPIC_STATUS.md"
+        status_path = epic_dir / "STORY_CONTEXT.md"
         if status_path.is_file():
-            parts.append(f"Read `{status_path}` for epic context.")
+            parts.append(
+                f"Read `{status_path}` for epic context, prior story changes,"
+                " and current infrastructure state."
+            )
             parts.append("")
 
     # 4. Optionally inline selected rules (domain-filtered)

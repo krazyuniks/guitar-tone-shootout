@@ -1,8 +1,8 @@
-"""Tests for EPIC_STATUS.md generation."""
+"""Tests for STORY_CONTEXT.md generation."""
 
 import pytest
 
-from workflow.orchestrator import generate_epic_status
+from workflow.orchestrator import generate_story_context
 from workflow.prompt_builder import build_story_prompt
 
 
@@ -52,108 +52,129 @@ def _make_events(run_id, completed_story_ids, commits=None):
     return events
 
 
-class TestGenerateEpicStatus:
-    """Tests for the generate_epic_status function."""
+class TestGenerateStoryContext:
+    """Tests for the generate_story_context function."""
 
     def test_generates_file(self, epic_dir, plan):
-        """EPIC_STATUS.md is written to the epic directory."""
-        result = generate_epic_status(epic_dir, plan, [], "run-1")
-        assert result == epic_dir / "EPIC_STATUS.md"
+        """STORY_CONTEXT.md is written to the epic directory."""
+        result = generate_story_context(epic_dir, plan, [], "run-1")
+        assert result == epic_dir / "STORY_CONTEXT.md"
         assert result.is_file()
 
     def test_contains_goal(self, epic_dir, plan):
         """Output includes the epic goal from plan.json."""
-        generate_epic_status(epic_dir, plan, [], "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
+        generate_story_context(epic_dir, plan, [], "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
         assert "Implement queue topology for pgmq messaging" in content
+
+    def test_contains_epic_number(self, epic_dir, plan):
+        """Output includes the epic number from directory name."""
+        generate_story_context(epic_dir, plan, [], "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "#999" in content
+
+    def test_contains_github_link(self, epic_dir, plan):
+        """Output includes a GitHub issue link."""
+        generate_story_context(epic_dir, plan, [], "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "GitHub Issue" in content
+        assert "issues/999" in content
 
     def test_progress_count_no_stories_done(self, epic_dir, plan):
         """Progress shows 0/2 when no stories are complete."""
-        generate_epic_status(epic_dir, plan, [], "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
+        generate_story_context(epic_dir, plan, [], "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
         assert "0/2 stories complete" in content
 
     def test_progress_count_one_story_done(self, epic_dir, plan):
         """Progress shows 1/2 when one story is complete."""
         events = _make_events("run-1", ["01-create-tables"])
-        generate_epic_status(epic_dir, plan, events, "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
         assert "1/2 stories complete" in content
 
     def test_completed_story_checked(self, epic_dir, plan):
-        """Completed stories show [x] checkbox."""
+        """Completed stories show ✅ prefix with story ID."""
         events = _make_events("run-1", ["01-create-tables"])
-        generate_epic_status(epic_dir, plan, events, "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
-        assert "- [x] **01-create-tables**" in content
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "✅ 01-create-tables:" in content
 
     def test_pending_story_unchecked(self, epic_dir, plan):
-        """Pending stories show [ ] checkbox."""
+        """Pending stories show ⏳ prefix with story ID."""
         events = _make_events("run-1", ["01-create-tables"])
-        generate_epic_status(epic_dir, plan, events, "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
-        assert "- [ ] **02-publisher**" in content
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "⏳ 02-publisher:" in content
 
     def test_scoped_to_run_id(self, epic_dir, plan):
         """Only stories completed in the specified run_id are marked done."""
         events = _make_events("old-run", ["01-create-tables"])
-        generate_epic_status(epic_dir, plan, events, "new-run")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
+        generate_story_context(epic_dir, plan, events, "new-run")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
         assert "0/2 stories complete" in content
-        assert "- [ ] **01-create-tables**" in content
+        assert "⏳ 01-create-tables:" in content
 
-    def test_deferred_critique_findings(self, epic_dir, plan):
-        """Critique findings appear in the deferred section."""
+    def test_completed_story_shows_key_files(self, epic_dir, plan):
+        """Completed stories list key files from scope."""
+        events = _make_events("run-1", ["01-create-tables"])
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "migrations/0018.py" in content
+
+    def test_advisory_notes_from_critique_fail(self, epic_dir, plan):
+        """Critique findings appear in the advisory notes section."""
         events = [
             {
                 "event": "critique_fail",
                 "run_id": "run-1",
+                "story_id": "01-create-tables",
                 "findings": [
                     {"severity": "medium", "issue": "Missing error handling in publisher"},
                 ],
             },
         ]
-        generate_epic_status(epic_dir, plan, events, "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
-        assert "Deferred Critique Findings" in content
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "Advisory Notes" in content
         assert "Missing error handling in publisher" in content
 
-    def test_no_deferred_section_when_clean(self, epic_dir, plan):
-        """No deferred section when there are no critique failures."""
-        generate_epic_status(epic_dir, plan, [], "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
-        assert "Deferred Critique Findings" not in content
+    def test_no_advisory_section_when_clean(self, epic_dir, plan):
+        """No advisory section when there are no critique failures."""
+        generate_story_context(epic_dir, plan, [], "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+        assert "Advisory Notes" not in content
 
     def test_idempotent_regeneration(self, epic_dir, plan):
         """Calling twice overwrites cleanly with no duplication."""
         events = _make_events("run-1", ["01-create-tables"])
-        generate_epic_status(epic_dir, plan, events, "run-1")
-        generate_epic_status(epic_dir, plan, events, "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
+        generate_story_context(epic_dir, plan, events, "run-1")
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
         assert content.count("01-create-tables") == 1
 
     def test_migration_head_included(self, epic_dir, plan):
         """Migration head line is present in output."""
-        generate_epic_status(epic_dir, plan, [], "run-1")
-        content = (epic_dir / "EPIC_STATUS.md").read_text()
+        generate_story_context(epic_dir, plan, [], "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
         assert "**Migration head:**" in content
 
 
-class TestPromptBuilderEpicStatus:
+class TestPromptBuilderStoryContext:
     """Tests for epic_dir integration in build_story_prompt."""
 
     def test_no_reference_without_epic_dir(self, tmp_path):
-        """No EPIC_STATUS.md reference when epic_dir is not provided."""
+        """No STORY_CONTEXT.md reference when epic_dir is not provided."""
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         wiki_dir = tmp_path / "wiki"
         wiki_dir.mkdir()
         story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
         prompt = build_story_prompt(story, rules_dir, wiki_dir)
-        assert "EPIC_STATUS.md" not in prompt
+        assert "STORY_CONTEXT.md" not in prompt
 
-    def test_no_reference_without_status_file(self, tmp_path):
-        """No reference when epic_dir exists but EPIC_STATUS.md does not."""
+    def test_no_reference_without_context_file(self, tmp_path):
+        """No reference when epic_dir exists but STORY_CONTEXT.md does not."""
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         wiki_dir = tmp_path / "wiki"
@@ -162,18 +183,19 @@ class TestPromptBuilderEpicStatus:
         epic_dir.mkdir()
         story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
         prompt = build_story_prompt(story, rules_dir, wiki_dir, epic_dir=epic_dir)
-        assert "EPIC_STATUS.md" not in prompt
+        assert "STORY_CONTEXT.md" not in prompt
 
-    def test_reference_when_status_exists(self, tmp_path):
-        """Prompt references EPIC_STATUS.md when the file exists."""
+    def test_reference_when_context_exists(self, tmp_path):
+        """Prompt references STORY_CONTEXT.md when the file exists."""
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         wiki_dir = tmp_path / "wiki"
         wiki_dir.mkdir()
         epic_dir = tmp_path / "E999"
         epic_dir.mkdir()
-        (epic_dir / "EPIC_STATUS.md").write_text("# Epic Status\n")
+        (epic_dir / "STORY_CONTEXT.md").write_text("# Story Context\n")
         story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
         prompt = build_story_prompt(story, rules_dir, wiki_dir, epic_dir=epic_dir)
-        assert "EPIC_STATUS.md" in prompt
+        assert "STORY_CONTEXT.md" in prompt
         assert "epic context" in prompt
+        assert "prior story changes" in prompt

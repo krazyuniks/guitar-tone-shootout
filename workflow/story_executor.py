@@ -1191,59 +1191,29 @@ def _dispatch_and_validate_loop(
                 )
                 return True
 
-            # Critique failed -- retry with critique findings
+            # Critique failed -- soft gate: append advisory notes, complete anyway
             logger.warning(
-                "Opus critique failed for story '%s' (attempt %d, %d findings)",
+                "Story '%s' critique found %d issues (attempt %d) — "
+                "recording as advisory notes and marking complete",
                 story_id,
-                attempt,
                 len(findings),
+                attempt,
             )
-
-            remaining_attempts = max_attempts - attempt
-            if remaining_attempts == 0:
-                return _handle_terminal_failure(
-                    story_id=story_id,
-                    attempt=attempt,
-                    classification=FailureClassification(
-                        category="implementation",
-                        evidence=f"Opus critique: {len(findings)} findings",
-                        pattern="critique_fail",
-                    ),
-                    error_text=json.dumps(findings[:3]),
-                    event_logger=event_logger,
-                    plan_scope_paths=plan_scope_paths,
-                )
-
-            # Build retry context from critique findings
-            finding_lines = []
-            for f in findings:
-                file_ref = f.get("file", "?")
-                line_ref = f.get("line", "?")
-                issue = f.get("issue", "?")
-                finding_lines.append(f"- {file_ref}:{line_ref} — {issue}")
-
-            retry_context = {
-                "attempt": attempt,
-                "error": f"Opus critique failed with {len(findings)} findings:\n"
-                + "\n".join(finding_lines),
-                "files_modified": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
-                    {
-                        "event": "critique_fail",
-                        "story_id": story_id,
-                        "attempt": attempt,
-                        "findings_count": len(findings),
-                    }
-                ),
-            }
-
+            _append_critique_to_story_context(epic_dir, story_id, findings)
             event_logger.log_event(
-                "story_started",
+                "story_complete",
                 story_id=story_id,
-                attempt=attempt + 1,
-                index=_find_story_index(plan, story_id),
+                attempt=attempt,
+                commit=_get_latest_commit_hash(),
+                critique_advisory=True,
             )
-            continue
+            logger.info(
+                "Story '%s' completed with advisory critique (%d findings, attempt %d)",
+                story_id,
+                len(findings),
+                attempt,
+            )
+            return True
 
         # Validation failed -- classify and decide whether to retry
         error_text = validation_result.failure_reason or ""
@@ -1402,6 +1372,36 @@ def _handle_terminal_failure(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _append_critique_to_story_context(epic_dir: Path, story_id: str, findings: list) -> None:
+    """Append deferred critique findings to STORY_CONTEXT.md as advisory notes.
+
+    Called by the soft critique gate when validation passes but critique fails.
+    The next story agent will see these findings as advisory context.
+
+    Note: The orchestrator regenerates STORY_CONTEXT.md from JSONL events after
+    story_complete, so these findings will persist via the critique_fail event.
+    This append provides immediate visibility between story completion and
+    orchestrator regeneration.
+    """
+    context_path = epic_dir / "STORY_CONTEXT.md"
+    if not context_path.is_file():
+        return
+
+    note_lines = ["", f"## Advisory Notes — {story_id}", ""]
+    for f in findings:
+        file_ref = f.get("file", "?") if isinstance(f, dict) else "?"
+        line_ref = f.get("line", "?") if isinstance(f, dict) else "?"
+        issue = f.get("issue", str(f)) if isinstance(f, dict) else str(f)
+        severity = f.get("severity", "?") if isinstance(f, dict) else "?"
+        note_lines.append(f"- [{severity}] `{file_ref}:{line_ref}` — {issue}")
+
+    existing = context_path.read_text(encoding="utf-8")
+    context_path.write_text(
+        existing.rstrip() + "\n" + "\n".join(note_lines) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _get_latest_commit_hash() -> str:

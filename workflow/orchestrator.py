@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -477,28 +478,30 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# EPIC_STATUS.md generation (deterministic, $0)
+# STORY_CONTEXT.md generation (deterministic, $0)
 # ---------------------------------------------------------------------------
 
 
-def generate_epic_status(
+def generate_story_context(
     epic_dir: Path,
     plan: dict,
     events: list[dict],
     run_id: str,
 ) -> Path:
-    """Generate EPIC_STATUS.md from JSONL logs, plan.json, and git state.
+    """Generate STORY_CONTEXT.md from JSONL logs, plan.json, and git state.
 
     A deterministic Python function ($0 AI cost) that provides epic-level
     context for story agents. Regenerated after each story_complete event
     so the next agent sees current state.
 
     Contents:
-    - Epic goal (from plan.json)
-    - Story progress with one-line summaries of actual changes (from git)
+    - Epic number, goal, and GitHub issue link (from plan.json + epic_dir name)
+    - Story progress: per-story commit, changes summary, key files, state changes
     - Current DB migration head
-    - Deferred critique findings
-    - Pending stories
+    - Queue topology (from app consumer files)
+    - Deleted files (from git diff of completed story commits)
+    - Deferred critique findings as advisory notes
+    - Pending stories with names
 
     Args:
         epic_dir: Path to the epic directory.
@@ -507,10 +510,15 @@ def generate_epic_status(
         run_id: Current run ID (to scope completed stories).
 
     Returns:
-        Path to the generated EPIC_STATUS.md.
+        Path to the generated STORY_CONTEXT.md.
     """
     stories = plan.get("stories", [])
     goal = plan.get("goal", "(no goal)")
+
+    # Epic number from directory name (e.g. "E120" → "120")
+    raw = epic_dir.name.lstrip("E")
+    epic_num = raw if raw.isdigit() else epic_dir.name
+    issue_url = f"https://github.com/krazyuniks/guitar-tone-shootout/issues/{epic_num}"
 
     # Completed story IDs (scoped to this run)
     completed_ids = sorted(
@@ -522,8 +530,28 @@ def generate_epic_status(
     )
     completed_set = set(completed_ids)
 
-    # Build story progress lines with git diff summaries
-    story_lines = []
+    # Current DB migration head
+    migration_head = _get_migration_head()
+
+    # Queue topology
+    queue_lines = _get_queue_topology()
+
+    # --- Header ---
+    lines: list[str] = [
+        "# Story Context",
+        "",
+        f"**Epic:** #{epic_num} — [GitHub Issue]({issue_url})",
+        f"**Goal:** {goal}",
+        f"**Progress:** {len(completed_ids)}/{len(stories)} stories complete",
+        f"**Migration head:** {migration_head}",
+    ]
+
+    if queue_lines:
+        lines += ["", "## Queue Topology", "", *queue_lines]
+
+    # --- Stories ---
+    lines += ["", "## Stories", ""]
+
     for story in stories:
         sid = story.get("story_id", "?")
         name = story.get("name", "?")
@@ -540,53 +568,67 @@ def generate_epic_status(
                     commit = e.get("commit", "?")
                     break
 
-            # Get one-line git diff stat for the commit
             diff_summary = _git_diff_stat(commit)
-            story_lines.append(f"- [x] **{sid}** — {name} (`{commit[:8]}`: {diff_summary})")
+
+            # Key files from story scope
+            scope = story.get("scope", {})
+            key_files = scope.get("create", []) + scope.get("modify", [])
+
+            # State changes: table renames from migration files in this commit
+            migration_renames = _extract_migration_renames(commit)
+
+            # Files deleted in this commit
+            deleted_files = _get_deleted_files(commit)
+
+            lines.append(f"### ✅ {sid}: {name} (`{commit[:8]}`)")
+            lines.append("")
+            lines.append(f"- **Changes:** {diff_summary}")
+
+            if key_files:
+                files_str = ", ".join(f"`{f}`" for f in key_files[:6])
+                if len(key_files) > 6:
+                    files_str += f" +{len(key_files) - 6} more"
+                lines.append(f"- **Key files:** {files_str}")
+
+            if migration_renames:
+                pairs = ", ".join(f"{old}→{new}" for old, new in migration_renames[:12])
+                if len(migration_renames) > 12:
+                    pairs += " ..."
+                lines.append(f"- **Table renames ({len(migration_renames)}):** {pairs}")
+
+            if deleted_files:
+                del_str = ", ".join(f"`{f}`" for f in deleted_files[:5])
+                if len(deleted_files) > 5:
+                    del_str += f" +{len(deleted_files) - 5} more"
+                lines.append(f"- **Deleted:** {del_str}")
+
         else:
-            story_lines.append(f"- [ ] **{sid}** — {name}")
+            lines.append(f"### ⏳ {sid}: {name}")
+            lines.append("")
+            lines.append("- (pending)")
 
-    # Current DB migration head
-    migration_head = _get_migration_head()
+        lines.append("")
 
-    # Deferred critique findings
-    deferred_lines = []
+    # --- Advisory Notes ---
+    advisory_lines: list[str] = []
     for e in events:
         if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
+            e_sid = e.get("story_id", "?")
             findings = e.get("findings", [])
             for f in findings:
                 issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
                 severity = f.get("severity", "?") if isinstance(f, dict) else "?"
-                deferred_lines.append(f"- [{severity}] {issue}")
+                advisory_lines.append(f"- [{severity}] {e_sid}: {issue}")
 
-    lines = [
-        "# Epic Status",
-        "",
-        f"**Goal:** {goal}",
-        f"**Progress:** {len(completed_ids)}/{len(stories)} stories complete",
-        f"**Migration head:** {migration_head}",
-        "",
-        "## Story Progress",
-        "",
-        *story_lines,
-    ]
-
-    if deferred_lines:
-        lines.extend(
-            [
-                "",
-                "## Deferred Critique Findings",
-                "",
-                *deferred_lines,
-            ]
-        )
+    if advisory_lines:
+        lines += ["## Advisory Notes", "", *advisory_lines, ""]
 
     content = "\n".join(lines) + "\n"
-    status_path = epic_dir / "EPIC_STATUS.md"
-    status_path.write_text(content, encoding="utf-8")
+    context_path = epic_dir / "STORY_CONTEXT.md"
+    context_path.write_text(content, encoding="utf-8")
 
-    logger.info("EPIC_STATUS.md generated at %s", status_path)
-    return status_path
+    logger.info("STORY_CONTEXT.md generated at %s", context_path)
+    return context_path
 
 
 def _git_diff_stat(commit: str) -> str:
@@ -636,6 +678,91 @@ def _get_migration_head() -> str:
     # Sort and return the latest
     revisions.sort()
     return revisions[-1]
+
+
+def _extract_migration_renames(commit: str) -> list[tuple[str, str]]:
+    """Extract table rename pairs from migration files added in a commit.
+
+    Looks for ("old", "new") tuples in migration files that were added as
+    part of the given commit. Used to surface table renames in STORY_CONTEXT.md
+    so agents know about schema changes from prior stories.
+
+    Returns a list of (old_name, new_name) tuples.
+    """
+    if not commit or commit in ("?", "unknown"):
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "show", "--name-status", "--diff-filter=A", commit],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+
+        migration_files: list[Path] = []
+        for line in result.stdout.splitlines():
+            if line.startswith("A\t") and "migrations/versions" in line and line.endswith(".py"):
+                migration_files.append(PROJECT_ROOT / line[2:].strip())
+
+        renames: list[tuple[str, str]] = []
+        pair_re = re.compile(r'\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)')
+        for mf in migration_files:
+            if mf.is_file():
+                renames.extend(pair_re.findall(mf.read_text(encoding="utf-8")))
+
+        return renames
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+
+
+def _get_deleted_files(commit: str) -> list[str]:
+    """Get list of files deleted in a commit.
+
+    Returns relative file paths for files with status D in the given commit.
+    """
+    if not commit or commit in ("?", "unknown"):
+        return []
+    try:
+        result = subprocess.run(
+            ["git", "show", "--name-status", "--diff-filter=D", commit],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return []
+        return [line[2:].strip() for line in result.stdout.splitlines() if line.startswith("D\t")]
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return []
+
+
+def _get_queue_topology() -> list[str]:
+    """Extract queue names from app consumer files.
+
+    Searches apps/*/src/*/consumer.py for queue_name= assignments.
+    Returns formatted lines for the STORY_CONTEXT queue topology section.
+    """
+    apps_dir = PROJECT_ROOT / "apps"
+    if not apps_dir.is_dir():
+        return []
+
+    queue_re = re.compile(r'queue_name\s*=\s*["\']([^"\']+)["\']')
+    lines: list[str] = []
+    for consumer in sorted(apps_dir.glob("*/src/*/consumer.py")):
+        try:
+            text = consumer.read_text(encoding="utf-8")
+            matches = queue_re.findall(text)
+            if matches:
+                app_name = consumer.relative_to(PROJECT_ROOT).parts[1]
+                for q in matches:
+                    lines.append(f"- `{q}` — consumed by `{app_name}`")
+        except OSError:
+            continue
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -1166,9 +1293,9 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
                 commit=_get_last_commit(all_events, story_id),
             )
 
-            # Regenerate EPIC_STATUS.md so the next agent sees current state
+            # Regenerate STORY_CONTEXT.md so the next agent sees current state
             all_events = _collect_story_events(epic_dir, plan)
-            generate_epic_status(epic_dir, plan, all_events, run_id)
+            generate_story_context(epic_dir, plan, all_events, run_id)
 
             # Post story completion comment
             comment_body = build_story_comment(next_story, all_events)
