@@ -477,6 +477,168 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# EPIC_STATUS.md generation (deterministic, $0)
+# ---------------------------------------------------------------------------
+
+
+def generate_epic_status(
+    epic_dir: Path,
+    plan: dict,
+    events: list[dict],
+    run_id: str,
+) -> Path:
+    """Generate EPIC_STATUS.md from JSONL logs, plan.json, and git state.
+
+    A deterministic Python function ($0 AI cost) that provides epic-level
+    context for story agents. Regenerated after each story_complete event
+    so the next agent sees current state.
+
+    Contents:
+    - Epic goal (from plan.json)
+    - Story progress with one-line summaries of actual changes (from git)
+    - Current DB migration head
+    - Deferred critique findings
+    - Pending stories
+
+    Args:
+        epic_dir: Path to the epic directory.
+        plan: The plan.json dict.
+        events: All JSONL events (epic + story level combined).
+        run_id: Current run ID (to scope completed stories).
+
+    Returns:
+        Path to the generated EPIC_STATUS.md.
+    """
+    stories = plan.get("stories", [])
+    goal = plan.get("goal", "(no goal)")
+
+    # Completed story IDs (scoped to this run)
+    completed_ids = sorted(
+        {
+            e["story_id"]
+            for e in events
+            if e.get("event") == "story_complete" and e.get("run_id") == run_id
+        }
+    )
+    completed_set = set(completed_ids)
+
+    # Build story progress lines with git diff summaries
+    story_lines = []
+    for story in stories:
+        sid = story.get("story_id", "?")
+        name = story.get("name", "?")
+
+        if sid in completed_set:
+            # Get commit hash for this story
+            commit = "?"
+            for e in reversed(events):
+                if (
+                    e.get("story_id") == sid
+                    and e.get("event") == "story_complete"
+                    and e.get("run_id") == run_id
+                ):
+                    commit = e.get("commit", "?")
+                    break
+
+            # Get one-line git diff stat for the commit
+            diff_summary = _git_diff_stat(commit)
+            story_lines.append(f"- [x] **{sid}** — {name} (`{commit[:8]}`: {diff_summary})")
+        else:
+            story_lines.append(f"- [ ] **{sid}** — {name}")
+
+    # Current DB migration head
+    migration_head = _get_migration_head()
+
+    # Deferred critique findings
+    deferred_lines = []
+    for e in events:
+        if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
+            findings = e.get("findings", [])
+            for f in findings:
+                issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
+                severity = f.get("severity", "?") if isinstance(f, dict) else "?"
+                deferred_lines.append(f"- [{severity}] {issue}")
+
+    lines = [
+        "# Epic Status",
+        "",
+        f"**Goal:** {goal}",
+        f"**Progress:** {len(completed_ids)}/{len(stories)} stories complete",
+        f"**Migration head:** {migration_head}",
+        "",
+        "## Story Progress",
+        "",
+        *story_lines,
+    ]
+
+    if deferred_lines:
+        lines.extend(
+            [
+                "",
+                "## Deferred Critique Findings",
+                "",
+                *deferred_lines,
+            ]
+        )
+
+    content = "\n".join(lines) + "\n"
+    status_path = epic_dir / "EPIC_STATUS.md"
+    status_path.write_text(content, encoding="utf-8")
+
+    logger.info("EPIC_STATUS.md generated at %s", status_path)
+    return status_path
+
+
+def _git_diff_stat(commit: str) -> str:
+    """Get a one-line diff stat summary for a commit.
+
+    Returns something like "5 files changed, 120 insertions(+), 30 deletions(-)".
+    Falls back to a placeholder if git is unavailable or the commit is unknown.
+    """
+    if not commit or commit in ("?", "unknown"):
+        return "no commit info"
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--stat", f"{commit}~1..{commit}"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Last line of --stat is the summary
+            stat_lines = result.stdout.strip().splitlines()
+            return stat_lines[-1].strip() if stat_lines else "no changes"
+        return "diff unavailable"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return "diff unavailable"
+
+
+def _get_migration_head() -> str:
+    """Get the latest Alembic migration revision from the migrations directory.
+
+    Reads migration filenames to find the highest-numbered revision.
+    This is a filesystem check, not a database check.
+    """
+    migrations_dir = PROJECT_ROOT / "infrastructure" / "migrations" / "versions"
+    if not migrations_dir.is_dir():
+        return "unknown"
+
+    # Find all migration files matching NNNN_*.py pattern
+    revisions: list[str] = []
+    for f in migrations_dir.iterdir():
+        if f.suffix == ".py" and f.name[0].isdigit():
+            revisions.append(f.stem)
+
+    if not revisions:
+        return "none"
+
+    # Sort and return the latest
+    revisions.sort()
+    return revisions[-1]
+
+
+# ---------------------------------------------------------------------------
 # Post-epic Opus critique
 # ---------------------------------------------------------------------------
 
@@ -1003,6 +1165,10 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
                 attempt=_get_last_attempt(all_events, story_id),
                 commit=_get_last_commit(all_events, story_id),
             )
+
+            # Regenerate EPIC_STATUS.md so the next agent sees current state
+            all_events = _collect_story_events(epic_dir, plan)
+            generate_epic_status(epic_dir, plan, all_events, run_id)
 
             # Post story completion comment
             comment_body = build_story_comment(next_story, all_events)

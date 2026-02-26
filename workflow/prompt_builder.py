@@ -238,6 +238,7 @@ def build_story_prompt(
     wiki_indexes_dir: Path,
     checkpoint: ValidationCheckpoint | None = None,
     inline_rules: bool = False,
+    epic_dir: Path | None = None,
 ) -> str:
     """Build the complete story prompt with selective documentation.
 
@@ -253,13 +254,16 @@ def build_story_prompt(
         checkpoint: Validation checkpoint that will run after this story
             (from plan.validation_checkpoints, resolved by the caller).
         inline_rules: If True, inline rule file contents into the prompt.
+        epic_dir: Path to the epic directory. If provided and EPIC_STATUS.md
+            exists, a reference line is added to the prompt.
 
     Returns the prompt string with:
     1. Compressed doc index line (lists rules, skills, wiki sections)
     2. AGENTS.md pointer
-    3. Optionally, inlined rules file contents (domain-filtered)
-    4. Story-specific instructions
-    5. Validation checkpoint criteria (if any)
+    3. Epic status reference (if EPIC_STATUS.md exists)
+    4. Optionally, inlined rules file contents (domain-filtered)
+    5. Story-specific instructions
+    6. Validation checkpoint criteria (if any)
     """
     # Derive domains
     story_domains = derive_story_domains(story, checkpoint)
@@ -282,7 +286,14 @@ def build_story_prompt(
     parts.append("Follow project conventions in AGENTS.md.")
     parts.append("")
 
-    # 3. Optionally inline selected rules (domain-filtered)
+    # 3. Epic status reference (if available)
+    if epic_dir is not None:
+        status_path = epic_dir / "EPIC_STATUS.md"
+        if status_path.is_file():
+            parts.append(f"Read `{status_path}` for epic context.")
+            parts.append("")
+
+    # 4. Optionally inline selected rules (domain-filtered)
     if inline_rules and selected_rules:
         parts.append("---")
         parts.append("## Rules")
@@ -293,7 +304,7 @@ def build_story_prompt(
                 parts.append(content)
                 parts.append("")
 
-    # 4. Story-specific instructions
+    # 5. Story-specific instructions
     parts.append("---")
     parts.append("## Story")
     parts.append("")

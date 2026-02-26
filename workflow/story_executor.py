@@ -1016,7 +1016,13 @@ def _dispatch_and_validate_loop(
         )
 
         # Build the agent prompt using V3 prompt_builder
-        prompt = build_story_prompt(story, RULES_DIR, WIKI_INDEXES_DIR, checkpoint=checkpoint)
+        prompt = build_story_prompt(
+            story,
+            RULES_DIR,
+            WIKI_INDEXES_DIR,
+            checkpoint=checkpoint,
+            epic_dir=epic_dir,
+        )
 
         # For retries, append failure feedback section to the prompt
         if retry_context:
