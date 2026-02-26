@@ -62,11 +62,11 @@ class DITrack(UUIDMixin, TimestampMixin, Base):
         shootouts: Shootouts using this DI track
     """
 
-    __tablename__ = "di_tracks"
+    __tablename__ = "core_di_tracks"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -123,16 +123,16 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         chains: List of chain links in this shootout
     """
 
-    __tablename__ = "shootouts"
+    __tablename__ = "core_shootouts"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     di_track_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("di_tracks.id", ondelete="CASCADE"),
+        ForeignKey("core_di_tracks.id", ondelete="CASCADE"),
         nullable=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -197,16 +197,16 @@ class ShootoutChain(UUIDMixin, Base):
         segments: Processed audio segments for this chain
     """
 
-    __tablename__ = "shootout_chains"
+    __tablename__ = "core_shootout_chains"
 
     shootout_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("shootouts.id", ondelete="CASCADE"),
+        ForeignKey("core_shootouts.id", ondelete="CASCADE"),
         nullable=False,
     )
     signal_chain_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("signal_chains.id", ondelete="CASCADE"),
+        ForeignKey("core_signal_chains.id", ondelete="CASCADE"),
         nullable=False,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -252,11 +252,11 @@ class AudioSegment(UUIDMixin, Base):
         shootout_chain: Reference to the ShootoutChain
     """
 
-    __tablename__ = "audio_segments"
+    __tablename__ = "core_audio_segments"
 
     shootout_chain_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("shootout_chains.id", ondelete="CASCADE"),
+        ForeignKey("core_shootout_chains.id", ondelete="CASCADE"),
         nullable=False,
     )
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)

@@ -43,27 +43,27 @@ class TestPhase4ModelsImport:
     def test_shootout_comment_import(self) -> None:
         """ShootoutComment model can be imported."""
         assert ShootoutComment is not None
-        assert ShootoutComment.__tablename__ == "shootout_comments"
+        assert ShootoutComment.__tablename__ == "core_shootout_comments"
 
     def test_tag_import(self) -> None:
         """Tag model can be imported."""
         assert Tag is not None
-        assert Tag.__tablename__ == "user_tags"
+        assert Tag.__tablename__ == "core_user_tags"
 
     def test_preset_import(self) -> None:
         """Preset model can be imported."""
         assert Preset is not None
-        assert Preset.__tablename__ == "presets"
+        assert Preset.__tablename__ == "core_presets"
 
     def test_notification_import(self) -> None:
         """UserNotification model can be imported."""
         assert UserNotification is not None
-        assert UserNotification.__tablename__ == "user_notifications"
+        assert UserNotification.__tablename__ == "core_user_notifications"
 
     def test_audit_log_import(self) -> None:
         """AuditLog model can be imported."""
         assert AuditLog is not None
-        assert AuditLog.__tablename__ == "audit_logs"
+        assert AuditLog.__tablename__ == "core_audit_logs"
 
 
 class TestShootoutCommentRoundTrip:

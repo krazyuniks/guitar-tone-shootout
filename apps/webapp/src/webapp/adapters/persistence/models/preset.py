@@ -28,11 +28,11 @@ class Preset(UUIDMixin, Base):
         signal_chain_block: Reference to the SignalChainBlock
     """
 
-    __tablename__ = "presets"
+    __tablename__ = "core_presets"
 
     signal_chain_block_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("signal_chain_blocks.id", ondelete="CASCADE"),
+        ForeignKey("core_signal_chain_blocks.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -111,7 +111,7 @@ class TestDatabaseConnectivity:
         from worker.db import get_session
 
         async with get_session(core_engine) as session:
-            result = await session.execute(text("SELECT count(*) FROM jobs"))
+            result = await session.execute(text("SELECT count(*) FROM core_jobs"))
             count = result.scalar()
             assert count == 0
 

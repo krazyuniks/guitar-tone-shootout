@@ -22,7 +22,7 @@ class TestBlockTypeModelLocation:
         from webapp.adapters.persistence.models.block_type import BlockType
 
         assert BlockType is not None
-        assert BlockType.__tablename__ == "block_types"
+        assert BlockType.__tablename__ == "core_block_types"
 
     async def test_block_type_has_required_fields(self) -> None:
         """BlockType model should have name, category, default_params fields."""
@@ -112,7 +112,7 @@ class TestPresetModelLocation:
         from webapp.adapters.persistence.models.preset import Preset
 
         assert Preset is not None
-        assert Preset.__tablename__ == "presets"
+        assert Preset.__tablename__ == "core_presets"
 
     async def test_preset_has_required_fields(self) -> None:
         """Preset model should have signal_chain_block_id, name, params fields."""

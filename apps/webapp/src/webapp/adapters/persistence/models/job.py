@@ -48,12 +48,12 @@ class Job(UUIDMixin, TimestampMixin, Base):
         updated_at: When the job was last updated
     """
 
-    __tablename__ = "jobs"
+    __tablename__ = "core_jobs"
 
     # User relationship
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey("core_users.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -66,7 +66,7 @@ class Job(UUIDMixin, TimestampMixin, Base):
     # Parent/child relationship for job hierarchies
     parent_job_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("jobs.id", ondelete="CASCADE"),
+        ForeignKey("core_jobs.id", ondelete="CASCADE"),
         nullable=True,
     )
 
@@ -188,7 +188,7 @@ class AuditLog(Base):
         trace_id: OpenTelemetry trace ID for distributed tracing
     """
 
-    __tablename__ = "audit_logs"
+    __tablename__ = "core_audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(
         UuidType(), primary_key=True, default=uuid.uuid4, nullable=False

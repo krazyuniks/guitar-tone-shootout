@@ -39,11 +39,11 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
         blocks: List of blocks in this chain
     """
 
-    __tablename__ = "signal_chains"
+    __tablename__ = "core_signal_chains"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -56,7 +56,7 @@ class SignalChain(UUIDMixin, TimestampMixin, Base):
     )
     group_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("signal_chain_groups.id", ondelete="SET NULL"),
+        ForeignKey("core_signal_chain_groups.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -109,11 +109,11 @@ class SignalChainBlock(UUIDMixin, Base):
         presets: List of parameter presets for this block
     """
 
-    __tablename__ = "signal_chain_blocks"
+    __tablename__ = "core_signal_chain_blocks"
 
     signal_chain_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("signal_chains.id", ondelete="CASCADE"),
+        ForeignKey("core_signal_chains.id", ondelete="CASCADE"),
         nullable=False,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -127,7 +127,7 @@ class SignalChainBlock(UUIDMixin, Base):
     )
     block_type_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("block_types.id", ondelete="CASCADE"),
+        ForeignKey("core_block_types.id", ondelete="CASCADE"),
         nullable=True,
     )
     params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
@@ -179,18 +179,18 @@ class SignalChainGroup(UUIDMixin, TimestampMixin, Base):
         base_chain: Reference to the base SignalChain
     """
 
-    __tablename__ = "signal_chain_groups"
+    __tablename__ = "core_signal_chain_groups"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     base_chain_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("signal_chains.id", ondelete="CASCADE"),
+        ForeignKey("core_signal_chains.id", ondelete="CASCADE"),
         nullable=True,
     )
     slot_positions: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)

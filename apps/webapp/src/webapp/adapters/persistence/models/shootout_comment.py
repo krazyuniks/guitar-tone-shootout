@@ -31,16 +31,16 @@ class ShootoutComment(UUIDMixin, TimestampMixin, Base):
         user: Reference to the User
     """
 
-    __tablename__ = "shootout_comments"
+    __tablename__ = "core_shootout_comments"
 
     shootout_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("shootouts.id", ondelete="CASCADE"),
+        ForeignKey("core_shootouts.id", ondelete="CASCADE"),
         nullable=False,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)

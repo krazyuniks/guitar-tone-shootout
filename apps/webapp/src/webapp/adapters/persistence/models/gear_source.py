@@ -29,7 +29,7 @@ class GearSource(UUIDMixin, TimestampMixin, Base):
         gear: The gear item this source belongs to
     """
 
-    __tablename__ = "gear_sources"
+    __tablename__ = "core_gear_sources"
 
     # Explicit annotations for inherited fields (for test compatibility)
     id: Mapped[uuid.UUID]

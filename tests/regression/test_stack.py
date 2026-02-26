@@ -30,7 +30,7 @@ class TestStackConnectivity:
         """ORM models can be imported."""
         assert Base is not None
         assert User is not None
-        assert User.__tablename__ == "users"
+        assert User.__tablename__ == "core_users"
 
     def test_domain_entities_import(self) -> None:
         """Domain entities can be imported."""

@@ -27,7 +27,7 @@ class TestGearModelModule:
         """Test that GearModel has correct table name."""
         from webapp.adapters.persistence.models.gear_model import GearModel
 
-        assert GearModel.__tablename__ == "gear_models"
+        assert GearModel.__tablename__ == "core_gear_models"
 
     def test_gear_model_has_required_fields(self) -> None:
         """Test that GearModel has all required fields."""

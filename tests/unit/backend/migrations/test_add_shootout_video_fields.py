@@ -33,7 +33,7 @@ class TestShootoutVideoFields:
             from sqlalchemy import inspect
 
             inspector = inspect(connection)
-            return {col["name"] for col in inspector.get_columns("shootouts")}
+            return {col["name"] for col in inspector.get_columns("core_shootouts")}
 
         async with core_engine.connect() as conn:
             columns = await conn.run_sync(_inspect_columns)
@@ -50,7 +50,7 @@ class TestShootoutVideoFields:
             from sqlalchemy import inspect
 
             inspector = inspect(connection)
-            return {col["name"] for col in inspector.get_columns("shootouts")}
+            return {col["name"] for col in inspector.get_columns("core_shootouts")}
 
         async with core_engine.connect() as conn:
             columns = await conn.run_sync(_inspect_columns)
@@ -64,7 +64,7 @@ class TestShootoutVideoFields:
             from sqlalchemy import inspect
 
             inspector = inspect(connection)
-            return {col["name"]: col for col in inspector.get_columns("shootouts")}
+            return {col["name"]: col for col in inspector.get_columns("core_shootouts")}
 
         async with core_engine.connect() as conn:
             columns = await conn.run_sync(_inspect_columns)
@@ -85,7 +85,7 @@ class TestShootoutVideoFields:
             from sqlalchemy import inspect
 
             inspector = inspect(connection)
-            return {col["name"]: col for col in inspector.get_columns("shootouts")}
+            return {col["name"]: col for col in inspector.get_columns("core_shootouts")}
 
         async with core_engine.connect() as conn:
             columns = await conn.run_sync(_inspect_columns)
@@ -122,7 +122,7 @@ class TestShootoutVideoFields:
 
         # Verify it was saved as NULL
         result = await session.execute(
-            text("SELECT video_status FROM shootouts WHERE id = :id"),
+            text("SELECT video_status FROM core_shootouts WHERE id = :id"),
             {"id": str(shootout.id)},
         )
         row = result.fetchone()
@@ -152,7 +152,7 @@ class TestShootoutVideoFields:
 
         # Verify it was saved as NULL
         result = await session.execute(
-            text("SELECT video_job_id FROM shootouts WHERE id = :id"),
+            text("SELECT video_job_id FROM core_shootouts WHERE id = :id"),
             {"id": str(shootout.id)},
         )
         row = result.fetchone()
@@ -182,7 +182,7 @@ class TestShootoutVideoFields:
 
         # Verify it was saved correctly
         result = await session.execute(
-            text("SELECT video_status FROM shootouts WHERE id = :id"),
+            text("SELECT video_status FROM core_shootouts WHERE id = :id"),
             {"id": str(shootout.id)},
         )
         row = result.fetchone()
@@ -212,7 +212,7 @@ class TestShootoutVideoFields:
 
         # Verify it was saved correctly
         result = await session.execute(
-            text("SELECT video_job_id FROM shootouts WHERE id = :id"),
+            text("SELECT video_job_id FROM core_shootouts WHERE id = :id"),
             {"id": str(shootout.id)},
         )
         row = result.fetchone()

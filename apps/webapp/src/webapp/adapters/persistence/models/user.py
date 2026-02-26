@@ -33,7 +33,7 @@ class OAuthProvider(UUIDMixin, Base):
         enabled: Whether this provider is currently active
     """
 
-    __tablename__ = "oauth_providers"
+    __tablename__ = "core_oauth_providers"
 
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     client_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -66,7 +66,7 @@ class User(UUIDMixin, TimestampMixin, Base):
         identities: List of linked external identities
     """
 
-    __tablename__ = "users"
+    __tablename__ = "core_users"
 
     username: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)

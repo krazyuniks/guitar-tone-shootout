@@ -38,16 +38,16 @@ class UserGear(UUIDMixin, TimestampMixin, Base):
         gear_model: Relationship to GearModel model
     """
 
-    __tablename__ = "user_gear"
+    __tablename__ = "core_user_gear"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     gear_model_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("gear_models.id", ondelete="CASCADE"),
+        ForeignKey("core_gear_models.id", ondelete="CASCADE"),
         nullable=False,
     )
     nickname: Mapped[str | None] = mapped_column(String(255), nullable=True)

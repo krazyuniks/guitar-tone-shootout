@@ -33,16 +33,16 @@ class UserIdentity(UUIDMixin, TimestampMixin, Base):
         provider: Reference to the OAuthProvider
     """
 
-    __tablename__ = "user_identities"
+    __tablename__ = "core_user_identities"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
     )
     provider_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("oauth_providers.id", ondelete="CASCADE"),
+        ForeignKey("core_oauth_providers.id", ondelete="CASCADE"),
         nullable=False,
     )
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)

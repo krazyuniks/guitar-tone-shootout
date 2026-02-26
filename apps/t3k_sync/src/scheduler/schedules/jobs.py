@@ -24,7 +24,7 @@ async def monitor_stale_jobs(db_engine: AsyncEngine | None = None) -> None:
     stale_threshold = datetime.now(UTC) - timedelta(minutes=2)
 
     stmt = text("""
-        UPDATE jobs SET status = :dead_status, error = :error, completed_at = :now
+        UPDATE core_jobs SET status = :dead_status, error = :error, completed_at = :now
         WHERE status = :running_status
           AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
           AND (started_at IS NULL OR started_at < :threshold)
@@ -51,7 +51,7 @@ async def process_pending_retries(db_engine: AsyncEngine | None = None) -> None:
     now = datetime.now(UTC)
 
     stmt = text("""
-        UPDATE jobs SET status = :pending_status
+        UPDATE core_jobs SET status = :pending_status
         WHERE status = :failed_status
           AND next_retry_at IS NOT NULL
           AND next_retry_at <= :now
@@ -91,7 +91,7 @@ async def dispatch_pending_jobs() -> None:
     cutoff = datetime.now(UTC) - timedelta(minutes=5)
 
     stmt = text("""
-        SELECT id FROM jobs
+        SELECT id FROM core_jobs
         WHERE status = :pending_status
           AND created_at < :cutoff
           AND job_type != 'source_sync'

@@ -30,7 +30,7 @@ class BlockType(UUIDMixin, Base):
         blocks: Blocks using this block type
     """
 
-    __tablename__ = "block_types"
+    __tablename__ = "core_block_types"
 
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     category: Mapped[BlockCategory] = mapped_column(

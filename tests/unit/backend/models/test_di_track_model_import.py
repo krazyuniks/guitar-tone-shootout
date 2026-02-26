@@ -19,7 +19,7 @@ class TestDITrackModelImport:
         from webapp.adapters.persistence.models.di_track import DITrack
 
         assert DITrack is not None
-        assert DITrack.__tablename__ == "di_tracks"
+        assert DITrack.__tablename__ == "core_di_tracks"
 
     def test_di_track_has_required_fields(self) -> None:
         """Verify DITrack has all required fields from acceptance criteria."""

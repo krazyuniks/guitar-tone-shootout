@@ -32,10 +32,10 @@ class UserNotification(UUIDMixin, TimestampMixin, Base):
         user: Relationship to User
     """
 
-    __tablename__ = "user_notifications"
+    __tablename__ = "core_user_notifications"
 
     user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

@@ -36,14 +36,14 @@ class GearModel(UUIDMixin, Base):
         gear: The gear item this model belongs to
     """
 
-    __tablename__ = "gear_models"
+    __tablename__ = "core_gear_models"
 
     # Explicit annotation for inherited id field (for test compatibility)
     id: Mapped[uuid.UUID]
 
     gear_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        ForeignKey("gear.id", ondelete="CASCADE"),
+        ForeignKey("core_gear.id", ondelete="CASCADE"),
         nullable=False,
     )
     platform: Mapped[Platform] = mapped_column(

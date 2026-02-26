@@ -25,12 +25,12 @@ class TestSingleDatabase:
         from worker.db import get_core_session
 
         async with get_core_session() as session:
-            result = await session.execute(text("SELECT to_regclass('public.t3k_packs')"))
-            assert result.scalar_one() == "t3k_packs"
+            result = await session.execute(text("SELECT to_regclass('public.t3k_tones_staging')"))
+            assert result.scalar_one() == "t3k_tones_staging"
 
     async def test_t3k_tables_queryable_from_t3k_session(self) -> None:
         from worker.db import get_t3k_session
 
         async with get_t3k_session() as session:
-            result = await session.execute(text("SELECT to_regclass('public.t3k_models')"))
-            assert result.scalar_one() == "t3k_models"
+            result = await session.execute(text("SELECT to_regclass('public.t3k_models_staging')"))
+            assert result.scalar_one() == "t3k_models_staging"

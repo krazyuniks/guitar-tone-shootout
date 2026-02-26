@@ -68,10 +68,10 @@ def _slugify(text: str, manufacturer: str | None = None) -> str:
 
 # Junction table for gear-tag many-to-many relationship
 gear_tags_table = Table(
-    "gear_tags",
+    "core_gear_tags",
     Base.metadata,
-    Column("gear_id", UuidType(), ForeignKey("gear.id", ondelete="CASCADE"), primary_key=True),
-    Column("tag_id", UuidType(), ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column("gear_id", UuidType(), ForeignKey("core_gear.id", ondelete="CASCADE"), primary_key=True),
+    Column("tag_id", UuidType(), ForeignKey("core_tags.id", ondelete="CASCADE"), primary_key=True),
 )
 
 
@@ -87,7 +87,7 @@ class GearTag(UUIDMixin, Base):
         gear_items: List of gear with this tag
     """
 
-    __tablename__ = "tags"
+    __tablename__ = "core_tags"
 
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
 
@@ -112,7 +112,7 @@ class GearMake(UUIDMixin, Base):
         gear_items: List of gear from this manufacturer
     """
 
-    __tablename__ = "gear_makes"
+    __tablename__ = "core_gear_makes"
 
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
@@ -149,7 +149,7 @@ class Gear(UUIDMixin, TimestampMixin, Base):
         tags: List of tags for categorization
     """
 
-    __tablename__ = "gear"
+    __tablename__ = "core_gear"
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
@@ -162,14 +162,14 @@ class Gear(UUIDMixin, TimestampMixin, Base):
     manufacturer: Mapped[str | None] = mapped_column(String(100), nullable=True)
     make_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("gear_makes.id", ondelete="SET NULL"),
+        ForeignKey("core_gear_makes.id", ondelete="SET NULL"),
         nullable=True,
     )
     thumbnail_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     source_id: Mapped[uuid.UUID | None] = mapped_column(
         UuidType(),
-        ForeignKey("gear_sources.id", ondelete="SET NULL"),
+        ForeignKey("core_gear_sources.id", ondelete="SET NULL"),
         nullable=True,
     )
     license_text: Mapped[str | None] = mapped_column(Text, nullable=True)

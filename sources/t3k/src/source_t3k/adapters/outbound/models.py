@@ -32,7 +32,7 @@ class Base(DeclarativeBase):
 class T3KUserStaging(Base):
     """Staging table for T3K users."""
 
-    __tablename__ = "t3k_creators"
+    __tablename__ = "t3k_users_staging"
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
     username: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -63,7 +63,7 @@ class T3KUserStaging(Base):
 class T3KToneStaging(Base):
     """Staging table for T3K tones (formerly packs)."""
 
-    __tablename__ = "t3k_packs"
+    __tablename__ = "t3k_tones_staging"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -129,7 +129,7 @@ class T3KToneStaging(Base):
 class T3KModelStaging(Base):
     """Staging table for T3K models."""
 
-    __tablename__ = "t3k_models"
+    __tablename__ = "t3k_models_staging"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     tone_id: Mapped[int] = mapped_column(Integer, nullable=False)

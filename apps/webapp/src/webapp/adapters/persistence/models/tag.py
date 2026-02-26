@@ -29,12 +29,12 @@ class Tag(UUIDMixin, TimestampMixin, Base):
         updated_at: When the tag was last updated
     """
 
-    __tablename__ = "user_tags"
+    __tablename__ = "core_user_tags"
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     user_id: Mapped[UUID] = mapped_column(
         UuidType(),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey("core_users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
