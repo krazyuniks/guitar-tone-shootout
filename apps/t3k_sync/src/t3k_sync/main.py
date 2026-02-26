@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 from fastapi import FastAPI
 
+from messaging.db import get_core_session_no_tx
 from t3k_sync.consumer import GearSyncConsumer
 from t3k_sync.scheduler import SyncScheduler
 from t3k_sync.tasks import (
@@ -22,7 +23,6 @@ from t3k_sync.tasks import (
     process_pending_retries,
     refresh_t3k_token,
 )
-from worker.db import get_core_session_no_tx
 
 logger = logging.getLogger(__name__)
 

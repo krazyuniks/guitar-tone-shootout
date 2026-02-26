@@ -7,7 +7,6 @@ dependencies = [
     "gts-domain",
     "gts-messaging",
     "gts-webapp",
-    "gts-worker",
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
     "sqlalchemy[asyncio]>=2.0.36",
@@ -19,7 +18,6 @@ dependencies = [
 gts-domain = { workspace = true }
 gts-messaging = { workspace = true }
 gts-webapp = { workspace = true }
-gts-worker = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

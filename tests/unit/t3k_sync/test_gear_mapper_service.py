@@ -19,13 +19,13 @@ if TYPE_CHECKING:
 
 from gts.domain.value_objects.download_status import DownloadStatus
 from gts.records.gear_sync import GearSyncRecord, SyncOperation
-from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.gear_model import GearModel
-from webapp.adapters.persistence.models.gear_source import GearSource
-from worker.services.gear_mapper import (
+from t3k_sync.services.gear_mapper import (
     GearMapperService,
     ParentGearNotReadyError,
 )
+from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
+from webapp.adapters.persistence.models.gear_source import GearSource
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -167,7 +167,6 @@ class TestPackSyncUpdatesGear:
         suffix = _unique_id()
         source_id = f"pack-{suffix}"
 
-        # Create initial
         record_v1 = _pack_record(
             source_record_id=source_id,
             name="Old Name",
@@ -176,7 +175,6 @@ class TestPackSyncUpdatesGear:
         await mapper.process_pack_sync(record_v1)
         await session.flush()
 
-        # Update with newer timestamp
         record_v2 = GearSyncRecord(
             source_name="t3k",
             source_record_id=source_id,
@@ -213,7 +211,6 @@ class TestPackSyncUpdatesGear:
         await mapper.process_pack_sync(record_v1)
         await session.flush()
 
-        # Stale update with OLDER timestamp
         record_stale = GearSyncRecord(
             source_name="t3k",
             source_record_id=source_id,
@@ -241,12 +238,10 @@ class TestModelSyncCreatesGearModel:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """A model sync record should create a GearModel in gts_core."""
-        # First create the parent gear
         pack_record = _pack_record()
         await mapper.process_pack_sync(pack_record)
         await session.flush()
 
-        # Then create a model for that gear
         model_record = _model_record(
             pack_id=pack_record.source_record_id,
             platform="nam",
@@ -279,7 +274,6 @@ class TestModelSyncCreatesGearModel:
         await mapper.process_model_sync(model_record)
         await session.flush()
 
-        # Load gear with models
         result = await session.execute(
             select(Gear)
             .options(joinedload(Gear.models))
@@ -317,8 +311,6 @@ class TestModelSyncCreatesGearModel:
         self, mapper: GearMapperService, session: AsyncSession
     ) -> None:
         """Newly created GearModel should start with PENDING download status."""
-        from gts.domain.value_objects.download_status import DownloadStatus
-
         pack_record = _pack_record()
         await mapper.process_pack_sync(pack_record)
         await session.flush()
@@ -354,7 +346,6 @@ class TestFullDataFlow:
         suffix = _unique_id()
         source_id = f"pack-{suffix}"
 
-        # Create pack
         pack_record = _pack_record(
             source_record_id=source_id,
             name="Mesa Boogie Dual Rectifier",
@@ -366,7 +357,6 @@ class TestFullDataFlow:
         await mapper.process_pack_sync(pack_record)
         await session.flush()
 
-        # Create two models
         model1 = _model_record(
             pack_id=source_id,
             platform="nam",
@@ -383,7 +373,6 @@ class TestFullDataFlow:
         await mapper.process_model_sync(model2)
         await session.flush()
 
-        # Verify the complete aggregate
         result = await session.execute(
             select(Gear)
             .options(
@@ -394,16 +383,13 @@ class TestFullDataFlow:
         )
         gear = result.unique().scalar_one()
 
-        # Gear row exists
         assert gear.name == "Mesa Boogie Dual Rectifier"
         assert gear.gear_type.value == "amp"
 
-        # GearSource row links back to T3K
         assert gear.source is not None
         assert gear.source.source_name == "t3k"
         assert gear.source.source_record_id == source_id
 
-        # Two GearModel rows linked to parent Gear
         assert len(gear.models) == 2
 
 
@@ -460,8 +446,6 @@ class TestAggregateSyncRecord:
         self, mapper: GearMapperService, session: AsyncSession, tmp_path, monkeypatch
     ) -> None:
         """Model with successfully migrated file should have COMPLETED download status."""
-        from gts.domain.value_objects.download_status import DownloadStatus
-
         suffix = _unique_id()
         monkeypatch.setenv("GTS_STORAGE_ROOT", str(tmp_path))
         source_model_dir = tmp_path / "source_downloads" / "t3k" / f"model-{suffix}"

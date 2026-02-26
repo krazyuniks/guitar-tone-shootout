@@ -11,22 +11,26 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import RenderVideoCommand
+from messaging.commands import ProcessAudioCommand, RenderVideoCommand
 from messaging.consumer_base import BaseConsumer
+from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
-from worker.db import get_session_no_tx as get_session
 
 if TYPE_CHECKING:
     from messaging.envelope import MessageEnvelope
 
 
 async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: str) -> None:
-    """Dispatch pending SHOOTOUT_AUDIO children and mark them queued."""
-    from worker.jobs.audio import handle_shootout_audio_job
-
+    """Dispatch pending SHOOTOUT_AUDIO children via pgmq audio_commands."""
     async with get_session(database_url) as session:
+        parent_stmt = select(Job).where(Job.id == parent_job_id)
+        parent_result = await session.execute(parent_stmt)
+        parent_job = parent_result.scalar_one_or_none()
+        if parent_job is None or parent_job.entity_id is None:
+            return
+
         stmt = select(Job).where(
             Job.parent_job_id == parent_job_id,
             Job.job_type == JobType.SHOOTOUT_AUDIO,
@@ -35,9 +39,16 @@ async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: st
         result = await session.execute(stmt)
         pending_children = result.scalars().all()
 
+        pgmq = PgmqClient(session)
         for child in pending_children:
-            task_result = await handle_shootout_audio_job.kiq(child.id)
-            child.task_id = task_result.task_id
+            cmd = ProcessAudioCommand(
+                payload={
+                    "job_id": str(child.id),
+                    "shootout_id": str(parent_job.entity_id),
+                    "user_id": str(child.user_id),
+                }
+            )
+            await pgmq.publish("audio_commands", cmd)
             child.status = JobStatus.QUEUED
             child.message = "Queued for chain processing"
 
@@ -45,9 +56,7 @@ async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: st
 
 
 async def _dispatch_master_job(master_job_id: UUID, database_url: str) -> None:
-    """Dispatch a pending SHOOTOUT_MASTER job and mark it queued."""
-    from worker.jobs.master_audio import handle_shootout_master_job
-
+    """Dispatch a pending SHOOTOUT_MASTER job via pgmq audio_commands."""
     async with get_session(database_url) as session:
         stmt = select(Job).where(Job.id == master_job_id).with_for_update()
         result = await session.execute(stmt)
@@ -55,8 +64,15 @@ async def _dispatch_master_job(master_job_id: UUID, database_url: str) -> None:
         if master_job is None or master_job.status != JobStatus.PENDING:
             return
 
-        task_result = await handle_shootout_master_job.kiq(master_job.id)
-        master_job.task_id = task_result.task_id
+        pgmq = PgmqClient(session)
+        cmd = ProcessAudioCommand(
+            payload={
+                "job_id": str(master_job.id),
+                "shootout_id": str(master_job.entity_id),
+                "user_id": str(master_job.user_id),
+            }
+        )
+        await pgmq.publish("audio_commands", cmd)
         master_job.status = JobStatus.QUEUED
         master_job.message = "Queued for master audio creation"
         await session.commit()

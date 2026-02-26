@@ -37,12 +37,12 @@ class TestVideoServiceExpectations:
         assert "video-worker" not in expected
 
     def test_video_included_with_other_jobs_profile_services(self, monkeypatch: pytest.MonkeyPatch):
-        """Video-worker should be expected alongside worker and redis in main."""
+        """Video-worker should be expected alongside t3k-sync and audio-worker in main."""
         monkeypatch.setattr("worktree.health.get_main_worktree_path", lambda: Path("/fake/main"))
         expected = _get_expected_services(Path("/fake/main"))
 
-        assert "redis" in expected
-        assert "worker" in expected
+        assert "t3k-sync" in expected
+        assert "audio-worker" in expected
         assert "video-worker" in expected
 
 

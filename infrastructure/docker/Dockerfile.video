@@ -46,7 +46,6 @@ COPY model/video/pyproject.toml model/video/README.md model/video/
 COPY infra/messaging/pyproject.toml infra/messaging/README.md infra/messaging/
 COPY sources/t3k/pyproject.toml sources/t3k/README.md sources/t3k/
 COPY apps/webapp/pyproject.toml apps/webapp/README.md apps/webapp/
-COPY apps/worker/pyproject.toml apps/worker/README.md apps/worker/
 COPY apps/t3k_sync/pyproject.toml apps/t3k_sync/README.md apps/t3k_sync/
 COPY apps/audio_worker/pyproject.toml apps/audio_worker/README.md apps/audio_worker/
 COPY apps/video_worker/pyproject.toml apps/video_worker/README.md apps/video_worker/
@@ -55,7 +54,7 @@ COPY apps/video_worker/pyproject.toml apps/video_worker/README.md apps/video_wor
 RUN mkdir -p model/gts/src/gts model/audio/src/audio model/video/src/video \
     infra/messaging/src/messaging \
     sources/t3k/src/source_t3k \
-    apps/webapp/src/webapp apps/worker/src/worker \
+    apps/webapp/src/webapp \
     apps/t3k_sync/src/t3k_sync apps/audio_worker/src/audio_worker apps/video_worker/src/video_worker \
     && touch model/gts/src/gts/__init__.py \
     && touch model/audio/src/audio/__init__.py \
@@ -63,7 +62,6 @@ RUN mkdir -p model/gts/src/gts model/audio/src/audio model/video/src/video \
     && touch infra/messaging/src/messaging/__init__.py \
     && touch sources/t3k/src/source_t3k/__init__.py \
     && touch apps/webapp/src/webapp/__init__.py \
-    && touch apps/worker/src/worker/__init__.py \
     && touch apps/t3k_sync/src/t3k_sync/__init__.py \
     && touch apps/audio_worker/src/audio_worker/__init__.py \
     && touch apps/video_worker/src/video_worker/__init__.py

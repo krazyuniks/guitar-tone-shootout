@@ -12,6 +12,7 @@ from sqlalchemy import select, text
 
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus, JobType
+from messaging.db import get_core_session, get_core_session_no_tx
 from source_t3k.adapters.inbound.api_client import T3KAPIClient
 from source_t3k.adapters.inbound.token_manager import T3KTokenManager
 from source_t3k.adapters.outbound.publisher import GearSyncPublisher
@@ -19,7 +20,6 @@ from source_t3k.domain.value_objects import SyncMode
 from source_t3k.services.model_downloader import ModelDownloader
 from source_t3k.services.sync_service import T3KSyncService
 from webapp.adapters.persistence.models.job import Job
-from worker.db import get_core_session, get_core_session_no_tx
 
 logger = logging.getLogger(__name__)
 

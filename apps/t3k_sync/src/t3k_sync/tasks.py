@@ -17,7 +17,7 @@ from sqlalchemy import text
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus
 from gts.domain.value_objects.source_auth_status import SourceAuthStatus
-from worker.db import get_core_session
+from messaging.db import get_core_session
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,7 +122,7 @@ async def refresh_t3k_token(
 
     _update_auth_status(auth_file_path, SourceAuthStatus.EXPIRING_SOON)
 
-    worker_url = os.getenv("WORKER_ADMIN_URL", "http://worker:8001")
+    worker_url = os.getenv("WORKER_ADMIN_URL", "http://webapp:8000")
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
@@ -231,7 +231,7 @@ async def dispatch_pending_jobs() -> None:
     if not job_ids:
         return
 
-    worker_url = os.getenv("WORKER_ADMIN_URL", "http://worker:8001")
+    worker_url = os.getenv("WORKER_ADMIN_URL", "http://webapp:8000")
     dispatched = 0
     async with httpx.AsyncClient() as client:
         for job_id in job_ids:

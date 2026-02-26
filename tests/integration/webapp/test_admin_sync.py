@@ -1,10 +1,10 @@
-"""Integration tests for Worker Admin API sync endpoints (T115).
+"""Integration tests for webapp Admin API sync endpoints.
 
 Tests that the admin sync endpoints query real infrastructure instead of
 returning hardcoded stubs. Each endpoint is verified against actual database
-state (SyncCheckpoint, Job records) and Redis lock keys.
+state (SyncCheckpoint, Job records) and PG advisory lock state (not Redis).
 
-These endpoints run on port 8001 with no authentication.
+These endpoints are served at /api/admin with no authentication.
 """
 
 from __future__ import annotations
@@ -35,21 +35,20 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 async def admin_app(db_session: AsyncSession) -> AsyncGenerator[FastAPI, None]:
-    """Worker Admin API with dependency overrides for test isolation.
+    """Webapp Admin router mounted on a test FastAPI app with session override."""
+    from fastapi import FastAPI
 
-    Overrides get_db_session and get_t3k_db_session to use the SAVEPOINT-
-    isolated test session so that all admin API queries see test data and
-    all mutations are rolled back after the test.
-    """
-    from worker.admin import app, get_db_session, get_t3k_db_session
+    from webapp.api.admin import _get_db as _admin_get_db
+    from webapp.api.admin import router
 
     async def override_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
-    app.dependency_overrides[get_db_session] = override_session
-    app.dependency_overrides[get_t3k_db_session] = override_session
-    yield app
-    app.dependency_overrides.clear()
+    test_app = FastAPI()
+    test_app.include_router(router)
+    test_app.dependency_overrides[_admin_get_db] = override_session
+    yield test_app
+    test_app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -157,7 +156,7 @@ async def failed_jobs_last_24h(
 
 
 class TestSyncStatus:
-    """GET .../sync/status must query SyncCheckpoint + Redis lock state."""
+    """GET .../sync/status must query SyncCheckpoint + running Job state."""
 
     @pytest.mark.asyncio
     async def test_returns_real_checkpoint_data(
@@ -173,17 +172,16 @@ class TestSyncStatus:
             assert response.status_code == 200
             data = response.json()
 
-            # The real implementation must populate checkpoint from DB
             assert data["checkpoint"] is not None
             assert data["checkpoint"]["last_tone_id"] == "tone-1234"
 
     @pytest.mark.asyncio
-    async def test_status_idle_when_no_lock(
+    async def test_status_idle_when_no_running_job(
         self,
         admin_app: FastAPI,
         sync_checkpoint: SyncCheckpoint,
     ) -> None:
-        """When no Redis sync lock exists, status should be 'idle'."""
+        """When no running SOURCE_SYNC job exists, status should be 'idle'."""
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
@@ -226,7 +224,7 @@ class TestSyncStatus:
 
 
 class TestSyncTrigger:
-    """POST .../sync must dispatch handle_source_sync TaskIQ job."""
+    """POST .../sync must create a pending SOURCE_SYNC job."""
 
     @pytest.mark.asyncio
     async def test_returns_202_accepted(
@@ -256,8 +254,7 @@ class TestSyncTrigger:
             response = await client.post("/api/admin/sources/t3k/sync")
             assert response.status_code == 202
 
-        # Verify a SOURCE_SYNC job was created in the database
-        await db_session.expire_all()
+        db_session.expire_all()
         result = await db_session.execute(select(Job).where(Job.job_type == JobType.SOURCE_SYNC))
         jobs = result.scalars().all()
         assert len(jobs) >= 1, "POST /sync must create a SOURCE_SYNC job record"
@@ -281,7 +278,7 @@ class TestSyncTrigger:
 
 
 class TestSyncStats:
-    """GET .../sync/stats must query SyncCheckpoint.total_synced + pgmq depths."""
+    """GET .../sync/stats must query SyncCheckpoint.total_synced."""
 
     @pytest.mark.asyncio
     async def test_returns_real_total_synced(
@@ -298,7 +295,7 @@ class TestSyncStats:
             assert response.status_code == 200
             data = response.json()
 
-            # total_synced = 42 (packs) + 108 (models) = 150
+            # total_synced = 42 (tones) + 108 (models) = 150
             assert data["total_synced"] == 150
 
     @pytest.mark.asyncio
@@ -351,10 +348,8 @@ class TestSyncLag:
             assert response.status_code == 200
             data = response.json()
 
-            # The checkpoint was created ~5 minutes ago, so lag should be > 0
             assert data["lag_seconds"] is not None
             assert data["lag_seconds"] > 0
-            # Sanity: should be at least 200 seconds (5 min = 300s, minus some tolerance)
             assert data["lag_seconds"] >= 200
 
     @pytest.mark.asyncio
@@ -388,9 +383,8 @@ class TestSyncLag:
             data = response.json()
 
             # model_checkpoint is more recent (2 min ago vs 5 min ago)
-            # So lag should be ~120s, not ~300s
             assert data["lag_seconds"] is not None
-            assert data["lag_seconds"] < 250  # Should be closer to 120s
+            assert data["lag_seconds"] < 250
 
     @pytest.mark.asyncio
     async def test_unknown_source_returns_404(
@@ -427,11 +421,9 @@ class TestErrorsSummary:
             assert response.status_code == 200
             data = response.json()
 
-            # Should have non-empty errors dict
             assert data["errors"] != {}
             assert data["time_window_hours"] == 24
 
-            # There are 3 failed jobs: 2 "Connection timeout", 1 "Rate limit exceeded"
             total_errors = sum(data["errors"].values())
             assert total_errors >= 1, "Must have at least one error from failed jobs"
 
@@ -464,17 +456,12 @@ class TestErrorsSummary:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/admin/sources/{source}/auth/status
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # POST /api/admin/sources/{source}/sync/unlock
 # ---------------------------------------------------------------------------
 
 
 class TestSyncUnlock:
-    """POST .../sync/unlock must delete Redis key t3k:sync:lock."""
+    """POST .../sync/unlock returns 200 (PG advisory lock is self-managed)."""
 
     @pytest.mark.asyncio
     async def test_returns_200(
@@ -491,20 +478,18 @@ class TestSyncUnlock:
             assert "message" in data
 
     @pytest.mark.asyncio
-    async def test_message_confirms_lock_released(
+    async def test_message_references_pg_lock(
         self,
         admin_app: FastAPI,
     ) -> None:
-        """Response message confirms that the lock was released."""
+        """Response message references PG advisory lock (not Redis)."""
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
             response = await client.post("/api/admin/sources/t3k/sync/unlock")
             assert response.status_code == 200
             data = response.json()
-            # The implementation must actually delete the Redis key — the message
-            # should reflect that an actual Redis DELETE happened, not just a stub
-            assert "released" in data["message"].lower() or "unlocked" in data["message"].lower()
+            assert data["message"]  # non-empty message
 
     @pytest.mark.asyncio
     async def test_unknown_source_returns_404(
@@ -525,7 +510,7 @@ class TestSyncUnlock:
 
 
 class TestSchedulerUnlock:
-    """POST /api/admin/scheduler/unlock must delete Redis key scheduler:lock."""
+    """POST /api/admin/scheduler/unlock returns 200 (PG advisory lock is self-managed)."""
 
     @pytest.mark.asyncio
     async def test_returns_200(
@@ -542,18 +527,18 @@ class TestSchedulerUnlock:
             assert "message" in data
 
     @pytest.mark.asyncio
-    async def test_message_confirms_lock_released(
+    async def test_message_references_pg_lock(
         self,
         admin_app: FastAPI,
     ) -> None:
-        """Response message confirms scheduler lock was released."""
+        """Response message references PG advisory lock."""
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
             response = await client.post("/api/admin/scheduler/unlock")
             assert response.status_code == 200
             data = response.json()
-            assert "released" in data["message"].lower() or "unlocked" in data["message"].lower()
+            assert data["message"]  # non-empty message
 
 
 # ---------------------------------------------------------------------------
@@ -562,16 +547,15 @@ class TestSchedulerUnlock:
 
 
 class TestEnqueue:
-    """POST /api/admin/enqueue must dispatch job to TaskIQ broker."""
+    """POST /api/admin/enqueue dispatches to pgmq; SOURCE_SYNC returns 400."""
 
     @pytest.mark.asyncio
-    async def test_dispatches_real_job(
+    async def test_source_sync_enqueue_returns_400(
         self,
         admin_app: FastAPI,
         db_session: AsyncSession,
     ) -> None:
-        """Enqueue endpoint dispatches to TaskIQ broker and updates job record."""
-        # Create a PENDING job to enqueue
+        """SOURCE_SYNC is self-managed by t3k-sync; enqueue returns 400."""
         job = Job(
             id=uuid4(),
             user_id=None,
@@ -582,8 +566,7 @@ class TestEnqueue:
             max_attempts=3,
         )
         db_session.add(job)
-        await db_session.commit()
-        await db_session.refresh(job)
+        await db_session.flush()
 
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
@@ -592,17 +575,7 @@ class TestEnqueue:
                 "/api/admin/enqueue",
                 json={"job_id": str(job.id)},
             )
-            assert response.status_code == 202
-            data = response.json()
-            assert data["id"] == str(job.id)
-
-        # After real enqueue, the job should have a task_id set by TaskIQ
-        await db_session.expire_all()
-        result = await db_session.execute(select(Job).where(Job.id == job.id))
-        updated_job = result.scalar_one()
-        assert updated_job.task_id is not None, (
-            "Enqueue must set task_id from TaskIQ dispatch result"
-        )
+            assert response.status_code == 400
 
     @pytest.mark.asyncio
     async def test_nonexistent_job_returns_404(

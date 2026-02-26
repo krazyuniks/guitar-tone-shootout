@@ -6,7 +6,7 @@ from gts.records.gear_sync import GearSyncRecord
 from messaging.consumer_base import BaseConsumer
 from messaging.envelope import MessageEnvelope
 from messaging.pgmq_client import PgmqClient
-from worker.services.gear_mapper import GearMapperService
+from t3k_sync.services.gear_mapper import GearMapperService
 
 
 class GearSyncConsumer(BaseConsumer):

@@ -1,6 +1,6 @@
-"""Integration tests for Worker Admin API job management endpoints.
+"""Integration tests for webapp Admin API job management endpoints.
 
-Tests the Admin API job management endpoints served on port 8001 with no authentication.
+Tests the Admin API job management endpoints at /api/admin with no authentication.
 These endpoints allow listing jobs, viewing details with children, cancelling, and retrying jobs.
 """
 
@@ -26,23 +26,25 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 async def admin_app(db_session: AsyncSession) -> AsyncGenerator[FastAPI, None]:
-    """Worker Admin API with dependency overrides for test isolation."""
-    from worker.admin import app, get_db_session, get_t3k_db_session
+    """Webapp Admin router mounted on a test FastAPI app with session override."""
+    from fastapi import FastAPI
+
+    from webapp.api.admin import _get_db as _admin_get_db
+    from webapp.api.admin import router
 
     async def override_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
-    app.dependency_overrides[get_db_session] = override_session
-    app.dependency_overrides[get_t3k_db_session] = override_session
-    yield app
-    app.dependency_overrides.clear()
+    test_app = FastAPI()
+    test_app.include_router(router)
+    test_app.dependency_overrides[_admin_get_db] = override_session
+    yield test_app
+    test_app.dependency_overrides.clear()
 
 
 @pytest.fixture
 async def sample_job(db_session: AsyncSession) -> Job:
     """Create a sample job for testing."""
-    from webapp.adapters.persistence.models.job import Job
-
     job = Job(
         id=uuid4(),
         user_id=None,
@@ -62,8 +64,6 @@ async def sample_job(db_session: AsyncSession) -> Job:
 @pytest.fixture
 async def running_job(db_session: AsyncSession) -> Job:
     """Create a running job for testing."""
-    from webapp.adapters.persistence.models.job import Job
-
     job = Job(
         id=uuid4(),
         user_id=None,
@@ -84,8 +84,6 @@ async def running_job(db_session: AsyncSession) -> Job:
 @pytest.fixture
 async def failed_job(db_session: AsyncSession) -> Job:
     """Create a failed job for testing."""
-    from webapp.adapters.persistence.models.job import Job
-
     job = Job(
         id=uuid4(),
         user_id=None,
@@ -108,8 +106,6 @@ async def failed_job(db_session: AsyncSession) -> Job:
 @pytest.fixture
 async def completed_job(db_session: AsyncSession) -> Job:
     """Create a completed job for testing."""
-    from webapp.adapters.persistence.models.job import Job
-
     job = Job(
         id=uuid4(),
         user_id=None,
@@ -132,8 +128,6 @@ async def completed_job(db_session: AsyncSession) -> Job:
 @pytest.fixture
 async def dead_lettered_job(db_session: AsyncSession) -> Job:
     """Create a dead-lettered job for testing."""
-    from webapp.adapters.persistence.models.job import Job
-
     job = Job(
         id=uuid4(),
         user_id=None,
@@ -156,9 +150,6 @@ async def dead_lettered_job(db_session: AsyncSession) -> Job:
 @pytest.fixture
 async def job_with_children(db_session: AsyncSession) -> tuple[Job, list[Job]]:
     """Create a parent job with child jobs for testing."""
-    from webapp.adapters.persistence.models.job import Job
-
-    # Create parent job
     parent = Job(
         id=uuid4(),
         user_id=None,
@@ -173,7 +164,6 @@ async def job_with_children(db_session: AsyncSession) -> tuple[Job, list[Job]]:
     db_session.add(parent)
     await db_session.flush()
 
-    # Create child jobs
     children = []
     for i in range(3):
         child = Job(
@@ -238,12 +228,9 @@ class TestJobsListEndpoint:
             assert response.status_code == 200
             data = response.json()
 
-            # Should return a list
             assert isinstance(data, list)
-            # Should have at least 3 jobs
             assert len(data) >= 3
 
-            # All jobs should have required fields
             for job_data in data:
                 assert "id" in job_data
                 assert "job_type" in job_data
@@ -267,7 +254,6 @@ class TestJobsListEndpoint:
             assert response.status_code == 200
             data = response.json()
 
-            # Should return only running jobs
             assert isinstance(data, list)
             assert len(data) >= 1
             for job_data in data:
@@ -289,7 +275,6 @@ class TestJobsListEndpoint:
             assert response.status_code == 200
             data = response.json()
 
-            # Should return only audio processing jobs
             assert isinstance(data, list)
             assert len(data) >= 1
             for job_data in data:
@@ -312,7 +297,6 @@ class TestJobsListEndpoint:
             assert response.status_code == 200
             data = response.json()
 
-            # Should return only failed audio processing jobs
             assert isinstance(data, list)
             for job_data in data:
                 assert job_data["status"] == "failed"
@@ -322,16 +306,11 @@ class TestJobsListEndpoint:
     async def test_list_jobs_no_authentication_required(
         self, admin_app: FastAPI, sample_job: Job
     ) -> None:
-        """GET /api/admin/jobs does not require authentication.
-
-        Admin API has no authentication - access is controlled at network level.
-        """
+        """GET /api/admin/jobs does not require authentication."""
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            # Call without any auth headers
             response = await client.get("/api/admin/jobs")
-            # Should succeed without authentication
             assert response.status_code == 200
 
 
@@ -357,7 +336,6 @@ class TestJobDetailEndpoint:
             assert response.status_code == 200
             data = response.json()
 
-            # Should include all job fields
             assert data["id"] == str(sample_job.id)
             assert data["job_type"] == sample_job.job_type.value
             assert data["status"] == sample_job.status.value
@@ -380,13 +358,10 @@ class TestJobDetailEndpoint:
             assert response.status_code == 200
             data = response.json()
 
-            # Should include children field
             assert "children" in data
             assert isinstance(data["children"], list)
-            # Should have 3 child jobs
             assert len(data["children"]) == 3
 
-            # Each child should have basic fields
             for child_data in data["children"]:
                 assert "id" in child_data
                 assert "job_type" in child_data
@@ -397,12 +372,10 @@ class TestJobDetailEndpoint:
     @pytest.mark.asyncio
     async def test_job_detail_returns_404_for_nonexistent_job(self, admin_app: FastAPI) -> None:
         """GET /api/admin/jobs/{job_id} returns 404 for nonexistent job."""
-        nonexistent_id = uuid4()
-
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.get(f"/api/admin/jobs/{nonexistent_id}")
+            response = await client.get(f"/api/admin/jobs/{uuid4()}")
             assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -413,9 +386,7 @@ class TestJobDetailEndpoint:
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            # Call without any auth headers
             response = await client.get(f"/api/admin/jobs/{sample_job.id}")
-            # Should succeed without authentication
             assert response.status_code == 200
 
 
@@ -442,8 +413,7 @@ class TestJobCancelEndpoint:
             response = await client.post(f"/api/admin/jobs/{running_job.id}/cancel")
             assert response.status_code == 200
 
-            # Verify status changed in database
-            await db_session.expire_all()
+            db_session.expire_all()
             result = await db_session.execute(select(Job).where(Job.id == running_job.id))
             job = result.scalar_one()
             assert job.status == JobStatus.CANCELLED
@@ -459,8 +429,7 @@ class TestJobCancelEndpoint:
             response = await client.post(f"/api/admin/jobs/{sample_job.id}/cancel")
             assert response.status_code == 200
 
-            # Verify status changed
-            await db_session.expire_all()
+            db_session.expire_all()
             result = await db_session.execute(select(Job).where(Job.id == sample_job.id))
             job = result.scalar_one()
             assert job.status == JobStatus.CANCELLED
@@ -474,7 +443,6 @@ class TestJobCancelEndpoint:
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
             response = await client.post(f"/api/admin/jobs/{completed_job.id}/cancel")
-            # Cannot cancel a job that's already in terminal state
             assert response.status_code == 409
 
     @pytest.mark.asyncio
@@ -486,18 +454,15 @@ class TestJobCancelEndpoint:
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
             response = await client.post(f"/api/admin/jobs/{failed_job.id}/cancel")
-            # Cannot cancel a job that's already in terminal state
             assert response.status_code == 409
 
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_job_returns_404(self, admin_app: FastAPI) -> None:
         """POST /api/admin/jobs/{job_id}/cancel returns 404 for nonexistent job."""
-        nonexistent_id = uuid4()
-
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{nonexistent_id}/cancel")
+            response = await client.post(f"/api/admin/jobs/{uuid4()}/cancel")
             assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -508,9 +473,7 @@ class TestJobCancelEndpoint:
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            # Call without any auth headers
             response = await client.post(f"/api/admin/jobs/{running_job.id}/cancel")
-            # Should succeed without authentication
             assert response.status_code == 200
 
 
@@ -537,8 +500,7 @@ class TestJobRetryEndpoint:
             response = await client.post(f"/api/admin/jobs/{failed_job.id}/retry")
             assert response.status_code == 200
 
-            # Verify status changed to PENDING
-            await db_session.expire_all()
+            db_session.expire_all()
             result = await db_session.execute(select(Job).where(Job.id == failed_job.id))
             job = result.scalar_one()
             assert job.status == JobStatus.PENDING
@@ -554,8 +516,7 @@ class TestJobRetryEndpoint:
             response = await client.post(f"/api/admin/jobs/{failed_job.id}/retry")
             assert response.status_code == 200
 
-            # Verify error cleared
-            await db_session.expire_all()
+            db_session.expire_all()
             result = await db_session.execute(select(Job).where(Job.id == failed_job.id))
             job = result.scalar_one()
             assert job.error is None
@@ -571,8 +532,7 @@ class TestJobRetryEndpoint:
             response = await client.post(f"/api/admin/jobs/{dead_lettered_job.id}/retry")
             assert response.status_code == 200
 
-            # Verify status reset to PENDING
-            await db_session.expire_all()
+            db_session.expire_all()
             result = await db_session.execute(select(Job).where(Job.id == dead_lettered_job.id))
             job = result.scalar_one()
             assert job.status == JobStatus.PENDING
@@ -586,7 +546,6 @@ class TestJobRetryEndpoint:
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
             response = await client.post(f"/api/admin/jobs/{running_job.id}/retry")
-            # Cannot retry a job that's not in a failed/dead-lettered state
             assert response.status_code == 409
 
     @pytest.mark.asyncio
@@ -598,18 +557,15 @@ class TestJobRetryEndpoint:
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
             response = await client.post(f"/api/admin/jobs/{completed_job.id}/retry")
-            # Cannot retry a completed job
             assert response.status_code == 409
 
     @pytest.mark.asyncio
     async def test_retry_nonexistent_job_returns_404(self, admin_app: FastAPI) -> None:
         """POST /api/admin/jobs/{job_id}/retry returns 404 for nonexistent job."""
-        nonexistent_id = uuid4()
-
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{nonexistent_id}/retry")
+            response = await client.post(f"/api/admin/jobs/{uuid4()}/retry")
             assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -620,7 +576,5 @@ class TestJobRetryEndpoint:
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            # Call without any auth headers
             response = await client.post(f"/api/admin/jobs/{failed_job.id}/retry")
-            # Should succeed without authentication
             assert response.status_code == 200

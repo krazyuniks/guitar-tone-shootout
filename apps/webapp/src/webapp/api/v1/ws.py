@@ -2,23 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
-import os
 from uuid import UUID
 
 import jwt
-import redis.asyncio as aioredis
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.auth.token import decode_access_token
-from webapp.dependencies import get_db
+from webapp.dependencies import _session_factory, get_db
 
 router = APIRouter(prefix="/ws", tags=["websocket"])
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "dead_lettered"}
 
 
@@ -32,7 +30,7 @@ async def job_progress_ws(
     Authentication: JWT token via ?token= query parameter (cookies not
     available in WebSocket handshake in all browsers).
 
-    Subscribes to Redis pub/sub channel job_progress:{job_id} and forwards
+    Subscribes to PostgreSQL LISTEN job_progress channel and forwards
     messages to the client. Auto-closes on terminal job state.
 
     Args:
@@ -85,35 +83,46 @@ async def job_progress_ws(
             return
         break
 
-    # Subscribe to Redis pub/sub and forward messages
-    redis_client = None
-    pubsub = None
+    # Subscribe to PostgreSQL LISTEN and forward progress notifications
+    if _session_factory is None:
+        with contextlib.suppress(Exception):
+            await websocket.close()
+        return
+
+    engine = _session_factory.kw.get("bind")
+    if engine is None:
+        with contextlib.suppress(Exception):
+            await websocket.close()
+        return
+
     try:
-        redis_client = aioredis.from_url(REDIS_URL)
-        pubsub = redis_client.pubsub()
-        channel = f"job_progress:{job_id}"
-        await pubsub.subscribe(channel)
+        async with engine.connect() as conn:
+            raw_conn = await conn.get_raw_connection()
+            asyncpg_conn = raw_conn.driver_connection
 
-        async for message in pubsub.listen():
-            if message["type"] != "message":
-                continue
+            queue: asyncio.Queue[dict] = asyncio.Queue()
 
-            data = json.loads(message["data"])
-            await websocket.send_text(json.dumps(data))
+            def on_notify(_conn, _pid, _channel, pg_payload):
+                data = json.loads(pg_payload)
+                if str(data.get("job_id")) == str(job_id):
+                    queue.put_nowait(data)
 
-            # Close on terminal state
-            if data.get("terminal") or data.get("status") in TERMINAL_STATUSES:
-                break
-
-    except WebSocketDisconnect:
-        pass
+            await asyncpg_conn.add_listener("job_progress", on_notify)
+            try:
+                while True:
+                    try:
+                        data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    except TimeoutError:
+                        continue
+                    await websocket.send_text(json.dumps(data))
+                    if data.get("terminal") or data.get("status") in TERMINAL_STATUSES:
+                        break
+            except WebSocketDisconnect:
+                pass
+            finally:
+                await asyncpg_conn.remove_listener("job_progress", on_notify)
     except Exception:
         pass
     finally:
-        if pubsub is not None:
-            await pubsub.unsubscribe()
-            await pubsub.close()
-        if redis_client is not None:
-            await redis_client.close()
         with contextlib.suppress(Exception):
             await websocket.close()

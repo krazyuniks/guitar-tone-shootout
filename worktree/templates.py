@@ -273,30 +273,11 @@ services:
     environment:
       - PUBLIC_URL={public_url}
 
-  worker:
-    container_name: {worktree.compose_project}-worker
-    volumes:
-      - ./libs:/app/libs
-      - ./apps/worker:/app/apps/worker
-      - ./apps/t3k_sync:/app/apps/t3k_sync
-      - ./apps/audio_worker:/app/apps/audio_worker
-      - ./apps/video_worker:/app/apps/video_worker
-      - ./apps/webapp:/app/apps/webapp
-      - ./sources:/app/sources
-      # Shared storage bind mount
-      - ../gts-storage:/app/storage
-      # Parent dir for shared auth file (.gts-auth.json)
-      - ../:/worktrees
-    environment:
-      - GTS_AUTH_FILE=/worktrees/.gts-auth.json
-      - GTS_STORAGE_ROOT=/app/storage
-
   t3k-sync:
     container_name: {worktree.compose_project}-t3k-sync
     volumes:
       - ./libs:/app/libs
       - ./apps/t3k_sync:/app/apps/t3k_sync
-      - ./apps/worker:/app/apps/worker
       - ./apps/webapp:/app/apps/webapp
       - ./sources:/app/sources
       # Shared storage bind mount
@@ -312,7 +293,6 @@ services:
     volumes:
       - ./libs:/app/libs
       - ./apps/audio_worker:/app/apps/audio_worker
-      - ./apps/worker:/app/apps/worker
       # Shared storage bind mount
       - ../gts-storage:/app/storage
     environment:
@@ -327,7 +307,6 @@ services:
       - ./libs/video:/app/libs/video
       - ./apps/video_worker:/app/apps/video_worker
       - ./apps/webapp:/app/apps/webapp
-      - ./apps/worker:/app/apps/worker
       - ./sources:/app/sources
       # Shared storage bind mount
       - ../gts-storage:/app/storage
@@ -341,13 +320,6 @@ services:
     volumes:
       - {volumes.postgres}:/var/lib/postgresql/data
 
-  redis:
-    container_name: {worktree.compose_project}-redis
-    ports:
-      - "127.0.0.1:{ports.redis}:6379"
-    volumes:
-      - {volumes.redis}:/data
-
   cloudbeaver:
     container_name: {worktree.compose_project}-cloudbeaver
     ports:
@@ -359,7 +331,6 @@ services:
 
 volumes:
   {volumes.postgres}:
-  {volumes.redis}:
   {volumes.cloudbeaver}:
 
 # Override subnet to avoid conflicts between worktrees

@@ -257,14 +257,14 @@ def is_healthy(worktree_path: Path) -> bool:
     """
     status = get_service_status(worktree_path)
 
-    # Core runtime services for feature worktrees (no Redis - it's in jobs profile)
+    # Core runtime services for feature worktrees
     # Astro runs as a chokidar file watcher (auto-rebuilds on source changes)
     expected_services = {"nginx", "webapp", "db", "astro"}
 
-    # Worker, t3k-sync, audio-worker, video-worker, and Redis only run on main worktree (via --profile jobs)
+    # t3k-sync, audio-worker, and video-worker only run on main worktree (via --profile jobs)
     main_path = get_main_worktree_path()
     if worktree_path.resolve() == main_path.resolve():
-        expected_services.update({"worker", "t3k-sync", "audio-worker", "video-worker", "redis"})
+        expected_services.update({"t3k-sync", "audio-worker", "video-worker"})
 
     for service in expected_services:
         if service not in status:

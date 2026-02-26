@@ -50,7 +50,6 @@ members = [
     "infra/*",
     "sources/*",
     "apps/webapp",
-    "apps/worker",
     "apps/t3k_sync",
     "apps/audio_worker",
     "apps/video_worker",
@@ -68,7 +67,6 @@ root_packages = [
     "video",
     "source_t3k",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
@@ -86,7 +84,6 @@ forbidden_modules = [
     "video",
     "source_t3k",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
@@ -103,7 +100,6 @@ forbidden_modules = [
     "video",
     "source_t3k",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
@@ -183,7 +179,6 @@ forbidden_modules = [
     "video",
     "source_t3k",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
@@ -198,7 +193,6 @@ forbidden_modules = [
     "audio",
     "source_t3k",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
@@ -212,13 +206,12 @@ source_modules = ["source_t3k"]
 forbidden_modules = [
     "audio",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
 ]
 
-# Webapp cannot depend on sources (worker is the bridge)
+# Webapp cannot depend on sources
 [[tool.importlinter.contracts]]
 name = "webapp-no-sources"
 type = "forbidden"
@@ -265,7 +258,6 @@ known-first-party = [
     "video",
     "source_t3k",
     "webapp",
-    "worker",
     "t3k_sync",
     "audio_worker",
     "video_worker",
@@ -312,7 +304,6 @@ module = [
     "nam.*",
     "pyloudnorm.*",
     "torch.*",
-    "taskiq.*",
     "pgmq.*",
     "soundfile.*",
     "scipy.*",

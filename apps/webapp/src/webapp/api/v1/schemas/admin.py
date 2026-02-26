@@ -1,4 +1,4 @@
-"""Pydantic schemas for Worker Admin API endpoints."""
+"""Pydantic schemas for Admin API endpoints."""
 
 from datetime import datetime
 from uuid import UUID

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from audio_worker.consumer import ProcessAudioConsumer
-from worker.db import get_core_session_no_tx
+from messaging.db import get_core_session_no_tx
 
 
 @asynccontextmanager

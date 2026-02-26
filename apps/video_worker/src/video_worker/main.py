@@ -7,8 +7,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from messaging.db import get_core_session_no_tx
 from video_worker.consumer import RenderVideoConsumer
-from worker.db import get_core_session_no_tx
 
 
 @asynccontextmanager

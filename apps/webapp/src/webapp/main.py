@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from webapp.api import pages
+from webapp.api import admin, pages
 from webapp.api.v1 import (
     auth,
     block_types,
@@ -133,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(tags.router)
     app.include_router(presets.router)
     app.include_router(ws.router)
+    app.include_router(admin.router)
 
     # Include page routers
     app.include_router(pages.router)
