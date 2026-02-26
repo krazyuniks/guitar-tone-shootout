@@ -1,11 +1,7 @@
 """Integration tests for pgmq consumer wiring in worker entrypoint.
 
-Verifies that the worker entrypoint spawns a real GearSyncConsumer
-instead of the no-op sleep loop, with correct queue configuration
-and core database session.
-
-These tests will FAIL until the entrypoint is updated to wire
-the real consumer (T113).
+Verifies that the worker entrypoint's run_pgmq_consumer compatibility
+shim delegates to the t3k-sync container process with correct wiring.
 """
 
 from __future__ import annotations
@@ -17,62 +13,23 @@ from worker.entrypoint import run_pgmq_consumer
 
 
 class TestPgmqConsumerWiring:
-    """Tests that entrypoint wires the real GearSyncConsumer."""
+    """Tests that entrypoint delegates to t3k-sync process."""
 
-    def test_run_pgmq_consumer_uses_gear_sync_consumer(self) -> None:
-        """run_pgmq_consumer should reference GearSyncConsumer, not a sleep loop.
+    def test_run_pgmq_consumer_delegates_to_t3k_sync(self) -> None:
+        """run_pgmq_consumer should delegate to the t3k_sync app.
 
-        The current no-op implementation uses a blocking sleep in a subprocess.
-        After wiring, it must use GearSyncConsumer to poll pgmq queues.
+        PGMQ consumption moved to the dedicated t3k-sync container.
+        The compatibility shim launches t3k_sync.main:app via uvicorn.
         """
         source = inspect.getsource(run_pgmq_consumer)
 
-        # Must reference the real consumer
-        assert "GearSyncConsumer" in source, "run_pgmq_consumer should instantiate GearSyncConsumer"
+        assert "t3k_sync" in source, "run_pgmq_consumer should delegate to t3k_sync app"
 
-        # Must NOT contain the old sleep-loop
-        assert "time.sleep" not in source, (
-            "run_pgmq_consumer should not use time.sleep (no-op loop)"
-        )
-
-    def test_run_pgmq_consumer_uses_core_session(self) -> None:
-        """run_pgmq_consumer should obtain a core database session.
-
-        The consumer needs a core session for GearMapperService writes
-        and pgmq queue polling (single database architecture).
-        """
+    def test_run_pgmq_consumer_uses_uvicorn(self) -> None:
+        """run_pgmq_consumer should launch via uvicorn."""
         source = inspect.getsource(run_pgmq_consumer)
 
-        assert "get_core_session" in source or "core_session" in source, (
-            "run_pgmq_consumer should use a core database session"
-        )
-
-    def test_consumer_configured_with_correct_queue_names(self) -> None:
-        """Consumer should poll the unified gear_sync queue."""
-        source = inspect.getsource(run_pgmq_consumer)
-
-        assert "gear_sync" in source, (
-            "Consumer should be configured with unified gear_sync queue name"
-        )
-
-    def test_consumer_configured_with_dead_letter_queue(self) -> None:
-        """Consumer should have gear_sync_dlq queue for failed messages."""
-        source = inspect.getsource(run_pgmq_consumer)
-
-        assert "gear_sync_dlq" in source, (
-            "Consumer should be configured with gear_sync_dlq queue name"
-        )
-
-    def test_run_pgmq_consumer_calls_consumer_run(self) -> None:
-        """run_pgmq_consumer must invoke the consumer's run() method.
-
-        GearSyncConsumer.run() is the main polling loop. The entrypoint
-        must call it (not just instantiate the consumer).
-        """
-        source = inspect.getsource(run_pgmq_consumer)
-
-        # Should call .run() on the consumer instance
-        assert ".run()" in source, "run_pgmq_consumer should call consumer.run() to start polling"
+        assert "uvicorn" in source, "run_pgmq_consumer should launch t3k-sync via uvicorn"
 
 
 class TestConsumerFailFast:
@@ -95,8 +52,8 @@ class TestConsumerFailFast:
     def test_run_pgmq_consumer_is_async(self) -> None:
         """run_pgmq_consumer should be an async function.
 
-        The consumer runs as an async coroutine (GearSyncConsumer.run()
-        is async), so the entrypoint function must also be async.
+        The compatibility shim creates a subprocess asynchronously,
+        so the entrypoint function must also be async.
         """
         assert asyncio.iscoroutinefunction(run_pgmq_consumer), (
             "run_pgmq_consumer must be an async function"

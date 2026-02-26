@@ -49,14 +49,15 @@ async def other_user(db_session: "AsyncSession") -> User:
 @pytest.fixture
 async def gear_with_models(db_session: "AsyncSession") -> Gear:
     """Create a gear item with multiple models having different download statuses."""
+    uid = uuid4().hex[:8]
     gear = Gear(
         id=uuid4(),
-        name="Test Amp Pack",
-        slug="test-amp-pack",
+        name=f"ZZZTestAmpPack_{uid}",
+        slug=f"zzztest-amp-pack-{uid}",
         gear_type=GearType.AMP,
         platform=Platform.NAM,
         description="A test amp for download status testing",
-        manufacturer="TestCo",
+        manufacturer=f"ZZZTestCo_{uid}",
         is_public=True,
     )
     db_session.add(gear)

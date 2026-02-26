@@ -54,7 +54,7 @@ class TestGearSyncPublisherToneConversion:
 
     def test_creates_gear_sync_record_from_tone(self) -> None:
         tone = _make_tone()
-        publisher = GearSyncPublisher(session=None, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=None, queue_name="source_events")
         record = publisher.create_tone_sync_record(tone)
 
         assert isinstance(record, GearSyncRecord)
@@ -65,7 +65,7 @@ class TestGearSyncPublisherToneConversion:
 
     def test_tone_payload_contains_required_fields(self) -> None:
         tone = _make_tone()
-        publisher = GearSyncPublisher(session=None, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=None, queue_name="source_events")
         record = publisher.create_tone_sync_record(tone)
         payload = record.payload
 

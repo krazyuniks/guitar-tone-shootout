@@ -374,7 +374,7 @@ class TestShootoutDetailProcessingStatus:
             di_track_id=test_di_track.id,
             name="Completed Shootout",
             status=ShootoutStatus.COMPLETED,
-            output_path="/media/shootout-output.mp4",
+            video_path="/media/shootout-output.mp4",
         )
         db_session.add(shootout)
         for i, chain in enumerate(test_signal_chains):

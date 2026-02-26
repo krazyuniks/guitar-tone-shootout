@@ -38,7 +38,7 @@ _T3K_PLATFORM_TO_CORE = {
 class GearSyncPublisher:
     """Publisher for converting T3K staging records to GearSyncRecord and enqueueing."""
 
-    def __init__(self, session: AsyncSession | None, queue_name: str = "gear_sync") -> None:
+    def __init__(self, session: AsyncSession | None, queue_name: str = "source_events") -> None:
         self.session = session
         self.queue_name = queue_name
 

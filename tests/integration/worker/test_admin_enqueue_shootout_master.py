@@ -2,31 +2,34 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
-@pytest.fixture
-def admin_app():
-    """Create Worker Admin API app instance for testing."""
-    from worker.admin import app
-
-    return app
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
-async def db_session(db_engine) -> AsyncSession:
-    """Create database session from engine."""
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
+async def admin_app(db_session: AsyncSession) -> AsyncGenerator:
+    """Worker Admin API with dependency overrides for test isolation."""
+    from worker.admin import app, get_db_session, get_t3k_db_session
+
+    async def override_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db_session] = override_session
+    app.dependency_overrides[get_t3k_db_session] = override_session
+    yield app
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -44,7 +47,7 @@ async def test_enqueue_shootout_master_job_sets_task_id(
         progress=0,
     )
     db_session.add(job)
-    await db_session.commit()
+    await db_session.flush()
 
     async with AsyncClient(
         transport=ASGITransport(app=admin_app), base_url="http://test"

@@ -401,7 +401,7 @@ async def my_gear_results_fragment(
         .join(GearModel, UserGear.gear_model_id == GearModel.id)
         .join(Gear, GearModel.gear_id == Gear.id)
         .where(UserGear.user_id == current_user.id)
-        .options(joinedload(Gear.models))
+        .options(joinedload(Gear.models), joinedload(Gear.source))
     )
 
     if gear_type:

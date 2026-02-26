@@ -71,18 +71,18 @@ class TestVideoDockerComposeService:
     def test_video_service_exists(self, compose_config: dict):
         """Video service must be defined in docker-compose.yml."""
         assert "services" in compose_config, "docker-compose.yml must have services section"
-        assert "video" in compose_config["services"], "video service must be defined"
+        assert "video-worker" in compose_config["services"], "video-worker service must be defined"
 
     def test_video_service_on_jobs_profile(self, compose_config: dict):
         """Video service must be on 'jobs' profile (not default)."""
-        video_service = compose_config["services"]["video"]
+        video_service = compose_config["services"]["video-worker"]
 
         assert "profiles" in video_service, "video service must specify profiles"
         assert "jobs" in video_service["profiles"], "video service must be on 'jobs' profile"
 
     def test_video_service_builds_from_dockerfile(self, compose_config: dict):
         """Video service must build from Dockerfile.video."""
-        video_service = compose_config["services"]["video"]
+        video_service = compose_config["services"]["video-worker"]
 
         assert "build" in video_service, "video service must have build configuration"
         build_config = video_service["build"]
@@ -92,20 +92,19 @@ class TestVideoDockerComposeService:
             "video service must use Dockerfile.video"
         )
 
-    def test_video_service_mounts_libs_video(self, compose_config: dict):
-        """Video service must mount libs/video/ source directory."""
-        video_service = compose_config["services"]["video"]
+    def test_video_service_mounts_video_worker_app(self, compose_config: dict):
+        """Video service must mount apps/video_worker/ source directory."""
+        video_service = compose_config["services"]["video-worker"]
 
         assert "volumes" in video_service, "video service must have volumes"
         volumes = video_service["volumes"]
 
-        # Check for libs/video mount
-        video_mount_found = any("libs/video" in str(volume) for volume in volumes)
-        assert video_mount_found, "video service must mount libs/video/"
+        video_mount_found = any("apps/video_worker" in str(volume) for volume in volumes)
+        assert video_mount_found, "video service must mount apps/video_worker/"
 
     def test_video_service_exposes_internal_port(self, compose_config: dict):
         """Video service must expose internal port 8002."""
-        video_service = compose_config["services"]["video"]
+        video_service = compose_config["services"]["video-worker"]
 
         # Port can be defined in EXPOSE (Dockerfile) or as internal port in compose
         # Check if service has explicit ports or relies on Dockerfile EXPOSE
@@ -124,7 +123,7 @@ class TestVideoDockerComposeService:
 
     def test_video_service_has_health_check(self, compose_config: dict):
         """Video service must have health check configured."""
-        video_service = compose_config["services"]["video"]
+        video_service = compose_config["services"]["video-worker"]
 
         assert "healthcheck" in video_service, "video service must have healthcheck"
         healthcheck = video_service["healthcheck"]
@@ -136,7 +135,7 @@ class TestVideoDockerComposeService:
 
     def test_video_service_has_restart_policy(self, compose_config: dict):
         """Video service should have restart policy for resilience."""
-        video_service = compose_config["services"]["video"]
+        video_service = compose_config["services"]["video-worker"]
 
         # Video service should have restart policy (typically unless-stopped for background services)
         assert "restart" in video_service, "video service should have restart policy"
@@ -146,15 +145,12 @@ class TestVideoDockerComposeService:
             "on-failure",
         ], "video service restart policy should be unless-stopped, always, or on-failure"
 
-    def test_video_service_depends_on_nothing(self, compose_config: dict):
-        """Video service should not depend on other services (standalone BC)."""
-        video_service = compose_config["services"]["video"]
+    def test_video_service_depends_on_database(self, compose_config: dict):
+        """Video worker depends on the database for job state."""
+        video_service = compose_config["services"]["video-worker"]
 
-        # Video BC is a standalone service that worker calls via HTTP
-        # It should NOT depend on db, redis, etc.
-        assert "depends_on" not in video_service or len(video_service.get("depends_on", {})) == 0, (
-            "video service should not depend on other services (standalone BC)"
-        )
+        assert "depends_on" in video_service, "video-worker must declare depends_on"
+        assert "db" in video_service["depends_on"], "video-worker must depend on db"
 
 
 class TestVideoServiceStartup:
@@ -166,7 +162,7 @@ class TestVideoServiceStartup:
         with compose_file.open() as f:
             config = yaml.safe_load(f)
 
-        video_service = config["services"]["video"]
+        video_service = config["services"]["video-worker"]
 
         # Verify video service is included in jobs profile
         assert "profiles" in video_service, "video service must specify profiles"
@@ -199,55 +195,50 @@ class TestVideoDockerComposeOverride:
     """Test video service appears in docker-compose.override.yml.j2 template."""
 
     def test_override_template_has_video_service(self):
-        """docker-compose.override.yml.j2 must include video service configuration."""
+        """docker-compose.override.yml.j2 must include video-worker service configuration."""
         template_file = Path("/app/worktree/templates/docker-compose.override.yml.j2")
         content = template_file.read_text()
 
-        # Video service needs container name and port mapping in override
-        assert "video:" in content, "override template must include video service"
+        assert "video-worker:" in content, "override template must include video-worker service"
 
     def test_override_template_video_has_container_name(self):
-        """Override template must set container_name for video service."""
+        """Override template must set container_name for video-worker service."""
         template_file = Path("/app/worktree/templates/docker-compose.override.yml.j2")
         content = template_file.read_text()
 
-        # Find video service section
         lines = content.split("\n")
         in_video_section = False
         has_container_name = False
 
         for line in lines:
-            if line.strip() == "video:":
+            if line.strip() == "video-worker:":
                 in_video_section = True
             elif in_video_section:
                 if line.strip().startswith("container_name:"):
                     has_container_name = True
                     break
                 elif line.strip() and not line.startswith(" "):
-                    # Moved to next service
                     break
 
-        assert has_container_name, "video service in override template must have container_name"
+        assert has_container_name, "video-worker in override template must have container_name"
 
     def test_override_template_video_has_port_mapping(self):
-        """Override template must expose video service port to host."""
+        """Override template must expose video-worker port to host."""
         template_file = Path("/app/worktree/templates/docker-compose.override.yml.j2")
         content = template_file.read_text()
 
-        # Find video service section
         lines = content.split("\n")
         in_video_section = False
         has_ports = False
 
         for line in lines:
-            if line.strip() == "video:":
+            if line.strip() == "video-worker:":
                 in_video_section = True
             elif in_video_section:
                 if "ports:" in line:
                     has_ports = True
                     break
                 elif line.strip() and not line.startswith(" "):
-                    # Moved to next service
                     break
 
-        assert has_ports, "video service in override template must have ports configuration"
+        assert has_ports, "video-worker in override template must have ports configuration"

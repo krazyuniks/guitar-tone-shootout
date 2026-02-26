@@ -62,7 +62,7 @@ class TestGearSyncPublisherTonePublishing:
     async def test_publish_tone_does_not_raise(self, t3k_session: AsyncSession) -> None:
         """publish_tone should not raise on SQLite (pgmq call is swallowed)."""
         tone = _make_tone()
-        publisher = GearSyncPublisher(session=t3k_session, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=t3k_session, queue_name="source_events")
         await publisher.publish_tone(tone)
 
     async def test_publish_tone_creates_correct_sync_record(
@@ -70,7 +70,7 @@ class TestGearSyncPublisherTonePublishing:
     ) -> None:
         """publish_tone should create GearSyncRecord with correct data."""
         tone = _make_tone()
-        publisher = GearSyncPublisher(session=t3k_session, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=t3k_session, queue_name="source_events")
         record = publisher.create_tone_sync_record(tone)
 
         assert record.source_name == "t3k"
@@ -83,7 +83,7 @@ class TestGearSyncPublisherTonePublishing:
         """publish_tone should accept optional model list."""
         tone = _make_tone()
         models = [_make_model()]
-        publisher = GearSyncPublisher(session=t3k_session, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=t3k_session, queue_name="source_events")
         await publisher.publish_tone(tone, models=models)
 
 
@@ -93,7 +93,7 @@ class TestGearSyncPublisherTransactionalBehaviour:
     async def test_publish_tone_is_transactional(self, t3k_session: AsyncSession) -> None:
         """publish_tone operations should be part of session transaction."""
         tone = _make_tone()
-        publisher = GearSyncPublisher(session=t3k_session, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=t3k_session, queue_name="source_events")
 
         await publisher.publish_tone(tone)
         await t3k_session.commit()
@@ -101,7 +101,7 @@ class TestGearSyncPublisherTransactionalBehaviour:
     async def test_publish_with_none_session_is_noop(self) -> None:
         """publish_tone with session=None should be a no-op."""
         tone = _make_tone()
-        publisher = GearSyncPublisher(session=None, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=None, queue_name="source_events")
         await publisher.publish_tone(tone)
 
 
@@ -110,8 +110,8 @@ class TestGearSyncPublisherQueueConfiguration:
 
     async def test_publisher_uses_specified_queue_name(self, t3k_session: AsyncSession) -> None:
         """publisher should store the queue name provided at initialisation."""
-        publisher = GearSyncPublisher(session=t3k_session, queue_name="gear_sync")
-        assert publisher.queue_name == "gear_sync"
+        publisher = GearSyncPublisher(session=t3k_session, queue_name="source_events")
+        assert publisher.queue_name == "source_events"
 
     async def test_multiple_tones_can_be_published_sequentially(
         self, t3k_session: AsyncSession
@@ -120,7 +120,7 @@ class TestGearSyncPublisherQueueConfiguration:
         tone1 = _make_tone(id=1, title="Pack 1")
         tone2 = _make_tone(id=2, title="Pack 2", platform="aida_x", gear="pedal")
 
-        publisher = GearSyncPublisher(session=t3k_session, queue_name="gear_sync")
+        publisher = GearSyncPublisher(session=t3k_session, queue_name="source_events")
 
         await publisher.publish_tone(tone1)
         await publisher.publish_tone(tone2)

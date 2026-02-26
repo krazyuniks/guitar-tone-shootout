@@ -377,6 +377,10 @@ export const GET: APIRoute = () => {
           {% elif pack.models|length > 1 %}
           <!-- Bulk action buttons for authenticated users with multiple models -->
           <div class="flex items-center gap-2">
+            <label class="flex items-center gap-1 text-sm text-[var(--color-text-muted)] cursor-pointer mr-2">
+              <input type="checkbox" data-testid="bulk-select-all" class="w-4 h-4 rounded" onclick="toggleAllModelCheckboxes(this)" />
+              <span>Select all</span>
+            </label>
             <button
               data-testid="bulk-save-btn"
               type="button"
@@ -414,6 +418,18 @@ export const GET: APIRoute = () => {
               <!-- Model name -->
               <span class="text-[var(--color-text-primary)] truncate" data-testid="model-name">
                 {{ model.name }}
+              </span>
+              <!-- Download status -->
+              <span class="flex-shrink-0 text-xs" data-testid="model-download-status">
+                {% if model.download_status == 'completed' %}
+                <span class="text-green-500">Downloaded</span>
+                {% elif model.download_status == 'downloading' %}
+                <span class="text-blue-400">Downloading</span>
+                {% elif model.download_status == 'failed' %}
+                <span class="text-red-400">Failed</span>
+                {% else %}
+                <span class="text-[var(--color-text-muted)]">Available</span>
+                {% endif %}
               </span>
               <!-- Saved badge -->
               {% if model.is_saved %}

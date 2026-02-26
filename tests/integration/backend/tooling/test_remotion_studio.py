@@ -11,15 +11,15 @@ class TestRemotionStudio:
     """Test Remotion Studio command and setup."""
 
     def test_libs_video_exists(self) -> None:
-        """Verify libs/video directory exists (from T72)."""
-        video_path = Path("/app/libs/video")
-        assert video_path.exists(), "libs/video directory not found (required from T72)"
-        assert video_path.is_dir(), "libs/video is not a directory"
+        """Verify model/video directory exists (from T72)."""
+        video_path = Path("/app/model/video")
+        assert video_path.exists(), "model/video directory not found (required from T72)"
+        assert video_path.is_dir(), "model/video is not a directory"
 
     def test_libs_video_has_package_json(self) -> None:
-        """Verify libs/video has package.json with Remotion dependencies."""
-        package_json = Path("/app/libs/video/package.json")
-        assert package_json.exists(), "libs/video/package.json not found"
+        """Verify model/video has package.json with Remotion dependencies."""
+        package_json = Path("/app/model/video/package.json")
+        assert package_json.exists(), "model/video/package.json not found"
 
         with open(package_json) as f:
             pkg = json.load(f)
@@ -55,8 +55,8 @@ class TestRemotionStudio:
         )
 
     def test_video_package_has_remotion_entry_point(self) -> None:
-        """Verify libs/video has Remotion entry point (index.ts)."""
-        entry_point = Path("/app/libs/video/src/video/remotion/index.ts")
+        """Verify model/video has Remotion entry point (index.ts)."""
+        entry_point = Path("/app/model/video/src/video/remotion/index.ts")
         assert entry_point.exists(), (
-            "libs/video/src/video/remotion/index.ts not found - Remotion needs an entry point"
+            "model/video/src/video/remotion/index.ts not found - Remotion needs an entry point"
         )

@@ -104,7 +104,7 @@ async def test_save_creates_new_shootout(
     assert db_shootout.title == "Test Shootout"
     assert db_shootout.user_id == test_user.id
     assert db_shootout.di_track_id == test_di_track.id
-    assert db_shootout.status == ShootoutStatus.PENDING
+    assert db_shootout.status == ShootoutStatus.DRAFT
 
 
 @pytest.mark.asyncio

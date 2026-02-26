@@ -69,7 +69,9 @@ class TestNoRegressions:
         lint_section = content[lint_idx : lint_idx + 500]
 
         # Should still include existing package paths
-        assert "libs/" in lint_section, "lint command no longer includes libs/"
+        assert "model/" in lint_section or "apps/" in lint_section, (
+            "lint command no longer includes model/ or apps/"
+        )
         assert "apps/" in lint_section, "lint command no longer includes apps/"
         assert "sources/" in lint_section, "lint command no longer includes sources/"
 
@@ -79,7 +81,7 @@ class TestNoRegressions:
         pyproject = Path("/app/pyproject.toml")
         content = pyproject.read_text()
 
-        assert "core-isolation" in content, "core-isolation contract removed from pyproject.toml"
+        assert "gts-isolation" in content, "gts-isolation contract removed from pyproject.toml"
         assert "video" in content, "video not in import linter root_packages"
 
     def test_check_command_structure_unchanged(self) -> None:

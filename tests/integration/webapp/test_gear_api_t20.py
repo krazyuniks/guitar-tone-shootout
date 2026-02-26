@@ -60,33 +60,36 @@ async def sample_gear(
     gear_repository: SQLAlchemyGearRepository,
     db_session: AsyncSession,
 ) -> list[GearEntity]:
-    """Create sample gear for testing."""
+    """Create sample gear with unique names to avoid conflicts with real DB data."""
+    from uuid import uuid4
+
+    uid = uuid4().hex[:8]
     gear_items = [
         GearEntity(
             id=new_id(),
-            name="Fender Deluxe Reverb",
+            name=f"ZZZTestAmp_Alpha_{uid}",
             gear_type=GearType.AMP,
-            description="Classic tube amp",
-            manufacturer="Fender",
-            tags=["clean", "vintage"],
+            description=f"ZZZTestClassicTubeAmp_{uid}",
+            manufacturer=f"ZZZTestMfg_{uid}",
+            tags=[f"zzztest_clean_{uid}"],
             is_public=True,
         ),
         GearEntity(
             id=new_id(),
-            name="Mesa Boogie Dual Rectifier",
+            name=f"ZZZTestAmp_Beta_{uid}",
             gear_type=GearType.AMP,
-            description="High-gain metal amp",
-            manufacturer="Mesa Boogie",
-            tags=["metal", "high-gain"],
+            description=f"ZZZTestHighGainAmp_{uid}",
+            manufacturer=f"ZZZTestMfg_{uid}",
+            tags=[f"zzztest_metal_{uid}"],
             is_public=True,
         ),
         GearEntity(
             id=new_id(),
-            name="Boss DS-1",
+            name=f"ZZZTestPedal_Alpha_{uid}",
             gear_type=GearType.PEDAL,
-            description="Distortion pedal",
-            manufacturer="Boss",
-            tags=["distortion"],
+            description=f"ZZZTestDistortionPedal_{uid}",
+            manufacturer=f"ZZZTestMfg_{uid}",
+            tags=[f"zzztest_distortion_{uid}"],
             is_public=True,
         ),
     ]
@@ -106,8 +109,10 @@ class TestGearListAPI:
         client: AsyncClient,
         sample_gear: list[GearEntity],
     ) -> None:
-        """Test listing all gear without filters."""
-        response = await client.get("/api/v1/gear/")
+        """Test listing all gear without filters (scoped by unique manufacturer)."""
+        # Use the unique manufacturer from the fixture to avoid matching real DB rows
+        mfr = sample_gear[0].manufacturer
+        response = await client.get(f"/api/v1/gear/?manufacturer={mfr}")
 
         assert response.status_code == 200
         data = response.json()
@@ -133,9 +138,10 @@ class TestGearListAPI:
         client: AsyncClient,
         sample_gear: list[GearEntity],
     ) -> None:
-        """Test pagination support."""
+        """Test pagination support (scoped by unique manufacturer)."""
+        mfr = sample_gear[0].manufacturer
         # First page
-        response = await client.get("/api/v1/gear/?limit=2&offset=0")
+        response = await client.get(f"/api/v1/gear/?manufacturer={mfr}&limit=2&offset=0")
         assert response.status_code == 200
         data = response.json()
 
@@ -145,7 +151,7 @@ class TestGearListAPI:
         assert data["offset"] == 0
 
         # Second page
-        response = await client.get("/api/v1/gear/?limit=2&offset=2")
+        response = await client.get(f"/api/v1/gear/?manufacturer={mfr}&limit=2&offset=2")
         assert response.status_code == 200
         data = response.json()
 
@@ -158,8 +164,9 @@ class TestGearListAPI:
         client: AsyncClient,
         sample_gear: list[GearEntity],
     ) -> None:
-        """Test filtering by gear type."""
-        response = await client.get("/api/v1/gear/?gear_type=amp")
+        """Test filtering by gear type (scoped by unique manufacturer)."""
+        mfr = sample_gear[0].manufacturer
+        response = await client.get(f"/api/v1/gear/?gear_type=amp&manufacturer={mfr}")
 
         assert response.status_code == 200
         data = response.json()
@@ -177,28 +184,32 @@ class TestGearListAPI:
         sample_gear: list[GearEntity],
     ) -> None:
         """Test filtering by manufacturer."""
-        response = await client.get("/api/v1/gear/?manufacturer=Fender")
+        mfr = sample_gear[0].manufacturer
+        response = await client.get(f"/api/v1/gear/?manufacturer={mfr}")
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["total"] == 1
-        assert len(data["items"]) == 1
-        assert data["items"][0]["manufacturer"] == "Fender"
+        assert data["total"] == 3
+        assert len(data["items"]) == 3
+        for item in data["items"]:
+            assert item["manufacturer"] == mfr
 
     async def test_search_by_query(
         self,
         client: AsyncClient,
         sample_gear: list[GearEntity],
     ) -> None:
-        """Test text search on name/description."""
-        response = await client.get("/api/v1/gear/?query=Deluxe")
+        """Test text search on name/description (scoped by unique name prefix)."""
+        # Use the unique name of the first gear item
+        unique_name = sample_gear[0].name
+        response = await client.get(f"/api/v1/gear/?query={unique_name}")
 
         assert response.status_code == 200
         data = response.json()
 
         assert data["total"] == 1
-        assert "Deluxe" in data["items"][0]["name"]
+        assert data["items"][0]["name"] == unique_name
 
     async def test_empty_result(
         self,
@@ -246,13 +257,14 @@ class TestGearDetailAPI:
         assert response.status_code == 200
         data = response.json()
 
+        expected = sample_gear[0]
         assert data["id"] == str(gear_id)
-        assert data["name"] == "Fender Deluxe Reverb"
+        assert data["name"] == expected.name
         assert data["gear_type"] == "amp"
-        assert data["description"] == "Classic tube amp"
-        assert data["manufacturer"] == "Fender"
+        assert data["description"] == expected.description
+        assert data["manufacturer"] == expected.manufacturer
         assert "tags" in data
-        assert set(data["tags"]) == {"clean", "vintage"}
+        assert set(data["tags"]) == set(expected.tags)
 
     async def test_get_gear_not_found(
         self,

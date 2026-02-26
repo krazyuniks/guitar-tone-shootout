@@ -25,7 +25,7 @@ class TestUserGearORMModelFK:
         """UserGear table should have gear_model_id column."""
         result = await db_session.execute(
             text(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'user_gear'"
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'core_user_gear'"
             )
         )
         columns = {row[0] for row in result.fetchall()}
@@ -36,7 +36,7 @@ class TestUserGearORMModelFK:
         """UserGear table should NOT have gear_id column."""
         result = await db_session.execute(
             text(
-                "SELECT column_name FROM information_schema.columns WHERE table_name = 'user_gear'"
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'core_user_gear'"
             )
         )
         columns = {row[0] for row in result.fetchall()}
@@ -59,7 +59,7 @@ class TestUserGearORMModelFK:
                 ON tc.constraint_name = ccu.constraint_name
                 AND tc.table_schema = ccu.table_schema
             WHERE tc.constraint_type = 'FOREIGN KEY'
-                AND tc.table_name = 'user_gear'
+                AND tc.table_name = 'core_user_gear'
                 AND kcu.column_name = 'gear_model_id'
         """)
         )
@@ -67,7 +67,7 @@ class TestUserGearORMModelFK:
 
         assert len(fks) == 1
         fk = fks[0]
-        assert fk[1] == "gear_models"  # to_table
+        assert fk[1] == "core_gear_models"  # to_table
         assert fk[2] == "id"  # to_column
 
     async def test_user_gear_unique_constraint_uses_gear_model_id(
@@ -79,7 +79,7 @@ class TestUserGearORMModelFK:
             SELECT
                 indexdef
             FROM pg_indexes
-            WHERE tablename = 'user_gear'
+            WHERE tablename = 'core_user_gear'
         """)
         )
         indexes = result.fetchall()

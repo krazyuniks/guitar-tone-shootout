@@ -39,7 +39,9 @@ class QueryCounter:
         event.remove(self.engine.sync_engine, "before_cursor_execute", self._before_cursor_execute)
 
     def _before_cursor_execute(self, conn, cursor, statement, parameters, context, executemany):
-        """Callback fired before each query execution."""
+        """Callback fired before each query execution. Excludes SAVEPOINT statements."""
+        if statement.strip().upper().startswith("SAVEPOINT"):
+            return
         self.count += 1
 
 
@@ -63,16 +65,17 @@ async def sample_gear_full(
     """Create and persist a gear entity with all relationships populated."""
     from datetime import UTC, datetime
 
+    uid = uuid4().hex[:8]
     gear = GearEntity(
         id=uuid4(),
-        name="Marshall JCM800",
+        name=f"ZZZTestAmp_JCM_{uid}",
         gear_type=GearType.AMP,
         description="High-gain amp",
-        manufacturer="Marshall",
+        manufacturer=f"ZZZTestMarshall_{uid}",
         tags=["high-gain", "metal", "vintage"],
         source=GearSourceVO(
             source_name="t3k",
-            source_record_id="test-123",
+            source_record_id=f"test-{uid}",
             source_updated_at=datetime.now(UTC),
         ),
         is_public=True,
@@ -140,7 +143,7 @@ async def test_gear_get_by_id_single_query(
     assert result.id == sample_gear_full.id
 
     # Verify all relationships loaded without additional queries
-    assert result.name == "Marshall JCM800"
+    assert result.name == sample_gear_full.name
     assert result.source is not None
     assert result.source.source_name == "t3k"
     assert len(result.models) == 2
@@ -181,7 +184,7 @@ async def test_gear_get_by_slug_single_query(
     assert result.slug == gear_slug
 
     # Verify all relationships loaded without additional queries
-    assert result.name == "Marshall JCM800"
+    assert result.name == sample_gear_full.name
     assert result.source is not None
     assert len(result.models) == 2
     assert len(result.tags) == 3

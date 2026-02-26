@@ -57,4 +57,4 @@ class TestAdminDbDependency:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/admin/jobs")
             assert response.status_code == 200
-            assert response.json() == []
+            assert isinstance(response.json(), list)

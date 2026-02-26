@@ -141,7 +141,8 @@ class BlockTypeRegistry:
         for processor in self.BUILTIN_PROCESSORS:
             stmt = select(BlockType).where(BlockType.name == processor["name"])
             result = await self.session.execute(stmt)
-            if result.scalar_one_or_none() is None:
+            existing = result.scalar_one_or_none()
+            if existing is None:
                 block_type = BlockType(
                     name=processor["name"],
                     category=processor["category"],
@@ -149,5 +150,7 @@ class BlockTypeRegistry:
                     default_params=processor["default_params"],
                 )
                 self.session.add(block_type)
+            elif not existing.default_params:
+                existing.default_params = processor["default_params"]
 
         await self.session.flush()

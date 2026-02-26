@@ -113,6 +113,11 @@ def _gear_to_detail_pack(gear: Gear) -> dict[str, object]:
                         f"{gear.name} ({m.size.value})" if hasattr(m.size, "value") else gear.name
                     ),
                     "model_size": (m.size.value if hasattr(m.size, "value") else str(m.size)),
+                    "download_status": (
+                        m.download_status.value
+                        if hasattr(m.download_status, "value")
+                        else str(m.download_status)
+                    ),
                     "is_saved": False,
                 }
                 for m in gear.models
@@ -637,6 +642,7 @@ async def chain_builder_page(
         request,
         "pages/library/chains_build.html",
         {
+            "title": "Chain Builder",
             "chain_id": chain_id,
             "user": current_user,
         },

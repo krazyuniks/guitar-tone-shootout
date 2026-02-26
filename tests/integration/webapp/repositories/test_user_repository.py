@@ -34,7 +34,9 @@ class QueryCounter:
         event.remove(self.engine.sync_engine, "before_cursor_execute", self._before_cursor_execute)
 
     def _before_cursor_execute(self, conn, cursor, statement, parameters, context, executemany):
-        """Callback fired before each query execution."""
+        """Callback fired before each query execution. Excludes SAVEPOINT statements."""
+        if statement.strip().upper().startswith("SAVEPOINT"):
+            return
         self.count += 1
 
 
@@ -106,12 +108,12 @@ async def test_user_get_by_id_single_query(
     assert result.id == sample_user_with_identity.id
 
     # Verify all relationships loaded without additional queries
-    assert result.username == "testuser"
-    assert result.email == "test@example.com"
+    assert result.username == sample_user_with_identity.username
+    assert result.email == sample_user_with_identity.email
     assert len(result.identities) == 1
     assert result.identities[0].provider == "t3k"
-    assert result.identities[0].external_id == "ext123"
-    assert result.identities[0].username == "testuser"
+    assert result.identities[0].external_id == sample_user_with_identity.identities[0].external_id
+    assert result.identities[0].username == sample_user_with_identity.identities[0].username
     assert result.identities[0].avatar_url == "https://example.com/avatar.jpg"
 
     # Critical assertion: only ONE query executed
@@ -142,20 +144,21 @@ async def test_user_get_by_identity_single_query(
     db_session.expire_all()
 
     # Count queries during get_by_identity
+    ext_id = sample_user_with_identity.identities[0].external_id
     with QueryCounter(db_engine) as counter:
-        result = await user_repository.get_by_identity("t3k", "ext123")
+        result = await user_repository.get_by_identity("t3k", ext_id)
 
     # Verify user loaded
     assert result is not None
     assert result.id == sample_user_with_identity.id
 
     # Verify all relationships loaded without additional queries
-    assert result.username == "testuser"
-    assert result.email == "test@example.com"
+    assert result.username == sample_user_with_identity.username
+    assert result.email == sample_user_with_identity.email
     assert len(result.identities) == 1
     assert result.identities[0].provider == "t3k"
-    assert result.identities[0].external_id == "ext123"
-    assert result.identities[0].username == "testuser"
+    assert result.identities[0].external_id == ext_id
+    assert result.identities[0].username == sample_user_with_identity.identities[0].username
     assert result.identities[0].avatar_url == "https://example.com/avatar.jpg"
 
     # Critical assertion: only ONE query executed (down from 2)
@@ -179,8 +182,9 @@ async def test_user_get_by_identity_uses_unique(
     # Expire all objects
     db_session.expire_all()
 
-    # Execute get_by_identity
-    result = await user_repository.get_by_identity("t3k", "ext123")
+    # Execute get_by_identity using the fixture's actual external_id
+    ext_id = sample_user_with_identity.identities[0].external_id
+    result = await user_repository.get_by_identity("t3k", ext_id)
 
     # Verify no duplicates: should return single entity, not multiple
     assert result is not None

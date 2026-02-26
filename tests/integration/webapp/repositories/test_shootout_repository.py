@@ -38,7 +38,9 @@ class QueryCounter:
         event.remove(self.engine.sync_engine, "before_cursor_execute", self._before_cursor_execute)
 
     def _before_cursor_execute(self, conn, cursor, statement, parameters, context, executemany):
-        """Callback fired before each query execution."""
+        """Callback fired before each query execution. Excludes SAVEPOINT statements."""
+        if statement.strip().upper().startswith("SAVEPOINT"):
+            return
         self.count += 1
         print(f"[QUERY {self.count}] {statement[:100]}...")
 

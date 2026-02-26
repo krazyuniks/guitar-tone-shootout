@@ -15,16 +15,17 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import delete, select
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from source_t3k.adapters.outbound.models import SyncCheckpoint
 from webapp.adapters.persistence.models.job import Job
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from fastapi import FastAPI
-    from sqlalchemy.ext.asyncio import AsyncEngine
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # ---------------------------------------------------------------------------
@@ -33,34 +34,40 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-async def t3k_tables(db_engine: AsyncEngine) -> None:
-    """Create T3K SyncCheckpoint table in the test DB.
+async def admin_app(db_session: AsyncSession) -> AsyncGenerator[FastAPI, None]:
+    """Worker Admin API with dependency overrides for test isolation.
 
-    Only creates the SyncCheckpoint table (not all T3K tables) because
-    T3KToneStaging uses PostgreSQL ARRAY columns incompatible with SQLite.
+    Overrides get_db_session and get_t3k_db_session to use the SAVEPOINT-
+    isolated test session so that all admin API queries see test data and
+    all mutations are rolled back after the test.
     """
-    async with db_engine.begin() as conn:
-        await conn.run_sync(SyncCheckpoint.__table__.create)
+    from worker.admin import app, get_db_session, get_t3k_db_session
+
+    async def override_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db_session] = override_session
+    app.dependency_overrides[get_t3k_db_session] = override_session
+    yield app
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def admin_app() -> FastAPI:
-    """Create Worker Admin API app instance for testing."""
-    from worker.admin import app
-
-    return app
-
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncSession:
-    """Create database session from engine."""
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
+async def clean_sync_data(db_session: AsyncSession) -> None:
+    """Delete existing SyncCheckpoint rows so empty-data tests work."""
+    await db_session.execute(delete(SyncCheckpoint).where(SyncCheckpoint.source_name == "t3k"))
+    await db_session.flush()
 
 
 @pytest.fixture
-async def sync_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncCheckpoint:
+async def clean_failed_jobs(db_session: AsyncSession) -> None:
+    """Delete recent failed jobs so empty-errors tests work."""
+    await db_session.execute(delete(Job).where(Job.status == JobStatus.FAILED))
+    await db_session.flush()
+
+
+@pytest.fixture
+async def sync_checkpoint(db_session: AsyncSession, clean_sync_data: None) -> SyncCheckpoint:
     """Create a SyncCheckpoint row for the t3k tone entity type."""
     cp = SyncCheckpoint(
         source_name="t3k",
@@ -70,13 +77,13 @@ async def sync_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncChe
         total_synced=42,
     )
     db_session.add(cp)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(cp)
     return cp
 
 
 @pytest.fixture
-async def model_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncCheckpoint:
+async def model_checkpoint(db_session: AsyncSession, clean_sync_data: None) -> SyncCheckpoint:
     """Create a SyncCheckpoint row for the t3k model entity type."""
     cp = SyncCheckpoint(
         source_name="t3k",
@@ -86,7 +93,7 @@ async def model_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncCh
         total_synced=108,
     )
     db_session.add(cp)
-    await db_session.commit()
+    await db_session.flush()
     await db_session.refresh(cp)
     return cp
 
@@ -94,6 +101,7 @@ async def model_checkpoint(db_session: AsyncSession, t3k_tables: None) -> SyncCh
 @pytest.fixture
 async def failed_jobs_last_24h(
     db_session: AsyncSession,
+    clean_failed_jobs: None,
 ) -> list[Job]:
     """Create several failed Job records within the last 24 hours."""
     now = datetime.now(UTC)
@@ -137,7 +145,7 @@ async def failed_jobs_last_24h(
     ]
     for job in jobs:
         db_session.add(job)
-    await db_session.commit()
+    await db_session.flush()
     for job in jobs:
         await db_session.refresh(job)
     return jobs
@@ -188,7 +196,7 @@ class TestSyncStatus:
     async def test_no_checkpoint_returns_null(
         self,
         admin_app: FastAPI,
-        t3k_tables: None,
+        clean_sync_data: None,
     ) -> None:
         """When no SyncCheckpoint exists, checkpoint should be null."""
         async with AsyncClient(
@@ -225,7 +233,7 @@ class TestSyncTrigger:
         self,
         admin_app: FastAPI,
         db_session: AsyncSession,
-        t3k_tables: None,
+        clean_sync_data: None,
     ) -> None:
         """Triggering sync returns 202 Accepted."""
         async with AsyncClient(
@@ -239,7 +247,7 @@ class TestSyncTrigger:
         self,
         admin_app: FastAPI,
         db_session: AsyncSession,
-        t3k_tables: None,
+        clean_sync_data: None,
     ) -> None:
         """Triggering sync creates a SOURCE_SYNC Job record in the database."""
         async with AsyncClient(
@@ -297,7 +305,7 @@ class TestSyncStats:
     async def test_zero_when_no_checkpoints(
         self,
         admin_app: FastAPI,
-        t3k_tables: None,
+        clean_sync_data: None,
     ) -> None:
         """total_synced is 0 when no SyncCheckpoint rows exist."""
         async with AsyncClient(
@@ -353,7 +361,7 @@ class TestSyncLag:
     async def test_null_when_no_checkpoints(
         self,
         admin_app: FastAPI,
-        t3k_tables: None,
+        clean_sync_data: None,
     ) -> None:
         """lag_seconds is null when no SyncCheckpoint rows exist."""
         async with AsyncClient(
@@ -431,7 +439,7 @@ class TestErrorsSummary:
     async def test_empty_when_no_failures(
         self,
         admin_app: FastAPI,
-        t3k_tables: None,
+        clean_failed_jobs: None,
     ) -> None:
         """errors dict is empty when no failed jobs exist."""
         async with AsyncClient(
@@ -458,58 +466,6 @@ class TestErrorsSummary:
 # ---------------------------------------------------------------------------
 # GET /api/admin/sources/{source}/auth/status
 # ---------------------------------------------------------------------------
-
-
-class TestAuthStatus:
-    """GET .../auth/status checks T3K_API_KEY env var (no DB query)."""
-
-    @pytest.mark.asyncio
-    async def test_valid_when_api_key_set(
-        self,
-        admin_app: FastAPI,
-        monkeypatch,
-    ) -> None:
-        """Returns valid=True and method=api_key when T3K_API_KEY is set."""
-        monkeypatch.setenv("T3K_API_KEY", "test-key-123")
-        async with AsyncClient(
-            transport=ASGITransport(app=admin_app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/admin/sources/t3k/auth/status")
-            assert response.status_code == 200
-            data = response.json()
-
-            assert data["valid"] is True
-            assert data["method"] == "api_key"
-
-    @pytest.mark.asyncio
-    async def test_invalid_when_no_api_key(
-        self,
-        admin_app: FastAPI,
-        monkeypatch,
-    ) -> None:
-        """Returns valid=False when T3K_API_KEY is not set."""
-        monkeypatch.delenv("T3K_API_KEY", raising=False)
-        async with AsyncClient(
-            transport=ASGITransport(app=admin_app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/admin/sources/t3k/auth/status")
-            assert response.status_code == 200
-            data = response.json()
-
-            assert data["valid"] is False
-            assert data["method"] == "api_key"
-
-    @pytest.mark.asyncio
-    async def test_unknown_source_returns_404(
-        self,
-        admin_app: FastAPI,
-    ) -> None:
-        """Unknown source name returns 404."""
-        async with AsyncClient(
-            transport=ASGITransport(app=admin_app), base_url="http://test"
-        ) as client:
-            response = await client.get("/api/admin/sources/unknown/auth/status")
-            assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------

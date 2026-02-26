@@ -18,26 +18,24 @@ from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from fastapi import FastAPI
-    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
-def admin_app() -> FastAPI:
-    """Create Worker Admin API app instance for testing."""
-    from worker.admin import app
+async def admin_app(db_session: AsyncSession) -> AsyncGenerator[FastAPI, None]:
+    """Worker Admin API with dependency overrides for test isolation."""
+    from worker.admin import app, get_db_session, get_t3k_db_session
 
-    return app
+    async def override_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
 
-
-@pytest.fixture
-async def db_session(db_engine: AsyncEngine) -> AsyncSession:
-    """Create database session from engine."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
-    factory = async_sessionmaker(db_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
+    app.dependency_overrides[get_db_session] = override_session
+    app.dependency_overrides[get_t3k_db_session] = override_session
+    yield app
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

@@ -61,6 +61,8 @@ class TestJustVideoCommands:
 
         lint_section = content[lint_idx : lint_idx + 500]
 
-        # Should include libs/video or video/ in ruff commands
-        # The command should be something like: ruff check libs/ ... which includes video
-        assert "libs/" in lint_section, "lint command does not include libs/ in scope"
+        # Should include model/ or video in ruff commands
+        # The command should be something like: ruff check model/ ... which includes video
+        assert "model/" in lint_section or "video" in lint_section, (
+            "lint command does not include model/ or video in scope"
+        )

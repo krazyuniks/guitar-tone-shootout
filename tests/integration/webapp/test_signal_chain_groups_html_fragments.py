@@ -152,8 +152,8 @@ class TestSignalChainGroupsHTMLFragments:
         user_group = SignalChainGroup(
             id=uuid4(),
             user_id=test_user.id,
-            name="User's Group",
-            description="Test user's group",
+            name="TestUserGroup",
+            description="Test user group",
             base_chain_id=test_chain.id,
             slot_positions=[0],
             gear_options={"0": [str(uuid4())]},
@@ -161,8 +161,8 @@ class TestSignalChainGroupsHTMLFragments:
         other_group = SignalChainGroup(
             id=uuid4(),
             user_id=other_user.id,
-            name="Other User's Group",
-            description="Other user's group",
+            name="OtherUserGroup",
+            description="Other user group",
             base_chain_id=other_chain.id,
             slot_positions=[0],
             gear_options={"0": [str(uuid4())]},
@@ -177,8 +177,8 @@ class TestSignalChainGroupsHTMLFragments:
 
             assert response.status_code == 200
             html = response.text
-            assert "User's Group" in html
-            assert "Other User's Group" not in html
+            assert "TestUserGroup" in html
+            assert "OtherUserGroup" not in html
 
     async def test_library_groups_fragment_displays_group_details(
         self, db_session: "AsyncSession", test_user: User, test_chain: SignalChain

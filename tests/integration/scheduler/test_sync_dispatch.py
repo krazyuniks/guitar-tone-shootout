@@ -1,26 +1,14 @@
-"""Integration tests for scheduler sync dispatch (T119).
+"""Integration tests for scheduler sync dispatch.
 
 Tests that:
-- ensure_source_sync_running dispatches handle_source_sync when no Redis lock
+- ensure_source_sync_running dispatches sync via admin API when no Redis lock
 - ensure_source_sync_running skips dispatch when Redis lock exists
 - ensure_source_sync_running skips dispatch when T3K_SYNC_ENABLED=false
-- handle_source_sync job creates T3K session and invokes catalog sync
+- ensure_source_sync_running skips dispatch when auth is invalid
+- handle_source_sync job is registered as a TaskIQ broker task
 """
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
 import pytest
-from sqlalchemy import select
-
-from webapp.adapters.persistence.models.job import Job
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-
 
 # ---------------------------------------------------------------------------
 # FakeRedis (same pattern as tests/unit/worker/test_admin_api_extensions.py)
@@ -52,6 +40,32 @@ class FakeRedis:
         """Close connection (no-op for fake)."""
 
 
+class FakeHttpResponse:
+    """Fake httpx response for testing admin API calls."""
+
+    def __init__(self, status_code: int = 200, text: str = "OK") -> None:
+        self.status_code = status_code
+        self.text = text
+
+
+class FakeHttpClient:
+    """Fake httpx.AsyncClient that records requests."""
+
+    def __init__(self, response: FakeHttpResponse | None = None) -> None:
+        self.response = response or FakeHttpResponse()
+        self.requests: list[tuple[str, dict]] = []
+
+    async def post(self, url: str, **kwargs) -> FakeHttpResponse:
+        self.requests.append((url, kwargs))
+        return self.response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -79,13 +93,9 @@ def fake_redis_with_lock() -> FakeRedis:
 
 
 @pytest.fixture
-async def register_engines(core_engine: AsyncEngine) -> AsyncGenerator[None, None]:
-    """Register test engine so get_core_session resolves."""
-    from worker.db import _engine_cache, register_engine
-
-    register_engine("postgresql+asyncpg://user:pass@db/gts_core", core_engine)
-    yield
-    _engine_cache.clear()
+def fake_http_client() -> FakeHttpClient:
+    """FakeHttpClient that records admin API requests."""
+    return FakeHttpClient()
 
 
 # ---------------------------------------------------------------------------
@@ -94,70 +104,54 @@ async def register_engines(core_engine: AsyncEngine) -> AsyncGenerator[None, Non
 
 
 class TestEnsureSourceSyncRunningDispatches:
-    """ensure_source_sync_running must dispatch handle_source_sync when appropriate."""
+    """ensure_source_sync_running must dispatch sync via admin API when appropriate."""
 
     async def test_dispatches_when_no_lock_and_sync_enabled(
         self,
         fake_redis: FakeRedis,
-        core_engine: AsyncEngine,
-        db_session: AsyncSession,
-        register_engines: None,
+        fake_http_client: FakeHttpClient,
         monkeypatch,
+        tmp_path,
     ) -> None:
-        """With no Redis lock and T3K_SYNC_ENABLED=true, dispatches handle_source_sync.
-
-        The function must:
-        1. Check Redis for t3k:sync:lock — absent
-        2. Check T3K_SYNC_ENABLED env var — true
-        3. Create a SOURCE_SYNC Job record in the database
-        4. Await handle_source_sync.kiq(job_id)
-        """
+        """With no Redis lock and T3K_SYNC_ENABLED=true, calls admin API."""
         monkeypatch.setenv("T3K_SYNC_ENABLED", "true")
+
+        # Write a valid auth file
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text('{"access_token": "test", "username": "test"}')
+        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
 
         from scheduler.schedules.jobs import ensure_source_sync_running
 
-        # Inject fake Redis so we don't need a real Redis connection
         monkeypatch.setattr(
             "scheduler.schedules.jobs.get_redis_client",
             lambda: fake_redis,
         )
-
-        # Track whether dispatch was called
-        dispatched_job_ids: list = []
-
-        # Create a fake kiq that records the dispatch
-        async def tracking_kiq(job_id):
-            dispatched_job_ids.append(job_id)
-
-            class FakeResult:
-                task_id = "test-task-id"
-
-            return FakeResult()
-
-        from scheduler.schedules.jobs import handle_source_sync
-
-        monkeypatch.setattr(handle_source_sync, "kiq", tracking_kiq)
+        monkeypatch.setattr(
+            "scheduler.schedules.jobs.httpx.AsyncClient",
+            lambda: fake_http_client,
+        )
 
         await ensure_source_sync_running()
 
-        # Verify dispatch happened
-        assert len(dispatched_job_ids) == 1, (
-            "ensure_source_sync_running must dispatch exactly one job"
+        assert len(fake_http_client.requests) == 1, (
+            "ensure_source_sync_running must call admin API exactly once"
         )
-        # The dispatched job_id should be a valid UUID
-        assert dispatched_job_ids[0] is not None
+        url, _ = fake_http_client.requests[0]
+        assert "/api/admin/sources/t3k/sync" in url
 
     async def test_does_not_dispatch_when_lock_exists(
         self,
         fake_redis_with_lock: FakeRedis,
         monkeypatch,
+        tmp_path,
     ) -> None:
-        """With existing Redis lock, does NOT dispatch a duplicate sync job.
-
-        If t3k:sync:lock exists in Redis, the scheduler must skip dispatch
-        because a sync is already running.
-        """
+        """With existing Redis lock, does NOT dispatch a duplicate sync job."""
         monkeypatch.setenv("T3K_SYNC_ENABLED", "true")
+
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text('{"access_token": "test", "username": "test"}')
+        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
 
         from scheduler.schedules.jobs import ensure_source_sync_running
 
@@ -166,23 +160,15 @@ class TestEnsureSourceSyncRunningDispatches:
             lambda: fake_redis_with_lock,
         )
 
-        dispatched: list = []
-
-        async def tracking_kiq(job_id):
-            dispatched.append(job_id)
-
-            class FakeResult:
-                task_id = "test-task-id"
-
-            return FakeResult()
-
-        from scheduler.schedules.jobs import handle_source_sync
-
-        monkeypatch.setattr(handle_source_sync, "kiq", tracking_kiq)
+        http_client = FakeHttpClient()
+        monkeypatch.setattr(
+            "scheduler.schedules.jobs.httpx.AsyncClient",
+            lambda: http_client,
+        )
 
         await ensure_source_sync_running()
 
-        assert len(dispatched) == 0, (
+        assert len(http_client.requests) == 0, (
             "ensure_source_sync_running must NOT dispatch when Redis lock exists"
         )
 
@@ -190,12 +176,14 @@ class TestEnsureSourceSyncRunningDispatches:
         self,
         fake_redis: FakeRedis,
         monkeypatch,
+        tmp_path,
     ) -> None:
-        """With T3K_SYNC_ENABLED=false, does NOT dispatch even without lock.
-
-        The scheduler respects the config flag to disable sync entirely.
-        """
+        """With T3K_SYNC_ENABLED=false, does NOT dispatch even without lock."""
         monkeypatch.setenv("T3K_SYNC_ENABLED", "false")
+
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text('{"access_token": "test", "username": "test"}')
+        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
 
         from scheduler.schedules.jobs import ensure_source_sync_running
 
@@ -204,113 +192,44 @@ class TestEnsureSourceSyncRunningDispatches:
             lambda: fake_redis,
         )
 
-        dispatched: list = []
-
-        async def tracking_kiq(job_id):
-            dispatched.append(job_id)
-
-            class FakeResult:
-                task_id = "test-task-id"
-
-            return FakeResult()
-
-        from scheduler.schedules.jobs import handle_source_sync
-
-        monkeypatch.setattr(handle_source_sync, "kiq", tracking_kiq)
+        http_client = FakeHttpClient()
+        monkeypatch.setattr(
+            "scheduler.schedules.jobs.httpx.AsyncClient",
+            lambda: http_client,
+        )
 
         await ensure_source_sync_running()
 
-        assert len(dispatched) == 0, (
+        assert len(http_client.requests) == 0, (
             "ensure_source_sync_running must NOT dispatch when T3K_SYNC_ENABLED=false"
         )
 
-    async def test_dispatch_creates_job_record_in_database(
-        self,
-        fake_redis: FakeRedis,
-        core_engine: AsyncEngine,
-        db_session: AsyncSession,
-        register_engines: None,
-        monkeypatch,
-    ) -> None:
-        """Dispatching sync must create a SOURCE_SYNC Job record in the DB.
-
-        The scheduler should create a Job record BEFORE dispatching to TaskIQ
-        so that the job is tracked in the database regardless of broker state.
-        """
-        monkeypatch.setenv("T3K_SYNC_ENABLED", "true")
-
-        from scheduler.schedules.jobs import ensure_source_sync_running
-
-        monkeypatch.setattr(
-            "scheduler.schedules.jobs.get_redis_client",
-            lambda: fake_redis,
-        )
-
-        dispatched_job_ids: list = []
-
-        async def tracking_kiq(job_id):
-            dispatched_job_ids.append(job_id)
-
-            class FakeResult:
-                task_id = "test-task-id"
-
-            return FakeResult()
-
-        from scheduler.schedules.jobs import handle_source_sync
-
-        monkeypatch.setattr(handle_source_sync, "kiq", tracking_kiq)
-
-        await ensure_source_sync_running()
-
-        # Verify Job record was created
-        from gts.domain.value_objects.job_status import JobType
-
-        result = await db_session.execute(select(Job).where(Job.job_type == JobType.SOURCE_SYNC))
-        jobs = result.scalars().all()
-        assert len(jobs) >= 1, "ensure_source_sync_running must create a SOURCE_SYNC Job record"
-
-        # The dispatched job_id should match the created job
-        created_job = jobs[0]
-        assert dispatched_job_ids[0] == created_job.id
-
-    async def test_dispatch_awaits_kiq_coroutine(
+    async def test_does_not_dispatch_when_auth_invalid(
         self,
         fake_redis: FakeRedis,
         monkeypatch,
+        tmp_path,
     ) -> None:
-        """ensure_source_sync_running must await the kiq() coroutine.
-
-        If kiq() is not awaited, the task is never actually dispatched.
-        """
+        """With invalid auth, does NOT dispatch even without lock."""
         monkeypatch.setenv("T3K_SYNC_ENABLED", "true")
+
+        # Write an empty/invalid auth file
+        auth_file = tmp_path / "auth.json"
+        auth_file.write_text("{}")
+        monkeypatch.setenv("GTS_AUTH_FILE", str(auth_file))
 
         from scheduler.schedules.jobs import ensure_source_sync_running
 
+        http_client = FakeHttpClient()
         monkeypatch.setattr(
-            "scheduler.schedules.jobs.get_redis_client",
-            lambda: fake_redis,
+            "scheduler.schedules.jobs.httpx.AsyncClient",
+            lambda: http_client,
         )
-
-        kiq_was_awaited = []
-
-        async def tracking_kiq(job_id):
-            """Async function — must be awaited to execute."""
-            kiq_was_awaited.append(True)
-
-            class FakeResult:
-                task_id = "test-task-id"
-
-            return FakeResult()
-
-        from scheduler.schedules.jobs import handle_source_sync
-
-        monkeypatch.setattr(handle_source_sync, "kiq", tracking_kiq)
 
         await ensure_source_sync_running()
 
-        # If kiq() was not awaited, the async function body never runs
-        assert len(kiq_was_awaited) == 1, (
-            "kiq() must be awaited — currently the coroutine is created but never executed"
+        assert len(http_client.requests) == 0, (
+            "ensure_source_sync_running must NOT dispatch when auth is invalid"
         )
 
 
@@ -329,12 +248,12 @@ class TestEnsureSourceSyncScheduleConfig:
         assert hasattr(ensure_source_sync_running, "labels")
         assert "schedule" in ensure_source_sync_running.labels
 
-    def test_schedule_interval_is_5_minutes(self) -> None:
-        """ensure_source_sync_running runs every 5 minutes (300 seconds)."""
+    def test_schedule_interval_is_60_seconds(self) -> None:
+        """ensure_source_sync_running runs every 60 seconds."""
         from scheduler.schedules.jobs import ensure_source_sync_running
 
         schedule = ensure_source_sync_running.labels["schedule"][0]
-        assert schedule["interval"] == 300
+        assert schedule["interval"] == 60
 
 
 # ---------------------------------------------------------------------------
@@ -343,13 +262,12 @@ class TestEnsureSourceSyncScheduleConfig:
 
 
 class TestHandleSourceSyncJob:
-    """handle_source_sync job must create T3K session and run catalog sync."""
+    """handle_source_sync job must be a registered TaskIQ broker task."""
 
     def test_handle_source_sync_is_broker_task(self) -> None:
         """handle_source_sync is registered as a TaskIQ broker task."""
         from worker.jobs.source_sync import handle_source_sync
 
-        # TaskIQ broker tasks have task_name attribute
         assert hasattr(handle_source_sync, "task_name")
 
     def test_handle_source_sync_accepts_job_id(self) -> None:
@@ -358,7 +276,6 @@ class TestHandleSourceSyncJob:
 
         from worker.jobs.source_sync import handle_source_sync
 
-        # Get the original function signature
         sig = inspect.signature(handle_source_sync.__wrapped__)
         params = list(sig.parameters.keys())
         assert "job_id" in params

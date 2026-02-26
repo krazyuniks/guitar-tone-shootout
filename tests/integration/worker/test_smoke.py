@@ -43,12 +43,10 @@ class TestWorkerSmoke:
             assert hasattr(broker, "_redis_url")
 
     async def test_job_handler_functions_can_be_imported(self) -> None:
-        """Test job handler functions can be imported."""
-        from worker.jobs import (
-            handle_shootout_audio_job,
-            handle_shootout_job,
-            handle_shootout_master_job,
-        )
+        """Test job handler functions can be imported from their submodules."""
+        from worker.jobs.audio import handle_shootout_audio_job
+        from worker.jobs.master_audio import handle_shootout_master_job
+        from worker.jobs.shootout import handle_shootout_job
 
         # Verify handlers exist
         assert handle_shootout_audio_job is not None

@@ -21,10 +21,9 @@ class TestQualityGatesIncludeVideo:
         # Get the lint command section (next ~300 chars should include the command)
         lint_section = content[lint_start : lint_start + 500]
 
-        # Should include libs/video or just video/ in the ruff command
-        # The command should be something like: ruff check libs/ ... or explicitly libs/video
-        assert "libs/" in lint_section or "video" in lint_section, (
-            "lint command does not include libs/ or video in scope"
+        # Should include model/ or video in the ruff command
+        assert "model/" in lint_section or "video" in lint_section, (
+            "lint command does not include model/ or video in scope"
         )
 
     def test_check_types_includes_video(self) -> None:
@@ -82,5 +81,5 @@ class TestQualityGatesIncludeVideo:
 
     def test_video_python_code_exists(self) -> None:
         """Verify video package Python code exists."""
-        video_init = Path("/app/libs/video/src/video/__init__.py")
-        assert video_init.exists(), "libs/video/src/video/__init__.py not found"
+        video_init = Path("/app/model/video/src/video/__init__.py")
+        assert video_init.exists(), "model/video/src/video/__init__.py not found"

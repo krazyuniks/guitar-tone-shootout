@@ -125,7 +125,7 @@ class SQLAlchemyGearRepository:
             )
         )
         result = await self.session.execute(stmt)
-        gear = result.unique().scalar_one_or_none()
+        gear = result.unique().scalars().first()
         return self._to_entity(gear) if gear else None
 
     async def get_by_source(
