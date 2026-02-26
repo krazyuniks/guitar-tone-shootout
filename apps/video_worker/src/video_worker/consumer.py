@@ -207,8 +207,8 @@ class RenderVideoConsumer(BaseConsumer):
     def __init__(self, session) -> None:
         super().__init__(
             message_bus=PgmqClient(session),
-            queue_name="render_video",
-            dead_letter_queue="render_video_dlq",
+            queue_name="video_commands",
+            dead_letter_queue="dead_letter",
         )
         self._session = session
 

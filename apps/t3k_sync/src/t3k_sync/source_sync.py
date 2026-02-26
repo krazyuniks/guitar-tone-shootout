@@ -144,7 +144,7 @@ async def run_source_sync(job_id: UUID | None = None) -> UUID:
         async with get_core_session_no_tx() as session:
             token_manager, api_client = _build_api_client()
             model_downloader = _build_model_downloader(api_client)
-            publisher = GearSyncPublisher(session=session, queue_name="gear_sync")
+            publisher = GearSyncPublisher(session=session, queue_name="source_events")
             sync_service = T3KSyncService(
                 api_client=api_client,
                 session=session,

@@ -33,7 +33,7 @@ def discover_databases(worktree_path: Path) -> list[str]:
     Queries pg_database catalog, excludes templates and the default 'postgres' DB.
 
     Returns:
-        Sorted list of database names (e.g. ['gts_core', 'gts_t3k_source']).
+        Sorted list of database names (e.g. ['gts_core']).
     """
     _check_db_running(worktree_path)
     result = subprocess.run(

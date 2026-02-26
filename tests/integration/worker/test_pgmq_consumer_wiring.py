@@ -2,7 +2,7 @@
 
 Verifies that the worker entrypoint spawns a real GearSyncConsumer
 instead of the no-op sleep loop, with correct queue configuration
-and dual database sessions (core + T3K).
+and core database session.
 
 These tests will FAIL until the entrypoint is updated to wire
 the real consumer (T113).
@@ -35,19 +35,16 @@ class TestPgmqConsumerWiring:
             "run_pgmq_consumer should not use time.sleep (no-op loop)"
         )
 
-    def test_run_pgmq_consumer_uses_both_sessions(self) -> None:
-        """run_pgmq_consumer should obtain both core and T3K database sessions.
+    def test_run_pgmq_consumer_uses_core_session(self) -> None:
+        """run_pgmq_consumer should obtain a core database session.
 
-        The consumer needs a core session (for GearMapperService writes)
-        and a T3K session (for polling pgmq queues).
+        The consumer needs a core session for GearMapperService writes
+        and pgmq queue polling (single database architecture).
         """
         source = inspect.getsource(run_pgmq_consumer)
 
         assert "get_core_session" in source or "core_session" in source, (
             "run_pgmq_consumer should use a core database session"
-        )
-        assert "get_t3k_session" in source or "t3k_session" in source, (
-            "run_pgmq_consumer should use a T3K database session"
         )
 
     def test_consumer_configured_with_correct_queue_names(self) -> None:

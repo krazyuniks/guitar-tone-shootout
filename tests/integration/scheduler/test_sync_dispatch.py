@@ -62,7 +62,6 @@ def scheduler_env(monkeypatch) -> None:
     """Set environment variables needed for scheduler imports."""
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://user:pass@db/gts_core")
-    monkeypatch.setenv("T3K_DATABASE_URL", "postgresql+asyncpg://user:pass@db/gts_t3k_source")
 
 
 @pytest.fixture
@@ -81,11 +80,10 @@ def fake_redis_with_lock() -> FakeRedis:
 
 @pytest.fixture
 async def register_engines(core_engine: AsyncEngine) -> AsyncGenerator[None, None]:
-    """Register test engine so get_t3k_session and get_core_session resolve."""
+    """Register test engine so get_core_session resolves."""
     from worker.db import _engine_cache, register_engine
 
     register_engine("postgresql+asyncpg://user:pass@db/gts_core", core_engine)
-    register_engine("postgresql+asyncpg://user:pass@db/gts_t3k_source", core_engine)
     yield
     _engine_cache.clear()
 

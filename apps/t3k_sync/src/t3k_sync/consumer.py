@@ -15,8 +15,8 @@ class GearSyncConsumer(BaseConsumer):
     def __init__(self, session) -> None:
         super().__init__(
             message_bus=PgmqClient(session),
-            queue_name="gear_sync",
-            dead_letter_queue="gear_sync_dlq",
+            queue_name="source_events",
+            dead_letter_queue="dead_letter",
             poll_interval_seconds=5.0,
             max_retries=5,
         )

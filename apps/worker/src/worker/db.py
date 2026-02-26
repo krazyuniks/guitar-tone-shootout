@@ -160,17 +160,3 @@ async def get_core_session_no_tx() -> AsyncGenerator[AsyncSession, None]:
     settings = WorkerSettings()  # type: ignore[call-arg]
     async with get_session_no_tx(settings.database_url) as session:
         yield session
-
-
-@asynccontextmanager
-async def get_t3k_session() -> AsyncGenerator[AsyncSession, None]:
-    """Backward-compatible alias for get_core_session()."""
-    async with get_core_session() as session:
-        yield session
-
-
-@asynccontextmanager
-async def get_t3k_session_no_tx() -> AsyncGenerator[AsyncSession, None]:
-    """Backward-compatible alias for get_core_session_no_tx()."""
-    async with get_core_session_no_tx() as session:
-        yield session

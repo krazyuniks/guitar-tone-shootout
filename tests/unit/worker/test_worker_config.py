@@ -27,7 +27,6 @@ class TestWorkerSettings:
         settings = WorkerSettings(
             redis_url="redis://localhost:6379",
             database_url="postgresql+asyncpg://user:pass@localhost/db",
-            t3k_database_url="postgresql+asyncpg://user:pass@localhost/t3k_db",
         )
         assert hasattr(settings, "redis_url")
         assert settings.redis_url == "redis://localhost:6379"
@@ -39,22 +38,9 @@ class TestWorkerSettings:
         settings = WorkerSettings(
             redis_url="redis://localhost:6379",
             database_url="postgresql+asyncpg://user:pass@localhost/db",
-            t3k_database_url="postgresql+asyncpg://user:pass@localhost/t3k_db",
         )
         assert hasattr(settings, "database_url")
         assert settings.database_url == "postgresql+asyncpg://user:pass@localhost/db"
-
-    def test_settings_has_t3k_database_url_field(self) -> None:
-        """WorkerSettings has t3k_database_url field."""
-        from worker.config import WorkerSettings
-
-        settings = WorkerSettings(
-            redis_url="redis://localhost:6379",
-            database_url="postgresql+asyncpg://user:pass@localhost/db",
-            t3k_database_url="postgresql+asyncpg://user:pass@localhost/t3k_db",
-        )
-        assert hasattr(settings, "t3k_database_url")
-        assert settings.t3k_database_url == "postgresql+asyncpg://user:pass@localhost/t3k_db"
 
     def test_settings_loads_from_environment(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """WorkerSettings loads values from environment variables."""
@@ -62,13 +48,11 @@ class TestWorkerSettings:
 
         monkeypatch.setenv("REDIS_URL", "redis://test-redis:6380")
         monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://test:pass@testdb/core")
-        monkeypatch.setenv("T3K_DATABASE_URL", "postgresql+asyncpg://test:pass@testdb/t3k")
 
         settings = WorkerSettings()
 
         assert settings.redis_url == "redis://test-redis:6380"
         assert settings.database_url == "postgresql+asyncpg://test:pass@testdb/core"
-        assert settings.t3k_database_url == "postgresql+asyncpg://test:pass@testdb/t3k"
 
     def test_settings_inherits_from_base_settings(self) -> None:
         """WorkerSettings inherits from pydantic_settings.BaseSettings."""
@@ -87,7 +71,6 @@ class TestWorkerSettings:
         with pytest.raises(ValidationError) as exc_info:
             WorkerSettings(
                 database_url="postgresql+asyncpg://user:pass@localhost/db",
-                t3k_database_url="postgresql+asyncpg://user:pass@localhost/t3k_db",
             )
 
         errors = exc_info.value.errors()
@@ -102,26 +85,10 @@ class TestWorkerSettings:
         with pytest.raises(ValidationError) as exc_info:
             WorkerSettings(
                 redis_url="redis://localhost:6379",
-                t3k_database_url="postgresql+asyncpg://user:pass@localhost/t3k_db",
             )
 
         errors = exc_info.value.errors()
         assert any(error["loc"] == ("database_url",) for error in errors)
-
-    def test_t3k_database_url_field_is_required(self) -> None:
-        """t3k_database_url field is required (no default)."""
-        from pydantic import ValidationError
-
-        from worker.config import WorkerSettings
-
-        with pytest.raises(ValidationError) as exc_info:
-            WorkerSettings(
-                redis_url="redis://localhost:6379",
-                database_url="postgresql+asyncpg://user:pass@localhost/db",
-            )
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("t3k_database_url",) for error in errors)
 
 
 class TestWorkerBrokerConfiguration:

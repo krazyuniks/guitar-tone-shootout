@@ -22,8 +22,7 @@ def isolate_worker_env(monkeypatch):
     use patch.dict with clear=True, so they're unaffected by this fixture.
     """
     # Remove worker-specific env vars that might interfere with validation tests
-    for var in ["REDIS_URL", "T3K_DATABASE_URL"]:
-        monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("REDIS_URL", raising=False)
 
     # Also remove DATABASE_URL during tests to ensure field requirement tests work
     # Tests that need it will set it explicitly via patch.dict

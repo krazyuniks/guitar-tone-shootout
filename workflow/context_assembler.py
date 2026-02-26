@@ -69,7 +69,7 @@ KEYWORD_AREA_MAP: list[tuple[list[str], list[str]]] = [
     ),
     (
         ["t3k sync", "tone3000", "t3k_sync", "source_t3k", "t3k api"],
-        ["dual_database", "job_processing"],
+        ["database_architecture", "job_processing"],
     ),
     # Infrastructure patterns
     (
@@ -78,7 +78,7 @@ KEYWORD_AREA_MAP: list[tuple[list[str], list[str]]] = [
     ),
     (
         ["alembic", "migration", "table rename", "database consolidat"],
-        ["data_model", "dual_database"],
+        ["data_model", "database_architecture"],
     ),
     # Standard patterns (multi-word to avoid false positives)
     (
@@ -120,7 +120,7 @@ REQUIRED_AREA_MAP: list[tuple[list[str], list[str]]] = [
     ),
     (
         ["t3k sync", "t3k_sync", "source_t3k"],
-        ["dual_database"],
+        ["database_architecture"],
     ),
     (
         ["page template", "jinja template", "htmx"],
@@ -144,10 +144,10 @@ AREA_DEFINITIONS: dict[str, dict[str, str]] = {
         "description": "Unified gear, sources, sync records",
         "questions": "Source attribution, GearModel files, UserGear",
     },
-    "dual_database": {
-        "name": "Dual Database",
-        "description": "gts_core vs gts_t3k_source boundaries",
-        "questions": "Which database, worker access, pgmq messages",
+    "database_architecture": {
+        "name": "Database Architecture",
+        "description": "Single database with BC table prefixes (core_*, t3k_*, msg_*)",
+        "questions": "Table ownership, BC isolation, pgmq messages",
     },
     "frontend_layers": {
         "name": "Frontend Layers",
@@ -207,7 +207,7 @@ AREA_TO_WIKI_SECTIONS: dict[str, list[str]] = {
     "gear_model": ["domain-model", "api-design"],
     "audio_processing": ["audio", "domain-model"],
     "job_processing": ["data-ingestion", "infrastructure"],
-    "dual_database": ["persistence", "data-ingestion"],
+    "database_architecture": ["persistence", "data-ingestion"],
     "security": ["auth", "api-design"],
     "testing": ["testing"],
 }
@@ -241,7 +241,7 @@ AREA_TO_CODEBASE_FILES: dict[str, list[str]] = {
     "api_contract": ["ENDPOINTS"],
     "signal_chain": ["SCHEMA", "ENDPOINTS"],
     "gear_model": ["SCHEMA", "ENDPOINTS"],
-    "dual_database": ["SCHEMA", "IMPORTS"],
+    "database_architecture": ["SCHEMA", "IMPORTS"],
     "audio_processing": ["IMPORTS"],
     "job_processing": ["IMPORTS"],
     "testing": ["TESTS"],

@@ -30,8 +30,8 @@ class ProcessAudioConsumer(BaseConsumer):
     def __init__(self, session) -> None:
         super().__init__(
             message_bus=PgmqClient(session),
-            queue_name="process_audio",
-            dead_letter_queue="process_audio_dlq",
+            queue_name="audio_commands",
+            dead_letter_queue="dead_letter",
         )
         self._session = session
 

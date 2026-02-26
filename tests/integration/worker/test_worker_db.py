@@ -146,7 +146,6 @@ class TestDatabaseConnectivity:
         settings = WorkerSettings(
             redis_url="redis://localhost:6379",
             database_url="postgresql+asyncpg://user:pass@db/gts_core",
-            t3k_database_url="postgresql+asyncpg://user:pass@db/gts_t3k_source",
         )
 
         factory = async_session_factory(settings.database_url)
