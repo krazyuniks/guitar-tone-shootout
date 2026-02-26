@@ -293,6 +293,36 @@ def run_validation_checkpoint(
     result = _run_checks_directly(checks, check_type, story_id)
     if event_logger:
         _log_validation_event(event_logger, story_id, result)
+
+    if not result.passed:
+        return result
+
+    # Mandatory baseline quality gate: always run `just check` after
+    # per-story checks pass, unless the story checks already included it.
+    story_commands = {_resolve_command(c) for c in checks}
+    if "just check" not in story_commands:
+        logger.info(
+            "Running mandatory baseline quality gate for story '%s': just check",
+            story_id,
+        )
+        baseline_check = CheckCriterion(
+            criterion="Baseline quality gates pass (lint, types, unit tests, imports)",
+            command="just check",
+        )
+        baseline_result = _run_checks_directly([baseline_check], "quality_baseline", story_id)
+        if event_logger:
+            _log_validation_event(event_logger, story_id, baseline_result)
+        if not baseline_result.passed:
+            # Merge baseline failure into the result
+            return ValidationResult(
+                passed=False,
+                check_type=check_type,
+                results=result.results + baseline_result.results,
+                failure_reason="Baseline quality gate failed (just check)",
+                failure_category="implementation",
+                raw_output=result.raw_output + "\n" + baseline_result.raw_output,
+            )
+
     return result
 
 

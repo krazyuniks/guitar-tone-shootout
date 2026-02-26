@@ -183,15 +183,19 @@ class TestLoadConfigErrorHandling:
         with pytest.raises(FileNotFoundError):
             load_config(default_path=tmp_path / "nonexistent.toml")
 
-    def test_invalid_cross_model_raises_value_error(self, tmp_path):
-        """Cross-model constraint violation raises ValueError."""
+    def test_same_model_cross_role_warns(self, tmp_path, caplog):
+        """Same model for critic and implementor logs a warning (not an error)."""
         override = tmp_path / "config.toml"
         override.write_text(
             '[models]\nimplementor = "opus"\nstory_critic = "opus"\n',
             encoding="utf-8",
         )
-        with pytest.raises(ValueError, match="must be different"):
-            load_config(DEFAULT_CONFIG_PATH, override)
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="workflow.epic_config"):
+            config = load_config(DEFAULT_CONFIG_PATH, override)
+        assert config.models.implementor == "opus"
+        assert "story_critic and implementor are both opus" in caplog.text
 
 
 # ---------------------------------------------------------------------------
