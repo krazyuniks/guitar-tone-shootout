@@ -53,7 +53,7 @@ rebuild *ARGS:
 # Quality Gates (all run in Docker)
 # =============================================================================
 
-# Run all quality checks (read-only — safe in Docker with :ro mounts)
+# Run all quality checks
 check: check-lint check-types check-tests check-imports test-quality
 
 # Run type checking (strict on core, TypeScript on video)
@@ -73,7 +73,7 @@ check-imports:
 # Linting (all run in Docker)
 # =============================================================================
 
-# Check lint and formatting (read-only — no file modifications)
+# Check lint and formatting (no auto-fix)
 check-lint:
     docker compose exec -T webapp ruff check model/ infra/ sources/ apps/ tests/
     docker compose exec -T webapp ruff format --check model/ infra/ sources/ apps/ tests/
