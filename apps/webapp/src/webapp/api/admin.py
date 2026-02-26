@@ -231,18 +231,19 @@ async def enqueue_job(
             detail="SOURCE_SYNC is self-managed by t3k-sync",
         )
     elif job.job_type == JobType.SHOOTOUT:
-        cmd = RenderVideoCommand(payload={"job_id": str(job.id)})
+        cmd = RenderVideoCommand(source_bc="webapp", payload={"job_id": str(job.id)})
         await pgmq.publish("video_commands", cmd)
     elif (
         job.job_type in (JobType.SHOOTOUT_AUDIO, JobType.SHOOTOUT_MASTER)
         or job.job_type == JobType.AUDIO_PROCESSING
     ):
         cmd_audio = ProcessAudioCommand(
+            source_bc="webapp",
             payload={
                 "job_id": str(job.id),
                 "shootout_id": str(job.entity_id),
                 "user_id": str(job.user_id),
-            }
+            },
         )
         await pgmq.publish("audio_commands", cmd_audio)
     else:
