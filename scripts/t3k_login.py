@@ -130,25 +130,59 @@ def main() -> None:
             from urllib.parse import unquote
 
             cookies = page.context.cookies()
+
+            # Newer Supabase JS clients chunk the auth token across multiple cookies:
+            # sb-<project>-auth-token.0, sb-<project>-auth-token.1, ...
+            # Collect and reassemble chunks before attempting single-cookie parse.
+            sb_chunks: dict[str, dict[int, str]] = {}
             for cookie in cookies:
-                if cookie["name"].startswith("sb-") and cookie["name"].endswith("-auth-token"):
-                    try:
-                        token_data = json.loads(unquote(cookie["value"]))
-                        if "access_token" in token_data:
-                            captured_tokens["access_token"] = token_data["access_token"]
-                            print(f"  Extracted access_token from cookie: {cookie['name']}")
-                        if "refresh_token" in token_data:
-                            captured_tokens["refresh_token"] = token_data["refresh_token"]
-                            print(f"  Extracted refresh_token from cookie: {cookie['name']}")
-                        if "expires_in" in token_data:
-                            captured_tokens["expires_in"] = token_data["expires_in"]
-                        elif "expires_at" in token_data:
-                            # Supabase uses epoch seconds for expires_at
-                            remaining = int(token_data["expires_at"]) - int(time.time())
-                            if remaining > 0:
-                                captured_tokens["expires_in"] = str(remaining)
-                    except (json.JSONDecodeError, ValueError):
-                        continue
+                name = cookie["name"]
+                if name.startswith("sb-") and "-auth-token." in name:
+                    parts = name.rsplit(".", 1)
+                    if len(parts) == 2 and parts[1].isdigit():
+                        base, idx = parts[0], int(parts[1])
+                        sb_chunks.setdefault(base, {})[idx] = cookie["value"]
+
+            for base, chunks in sb_chunks.items():
+                try:
+                    full_value = "".join(chunks[i] for i in sorted(chunks))
+                    token_data = json.loads(unquote(full_value))
+                    if "access_token" in token_data:
+                        captured_tokens["access_token"] = token_data["access_token"]
+                        print(f"  Extracted access_token from chunked cookie: {base}.*")
+                    if "refresh_token" in token_data:
+                        captured_tokens["refresh_token"] = token_data["refresh_token"]
+                        print(f"  Extracted refresh_token from chunked cookie: {base}.*")
+                    if "expires_in" in token_data:
+                        captured_tokens["expires_in"] = token_data["expires_in"]
+                    elif "expires_at" in token_data:
+                        remaining = int(token_data["expires_at"]) - int(time.time())
+                        if remaining > 0:
+                            captured_tokens["expires_in"] = str(remaining)
+                except (json.JSONDecodeError, ValueError, KeyError):
+                    continue
+
+            # Legacy: single un-chunked sb-*-auth-token cookie (older Supabase versions)
+            if "access_token" not in captured_tokens:
+                for cookie in cookies:
+                    if cookie["name"].startswith("sb-") and cookie["name"].endswith("-auth-token"):
+                        try:
+                            token_data = json.loads(unquote(cookie["value"]))
+                            if "access_token" in token_data:
+                                captured_tokens["access_token"] = token_data["access_token"]
+                                print(f"  Extracted access_token from cookie: {cookie['name']}")
+                            if "refresh_token" in token_data:
+                                captured_tokens["refresh_token"] = token_data["refresh_token"]
+                                print(f"  Extracted refresh_token from cookie: {cookie['name']}")
+                            if "expires_in" in token_data:
+                                captured_tokens["expires_in"] = token_data["expires_in"]
+                            elif "expires_at" in token_data:
+                                # Supabase uses epoch seconds for expires_at
+                                remaining = int(token_data["expires_at"]) - int(time.time())
+                                if remaining > 0:
+                                    captured_tokens["expires_in"] = str(remaining)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
 
         # Debug: dump what we found if no tokens
         if "access_token" not in captured_tokens:
