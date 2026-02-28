@@ -477,6 +477,63 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
     return summary_path
 
 
+def _derive_key_entities(file_paths: list[str]) -> list[str]:
+    """Derive human-readable entity names from created file paths.
+
+    Applies naming conventions:
+    - libs/*/domain/*.py       -> stem + "Model"
+    - webapp/api/v1/*.py       -> "/api/v1/" + stem (URL path)
+    - */repositories/*.py      -> stem + "Repository"
+    - webapp/services/*.py     -> stem + "Service"
+    - infrastructure/migrations/versions/*.py -> skip
+    - Other .py files          -> stem as-is
+
+    Returns a deduplicated list preserving order.
+    """
+    seen: set[str] = set()
+    entities: list[str] = []
+
+    for path in file_paths:
+        p = Path(path)
+
+        # Skip migration files
+        if "migrations" in p.parts and "versions" in p.parts:
+            continue
+
+        stem = p.stem
+        if not stem:
+            continue
+
+        parts = p.parts
+
+        # Domain models: libs/<bc>/domain/<name>.py
+        if len(parts) >= 3 and "domain" in parts:
+            entity = stem.capitalize() + "Model"
+        # API routes: webapp/api/v1/<name>.py
+        elif len(parts) >= 3 and "api" in parts:
+            # Reconstruct URL path from the api/ segment onwards
+            try:
+                api_idx = parts.index("api")
+                url_parts = parts[api_idx:-1]  # exclude filename
+                entity = "/" + "/".join(url_parts) + "/" + stem
+            except ValueError:
+                entity = stem
+        # Repositories: any path containing "repositories" or "repository"
+        elif any(part in ("repositories", "repository") for part in parts):
+            entity = stem.capitalize() + "Repository"
+        # Services: webapp/services/<name>.py
+        elif "services" in parts:
+            entity = stem.capitalize() + "Service"
+        else:
+            entity = stem
+
+        if entity and entity not in seen:
+            seen.add(entity)
+            entities.append(entity)
+
+    return entities
+
+
 # ---------------------------------------------------------------------------
 # STORY_CONTEXT.md generation (deterministic, $0)
 # ---------------------------------------------------------------------------
@@ -549,6 +606,36 @@ def generate_story_context(
     if queue_lines:
         lines += ["", "## Queue Topology", "", *queue_lines]
 
+    # --- Observable Truths ---
+    observable_truths = plan.get("observable_truths", [])
+    if observable_truths:
+        lines += ["", "## Observable Truths", ""]
+        for truth in observable_truths:
+            truth_id = truth.get("id", "?")
+            statement = truth.get("statement", "?")
+            lines.append(f"{truth_id}. {statement}")
+
+    # --- Key Decisions ---
+    # Collect implementation notes from completed stories
+    key_decision_lines: list[str] = []
+    for story in stories:
+        sid = story.get("story_id", "?")
+        if sid in completed_set:
+            for note in story.get("implementation_notes", []):
+                key_decision_lines.append(f"- [{sid}] {note}")
+
+    # Collect critique_fail findings from this run
+    for e in events:
+        if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
+            e_sid = e.get("story_id", "?")
+            findings = e.get("findings", [])
+            for f in findings:
+                issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
+                key_decision_lines.append(f"- [critique] {issue}")
+
+    if key_decision_lines:
+        lines += ["", "## Key Decisions", "", *key_decision_lines]
+
     # --- Stories ---
     lines += ["", "## Stories", ""]
 
@@ -572,7 +659,8 @@ def generate_story_context(
 
             # Key files from story scope
             scope = story.get("scope", {})
-            key_files = scope.get("create", []) + scope.get("modify", [])
+            created_files = scope.get("create", [])
+            key_files = created_files + scope.get("modify", [])
 
             # State changes: table renames from migration files in this commit
             migration_renames = _extract_migration_renames(commit)
@@ -583,6 +671,16 @@ def generate_story_context(
             lines.append(f"### ✅ {sid}: {name} (`{commit[:8]}`)")
             lines.append("")
             lines.append(f"- **Changes:** {diff_summary}")
+
+            # Created files (up to 6)
+            if created_files:
+                created_str = ", ".join(f"`{f}`" for f in created_files[:6])
+                lines.append(f"- **Created:** {created_str}")
+
+            # Key entities derived from created file paths
+            key_entities = _derive_key_entities(created_files)
+            if key_entities:
+                lines.append(f"- **Key entities:** {', '.join(key_entities)}")
 
             if key_files:
                 files_str = ", ".join(f"`{f}`" for f in key_files[:6])
