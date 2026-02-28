@@ -360,6 +360,27 @@ def _check_empty_checkpoints(plan: Plan) -> list[ValidationError]:
     return errors
 
 
+def _check_acceptance_criteria(plan: Plan) -> list[ValidationError]:
+    """Check 11: Every story must have non-empty acceptance_criteria.
+
+    An empty acceptance_criteria list means the agent has no verifiable
+    definition of done, making the story unvalidatable.
+    """
+    errors: list[ValidationError] = []
+
+    for story in plan.stories:
+        if not story.acceptance_criteria:
+            errors.append(
+                ValidationError(
+                    check="acceptance_criteria",
+                    message=f"Story '{story.story_id}' has empty acceptance_criteria. "
+                    f"Every story must have at least one acceptance criterion.",
+                )
+            )
+
+    return errors
+
+
 def _check_checkpoint_coverage(plan: Plan) -> list[ValidationError]:
     """Check 10: Every story must have a validation checkpoint.
 
@@ -437,7 +458,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
             ],
         )
 
-    # Run checks 2-7 on the validated model
+    # Run checks 2-11 on the validated model
     all_errors: list[ValidationError] = []
     all_errors.extend(_check_referential_integrity(plan))
     all_errors.extend(_check_truth_coverage(plan))
@@ -446,6 +467,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_dependency_ordering(plan))
     all_errors.extend(_check_empty_checkpoints(plan))
     all_errors.extend(_check_checkpoint_coverage(plan))
+    all_errors.extend(_check_acceptance_criteria(plan))
 
     # Check 8: Command coverage (warnings only — doesn't fail validation)
     command_warnings = _check_command_coverage(plan)

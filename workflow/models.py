@@ -101,6 +101,21 @@ class Story(BaseModel):
     agent: AgentConfig
     scope: Scope
     state_assumption: Literal["cumulative", "clean"] = "cumulative"
+    acceptance_criteria: list[str] = Field(
+        description="User-perspective, verifiable criteria that must all pass for this story to be done. Required non-empty."
+    )
+    architectural_context: list[str] = Field(
+        default_factory=list,
+        description="Architecture patterns, module boundaries, and design decisions relevant to this story.",
+    )
+    navigation_hints: list[str] = Field(
+        default_factory=list,
+        description="File paths, symbol names, and entry points to orient the agent in the codebase.",
+    )
+    depends_on_summary: list[str] = Field(
+        default_factory=list,
+        description="Key outputs and contracts from prior stories that this story builds upon.",
+    )
     implementation_notes: list[str] = Field(
         default_factory=list, description="Domain-specific hints."
     )
@@ -210,6 +225,30 @@ def render_plan_md(plan: Plan) -> str:
         for fp in story.scope.modify:
             lines.append(f"- Modify: `{fp}`")
         lines.append("")
+        if story.acceptance_criteria:
+            lines.append("### Acceptance Criteria")
+            lines.append("")
+            for criterion in story.acceptance_criteria:
+                lines.append(f"- {criterion}")
+            lines.append("")
+        if story.architectural_context:
+            lines.append("### Architectural Context")
+            lines.append("")
+            for item in story.architectural_context:
+                lines.append(f"- {item}")
+            lines.append("")
+        if story.navigation_hints:
+            lines.append("### Navigation Guide")
+            lines.append("")
+            for hint in story.navigation_hints:
+                lines.append(f"- {hint}")
+            lines.append("")
+        if story.depends_on_summary:
+            lines.append("### Dependencies from Prior Stories")
+            lines.append("")
+            for dep in story.depends_on_summary:
+                lines.append(f"- {dep}")
+            lines.append("")
         if story.wiki_sections:
             lines.append(f"**Wiki Sections:** {', '.join(story.wiki_sections)}")
             lines.append("")

@@ -51,6 +51,7 @@ def _make_story(
         purpose="test",
         agent=_DEFAULT_AGENT,
         scope=Scope(create=create or [], modify=modify or []),
+        acceptance_criteria=["placeholder acceptance criterion"],
         truths_addressed=[1],
     )
 
