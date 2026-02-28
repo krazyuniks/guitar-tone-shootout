@@ -1,7 +1,11 @@
 #!/bin/bash
 # Adherence Check Hook (PreToolUse on Bash)
 #
-# Blocks git commit if cached test results show failures.
+# Blocks git commit if:
+# - Tests have never been run (no cache directory or files)
+# - Cached test results have expired (older than 5 min — must re-run)
+# - Cached test results show failures
+#
 # Reads from /tmp/gts-adherence-cache/ (written by capture-test-logs.sh).
 #
 # Hook receives JSON on stdin:
@@ -27,7 +31,15 @@ fi
 
 # Check if cache directory exists
 if [ ! -d "$CACHE_DIR" ]; then
-    # No cache - warn but allow (tests may not have been run yet)
+    cat << 'EOF'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "BLOCKED: Tests have never been run in this session.\n\nYou must run tests before committing:\n  just test            # Unit + Integration\n  just test-regression # Stack connectivity check\n\nRun tests, verify they pass, then commit."
+  }
+}
+EOF
     exit 0
 fi
 
@@ -35,7 +47,15 @@ fi
 cache_files=$(find "$CACHE_DIR" -type f -name "*.json" 2>/dev/null | sort -r)
 
 if [ -z "$cache_files" ]; then
-    # No cache files - warn but allow
+    cat << 'EOF'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "BLOCKED: Tests have never been run in this session.\n\nYou must run tests before committing:\n  just test            # Unit + Integration\n  just test-regression # Stack connectivity check\n\nRun tests, verify they pass, then commit."
+  }
+}
+EOF
     exit 0
 fi
 
@@ -54,7 +74,15 @@ current_time=$(date +%s)
 age=$((current_time - file_mtime))
 
 if [ "$age" -gt "$TTL_SECONDS" ]; then
-    # Cache expired - warn but allow
+    cat << 'EOF'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "BLOCKED: Test results have expired (older than 5 minutes).\n\nRe-run tests to confirm they still pass:\n  just test            # Unit + Integration\n  just test-regression # Stack connectivity check\n\nRun tests, verify they pass, then commit."
+  }
+}
+EOF
     exit 0
 fi
 
@@ -88,7 +116,7 @@ if [ "$has_any_failure" = "true" ]; then
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "BLOCKED: Tests failed. Run tests again before committing.\n\nCached test results show failures. You must:\n1. Fix the failing tests\n2. Re-run the tests (pytest or pnpm test)\n3. Verify all tests pass\n4. Then try committing again"
+    "permissionDecisionReason": "BLOCKED: Tests failed. Run tests again before committing.\n\nCached test results show failures. You must:\n1. Fix the failing tests\n2. Re-run the tests (just test or just tdd <path>)\n3. Verify all tests pass\n4. Then try committing again"
   }
 }
 EOF

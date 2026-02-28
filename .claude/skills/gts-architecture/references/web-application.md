@@ -150,18 +150,11 @@ Docker healthchecks use this endpoint. If any component is unhealthy, the contai
 
 ### Admin API Access
 
-> **Note:** A `gts-admin` CLI is planned. Currently, use `curl` to access the webapp admin API directly.
+> **Note:** A `gts-admin` CLI is planned. Use Chrome DevTools MCP or `just` commands for admin API inspection — never `curl`/`wget`/`httpie`.
 
-```bash
-# All requests -> Webapp (port 8000)
-curl http://localhost:8000/api/admin/jobs           # List all jobs
-curl http://localhost:8000/api/admin/jobs/{id}      # Get job details
-curl http://localhost:8000/api/admin/jobs/dead-lettered  # Dead-lettered jobs
-curl http://localhost:8000/api/admin/t3k/sync/status     # Sync status
-curl -X POST http://localhost:8000/api/admin/t3k/sync    # Trigger sync
-curl http://localhost:8000/api/admin/t3k/auth/status     # T3K auth check
-curl http://localhost:8000/health                        # Health check
-```
+Admin API endpoints (`/api/admin/*`) are accessible via the Chrome DevTools MCP browser or through dedicated `just` commands. Do not use `curl` directly — it bypasses test tooling and violates the container-first rule.
+
+For job and sync status: use `just` commands or the Chrome DevTools MCP to inspect the running app at `http://localhost:9000`.
 
 ### Port Allocation
 
@@ -174,17 +167,17 @@ Worktree offsets apply: main uses 8000, worktree with offset 10 uses 8010.
 ### Dependency Flow
 
 ```
-┌─────────────┐
-│ curl/CLI    │
-│  (client)   │
-└──────┬──────┘
-       │
-       └──── all requests ──▶ Webapp Admin API (:8000/api/admin/*)
-                                    │
-                              ┌─────▼─────┐
-                              │ gts_core  │
-                              │  (pgmq)   │
-                              └───────────┘
+┌───────────────────┐
+│ Chrome DevTools   │
+│ MCP / just cmds   │
+└────────┬──────────┘
+         │
+         └──── all requests ──▶ Webapp Admin API (:8000/api/admin/*)
+                                      │
+                                ┌─────▼─────┐
+                                │ gts_core  │
+                                │  (pgmq)   │
+                                └───────────┘
 ```
 
 ## File Storage

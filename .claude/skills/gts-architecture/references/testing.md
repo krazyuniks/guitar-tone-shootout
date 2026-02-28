@@ -63,7 +63,7 @@ This pattern catches issues at any layer: frontend rendering, API communication,
 just test-regression  # Stack connectivity (< 1s) - before commits
 just test             # Unit + Integration (< 30s) - before PRs
 just tdd <path>       # Single test during development
-just test-golden-path # Golden path tests (when frontend works)
+just test-golden-path # Golden path tests (MANDATORY before story completion)
 ```
 
 **Why E2E on host?**

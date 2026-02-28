@@ -24,12 +24,13 @@ if ./worktree.py is-fresh --quiet 2>/dev/null; then
     exit 0
 fi
 
-# Run health check with auto-fix (suppress errors for non-worktree directories)
+# Run health check with auto-fix.
 # The health command will:
 # - Check Docker container status
 # - Check HTTP endpoints
 # - Detect Vite staleness from logs
 # - Auto-restart frontend if stale
-./worktree.py health 2>/dev/null || true
+# Failures are surfaced here — not silently swallowed.
+./worktree.py health
 
 exit 0
