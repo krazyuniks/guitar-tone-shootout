@@ -190,73 +190,62 @@ def extract_facts(
     if output_path is None:
         output_path = codebase_dir / "FACTS.md"
 
-    source_files = {
-        "schema": codebase_dir / "SCHEMA.md",
-        "endpoints": codebase_dir / "ENDPOINTS.md",
-        "structure": codebase_dir / "STRUCTURE.md",
-        "imports": codebase_dir / "IMPORTS.md",
+    required = {
+        "SCHEMA.md": codebase_dir / "SCHEMA.md",
+        "ENDPOINTS.md": codebase_dir / "ENDPOINTS.md",
+        "STRUCTURE.md": codebase_dir / "STRUCTURE.md",
+        "IMPORTS.md": codebase_dir / "IMPORTS.md",
     }
+
+    missing = [name for name, path in required.items() if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            f"Missing codebase files: {', '.join(sorted(missing))}. "
+            "Run `just map-codebase` to generate them."
+        )
 
     sections: list[str] = ["# Codebase Facts", ""]
 
-    any_found = False
-
     # Tables from SCHEMA.md
-    schema_path = source_files["schema"]
-    if schema_path.is_file():
-        any_found = True
-        text = schema_path.read_text(encoding="utf-8")
-        grouped = _extract_tables(text)
-        if grouped:
-            sections.append("## Tables")
+    text = required["SCHEMA.md"].read_text(encoding="utf-8")
+    grouped = _extract_tables(text)
+    if grouped:
+        sections.append("## Tables")
+        sections.append("")
+        for prefix in sorted(grouped):
+            sections.append(f"### {prefix}")
+            for table in grouped[prefix]:
+                sections.append(f"- {table}")
             sections.append("")
-            for prefix in sorted(grouped):
-                sections.append(f"### {prefix}")
-                for table in grouped[prefix]:
-                    sections.append(f"- {table}")
-                sections.append("")
 
     # Endpoints from ENDPOINTS.md
-    endpoints_path = source_files["endpoints"]
-    if endpoints_path.is_file():
-        any_found = True
-        text = endpoints_path.read_text(encoding="utf-8")
-        endpoints = _extract_endpoints(text)
-        if endpoints:
-            sections.append("## Endpoints")
-            sections.append("")
-            for ep in endpoints:
-                sections.append(f"- {ep}")
-            sections.append("")
+    text = required["ENDPOINTS.md"].read_text(encoding="utf-8")
+    endpoints = _extract_endpoints(text)
+    if endpoints:
+        sections.append("## Endpoints")
+        sections.append("")
+        for ep in endpoints:
+            sections.append(f"- {ep}")
+        sections.append("")
 
     # Module structure from STRUCTURE.md
-    structure_path = source_files["structure"]
-    if structure_path.is_file():
-        any_found = True
-        text = structure_path.read_text(encoding="utf-8")
-        paths = _extract_module_structure(text)
-        if paths:
-            sections.append("## Module Structure")
-            sections.append("")
-            for p in paths:
-                sections.append(f"- {p}")
-            sections.append("")
+    text = required["STRUCTURE.md"].read_text(encoding="utf-8")
+    paths = _extract_module_structure(text)
+    if paths:
+        sections.append("## Module Structure")
+        sections.append("")
+        for p in paths:
+            sections.append(f"- {p}")
+        sections.append("")
 
     # BC dependencies from IMPORTS.md
-    imports_path = source_files["imports"]
-    if imports_path.is_file():
-        any_found = True
-        text = imports_path.read_text(encoding="utf-8")
-        bc_deps = _extract_bc_dependencies(text)
-        if bc_deps:
-            sections.append("## BC Dependencies")
-            sections.append("")
-            for dep in bc_deps:
-                sections.append(f"- {dep}")
-            sections.append("")
-
-    if not any_found:
-        sections.append("_No source files found in codebase directory._")
+    text = required["IMPORTS.md"].read_text(encoding="utf-8")
+    bc_deps = _extract_bc_dependencies(text)
+    if bc_deps:
+        sections.append("## BC Dependencies")
+        sections.append("")
+        for dep in bc_deps:
+            sections.append(f"- {dep}")
         sections.append("")
 
     content = "\n".join(sections)
@@ -285,13 +274,17 @@ def main() -> None:
 
     if not codebase_dir.is_dir():
         print(
-            f"Warning: {codebase_dir} does not exist. "
-            "Run `just map-codebase` first.",
+            f"Error: {codebase_dir} does not exist. Run `just map-codebase` first.",
             file=sys.stderr,
         )
-        codebase_dir.mkdir(parents=True, exist_ok=True)
+        sys.exit(1)
 
-    output_path = extract_facts(codebase_dir)
+    try:
+        output_path = extract_facts(codebase_dir)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     print(f"FACTS.md written to {output_path}")
 
 
