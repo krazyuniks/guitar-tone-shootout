@@ -1,5 +1,7 @@
 """Tests for STORY_CONTEXT.md generation."""
 
+from typing import ClassVar
+
 import pytest
 
 from workflow.orchestrator import generate_story_context
@@ -163,6 +165,12 @@ class TestGenerateStoryContext:
 class TestPromptBuilderStoryContext:
     """Tests for epic_dir integration in build_story_prompt."""
 
+    _SAMPLE_PLAN: ClassVar[dict] = {
+        "goal": "Test goal",
+        "observable_truths": [{"id": 1, "statement": "It works"}],
+    }
+    _SAMPLE_PROGRESS: tuple[int, int] = (0, 1)
+
     def test_no_reference_without_epic_dir(self, tmp_path):
         """No STORY_CONTEXT.md reference when epic_dir is not provided."""
         rules_dir = tmp_path / "rules"
@@ -170,7 +178,9 @@ class TestPromptBuilderStoryContext:
         wiki_dir = tmp_path / "wiki"
         wiki_dir.mkdir()
         story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
-        prompt = build_story_prompt(story, rules_dir, wiki_dir)
+        prompt = build_story_prompt(
+            story, rules_dir, wiki_dir, self._SAMPLE_PLAN, self._SAMPLE_PROGRESS
+        )
         assert "STORY_CONTEXT.md" not in prompt
 
     def test_no_reference_without_context_file(self, tmp_path):
@@ -182,7 +192,14 @@ class TestPromptBuilderStoryContext:
         epic_dir = tmp_path / "E999"
         epic_dir.mkdir()
         story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
-        prompt = build_story_prompt(story, rules_dir, wiki_dir, epic_dir=epic_dir)
+        prompt = build_story_prompt(
+            story,
+            rules_dir,
+            wiki_dir,
+            self._SAMPLE_PLAN,
+            self._SAMPLE_PROGRESS,
+            epic_dir=epic_dir,
+        )
         assert "STORY_CONTEXT.md" not in prompt
 
     def test_reference_when_context_exists(self, tmp_path):
@@ -195,7 +212,65 @@ class TestPromptBuilderStoryContext:
         epic_dir.mkdir()
         (epic_dir / "STORY_CONTEXT.md").write_text("# Story Context\n")
         story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
-        prompt = build_story_prompt(story, rules_dir, wiki_dir, epic_dir=epic_dir)
+        prompt = build_story_prompt(
+            story,
+            rules_dir,
+            wiki_dir,
+            self._SAMPLE_PLAN,
+            self._SAMPLE_PROGRESS,
+            epic_dir=epic_dir,
+        )
         assert "STORY_CONTEXT.md" in prompt
         assert "epic context" in prompt
         assert "prior story changes" in prompt
+
+    def test_t0_epic_context_rendered(self, tmp_path):
+        """T0 Epic Context section with goal, progress, and observable truths."""
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        wiki_dir = tmp_path / "wiki"
+        wiki_dir.mkdir()
+        story = {"story_id": "test", "name": "Test", "purpose": "test", "scope": {}}
+        prompt = build_story_prompt(
+            story,
+            rules_dir,
+            wiki_dir,
+            self._SAMPLE_PLAN,
+            (2, 5),
+        )
+        assert "## Epic Context" in prompt
+        assert "**Goal:** Test goal" in prompt
+        assert "**Progress:** 2/5 stories complete" in prompt
+        assert "1. It works" in prompt
+
+    def test_t1_enriched_fields_rendered(self, tmp_path):
+        """T1 enriched story fields appear in the prompt."""
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        wiki_dir = tmp_path / "wiki"
+        wiki_dir.mkdir()
+        story = {
+            "story_id": "test",
+            "name": "Test",
+            "purpose": "test",
+            "scope": {},
+            "acceptance_criteria": ["AC item one"],
+            "architectural_context": ["Arch context item"],
+            "navigation_hints": ["Nav hint item"],
+            "depends_on_summary": ["Dep summary item"],
+        }
+        prompt = build_story_prompt(
+            story,
+            rules_dir,
+            wiki_dir,
+            self._SAMPLE_PLAN,
+            self._SAMPLE_PROGRESS,
+        )
+        assert "### Acceptance Criteria" in prompt
+        assert "- AC item one" in prompt
+        assert "### Architectural Context" in prompt
+        assert "- Arch context item" in prompt
+        assert "### Navigation Guide" in prompt
+        assert "- Nav hint item" in prompt
+        assert "### Dependencies from Prior Stories" in prompt
+        assert "- Dep summary item" in prompt

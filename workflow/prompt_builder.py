@@ -236,6 +236,8 @@ def build_story_prompt(
     story: dict,
     rules_dir: Path,
     wiki_indexes_dir: Path,
+    plan: dict,
+    progress: tuple[int, int],
     checkpoint: ValidationCheckpoint | None = None,
     inline_rules: bool = False,
     epic_dir: Path | None = None,
@@ -251,6 +253,8 @@ def build_story_prompt(
         story: Story dict from plan.json.
         rules_dir: Path to .claude/rules/ directory.
         wiki_indexes_dir: Path to .planning/wiki-indexes/ directory.
+        plan: Full plan dict from plan.json. Used for T0 epic context.
+        progress: Tuple of (completed_count, total_count) for progress display.
         checkpoint: Validation checkpoint that will run after this story
             (from plan.validation_checkpoints, resolved by the caller).
         inline_rules: If True, inline rule file contents into the prompt.
@@ -260,10 +264,12 @@ def build_story_prompt(
     Returns the prompt string with:
     1. Compressed doc index line (lists rules, skills, wiki sections)
     2. AGENTS.md pointer
-    3. Story context reference (if STORY_CONTEXT.md exists)
-    4. Optionally, inlined rules file contents (domain-filtered)
-    5. Story-specific instructions
-    6. Validation checkpoint criteria (if any)
+    3. T0 Epic Context (goal, progress, observable truths)
+    4. Story context reference (if STORY_CONTEXT.md exists)
+    5. Optionally, inlined rules file contents (domain-filtered)
+    6. T1 enriched story instructions (acceptance criteria, architectural
+       context, navigation guide, dependency summary)
+    7. Validation checkpoint criteria (if any)
     """
     # Derive domains
     story_domains = derive_story_domains(story, checkpoint)
@@ -285,6 +291,20 @@ def build_story_prompt(
     # 2. AGENTS.md pointer (lightweight reference)
     parts.append("Follow project conventions in AGENTS.md.")
     parts.append("")
+
+    # 2b. T0 Epic Context
+    parts.append("## Epic Context")
+    parts.append("")
+    parts.append(f"**Goal:** {plan.get('goal', '')}")
+    parts.append(f"**Progress:** {progress[0]}/{progress[1]} stories complete")
+    parts.append("")
+    observable_truths = plan.get("observable_truths", [])
+    if observable_truths:
+        parts.append("### Observable Truths")
+        parts.append("")
+        for truth in observable_truths:
+            parts.append(f"{truth.get('id', '')}. {truth.get('statement', '')}")
+        parts.append("")
 
     # 3. Story context reference (if available)
     if epic_dir is not None:
@@ -314,6 +334,27 @@ def build_story_prompt(
     parts.append(f"**ID:** {story.get('story_id', 'unknown')}")
     parts.append(f"**Name:** {story.get('name', 'unknown')}")
     parts.append(f"**Purpose:** {story.get('purpose', '')}")
+    parts.append("")
+
+    # T1 enriched fields (Phase A guarantees non-empty)
+    parts.append("### Acceptance Criteria")
+    for item in story.get("acceptance_criteria", []):
+        parts.append(f"- {item}")
+    parts.append("")
+
+    parts.append("### Architectural Context")
+    for item in story.get("architectural_context", []):
+        parts.append(f"- {item}")
+    parts.append("")
+
+    parts.append("### Navigation Guide")
+    for item in story.get("navigation_hints", []):
+        parts.append(f"- {item}")
+    parts.append("")
+
+    parts.append("### Dependencies from Prior Stories")
+    for item in story.get("depends_on_summary", []):
+        parts.append(f"- {item}")
     parts.append("")
 
     # Scope
@@ -420,6 +461,19 @@ def main() -> None:
                     "apps/webapp/src/webapp/adapters/persistence/repositories/signal_chain.py",
                 ],
             },
+            "acceptance_criteria": [
+                "GET /api/v1/signal-chains returns 200 with list of chains",
+                "POST /api/v1/signal-chains creates a chain and returns 201",
+            ],
+            "architectural_context": [
+                "Repositories follow webapp/adapters/persistence/repositories/signal_chain.py",
+                "API routes use CurrentUser dependency for auth",
+            ],
+            "navigation_hints": [
+                "Route registration: webapp/api/v1/signal_chains.py",
+                "Repository base: libs/core/domain/base.py",
+            ],
+            "depends_on_summary": [],
             "implementation_notes": [
                 "Follow existing repository patterns",
                 "Use joinedload for eager loading",
@@ -435,6 +489,18 @@ def main() -> None:
                     "frontend/astro/src/pages/gear/index.html.ts",
                 ],
             },
+            "acceptance_criteria": [
+                "The /gear page renders a list of gear items for the user",
+            ],
+            "architectural_context": [
+                "Jinja2 templates extend layouts/base.html built by Astro",
+            ],
+            "navigation_hints": [
+                "Page template: frontend/astro/src/pages/gear/index.html.ts",
+            ],
+            "depends_on_summary": [
+                "Backend story created GET /api/v1/gears endpoint",
+            ],
             "implementation_notes": [
                 "Use Astro SSG pattern",
                 "Add data-testid attributes",
@@ -452,12 +518,37 @@ def main() -> None:
                     "frontend/astro/src/pages/library/di-tracks.html.ts",
                 ],
             },
+            "acceptance_criteria": [
+                "POST /api/v1/di-tracks uploads a file and returns 201",
+                "The /library/di-tracks page shows uploaded tracks",
+            ],
+            "architectural_context": [
+                "File upload uses multipart form data via HTMX",
+                "Backend validates file type and size before storing",
+            ],
+            "navigation_hints": [
+                "API endpoint: apps/webapp/src/webapp/api/v1/di_tracks.py",
+                "Repository: apps/webapp/src/webapp/adapters/persistence/repositories/di_track.py",
+            ],
+            "depends_on_summary": [
+                "Backend story established repository and service patterns",
+                "Frontend story established page template patterns",
+            ],
             "implementation_notes": [
                 "Upload form with HTMX",
                 "Backend file validation",
                 "Write regression tests",
             ],
         },
+    }
+
+    # Sample plan for T0 context
+    sample_plan: dict = {
+        "goal": "Implement gear library with browsing, upload, and management",
+        "observable_truths": [
+            {"id": 1, "statement": "User can browse gear items on the /gear page"},
+            {"id": 2, "statement": "User can upload DI tracks via the library page"},
+        ],
     }
 
     # Checkpoints keyed by story_id (mirrors plan.validation_checkpoints)
@@ -520,8 +611,11 @@ def main() -> None:
         doc_index = build_doc_index(selected, domains, wiki_indexes_dir)
         print(f"  Doc index: {doc_index}")
 
-        # Build prompt (default: index-only mode, within 650-token budget)
-        prompt = build_story_prompt(story, rules_dir, wiki_indexes_dir, checkpoint=cp)
+        # Build prompt (default: index-only mode)
+        sample_progress = (0, len(sample_stories))
+        prompt = build_story_prompt(
+            story, rules_dir, wiki_indexes_dir, sample_plan, sample_progress, checkpoint=cp
+        )
         tokens = estimate_tokens(prompt)
         print(f"  Prompt size (index-only): {len(prompt):,d} chars (~{tokens:,d} tokens)")
 
@@ -538,7 +632,8 @@ def main() -> None:
 
         # Also show inlined-rules mode for comparison
         prompt_inlined = build_story_prompt(
-            story, rules_dir, wiki_indexes_dir, checkpoint=cp, inline_rules=True
+            story, rules_dir, wiki_indexes_dir, sample_plan, sample_progress,
+            checkpoint=cp, inline_rules=True,
         )
         tokens_inlined = estimate_tokens(prompt_inlined)
         print(

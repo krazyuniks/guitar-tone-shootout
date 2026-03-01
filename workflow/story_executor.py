@@ -1016,10 +1016,13 @@ def _dispatch_and_validate_loop(
         )
 
         # Build the agent prompt using V3 prompt_builder
+        total_stories = len(plan.get("stories", []))
         prompt = build_story_prompt(
             story,
             RULES_DIR,
             WIKI_INDEXES_DIR,
+            plan,
+            (len(completed_stories), total_stories),
             checkpoint=checkpoint,
             epic_dir=epic_dir,
         )
