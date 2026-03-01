@@ -1,4 +1,4 @@
-"""Tests for plan_validator — scope coherence with projected filesystem state."""
+"""Tests for plan_validator — scope coherence and story enrichment validation."""
 
 from workflow.models import (
     AgentConfig,
@@ -11,7 +11,11 @@ from workflow.models import (
     UserJourney,
     ValidationCheckpoint,
 )
-from workflow.plan_validator import _check_scope_coherence
+from workflow.plan_validator import (
+    _check_acceptance_criteria,
+    _check_scope_coherence,
+    _check_story_enrichment,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,15 +47,28 @@ def _make_story(
     story_id: str,
     create: list[str] | None = None,
     modify: list[str] | None = None,
+    acceptance_criteria: list[str] | None = None,
+    architectural_context: list[str] | None = None,
+    navigation_hints: list[str] | None = None,
+    depends_on_summary: list[str] | None = None,
 ) -> Story:
-    """Build a minimal Story with the given scope."""
+    """Build a minimal Story with the given scope and enrichment fields."""
     return Story(
         story_id=story_id,
         name=f"Story {story_id}",
         purpose="test",
         agent=_DEFAULT_AGENT,
         scope=Scope(create=create or [], modify=modify or []),
-        acceptance_criteria=["placeholder acceptance criterion"],
+        acceptance_criteria=acceptance_criteria
+        if acceptance_criteria is not None
+        else ["placeholder acceptance criterion"],
+        architectural_context=architectural_context
+        if architectural_context is not None
+        else ["placeholder architectural context"],
+        navigation_hints=navigation_hints
+        if navigation_hints is not None
+        else ["placeholder navigation hint"],
+        depends_on_summary=depends_on_summary if depends_on_summary is not None else [],
         truths_addressed=[1],
     )
 
@@ -174,3 +191,85 @@ class TestScopeCoherence:
         errors = _check_scope_coherence(plan)
         s2_errors = [e for e in errors if "s2" in e.message]
         assert s2_errors == []
+
+
+class TestAcceptanceCriteria:
+    """Tests for _check_acceptance_criteria validation."""
+
+    def test_story_with_acceptance_criteria_passes(self) -> None:
+        plan = _make_plan([_make_story("s1")])
+        errors = _check_acceptance_criteria(plan)
+        assert errors == []
+
+    def test_empty_acceptance_criteria_fails(self) -> None:
+        plan = _make_plan([_make_story("s1", acceptance_criteria=[])])
+        errors = _check_acceptance_criteria(plan)
+        assert len(errors) == 1
+        assert errors[0].check == "acceptance_criteria"
+        assert "s1" in errors[0].message
+
+
+class TestStoryEnrichment:
+    """Tests for _check_story_enrichment validation."""
+
+    def test_fully_enriched_stories_pass(self) -> None:
+        plan = _make_plan(
+            [
+                _make_story("s1"),
+                _make_story("s2", depends_on_summary=["s1 created foo.py"]),
+            ]
+        )
+        errors = _check_story_enrichment(plan)
+        assert errors == []
+
+    def test_empty_architectural_context_fails(self) -> None:
+        plan = _make_plan([_make_story("s1", architectural_context=[])])
+        errors = _check_story_enrichment(plan)
+        assert len(errors) == 1
+        assert errors[0].check == "story_enrichment"
+        assert "architectural_context" in errors[0].message
+        assert "s1" in errors[0].message
+
+    def test_empty_navigation_hints_fails(self) -> None:
+        plan = _make_plan([_make_story("s1", navigation_hints=[])])
+        errors = _check_story_enrichment(plan)
+        assert len(errors) == 1
+        assert errors[0].check == "story_enrichment"
+        assert "navigation_hints" in errors[0].message
+
+    def test_first_story_empty_depends_on_summary_passes(self) -> None:
+        """First story (index 0) is exempt from depends_on_summary."""
+        plan = _make_plan([_make_story("s1", depends_on_summary=[])])
+        errors = _check_story_enrichment(plan)
+        assert errors == []
+
+    def test_second_story_empty_depends_on_summary_fails(self) -> None:
+        """Stories at index > 0 must have non-empty depends_on_summary."""
+        plan = _make_plan(
+            [
+                _make_story("s1"),
+                _make_story("s2", depends_on_summary=[]),
+            ]
+        )
+        errors = _check_story_enrichment(plan)
+        assert len(errors) == 1
+        assert errors[0].check == "story_enrichment"
+        assert "depends_on_summary" in errors[0].message
+        assert "s2" in errors[0].message
+
+    def test_multiple_enrichment_errors_reported(self) -> None:
+        """All enrichment failures are reported, not just the first."""
+        plan = _make_plan(
+            [
+                _make_story(
+                    "s1",
+                    architectural_context=[],
+                    navigation_hints=[],
+                ),
+            ]
+        )
+        errors = _check_story_enrichment(plan)
+        assert len(errors) == 2
+        checks = {e.message.split("empty ")[1].split(".")[0] for e in errors}
+        assert "architectural_context" in checks
+        assert "navigation_hints" in checks

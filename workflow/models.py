@@ -225,30 +225,26 @@ def render_plan_md(plan: Plan) -> str:
         for fp in story.scope.modify:
             lines.append(f"- Modify: `{fp}`")
         lines.append("")
-        if story.acceptance_criteria:
-            lines.append("### Acceptance Criteria")
-            lines.append("")
-            for criterion in story.acceptance_criteria:
-                lines.append(f"- {criterion}")
-            lines.append("")
-        if story.architectural_context:
-            lines.append("### Architectural Context")
-            lines.append("")
-            for item in story.architectural_context:
-                lines.append(f"- {item}")
-            lines.append("")
-        if story.navigation_hints:
-            lines.append("### Navigation Guide")
-            lines.append("")
-            for hint in story.navigation_hints:
-                lines.append(f"- {hint}")
-            lines.append("")
-        if story.depends_on_summary:
-            lines.append("### Dependencies from Prior Stories")
-            lines.append("")
-            for dep in story.depends_on_summary:
-                lines.append(f"- {dep}")
-            lines.append("")
+        lines.append("### Acceptance Criteria")
+        lines.append("")
+        for criterion in story.acceptance_criteria:
+            lines.append(f"- {criterion}")
+        lines.append("")
+        lines.append("### Architectural Context")
+        lines.append("")
+        for item in story.architectural_context:
+            lines.append(f"- {item}")
+        lines.append("")
+        lines.append("### Navigation Guide")
+        lines.append("")
+        for hint in story.navigation_hints:
+            lines.append(f"- {hint}")
+        lines.append("")
+        lines.append("### Dependencies from Prior Stories")
+        lines.append("")
+        for dep in story.depends_on_summary:
+            lines.append(f"- {dep}")
+        lines.append("")
         if story.wiki_sections:
             lines.append(f"**Wiki Sections:** {', '.join(story.wiki_sections)}")
             lines.append("")

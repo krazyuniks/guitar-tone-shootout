@@ -381,6 +381,45 @@ def _check_acceptance_criteria(plan: Plan) -> list[ValidationError]:
     return errors
 
 
+def _check_story_enrichment(plan: Plan) -> list[ValidationError]:
+    """Check 12: Every story must have non-empty enrichment fields.
+
+    - architectural_context: required non-empty on ALL stories.
+    - navigation_hints: required non-empty on ALL stories.
+    - depends_on_summary: required non-empty on stories at index > 0
+      (first story has no predecessors).
+    """
+    errors: list[ValidationError] = []
+
+    for i, story in enumerate(plan.stories):
+        if not story.architectural_context:
+            errors.append(
+                ValidationError(
+                    check="story_enrichment",
+                    message=f"Story '{story.story_id}' has empty architectural_context. "
+                    f"Every story must have at least one architectural context item.",
+                )
+            )
+        if not story.navigation_hints:
+            errors.append(
+                ValidationError(
+                    check="story_enrichment",
+                    message=f"Story '{story.story_id}' has empty navigation_hints. "
+                    f"Every story must have at least one navigation hint.",
+                )
+            )
+        if i > 0 and not story.depends_on_summary:
+            errors.append(
+                ValidationError(
+                    check="story_enrichment",
+                    message=f"Story '{story.story_id}' (index {i}) has empty depends_on_summary. "
+                    f"Stories after the first must summarise dependencies from prior stories.",
+                )
+            )
+
+    return errors
+
+
 def _check_checkpoint_coverage(plan: Plan) -> list[ValidationError]:
     """Check 10: Every story must have a validation checkpoint.
 
@@ -468,6 +507,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_empty_checkpoints(plan))
     all_errors.extend(_check_checkpoint_coverage(plan))
     all_errors.extend(_check_acceptance_criteria(plan))
+    all_errors.extend(_check_story_enrichment(plan))
 
     # Check 8: Command coverage (warnings only — doesn't fail validation)
     command_warnings = _check_command_coverage(plan)
