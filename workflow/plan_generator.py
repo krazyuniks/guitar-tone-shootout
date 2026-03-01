@@ -132,6 +132,61 @@ Example story breakdown for a typical GTS epic:
 | 4. CRUD Features | Form handling, HTMX interactions, DB writes | Codex | $4 |
 | 5. Regression Tests | E2E tests, regression test updates | Codex | $3 |"""
 
+# Story enrichment guidance (Step 3b)
+STORY_ENRICHMENT_GUIDANCE = """\
+After grouping artefacts into stories, populate the four enrichment fields for EVERY
+story. Be specific — reference concrete paths, method names, and prior story outputs.
+Generic bullets are useless to an agent that has never seen this codebase.
+
+#### acceptance_criteria
+User-perspective, testable statements. Each criterion must be independently verifiable
+by running a command or checking a visible behaviour.
+
+Good:
+- "POST /api/v1/gears creates a gear and returns 201 with the gear ID"
+- "The /gear page shows gear items for the authenticated user"
+
+Bad (too technical, not user-visible):
+- "GearRepository has a create method"
+- "The Pydantic schema validates input"
+
+#### architectural_context
+Patterns, module boundaries, and design decisions the agent must follow. Reference
+actual files so the agent knows where to look.
+
+Good:
+- "Repositories follow the pattern in webapp/adapters/persistence/repositories/signal_chain.py"
+- "API routes use the pattern in webapp/api/v1/signal_chains.py — include the CurrentUser dependency"
+
+Bad (too abstract):
+- "Use the repository pattern"
+- "Follow existing API patterns"
+
+#### navigation_hints
+File paths, symbol names, and entry points. Assume the agent starts cold with no
+knowledge of where things live.
+
+Good:
+- "API route entry point: webapp/api/v1/signal_chains.py — copy the route registration pattern"
+- "ORM model base class: libs/core/domain/base.py"
+
+Bad:
+- "Follow existing patterns"
+- "Look in the webapp directory"
+
+#### depends_on_summary
+Outputs from prior stories that this story consumes. Reference specific files and
+symbols, not story names.
+
+Good:
+- "Story 01 created GearModel in libs/core/domain/gear.py with fields: id, name, user_id"
+- "Story 02 created POST /api/v1/gears — use that route's response schema for the form submission"
+
+Bad:
+- "Depends on Story 01"
+- "Uses the gear model from the previous story"
+"""
+
 # Skill mapping per story type (Section 8.5 Decision 3)
 SKILL_MAPPING_REFERENCE = """\
 Skill mapping per story type (select appropriate skills for each story):
@@ -277,6 +332,10 @@ completes in a single invocation.
 
 {STORY_SIZING_GUIDANCE}
 
+### Step 3b: Enrich Each Story
+
+{STORY_ENRICHMENT_GUIDANCE}
+
 ### Step 4: Define User Journeys
 
 Create connected, end-to-end narratives that link observable truths into coherent
@@ -333,7 +392,9 @@ Key fields:
 - `user_journeys`: array with journey_id ("J1", "J2", ...), persona,
   narrative, truths_covered, entry_point, critical_transitions
 - `stories`: ordered array with story_id ("01-name"), name, purpose,
-  agent config, scope, implementation_notes, truths_addressed, wiki_sections
+  agent config, scope, acceptance_criteria (required non-empty), architectural_context,
+  navigation_hints, depends_on_summary, implementation_notes, truths_addressed,
+  wiki_sections
 - `validation_checkpoints`: array with after_story, check_type, checks
 
 The critical_transitions use {{source, to, mechanism}}.
@@ -355,6 +416,8 @@ The critical_transitions use {{source, to, mechanism}}.
 10. Do NOT invent features not described in the epic. Stay within scope.
 11. Every story MUST include `wiki_sections` — a list of wiki section header names
     from `.planning/wiki-indexes/` for the Stage 4 prompt builder.
+12. Every story MUST have non-empty acceptance_criteria. Stories without acceptance
+    criteria will fail Phase A validation.
 
 Think step by step, then emit the JSON in a ```json code fence."""
 
