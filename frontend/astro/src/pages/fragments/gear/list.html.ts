@@ -1,7 +1,7 @@
 /**
  * fragments/gear/list.html.ts - Outputs dist/fragments/gear/list.html
  *
- * Gear list fragment for HTMX updates via /api/v1/html/gear/list.
+ * Gear list fragment for HTMX updates via /gear/search.
  * This is a Jinja2 fragment template.
  */
 
@@ -11,7 +11,7 @@ import type { APIRoute } from 'astro';
 import '../../../styles/global.css';
 
 export const GET: APIRoute = () => {
-  const template = `<!-- Gear List Fragment - HTMX response for /api/v1/html/gear/list -->
+  const template = `<!-- Gear List Fragment - HTMX response for /gear/search -->
 <div data-testid="gear-list-fragment">
   {% if gear_items %}
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">

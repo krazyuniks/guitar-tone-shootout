@@ -134,13 +134,6 @@ class TestDITracksBrowse:
         response = await guest_page.goto(f"{frontend_url}/di-tracks")
         assert response is not None and response.status == 200
 
-    async def test_di_tracks_htmx_results_fragment(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
-        """DI tracks HTMX results fragment is accessible."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/html/di-tracks/results")
-        assert response.ok, f"DI tracks results fragment returned {response.status}"
-
 
 # --- Shootout Comments ---
 
@@ -156,7 +149,7 @@ class TestShootoutComments:
         """Shootout comments endpoint is mounted (responds, not 404 nginx)."""
         # Use a fake UUID — should get 404 from the app (not nginx 404)
         response = await guest_page.request.get(
-            f"{frontend_url}/api/v1/html/shootouts/00000000-0000-0000-0000-000000000000/comments"
+            f"{frontend_url}/shootout/00000000-0000-0000-0000-000000000000/comments"
         )
         # Should NOT be a nginx-level 502/503 (endpoint not found)
         # App-level 404 (shootout not found) is acceptable — proves the route exists

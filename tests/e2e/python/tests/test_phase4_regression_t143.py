@@ -61,7 +61,7 @@ class TestShootoutWizardE2E:
         """Shootout wizard chain selection HTMX fragment responds."""
         page = await auth_context.new_page()
         try:
-            response = await page.request.get(f"{frontend_url}/api/v1/html/shootout-create/chains")
+            response = await page.request.get(f"{frontend_url}/shootout/create/chains")
             assert response.ok, f"Shootout chain selection fragment returned {response.status}"
         finally:
             await page.close()
@@ -72,9 +72,7 @@ class TestShootoutWizardE2E:
         """Shootout wizard DI track selection HTMX fragment responds."""
         page = await auth_context.new_page()
         try:
-            response = await page.request.get(
-                f"{frontend_url}/api/v1/html/shootout-create/ditracks"
-            )
+            response = await page.request.get(f"{frontend_url}/shootout/create/ditracks")
             assert response.ok, f"Shootout DI track selection fragment returned {response.status}"
         finally:
             await page.close()
@@ -130,7 +128,7 @@ class TestCustom500ErrorPage:
         by checking that a known bad request results in styled error content.
         """
         # Try the dev-only test error endpoint
-        response = await guest_page.goto(f"{frontend_url}/api/v1/test/error")
+        response = await guest_page.goto(f"{frontend_url}/api/test/error")
 
         if response is not None and response.status == 500:
             # Dev mode — verify custom error page content
@@ -164,7 +162,7 @@ class TestNoConsoleErrors:
         # Wait for any deferred JS to execute
         await page.wait_for_load_state("networkidle")
 
-        # Filter out expected 401 responses — the auth navbar checks /api/v1/auth/me
+        # Filter out expected 401 responses — the auth navbar checks /auth/me
         # which returns 401 for unauthenticated guests (normal behaviour)
         return [e for e in errors if "401" not in e]
 
@@ -232,18 +230,6 @@ class TestDITracksBrowsePlayback:
             or "browse" in body_lower
         ), f"DI tracks page should show track content, got: {body_text[:500]}"
 
-    async def test_di_tracks_results_fragment_returns_html(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
-        """DI tracks results HTMX fragment returns valid HTML content."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/html/di-tracks/results")
-        assert response.ok, f"DI tracks results returned {response.status}"
-
-        body = await response.text()
-        # Should contain HTML content (not empty, not JSON error)
-        assert len(body) > 0, "DI tracks results fragment returned empty body"
-        assert "<" in body, "DI tracks results should return HTML content"
-
 
 # --- IR Upload Endpoint Reachability ---
 
@@ -256,7 +242,7 @@ class TestIRUploadEndpoint:
     async def test_ir_upload_requires_auth(self, guest_page: Page, frontend_url: str) -> None:
         """IR upload POST endpoint requires authentication (not 404)."""
         response = await guest_page.request.post(
-            f"{frontend_url}/api/v1/irs/upload",
+            f"{frontend_url}/api/irs/upload",
             multipart={"file": {"name": "test.wav", "mimeType": "audio/wav", "buffer": b"RIFF"}},
         )
         # Should get 401 (unauthenticated) or 422 (bad input), NOT 404
@@ -273,7 +259,7 @@ class TestIRUploadEndpoint:
         page = await auth_context.new_page()
         try:
             response = await page.request.post(
-                f"{frontend_url}/api/v1/irs/upload",
+                f"{frontend_url}/api/irs/upload",
                 multipart={
                     "file": {
                         "name": "fake.wav",

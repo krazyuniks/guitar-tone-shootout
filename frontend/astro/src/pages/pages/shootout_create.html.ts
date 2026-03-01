@@ -161,7 +161,7 @@ export const GET: APIRoute = () => {
       });
 
       try {
-        const response = await fetch('/api/v1/html/shootout-create', {
+        const response = await fetch('/shootout/create', {
           method: 'POST',
           body: formData,
           credentials: 'same-origin',
@@ -291,7 +291,7 @@ export const GET: APIRoute = () => {
             name="search"
             placeholder="Search chains..."
             x-model="chainSearch"
-            hx-get="/api/v1/html/shootout-create/chains"
+            hx-get="/shootout/create/chains"
             hx-trigger="keyup changed delay:300ms"
             hx-target="#chain-list-container"
             hx-include="[name='search']"
@@ -309,7 +309,7 @@ export const GET: APIRoute = () => {
         <!-- Chain list container -->
         <div
           id="chain-list-container"
-          hx-get="/api/v1/html/shootout-create/chains"
+          hx-get="/shootout/create/chains"
           hx-trigger="load"
           hx-swap="innerHTML"
           data-testid="chain-list-container"
@@ -380,7 +380,7 @@ export const GET: APIRoute = () => {
         <!-- Track list container (loaded via HTMX) -->
         <div
           id="ditrack-list-container"
-          hx-get="/api/v1/html/shootout-create/ditracks"
+          hx-get="/shootout/create/ditracks"
           hx-trigger="load"
           hx-swap="innerHTML"
           data-testid="ditrack-list-container"

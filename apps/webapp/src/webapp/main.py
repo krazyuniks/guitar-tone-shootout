@@ -19,7 +19,6 @@ from webapp.api.v1 import (
     di_tracks,
     files,
     health,
-    html,
     jobs,
     metrics,
     shootouts,
@@ -108,14 +107,13 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Include API routers
-    app.include_router(health.router, prefix="/api/v1", tags=["health"])
+    app.include_router(health.router, tags=["health"])
     app.include_router(auth.router)
     app.include_router(block_types.router)
     app.include_router(files.router)
     app.include_router(shootouts.router)
     app.include_router(metrics.router)
     app.include_router(jobs.router)
-    app.include_router(html.router)
     app.include_router(signal_chains.router)
     app.include_router(signal_chain_groups.router)
     app.include_router(di_tracks.router)
@@ -131,13 +129,9 @@ def create_app() -> FastAPI:
 
     # Override database dependencies with our initialized one.
     # Only override modules that raise NotImplementedError (no fallback).
-    # Modules like pages and html already fall back to get_db internally,
-    # and overriding them would break test session injection via _session_override.
+    # Pages use webapp.auth.dependencies.get_db_session (centralised)
+    # which already falls back to get_db and supports test overrides.
     if database_url:
-        # Override only modules with their OWN local get_db_session.
-        # Modules using webapp.auth.dependencies.get_db_session (signal_chains,
-        # di_tracks) must NOT be overridden — the centralised function already
-        # falls back to get_db and supports test overrides.
         for module in [health, shootouts, jobs]:
             if hasattr(module, "get_db_session"):
                 app.dependency_overrides[module.get_db_session] = get_db
@@ -146,11 +140,6 @@ def create_app() -> FastAPI:
     async def redirect_to_login(_request: Request, _exc: RedirectToLogin) -> RedirectResponse:
         """Redirect unauthenticated page requests to /login."""
         return RedirectResponse(url="/login", status_code=302)
-
-    @app.get("/health")
-    async def health_check() -> dict[str, str]:
-        """Health check endpoint for container orchestration (legacy)."""
-        return {"status": "healthy"}
 
     return app
 

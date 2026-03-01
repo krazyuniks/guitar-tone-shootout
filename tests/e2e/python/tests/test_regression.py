@@ -94,7 +94,7 @@ class TestGearPages:
         self, guest_page: Page, frontend_url: str
     ) -> None:
         """Gear detail page returns 200 with model listing."""
-        api_response = await guest_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
+        api_response = await guest_page.request.get(f"{frontend_url}/api/gear/?limit=1")
         assert api_response.ok, "Gear API must return 200"
         data = await api_response.json()
         assert data.get("items"), "Database must contain gear data"
@@ -149,97 +149,13 @@ class TestLibraryPages:
 @pytest.mark.asyncio
 @pytest.mark.e2e
 class TestHTMXFragments:
-    """Verify HTMX fragment endpoints return 200."""
-
-    async def test_gear_list_fragment_returns_200(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
-        """Gear list fragment endpoint returns 200."""
-        await guest_page.goto(f"{frontend_url}/api/v1/html/gear/list")
-
-        # Should render without error
-        await expect(guest_page.locator("body")).to_be_visible()
-
-    async def test_library_my_gear_list_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
-        """Library my gear list fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/my-gear/list")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-    async def test_library_chains_list_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
-        """Library chains list fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/chains/list")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-    async def test_library_shootouts_list_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
-        """Library shootouts list fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/shootouts/list")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-    async def test_my_gear_results_fragment_returns_200(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
-        """My gear results fragment endpoint returns 200."""
-        await guest_page.goto(f"{frontend_url}/api/v1/html/my-gear/results")
-
-        # Should render without error
-        await expect(guest_page.locator("body")).to_be_visible()
-
-    async def test_di_tracks_results_fragment_returns_200(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
-        """DI tracks results fragment endpoint returns 200."""
-        await guest_page.goto(f"{frontend_url}/api/v1/html/di-tracks/results")
-
-        # Should render without error
-        await expect(guest_page.locator("body")).to_be_visible()
-
-    async def test_library_tracks_fragment_returns_200(self, page: Page, frontend_url: str) -> None:
-        """Library tracks fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/tracks")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-    async def test_library_chains_fragment_returns_200(self, page: Page, frontend_url: str) -> None:
-        """Library chains fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/chains")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-    async def test_library_shootouts_fragment_returns_200(
-        self, page: Page, frontend_url: str
-    ) -> None:
-        """Library shootouts fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/shootouts")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
-
-    async def test_library_groups_fragment_returns_200(self, page: Page, frontend_url: str) -> None:
-        """Library groups fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/library/groups")
-
-        # Should render without error
-        await expect(page.locator("body")).to_be_visible()
+    """Verify remaining HTMX fragment endpoints return 200."""
 
     async def test_shootout_create_chains_fragment_returns_200(
         self, page: Page, frontend_url: str
     ) -> None:
         """Shootout create chains fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/shootout-create/chains")
+        await page.goto(f"{frontend_url}/shootout/create/chains")
 
         # Should render without error
         await expect(page.locator("body")).to_be_visible()
@@ -248,16 +164,7 @@ class TestHTMXFragments:
         self, page: Page, frontend_url: str
     ) -> None:
         """Shootout create DI tracks fragment endpoint returns 200."""
-        await page.goto(f"{frontend_url}/api/v1/html/shootout-create/ditracks")
+        await page.goto(f"{frontend_url}/shootout/create/ditracks")
 
         # Should render without error
         await expect(page.locator("body")).to_be_visible()
-
-    async def test_shootouts_sections_fragment_returns_200(
-        self, guest_page: Page, frontend_url: str
-    ) -> None:
-        """Shootouts sections fragment endpoint returns 200."""
-        await guest_page.goto(f"{frontend_url}/api/v1/html/shootouts/sections")
-
-        # Should render without error
-        await expect(guest_page.locator("body")).to_be_visible()

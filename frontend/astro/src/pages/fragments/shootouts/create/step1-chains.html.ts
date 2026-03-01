@@ -46,7 +46,7 @@ export const GET: APIRoute = () => {
       type="text"
       placeholder="Search chains..."
       x-model="chainSearch"
-      hx-get="/api/v1/html/shootout-create/chains"
+      hx-get="/shootout/create/chains"
       hx-trigger="keyup changed delay:300ms"
       hx-target="#chain-list-container"
       hx-include="[x-model='chainSearch']"
@@ -62,7 +62,7 @@ export const GET: APIRoute = () => {
   </div>
 
   <!-- Chain list container -->
-  <div id="chain-list-container" hx-get="/api/v1/html/shootout-create/chains" hx-trigger="load" hx-swap="innerHTML">
+  <div id="chain-list-container" hx-get="/shootout/create/chains" hx-trigger="load" hx-swap="innerHTML">
     <!-- Loading skeleton -->
     <div class="space-y-2">
       <div class="h-16 bg-muted rounded-lg animate-pulse"></div>

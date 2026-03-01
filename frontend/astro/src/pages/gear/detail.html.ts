@@ -448,7 +448,7 @@ export const GET: APIRoute = () => {
                   data-testid="model-save-checkbox"
                   data-model-id="{{ model.id }}"
                   {{ 'checked' if model.is_saved else '' }}
-                  hx-post="/api/v1/html/gear/model/{{ model.id }}/toggle"
+                  hx-post="/gear/model/{{ model.id }}/toggle"
                   hx-swap="outerHTML"
                   hx-target="closest [data-testid='model-row']"
                   class="w-5 h-5 rounded border-[var(--border)] bg-[var(--color-bg-secondary)] text-[var(--color-accent-primary)] focus:ring-[var(--color-accent-primary)] focus:ring-offset-0"
@@ -474,7 +474,7 @@ export const GET: APIRoute = () => {
           if (modelIds.length === 0) return;
 
           try {
-            const response = await fetch('/api/v1/html/gear/models/bulk-toggle', {
+            const response = await fetch('/gear/models/bulk-toggle', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

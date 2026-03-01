@@ -52,7 +52,7 @@ export const GET: APIRoute = () => {
           controls
           class="w-full h-8"
           preload="metadata"
-          src="/api/v1/di-tracks/{{ track.id }}/stream"
+          src="/api/di-tracks/{{ track.id }}/stream"
         >
           Your browser does not support the audio element.
         </audio>
@@ -97,7 +97,7 @@ export const GET: APIRoute = () => {
         <button
           type="button"
           data-testid="track-toggle-public-btn"
-          hx-post="/api/v1/html/library/tracks/{{ track.id }}/toggle-public"
+          hx-post="/library/di-tracks/{{ track.id }}/toggle-public"
           hx-target="closest [data-testid='track-item']"
           hx-swap="outerHTML"
           class="p-2 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
@@ -121,7 +121,7 @@ export const GET: APIRoute = () => {
         <button
           type="button"
           data-testid="track-delete-btn"
-          onclick="handleDelete('/api/v1/di-tracks/{{ track.id }}', '{{ track.title | replace("'", "\\'") }}', '[data-track-id=\\'{{ track.id }}\\']')"
+          onclick="handleDelete('/api/di-tracks/{{ track.id }}', '{{ track.title | replace("'", "\\'") }}', '[data-track-id=\\'{{ track.id }}\\']')"
           class="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
           aria-label="Delete track"
         >
@@ -136,7 +136,7 @@ export const GET: APIRoute = () => {
         <button
           type="button"
           data-testid="track-save-btn"
-          hx-post="/api/v1/html/library/tracks/{{ track.id }}/save"
+          hx-post="/library/di-tracks/{{ track.id }}/save"
           hx-swap="none"
           class="p-2 text-gray-500 hover:text-green-400 hover:bg-green-500/10 rounded transition-colors"
           aria-label="Save to library"

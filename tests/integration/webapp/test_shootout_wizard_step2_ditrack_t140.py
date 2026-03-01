@@ -1,6 +1,6 @@
 """Integration tests for shootout creation wizard Step 2: DI Track Selection (T140).
 
-Tests the /api/v1/html/shootout-create/ditracks endpoint and DI track
+Tests the /shootout/create/ditracks endpoint and DI track
 selection modal behaviour for the shootout creation wizard.
 
 Acceptance criteria tested:
@@ -23,7 +23,7 @@ from httpx import ASGITransport, AsyncClient
 
 from webapp.adapters.persistence.models.shootout import DITrack
 from webapp.adapters.persistence.models.user import User
-from webapp.api.v1.html import router
+from webapp.api.pages.shootouts import router
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -160,7 +160,7 @@ async def unauthenticated_client(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestShootoutWizardStep2DITrackList:
-    """Test GET /api/v1/html/shootout-create/ditracks returns user's DI tracks."""
+    """Test GET /shootout/create/ditracks returns user's DI tracks."""
 
     async def test_returns_user_tracks(
         self,
@@ -169,7 +169,7 @@ class TestShootoutWizardStep2DITrackList:
         user_tracks: list[DITrack],
     ) -> None:
         """Endpoint returns all of the authenticated user's DI tracks."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -186,7 +186,7 @@ class TestShootoutWizardStep2DITrackList:
         user_tracks: list[DITrack],
     ) -> None:
         """Each track displays duration in formatted form (mm:ss)."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -203,7 +203,7 @@ class TestShootoutWizardStep2DITrackList:
         user_tracks: list[DITrack],
     ) -> None:
         """Each track displays the guitar name."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -223,7 +223,7 @@ class TestShootoutWizardStep2DITrackList:
         The acceptance criteria require 'waveform' display for each track.
         The response must include waveform-related markup.
         """
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -239,7 +239,7 @@ class TestShootoutWizardStep2DITrackList:
         other_user_track: DITrack,
     ) -> None:
         """Endpoint only returns tracks owned by the authenticated user."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -253,7 +253,7 @@ class TestShootoutWizardStep2DITrackList:
         user_tracks: list[DITrack],
     ) -> None:
         """Each track option has data-testid='ditrack-option' for Playwright testing."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -267,7 +267,7 @@ class TestShootoutWizardStep2DITrackList:
         test_user: User,
     ) -> None:
         """Shows empty state when user has no DI tracks."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -288,9 +288,7 @@ class TestShootoutWizardStep2Search:
         user_tracks: list[DITrack],
     ) -> None:
         """Search parameter filters tracks by name (case-insensitive)."""
-        response = await authenticated_client.get(
-            "/api/v1/html/shootout-create/ditracks?search=strat"
-        )
+        response = await authenticated_client.get("/shootout/create/ditracks?search=strat")
 
         assert response.status_code == 200
         html = response.text
@@ -308,9 +306,7 @@ class TestShootoutWizardStep2Search:
         user_tracks: list[DITrack],
     ) -> None:
         """Search is case-insensitive."""
-        response = await authenticated_client.get(
-            "/api/v1/html/shootout-create/ditracks?search=LES PAUL"
-        )
+        response = await authenticated_client.get("/shootout/create/ditracks?search=LES PAUL")
 
         assert response.status_code == 200
         html = response.text
@@ -328,9 +324,7 @@ class TestShootoutWizardStep2Search:
         user_tracks: list[DITrack],
     ) -> None:
         """Search returns empty/no results for non-matching query."""
-        response = await authenticated_client.get(
-            "/api/v1/html/shootout-create/ditracks?search=nonexistent"
-        )
+        response = await authenticated_client.get("/shootout/create/ditracks?search=nonexistent")
 
         assert response.status_code == 200
         html = response.text
@@ -347,7 +341,7 @@ class TestShootoutWizardStep2Search:
         user_tracks: list[DITrack],
     ) -> None:
         """Empty search parameter returns all tracks."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks?search=")
+        response = await authenticated_client.get("/shootout/create/ditracks?search=")
 
         assert response.status_code == 200
         html = response.text
@@ -367,7 +361,7 @@ class TestShootoutWizardStep2Auth:
         unauthenticated_client: AsyncClient,
     ) -> None:
         """Unauthenticated request returns 401."""
-        response = await unauthenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await unauthenticated_client.get("/shootout/create/ditracks")
 
         # Should be 401 or 403 for unauthenticated access
         assert response.status_code in [401, 403]
@@ -389,7 +383,7 @@ class TestShootoutWizardStep2TrackData:
         The acceptance criteria require showing duration. The endpoint should
         provide a formatted duration (mm:ss) alongside raw seconds.
         """
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -406,7 +400,7 @@ class TestShootoutWizardStep2TrackData:
         user_tracks: list[DITrack],
     ) -> None:
         """Track data includes sample rate for display."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text
@@ -423,7 +417,7 @@ class TestShootoutWizardStep2TrackData:
         user_tracks: list[DITrack],
     ) -> None:
         """Each track includes its ID for radio-style selection."""
-        response = await authenticated_client.get("/api/v1/html/shootout-create/ditracks")
+        response = await authenticated_client.get("/shootout/create/ditracks")
 
         assert response.status_code == 200
         html = response.text

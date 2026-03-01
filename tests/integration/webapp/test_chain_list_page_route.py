@@ -211,7 +211,7 @@ class TestChainListFragments:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Fragment endpoint should exist (may return 405 if not DELETE method)
             # This test verifies the route exists
-            response = await client.delete(f"/fragments/chains/{test_chain.id}")
+            response = await client.delete(f"/chain/{test_chain.id}")
 
             # Should NOT return 404 - route should exist
             assert response.status_code != 404

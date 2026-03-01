@@ -106,7 +106,7 @@ export const GET: APIRoute = () => {
           {% if shootout.status == 'draft' and chains %}
             <button
               data-testid="process-shootout-btn"
-              hx-post="/api/v1/shootouts/{{ shootout.id }}/process"
+              hx-post="/api/shootouts/{{ shootout.id }}/process"
               hx-swap="none"
               hx-on::after-request="window.location.reload()"
               class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium transition-colors"
@@ -180,7 +180,7 @@ export const GET: APIRoute = () => {
           controls
           preload="metadata"
           class="w-full"
-          src="/api/v1/di-tracks/{{ di_track.id }}/stream"
+          src="/api/di-tracks/{{ di_track.id }}/stream"
           data-testid="di-track-player"
         >
           Your browser does not support the audio element.
@@ -260,8 +260,8 @@ export const GET: APIRoute = () => {
           async init() {
             const sid = '{{ shootout.id }}';
             const [compResp, metaResp] = await Promise.all([
-              fetch('/api/v1/shootouts/' + sid + '/comparison', { credentials: 'same-origin' }),
-              fetch('/api/v1/shootouts/' + sid + '/metadata', { credentials: 'same-origin' }),
+              fetch('/api/shootouts/' + sid + '/comparison', { credentials: 'same-origin' }),
+              fetch('/api/shootouts/' + sid + '/metadata', { credentials: 'same-origin' }),
             ]);
             if (compResp.ok) this.comparison = await compResp.json();
             if (metaResp.ok) this.metadata = await metaResp.json();
@@ -334,7 +334,7 @@ export const GET: APIRoute = () => {
                       {{ chain.chain_name or chain.label }}
                     </span>
                     <a
-                      href="/api/v1/shootouts/{{ shootout.id }}/chains/{{ chain.id }}/audio"
+                      href="/api/shootouts/{{ shootout.id }}/chains/{{ chain.id }}/audio"
                       download
                       class="text-xs text-amber-400 hover:text-amber-300 transition-colors"
                       data-testid="download-segment-btn"
@@ -346,7 +346,7 @@ export const GET: APIRoute = () => {
                     controls
                     preload="metadata"
                     class="w-full"
-                    src="/api/v1/shootouts/{{ shootout.id }}/chains/{{ chain.id }}/audio"
+                    src="/api/shootouts/{{ shootout.id }}/chains/{{ chain.id }}/audio"
                     data-testid="audio-player"
                   >
                     Your browser does not support the audio element.
@@ -356,7 +356,7 @@ export const GET: APIRoute = () => {
               {% if shootout.output_path %}
                 <div class="pt-4 border-t border-[var(--border)]">
                   <a
-                    href="/api/v1/shootouts/{{ shootout.id }}/audio/master"
+                    href="/api/shootouts/{{ shootout.id }}/audio/master"
                     download
                     class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-sm font-medium transition-colors"
                     data-testid="download-master-btn"
@@ -525,7 +525,7 @@ export const GET: APIRoute = () => {
   <div
     class="mb-8"
     data-testid="comments-section"
-    hx-get="/api/v1/html/shootouts/{{ shootout.id }}/comments"
+    hx-get="/shootout/{{ shootout.id }}/comments"
     hx-trigger="load"
     hx-swap="innerHTML"
   >

@@ -202,7 +202,7 @@ class TestModelToggleDownloadStatus:
         app = create_app()
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post(f"/api/v1/html/gear/model/{completed_model.id}/toggle")
+            response = await client.post(f"/gear/model/{completed_model.id}/toggle")
 
             assert response.status_code == 200
             html = response.text
@@ -225,7 +225,7 @@ class TestModelToggleDownloadStatus:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             # Toggle to save the model
-            response = await client.post(f"/api/v1/html/gear/model/{pending_model.id}/toggle")
+            response = await client.post(f"/gear/model/{pending_model.id}/toggle")
 
             assert response.status_code == 200
             html = response.text
@@ -255,7 +255,7 @@ class TestBulkSelectModels:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/html/gear/models/bulk-toggle",
+                "/gear/models/bulk-toggle",
                 json={"model_ids": model_ids, "action": "add"},
             )
 
@@ -285,7 +285,7 @@ class TestBulkSelectModels:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/html/gear/models/bulk-toggle",
+                "/gear/models/bulk-toggle",
                 json={"model_ids": model_ids, "action": "remove"},
             )
 
@@ -304,7 +304,7 @@ class TestBulkSelectModels:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.post(
-                "/api/v1/html/gear/models/bulk-toggle",
+                "/gear/models/bulk-toggle",
                 json={"model_ids": model_ids, "action": "add"},
             )
 
@@ -339,7 +339,7 @@ class TestBulkSelectModels:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             await client.post(
-                "/api/v1/html/gear/models/bulk-toggle",
+                "/gear/models/bulk-toggle",
                 json={"model_ids": model_ids, "action": "remove"},
             )
 
@@ -381,7 +381,7 @@ class TestBulkSelectModels:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/html/gear/models/bulk-toggle",
+                "/gear/models/bulk-toggle",
                 json={"model_ids": model_ids, "action": "add"},
             )
 

@@ -1,6 +1,6 @@
 """Integration tests for shootout comments HTMX fragment endpoint.
 
-Tests for GET /api/v1/html/shootouts/{id}/comments that renders
+Tests for GET /shootout/{id}/comments that renders
 the comments section as a Jinja2 fragment for HTMX lazy loading.
 
 Verifies:
@@ -113,7 +113,7 @@ class TestCommentsFragmentRendersRealData:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -136,7 +136,7 @@ class TestCommentsFragmentRendersRealData:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -164,7 +164,7 @@ class TestCommentsFragmentRendersRealData:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -186,7 +186,7 @@ class TestCommentsFragmentForm:
         """Fragment should contain a form for posting new comments."""
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -201,7 +201,7 @@ class TestCommentsFragmentForm:
         """Comment form should contain a textarea for input."""
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -216,7 +216,7 @@ class TestCommentsFragmentForm:
         """Comment form should contain a submit button."""
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -231,7 +231,7 @@ class TestCommentsFragmentForm:
         """Comment form should use hx-post for HTMX submission."""
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -260,7 +260,7 @@ class TestCommentsFragmentDeleteButton:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -283,7 +283,7 @@ class TestCommentsFragmentDeleteButton:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -304,7 +304,7 @@ class TestCommentsFragmentEmptyState:
         """Fragment should show 'No comments yet' when no comments exist."""
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -319,7 +319,7 @@ class TestCommentsFragmentEmptyState:
         """Empty fragment should have data-empty='true' attribute."""
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -348,7 +348,7 @@ class TestCommentsFragmentCommentItems:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -371,7 +371,7 @@ class TestCommentsFragmentCommentItems:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text
@@ -399,7 +399,7 @@ class TestCommentsFragmentCommentItems:
 
         app = create_app()
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/html/shootouts/{test_shootout.id}/comments")
+            response = await client.get(f"/shootout/{test_shootout.id}/comments")
 
         assert response.status_code == 200
         html = response.text

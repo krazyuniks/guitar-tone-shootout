@@ -58,72 +58,72 @@ class TestAllRoutersMounted:
     """
 
     async def test_signal_chain_groups_router(self, client: AsyncClient) -> None:
-        """Signal chain groups router is mounted at /api/v1/signal-chain-groups/."""
-        response = await client.get("/api/v1/signal-chain-groups/")
+        """Signal chain groups router is mounted at /api/signal-chain-groups/."""
+        response = await client.get("/api/signal-chain-groups/")
         # Auth required -> 401; anything but 404 proves mounting
         assert response.status_code != 404, (
             f"signal-chain-groups router not mounted (got {response.status_code})"
         )
 
     async def test_block_types_router(self, client: AsyncClient) -> None:
-        """Block types router is mounted at /api/v1/block-types (no trailing slash)."""
-        response = await client.get("/api/v1/block-types")
+        """Block types router is mounted at /api/block-types (no trailing slash)."""
+        response = await client.get("/api/block-types")
         # Public endpoint — should return 200 with list
         assert response.status_code == 200, f"block-types router returned {response.status_code}"
         data = response.json()
         assert isinstance(data, list), "block-types should return a JSON list"
 
     async def test_files_router(self, client: AsyncClient) -> None:
-        """Files router is mounted at /api/v1/files/."""
+        """Files router is mounted at /api/files/."""
         # Files requires a path param — use a fake UUID
-        response = await client.get("/api/v1/files/00000000-0000-0000-0000-000000000000")
+        response = await client.get("/api/files/00000000-0000-0000-0000-000000000000")
         # Should get 401, 403, or 404 (file not found), not a generic 404
         # The key test: the route pattern is recognized
         assert response.status_code != 405, f"files router not mounted (got {response.status_code})"
 
     async def test_di_tracks_router(self, client: AsyncClient) -> None:
-        """DI tracks router is mounted at /api/v1/di-tracks/."""
-        response = await client.get("/api/v1/di-tracks/")
+        """DI tracks router is mounted at /api/di-tracks/."""
+        response = await client.get("/api/di-tracks/")
         assert response.status_code != 404, (
             f"di-tracks router not mounted (got {response.status_code})"
         )
 
     async def test_signal_chains_router(self, client: AsyncClient) -> None:
-        """Signal chains router is mounted at /api/v1/signal-chains/."""
-        response = await client.get("/api/v1/signal-chains/")
+        """Signal chains router is mounted at /api/signal-chains/."""
+        response = await client.get("/api/signal-chains/")
         assert response.status_code != 404, (
             f"signal-chains router not mounted (got {response.status_code})"
         )
 
     async def test_shootouts_router(self, client: AsyncClient) -> None:
-        """Shootouts router is mounted at /api/v1/shootouts/."""
-        response = await client.get("/api/v1/shootouts/")
+        """Shootouts router is mounted at /api/shootouts/."""
+        response = await client.get("/api/shootouts/")
         assert response.status_code != 404, (
             f"shootouts router not mounted (got {response.status_code})"
         )
 
     async def test_html_fragments_router(self, client: AsyncClient) -> None:
-        """HTML fragments router is mounted at /api/v1/html/my-gear/results."""
-        response = await client.get("/api/v1/html/my-gear/results")
+        """HTML fragments router is mounted at /shootout/create/chains."""
+        response = await client.get("/shootout/create/chains")
         # Route exists — any response other than 404 (FastAPI default) proves mounting
         assert response.status_code != 404, (
             f"html fragments router not mounted (got {response.status_code})"
         )
 
     async def test_health_router(self, client: AsyncClient) -> None:
-        """Health router is mounted at /api/v1/health."""
-        response = await client.get("/api/v1/health")
+        """Health router is mounted at /health."""
+        response = await client.get("/health")
         assert response.status_code == 200, f"health router returned {response.status_code}"
 
     async def test_auth_router(self, client: AsyncClient) -> None:
-        """Auth router is mounted at /api/v1/auth/."""
-        response = await client.get("/api/v1/auth/status")
+        """Auth router is mounted at /auth/."""
+        response = await client.get("/auth/status")
         # Should respond (maybe 200 or error), not 404
         assert response.status_code != 404, f"auth router not mounted (got {response.status_code})"
 
     async def test_jobs_router(self, client: AsyncClient) -> None:
-        """Jobs router is mounted at /api/v1/jobs/."""
-        response = await client.get("/api/v1/jobs/")
+        """Jobs router is mounted at /api/jobs/."""
+        response = await client.get("/api/jobs/")
         assert response.status_code != 404, f"jobs router not mounted (got {response.status_code})"
 
 
@@ -133,7 +133,7 @@ class TestDevOnlyTestRouter:
 
     async def test_test_router_mounted_in_dev(self, dev_client: AsyncClient) -> None:
         """Test router is available when ENV=development."""
-        response = await dev_client.get("/api/v1/test/error/500")
+        response = await dev_client.get("/api/test/error/500")
         # Should trigger the test error endpoint (500), not 404
         assert response.status_code != 404, (
             f"test router not mounted in development (got {response.status_code})"
@@ -141,7 +141,7 @@ class TestDevOnlyTestRouter:
 
     async def test_test_router_not_mounted_in_production(self, client: AsyncClient) -> None:
         """Test router is NOT available in production mode."""
-        response = await client.get("/api/v1/test/error/500")
+        response = await client.get("/api/test/error/500")
         assert response.status_code == 404, (
             f"test router should NOT be mounted in production (got {response.status_code})"
         )

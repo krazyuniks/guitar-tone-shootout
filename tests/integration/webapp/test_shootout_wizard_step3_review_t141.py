@@ -1,6 +1,6 @@
 """Integration tests for shootout creation wizard Step 3: Review, Submit, Validation (T141).
 
-Tests the POST /api/v1/html/shootout-create endpoint for:
+Tests the POST /shootout/create endpoint for:
 - Chain count validation (minimum 2, maximum 20)
 - DI track required validation
 - Successful creation with valid data
@@ -30,7 +30,7 @@ from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.shootout import DITrack, Shootout
 from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
 from webapp.adapters.persistence.models.user import User
-from webapp.api.v1.html import router
+from webapp.api.pages.shootouts import router
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -154,7 +154,7 @@ class TestWizardStep3SuccessfulSubmission:
         chain_ids = [str(c.id) for c in signal_chains[:3]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "My Shootout",
                 "di_track_id": str(di_track.id),
@@ -178,7 +178,7 @@ class TestWizardStep3SuccessfulSubmission:
         chain_ids = [str(c.id) for c in signal_chains[:3]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Persisted Shootout",
                 "di_track_id": str(di_track.id),
@@ -213,7 +213,7 @@ class TestWizardStep3SuccessfulSubmission:
         chain_ids = [str(c.id) for c in signal_chains[:2]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Two Chain Shootout",
                 "di_track_id": str(di_track.id),
@@ -236,7 +236,7 @@ class TestWizardStep3SuccessfulSubmission:
         chain_ids = [str(c.id) for c in twenty_one_chains[:20]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Twenty Chain Shootout",
                 "di_track_id": str(di_track.id),
@@ -261,7 +261,7 @@ class TestWizardStep3ChainCountValidation:
     ) -> None:
         """Submitting with no chains returns 422 validation error."""
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "No Chains Shootout",
                 "di_track_id": str(di_track.id),
@@ -280,7 +280,7 @@ class TestWizardStep3ChainCountValidation:
     ) -> None:
         """Submitting with only 1 chain returns 422 validation error."""
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "One Chain Shootout",
                 "di_track_id": str(di_track.id),
@@ -306,7 +306,7 @@ class TestWizardStep3ChainCountValidation:
         assert len(chain_ids) == 21
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Too Many Chains Shootout",
                 "di_track_id": str(di_track.id),
@@ -325,7 +325,7 @@ class TestWizardStep3ChainCountValidation:
     ) -> None:
         """Validation error response includes descriptive detail message for inline display."""
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "One Chain Shootout",
                 "di_track_id": str(di_track.id),
@@ -358,7 +358,7 @@ class TestWizardStep3DITrackValidation:
         chain_ids = [str(c.id) for c in signal_chains[:3]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "No DI Track Shootout",
                 # No di_track_id field
@@ -378,7 +378,7 @@ class TestWizardStep3DITrackValidation:
         chain_ids = [str(c.id) for c in signal_chains[:3]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Empty DI Track Shootout",
                 "di_track_id": "",
@@ -398,7 +398,7 @@ class TestWizardStep3DITrackValidation:
         chain_ids = [str(c.id) for c in signal_chains[:3]]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "No DI Track Shootout",
                 "chain_ids[]": chain_ids,
@@ -427,7 +427,7 @@ class TestWizardStep3MaxChainValidation:
         chain_ids = [str(c.id) for c in twenty_one_chains]
 
         response = await authenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Too Many",
                 "di_track_id": str(di_track.id),
@@ -452,7 +452,7 @@ class TestWizardStep3AuthRequired:
     ) -> None:
         """Unauthenticated POST to shootout-create returns 401."""
         response = await unauthenticated_client.post(
-            "/api/v1/html/shootout-create",
+            "/shootout/create",
             data={
                 "name": "Test",
                 "di_track_id": str(uuid4()),

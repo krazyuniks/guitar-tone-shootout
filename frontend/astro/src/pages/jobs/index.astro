@@ -45,7 +45,7 @@ import Layout from '../../layouts/Layout.astro';
       console.error('Job container not found');
     } else if (jobId && uuidRegex.test(jobId)) {
       // Valid UUID - set HTMX get URL
-      container.setAttribute('hx-get', `/api/v1/html/jobs/${jobId}`);
+      container.setAttribute('hx-get', `/jobs/${jobId}/status`);
     } else {
       // Invalid job ID - show error
       container.innerHTML = `
