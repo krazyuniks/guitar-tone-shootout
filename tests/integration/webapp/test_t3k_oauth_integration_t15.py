@@ -64,7 +64,7 @@ class TestT3KAuthIntegration:
         from webapp.auth.providers.t3k import T3KProvider
 
         t3k = T3KProvider()
-        callback = "http://localhost:9000/api/v1/auth/callback"
+        callback = "http://localhost:9000/auth/callback"
 
         url = t3k.build_login_url(callback)
 

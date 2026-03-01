@@ -84,7 +84,7 @@ class TestDITrackAudioPlayerBuild:
         assert "hx-post" in content, "No hx-post attribute in library page form"
 
         # Should post to upload endpoint
-        assert "/api/v1/di-tracks/upload" in content, "Upload form not posting to correct endpoint"
+        assert "/api/di-tracks/upload" in content, "Upload form not posting to correct endpoint"
 
         # Should have hx-encoding for multipart
         assert 'hx-encoding="multipart/form-data"' in content, (
@@ -120,9 +120,7 @@ class TestDITrackAudioPlayerBuild:
         public_content = public_path.read_text()
 
         # Should reference stream endpoint pattern
-        assert "/api/v1/di-tracks/" in public_content, (
-            "Audio player src not referencing DI tracks API"
-        )
+        assert "/api/di-tracks/" in public_content, "Audio player src not referencing DI tracks API"
         assert "/stream" in public_content, "Audio player src not referencing stream endpoint"
 
     def test_track_items_have_testid(self) -> None:

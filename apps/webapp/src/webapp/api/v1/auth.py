@@ -29,7 +29,7 @@ from webapp.services.identity_service import IdentityService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Cookie settings
 _COOKIE_MAX_AGE = 86400 * JWT_EXPIRY_DAYS  # 7 days in seconds
@@ -110,7 +110,7 @@ async def login_t3k(request: Request) -> RedirectResponse:
     Sets a temp cookie with ?next= URL so we can redirect after callback.
     """
     public_url = os.getenv("PUBLIC_URL", "http://localhost:9000")
-    callback_url = f"{public_url}/api/v1/auth/callback"
+    callback_url = f"{public_url}/auth/callback"
 
     provider = T3KProvider()
     login_url = provider.build_login_url(callback_url)

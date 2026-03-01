@@ -4,112 +4,79 @@
   data-testid="my-gear-results"
   data-empty="{{ 'true' if not packs else 'false' }}"
 >
-  <!-- Hidden state for HTMX includes -->
-  <input type="hidden" name="page" value="{{ page }}" />
-  <input type="hidden" name="page_size" value="{{ page_size }}" />
-
   <!-- Filters and Controls -->
   <div class="mb-6 space-y-4">
     <!-- Search bar -->
-    <div class="relative">
-      <div class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
-        </svg>
-      </div>
-      <input
-        type="text"
-        name="search"
-        placeholder="Search your gear..."
-        value="{{ search or '' }}"
-        class="w-full pl-10 pr-10 py-2 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border)] text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]"
-        hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-        hx-trigger="keyup changed delay:300ms"
-        hx-target="#my-gear-results-container"
-        hx-swap="outerHTML"
-        hx-include="[name='gear_type']"
-      />
-      {% if search %}
-        <button
-          type="button"
-          class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-          hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
+    <form action="/library/my-gear" method="get">
+      <input type="hidden" name="sort_by" value="{{ sort_by }}" />
+      <input type="hidden" name="sort_order" value="{{ sort_order }}" />
+      <input type="hidden" name="page_size" value="{{ page_size }}" />
+      {% if gear_type_filter %}<input type="hidden" name="gear_type" value="{{ gear_type_filter }}" />{% endif %}
+      <div class="relative">
+        <div class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+            <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
           </svg>
-        </button>
-      {% endif %}
-    </div>
+        </div>
+        <input
+          type="search"
+          name="search"
+          placeholder="Search your gear..."
+          value="{{ search or '' }}"
+          class="w-full pl-10 pr-10 py-2 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--border)] text-[var(--color-text-primary)] placeholder-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]"
+        />
+        {% if search %}
+          <a
+            href="/library/my-gear?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page_size={{ page_size }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/>
+            </svg>
+          </a>
+        {% endif %}
+      </div>
+    </form>
 
     <!-- Filter and Sort row -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <!-- Gear type filter buttons -->
       <div class="flex items-center gap-1.5">
-      <!-- Gear type filter buttons -->
-      <div class="flex items-center gap-1.5">
-        <button
-          name="gear_type"
-          value=""
+        <a
+          href="/library/my-gear?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}{% if search %}&search={{ search|urlencode }}{% endif %}"
           data-testid="filter-gear-type-all"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if not gear_type_filter %}bg-[var(--color-accent-primary)] text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-[var(--color-accent-primary)]{% endif %}"
-          hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-          hx-include="[name='search']"
         >
           All
-        </button>
-        <button
-          name="gear_type"
-          value="amp"
+        </a>
+        <a
+          href="/library/my-gear?gear_type=amp&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}{% if search %}&search={{ search|urlencode }}{% endif %}"
           data-testid="filter-gear-type-amp"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'amp' %}bg-orange-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-orange-500{% endif %}"
-          hx-get="/api/v1/html/my-gear/results?gear_type=amp&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-          hx-include="[name='search']"
         >
           Amps
-        </button>
-        <button
-          name="gear_type"
-          value="pedal"
+        </a>
+        <a
+          href="/library/my-gear?gear_type=pedal&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}{% if search %}&search={{ search|urlencode }}{% endif %}"
           data-testid="filter-gear-type-pedal"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'pedal' %}bg-purple-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-purple-500{% endif %}"
-          hx-get="/api/v1/html/my-gear/results?gear_type=pedal&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-          hx-include="[name='search']"
         >
           Pedals
-        </button>
-        <button
-          name="gear_type"
-          value="ir"
+        </a>
+        <a
+          href="/library/my-gear?gear_type=ir&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}{% if search %}&search={{ search|urlencode }}{% endif %}"
           data-testid="filter-gear-type-ir"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'ir' %}bg-green-500 text-white border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-green-500{% endif %}"
-          hx-get="/api/v1/html/my-gear/results?gear_type=ir&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-          hx-include="[name='search']"
         >
           IRs
-        </button>
-        <button
-          name="gear_type"
-          value="full-rig"
+        </a>
+        <a
+          href="/library/my-gear?gear_type=full-rig&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}{% if search %}&search={{ search|urlencode }}{% endif %}"
           data-testid="filter-gear-type-full-rig"
           class="px-3 py-1.5 text-sm rounded-full border-2 transition-all {% if gear_type_filter == 'full-rig' %}bg-yellow-400 text-black border-transparent{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] border-transparent hover:border-yellow-400{% endif %}"
-          hx-get="/api/v1/html/my-gear/results?gear_type=full-rig&sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-          hx-include="[name='search']"
         >
           Full Rigs
-        </button>
+        </a>
       </div>
 
       <!-- Sort control -->
@@ -121,10 +88,7 @@
           x-model="sortCombined"
           @change="() => {
             const [sortBy, sortOrder] = sortCombined.split('-');
-            const searchVal = document.querySelector('[name=search]')?.value || '';
-            const gearType = document.querySelector('[name=gear_type]:checked')?.value || '';
-            const url = '/api/v1/html/my-gear/results?sort_by=' + sortBy + '&sort_order=' + sortOrder + '&page=1&page_size={{ page_size }}' + (searchVal ? '&search=' + encodeURIComponent(searchVal) : '') + (gearType ? '&gear_type=' + gearType : '');
-            htmx.ajax('GET', url, { target: '#my-gear-results-container', swap: 'outerHTML' });
+            window.location.href = '/library/my-gear?sort_by=' + sortBy + '&sort_order=' + sortOrder + '&page=1&page_size={{ page_size }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}';
           }"
         >
           <option value="date_added-desc" {% if sort_by == 'date_added' and sort_order == 'desc' %}selected{% endif %}>Newest First</option>
@@ -159,82 +123,45 @@
         Page {{ page }} of {{ total_pages }}
       </div>
       <div class="flex items-center gap-2" data-testid="pagination">
-      <!-- First button -->
-      <button
-        data-testid="pagination-first"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page > 1 %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
         {% if page > 1 %}
-        hx-get="/api/v1/html/my-gear/results?page=1&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
-        hx-target="#my-gear-results-container"
-        hx-swap="outerHTML"
+          <a href="/library/my-gear?page=1&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}" data-testid="pagination-first" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">First</a>
+          <a href="/library/my-gear?page={{ page - 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}" data-testid="pagination-prev" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+            </svg>
+          </a>
         {% else %}
-        disabled
+          <span data-testid="pagination-first" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">First</span>
+          <span data-testid="pagination-prev" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
+            </svg>
+          </span>
         {% endif %}
-      >
-        First
-      </button>
 
-      <!-- Prev button -->
-      <button
-        data-testid="pagination-prev"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_prev %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
-        {% if has_prev %}
-        hx-get="/api/v1/html/my-gear/results?page={{ page - 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
-        hx-target="#my-gear-results-container"
-        hx-swap="outerHTML"
-        {% else %}
-        disabled
-        {% endif %}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-          <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/>
-        </svg>
-      </button>
+        {% for page_num in range(1, total_pages + 1) %}
+          {% if page_num == page %}
+            <span data-testid="pagination-page-{{ page_num }}" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent-primary)] text-white">{{ page_num }}</span>
+          {% else %}
+            <a href="/library/my-gear?page={{ page_num }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}" data-testid="pagination-page-{{ page_num }}" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">{{ page_num }}</a>
+          {% endif %}
+        {% endfor %}
 
-      <!-- Page numbers -->
-      {% for page_num in range(1, total_pages + 1) %}
-        <button
-          data-testid="pagination-page-{{ page_num }}"
-          class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page_num == page %}bg-[var(--color-accent-primary)] text-white{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% endif %}"
-          hx-get="/api/v1/html/my-gear/results?page={{ page_num }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
-        >
-          {{ page_num }}
-        </button>
-      {% endfor %}
-
-      <!-- Next button -->
-      <button
-        data-testid="pagination-next"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_next %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
         {% if has_next %}
-        hx-get="/api/v1/html/my-gear/results?page={{ page + 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
-        hx-target="#my-gear-results-container"
-        hx-swap="outerHTML"
+          <a href="/library/my-gear?page={{ page + 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}" data-testid="pagination-next" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+            </svg>
+          </a>
+          <a href="/library/my-gear?page={{ total_pages }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search|urlencode }}{% endif %}" data-testid="pagination-last" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">Last</a>
         {% else %}
-        disabled
+          <span data-testid="pagination-next" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
+            </svg>
+          </span>
+          <span data-testid="pagination-last" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">Last</span>
         {% endif %}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-          <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
-        </svg>
-      </button>
-
-      <!-- Last button -->
-      <button
-        data-testid="pagination-last"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page < total_pages %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
-        {% if page < total_pages %}
-        hx-get="/api/v1/html/my-gear/results?page={{ total_pages }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}{% if gear_type_filter %}&gear_type={{ gear_type_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
-        hx-target="#my-gear-results-container"
-        hx-swap="outerHTML"
-        {% else %}
-        disabled
-        {% endif %}
-      >
-        Last
-      </button>
       </div>
     </div>
     {% endif %}
@@ -259,14 +186,12 @@
         {% endif %}
       </p>
       {% if gear_type_filter or search %}
-        <button
+        <a
+          href="/library/my-gear?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
           class="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-          hx-get="/api/v1/html/my-gear/results?sort_by={{ sort_by }}&sort_order={{ sort_order }}&page=1&page_size={{ page_size }}"
-          hx-target="#my-gear-results-container"
-          hx-swap="outerHTML"
         >
           Clear Filters
-        </button>
+        </a>
       {% else %}
         <a
           href="/gear"

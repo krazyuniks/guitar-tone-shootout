@@ -81,7 +81,7 @@ export const GET: APIRoute = () => {
         <div class="mt-6 pt-4 border-t border-[var(--border)]">
           <button
             data-testid="retry-job-btn"
-            hx-post="/api/v1/jobs/{{ job.id }}/retry"
+            hx-post="/api/jobs/{{ job.id }}/retry"
             hx-swap="none"
             hx-on::after-request="window.location.reload()"
             class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-medium rounded-lg transition-colors"

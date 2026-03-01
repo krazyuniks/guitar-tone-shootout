@@ -78,7 +78,7 @@ async def existing_di_track(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestDITrackUploadEndpoint:
-    """Tests for POST /api/v1/di-tracks endpoint."""
+    """Tests for POST /api/di-tracks endpoint."""
 
     @pytest.mark.xfail(
         reason="Pre-existing: Upload directory permissions in Docker (T124)", strict=False
@@ -115,7 +115,7 @@ class TestDITrackUploadEndpoint:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -173,7 +173,7 @@ class TestDITrackUploadEndpoint:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -209,7 +209,7 @@ class TestDITrackUploadEndpoint:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -255,7 +255,7 @@ class TestDITrackUploadEndpoint:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -289,7 +289,7 @@ class TestDITrackUploadEndpoint:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -327,7 +327,7 @@ class TestDITrackUploadEndpoint:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -340,7 +340,7 @@ class TestDITrackUploadEndpoint:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestDITrackListEndpoint:
-    """Tests for GET /api/v1/di-tracks endpoint."""
+    """Tests for GET /api/di-tracks endpoint."""
 
     async def test_list_returns_current_user_tracks(
         self,
@@ -349,7 +349,7 @@ class TestDITrackListEndpoint:
         other_user: User,
         tmp_path: Path,
     ) -> None:
-        """Test GET /api/v1/di-tracks lists only current user's tracks."""
+        """Test GET /api/di-tracks lists only current user's tracks."""
         from fastapi import FastAPI
 
         # Create tracks for test_user
@@ -393,7 +393,7 @@ class TestDITrackListEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/di-tracks")
+            response = await client.get("/api/di-tracks")
 
         assert response.status_code == 200
 
@@ -422,7 +422,7 @@ class TestDITrackListEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/di-tracks")
+            response = await client.get("/api/di-tracks")
 
         assert response.status_code == 401
 
@@ -457,7 +457,7 @@ class TestDITrackListEndpoint:
             base_url="http://test",
         ) as client:
             # Get first 2 tracks
-            response = await client.get("/api/v1/di-tracks?limit=2&offset=0")
+            response = await client.get("/api/di-tracks?limit=2&offset=0")
 
         assert response.status_code == 200
         json = response.json()
@@ -467,7 +467,7 @@ class TestDITrackListEndpoint:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestDITrackGetEndpoint:
-    """Tests for GET /api/v1/di-tracks/{id} endpoint."""
+    """Tests for GET /api/di-tracks/{id} endpoint."""
 
     async def test_get_returns_single_track(
         self,
@@ -475,7 +475,7 @@ class TestDITrackGetEndpoint:
         test_user: User,
         tmp_path: Path,
     ) -> None:
-        """Test GET /api/v1/di-tracks/{id} returns single track."""
+        """Test GET /api/di-tracks/{id} returns single track."""
         from fastapi import FastAPI
 
         track = DITrack(
@@ -500,7 +500,7 @@ class TestDITrackGetEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{track.id}")
+            response = await client.get(f"/api/di-tracks/{track.id}")
 
         assert response.status_code == 200
 
@@ -542,7 +542,7 @@ class TestDITrackGetEndpoint:
             base_url="http://test",
         ) as client:
             # test_user tries to access other_user's track
-            response = await client.get(f"/api/v1/di-tracks/{other_track.id}")
+            response = await client.get(f"/api/di-tracks/{other_track.id}")
 
         # Should return 404 (not 403) to avoid leaking existence
         assert response.status_code == 404
@@ -564,7 +564,7 @@ class TestDITrackGetEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{fake_id}")
+            response = await client.get(f"/api/di-tracks/{fake_id}")
 
         assert response.status_code == 404
 
@@ -589,6 +589,6 @@ class TestDITrackGetEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{fake_id}")
+            response = await client.get(f"/api/di-tracks/{fake_id}")
 
         assert response.status_code == 401

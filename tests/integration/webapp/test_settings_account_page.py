@@ -366,4 +366,4 @@ class TestSettingsAccountPage:
 
             # Should have HTMX delete attribute on unlink buttons
             assert "hx-delete" in html
-            assert "/api/v1/auth/unlink/" in html
+            assert "/auth/unlink/" in html

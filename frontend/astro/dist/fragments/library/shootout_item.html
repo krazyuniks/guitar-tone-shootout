@@ -45,7 +45,7 @@
     <button
       type="button"
       data-testid="shootout-item-delete-btn"
-      onclick="handleDelete('/api/v1/shootouts/{{ shootout.id }}', '{{ shootout.name | replace("'", "\'") }}', '[data-shootout-id=\'{{ shootout.id }}\']')"
+      onclick="handleDelete('/api/shootouts/{{ shootout.id }}', '{{ shootout.name | replace("'", "\'") }}', '[data-shootout-id=\'{{ shootout.id }}\']')"
       class="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
       title="Delete shootout"
     >

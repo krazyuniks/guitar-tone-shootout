@@ -28,7 +28,7 @@ export const GET: APIRoute = () => {
     },
     performDelete() {
       this.deleting = true;
-      fetch('/api/v1/signal-chain-groups/{{ group.id }}', { method: 'DELETE' })
+      fetch('/api/signal-chain-groups/{{ group.id }}', { method: 'DELETE' })
         .then(response => {
           if (response.ok) {
             window.location.href = '/library/groups';
@@ -46,7 +46,7 @@ export const GET: APIRoute = () => {
     },
     generateChains() {
       this.generating = true;
-      fetch('/api/v1/signal-chain-groups/{{ group.id }}/generate', {
+      fetch('/api/signal-chain-groups/{{ group.id }}/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

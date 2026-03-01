@@ -1,7 +1,7 @@
 """FastAPI exception handlers with content negotiation.
 
 Provides consistent error handling across the application:
-- JSON responses for API routes (/api/v1/*)
+- JSON responses for API routes (/api/*)
 - HTML error pages for page routes
 - Production sanitization (no stack traces, no internal paths)
 - Development mode includes full error details
@@ -37,7 +37,7 @@ def _is_production() -> bool:
 
 def _is_api_route(request: Request) -> bool:
     """Check if the request is for an API route."""
-    return request.url.path.startswith("/api/v1/")
+    return request.url.path.startswith("/api/")
 
 
 def _is_page_route(request: Request) -> bool:

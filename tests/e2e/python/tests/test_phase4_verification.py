@@ -33,28 +33,28 @@ class TestAPIRoutersMounted:
         self, guest_page: Page, frontend_url: str
     ) -> None:
         """Signal chain groups API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/signal-chain-groups/")
+        response = await guest_page.request.get(f"{frontend_url}/api/signal-chain-groups/")
         # Should be 401 (auth required) not 404 (route not found)
         assert response.status != 404, "signal-chain-groups router not mounted"
 
     async def test_notifications_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Notifications API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/notifications/")
+        response = await guest_page.request.get(f"{frontend_url}/api/notifications/")
         assert response.status != 404, "notifications router not mounted"
 
     async def test_tags_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Tags API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/tags/")
+        response = await guest_page.request.get(f"{frontend_url}/api/tags/")
         assert response.status != 404, "tags router not mounted"
 
     async def test_presets_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Presets API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/presets/")
+        response = await guest_page.request.get(f"{frontend_url}/api/presets/")
         assert response.status != 404, "presets router not mounted"
 
     async def test_block_types_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Block types API is mounted and returns data (public endpoint)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/block-types/")
+        response = await guest_page.request.get(f"{frontend_url}/api/block-types/")
         assert response.ok, f"block-types returned {response.status}"
         data = await response.json()
         assert isinstance(data, list), "block-types should return a list"
@@ -62,15 +62,15 @@ class TestAPIRoutersMounted:
     async def test_irs_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """IRs API is mounted (401 for unauth, not 404)."""
         # IR router only has POST /upload — no GET /
-        response = await guest_page.request.post(f"{frontend_url}/api/v1/irs/upload")
+        response = await guest_page.request.post(f"{frontend_url}/api/irs/upload")
         # Should get 401 (auth required) or 422 (missing fields), NOT 404
         assert response.status != 404, "irs router not mounted"
 
     async def test_files_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Files API is mounted (not 404)."""
-        # Check /api/v1/files/ with a non-existent file ID
+        # Check /api/files/ with a non-existent file ID
         # to distinguish "router not mounted" from "file not found"
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/files/nonexistent")
+        response = await guest_page.request.get(f"{frontend_url}/api/files/nonexistent")
         # Should get 404 (file not found) or 422 (bad UUID), not a generic nginx 404
         assert response.status != 502, "files router not responding"
 

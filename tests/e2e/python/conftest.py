@@ -83,7 +83,7 @@ async def page(browser: Browser) -> AsyncGenerator[Page, None]:
 
 
 async def check_auth_status_or_fail(backend_url: str) -> dict:
-    """Call GET /api/v1/auth/status on the backend.
+    """Call GET /auth/status on the backend.
 
     pytest.fail() (not skip) if auth is invalid or expired.
     Returns the auth status dict on success.
@@ -92,7 +92,7 @@ async def check_auth_status_or_fail(backend_url: str) -> dict:
 
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{backend_url}/api/v1/auth/status", timeout=10)
+            resp = await client.get(f"{backend_url}/auth/status", timeout=10)
     except httpx.ConnectError:
         pytest.fail(
             f"Cannot connect to backend at {backend_url}. "
@@ -101,8 +101,7 @@ async def check_auth_status_or_fail(backend_url: str) -> dict:
 
     if resp.status_code != 200:
         pytest.fail(
-            f"Auth status endpoint returned {resp.status_code}. "
-            f"URL: {backend_url}/api/v1/auth/status"
+            f"Auth status endpoint returned {resp.status_code}. URL: {backend_url}/auth/status"
         )
 
     data = resp.json()
@@ -142,7 +141,7 @@ async def auth_context(
 ) -> AsyncGenerator[BrowserContext, None]:
     """Create an authenticated browser context.
 
-    1. Calls POST /api/v1/auth/restore-session to get a JWT cookie
+    1. Calls POST /auth/restore-session to get a JWT cookie
     2. Injects the gts_session cookie into a new browser context
     3. pytest.fail() on any auth failure
     """
@@ -152,7 +151,7 @@ async def auth_context(
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{api_url}/api/v1/auth/restore-session",
+                f"{api_url}/auth/restore-session",
                 timeout=10,
             )
     except httpx.ConnectError:

@@ -1,4 +1,4 @@
-"""Integration tests for SignalChainGroupService and /api/v1/signal-chain-groups/ endpoints."""
+"""Integration tests for SignalChainGroupService and /api/signal-chain-groups/ endpoints."""
 
 from __future__ import annotations
 
@@ -269,7 +269,7 @@ class TestSignalChainGroupService:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestSignalChainGroupAPI:
-    """Test /api/v1/signal-chain-groups/ endpoints."""
+    """Test /api/signal-chain-groups/ endpoints."""
 
     async def test_list_groups_returns_users_groups(
         self,
@@ -278,7 +278,7 @@ class TestSignalChainGroupAPI:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/ returns user's groups."""
+        """Test GET /api/signal-chain-groups/ returns user's groups."""
         service = SignalChainGroupService(db_session)
 
         group1 = SignalChainGroup(
@@ -300,7 +300,7 @@ class TestSignalChainGroupAPI:
             await service.create(group1)
             await service.create(group2)
 
-        response = await authenticated_client.get("/api/v1/signal-chain-groups/")
+        response = await authenticated_client.get("/api/signal-chain-groups/")
 
         assert response.status_code == 200
         data = response.json()
@@ -313,7 +313,7 @@ class TestSignalChainGroupAPI:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test POST /api/v1/signal-chain-groups/ creates a group."""
+        """Test POST /api/signal-chain-groups/ creates a group."""
         gear_id1 = str(uuid4())
         gear_id2 = str(uuid4())
 
@@ -328,7 +328,7 @@ class TestSignalChainGroupAPI:
             },
         }
 
-        response = await authenticated_client.post("/api/v1/signal-chain-groups/", json=payload)
+        response = await authenticated_client.post("/api/signal-chain-groups/", json=payload)
 
         assert response.status_code == 201
         data = response.json()
@@ -346,7 +346,7 @@ class TestSignalChainGroupAPI:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/{id} returns group detail."""
+        """Test GET /api/signal-chain-groups/{id} returns group detail."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -361,7 +361,7 @@ class TestSignalChainGroupAPI:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await authenticated_client.get(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -373,10 +373,10 @@ class TestSignalChainGroupAPI:
         self,
         authenticated_client: AsyncClient,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/{id} returns 404 for non-existent group."""
+        """Test GET /api/signal-chain-groups/{id} returns 404 for non-existent group."""
         non_existent_id = uuid4()
 
-        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{non_existent_id}")
+        response = await authenticated_client.get(f"/api/signal-chain-groups/{non_existent_id}")
 
         assert response.status_code == 404
 
@@ -403,7 +403,7 @@ class TestSignalChainGroupAPI:
             await service.create(group)
 
         # Try to access as test_user (authenticated_client)
-        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await authenticated_client.get(f"/api/signal-chain-groups/{group.id}")
 
         # Should return 404 to avoid leaking existence
         assert response.status_code == 404
@@ -415,7 +415,7 @@ class TestSignalChainGroupAPI:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test PUT /api/v1/signal-chain-groups/{id} updates a group."""
+        """Test PUT /api/signal-chain-groups/{id} updates a group."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -436,7 +436,7 @@ class TestSignalChainGroupAPI:
         }
 
         response = await authenticated_client.put(
-            f"/api/v1/signal-chain-groups/{group.id}", json=payload
+            f"/api/signal-chain-groups/{group.id}", json=payload
         )
 
         assert response.status_code == 200
@@ -468,7 +468,7 @@ class TestSignalChainGroupAPI:
         payload = {"name": "Hacked"}
 
         response = await authenticated_client.put(
-            f"/api/v1/signal-chain-groups/{group.id}", json=payload
+            f"/api/signal-chain-groups/{group.id}", json=payload
         )
 
         assert response.status_code == 404
@@ -480,7 +480,7 @@ class TestSignalChainGroupAPI:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test DELETE /api/v1/signal-chain-groups/{id} deletes a group."""
+        """Test DELETE /api/signal-chain-groups/{id} deletes a group."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -494,7 +494,7 @@ class TestSignalChainGroupAPI:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.delete(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await authenticated_client.delete(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 204
 
@@ -523,7 +523,7 @@ class TestSignalChainGroupAPI:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.delete(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await authenticated_client.delete(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 404
 
@@ -538,7 +538,7 @@ class TestSignalChainGroupAPI:
         """Test POST requires authentication."""
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/signal-chain-groups/",
+                "/api/signal-chain-groups/",
                 json={"name": "Test", "slot_positions": []},
             )
 

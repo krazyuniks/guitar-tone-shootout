@@ -33,69 +33,12 @@ export const GET: APIRoute = () => {
       </p>
     </div>
 
-    <!-- HTMX container that loads my-gear results on page load -->
-    <div
-      id="my-gear-results-container"
-      data-testid="my-gear-results-container"
-      hx-get="/api/v1/html/my-gear/results"
-      hx-trigger="load"
-      hx-swap="outerHTML"
-    >
-      <!-- Loading state - shows until HTMX replaces content -->
-      <div class="space-y-4">
-        <!-- Filter skeleton -->
-        <div class="mb-6 space-y-4">
-          <!-- Search bar skeleton -->
-          <div class="h-10 bg-[var(--color-bg-elevated)] rounded-lg animate-pulse"></div>
-          <!-- Filter buttons skeleton -->
-          <div class="flex gap-2">
-            {% for _ in range(5) %}
-            <div class="h-8 w-16 bg-[var(--color-bg-elevated)] rounded-full animate-pulse"></div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Pack cards skeleton -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {% for _ in range(4) %}
-          <div class="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--color-bg-elevated)]">
-            <div class="flex">
-              <div class="flex-shrink-0 w-28 sm:w-36 aspect-square bg-[var(--color-bg-secondary)] animate-pulse"></div>
-              <div class="flex-1 p-4 space-y-3">
-                <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 animate-pulse"></div>
-                <div class="flex gap-2">
-                  <div class="h-4 w-20 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                </div>
-                <div class="flex gap-4">
-                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                  <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
+    <!-- My gear results rendered server-side -->
+    {% include "fragments/library/my_gear.html" %}
   </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-  // Handle HTMX response errors
-  document.body.addEventListener('htmx:responseError', (event) => {
-    const xhr = event.detail?.xhr;
-    if (xhr && xhr.status === 401) {
-      // Not authenticated - redirect to login
-      const currentPath = window.location.pathname;
-      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
-    }
-  });
-</script>
-{% endblock %}
 `;
 
   return new Response(template, {

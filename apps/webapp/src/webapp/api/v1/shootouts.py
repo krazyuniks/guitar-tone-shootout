@@ -30,7 +30,7 @@ from webapp.services.processing_service import enqueue_to_worker
 from webapp.services.shootout_comment_service import ShootoutCommentService
 from webapp.services.shootout_service import ShootoutService
 
-router = APIRouter(prefix="/api/v1/shootouts", tags=["shootouts"])
+router = APIRouter(prefix="/api/shootouts", tags=["shootouts"])
 
 # Session and user overrides for testing
 _session_override: AsyncSession | None = None

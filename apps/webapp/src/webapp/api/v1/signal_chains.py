@@ -27,7 +27,7 @@ from webapp.services.signal_chain_service import (
     ValidationException,
 )
 
-router = APIRouter(prefix="/api/v1/signal-chains", tags=["signal-chains"])
+router = APIRouter(prefix="/api/signal-chains", tags=["signal-chains"])
 
 
 @router.get("/", response_model=list[SignalChainResponse])

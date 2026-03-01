@@ -16,7 +16,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Search, X, Loader2, AlertCircle, ChevronDown, Library, Star } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import { api, gearItemApi, type Tone, type PaginatedTones, type Gear, type Platform, type GearItemType } from '@/lib/api';
+import { api, type Tone, type PaginatedTones, type Gear, type Platform, type GearItemType, type GearItemListResponse } from '@/lib/api';
 
 type ToneSource = 'library' | 'search';
 
@@ -104,13 +104,13 @@ function useSearchTones(
   });
 }
 
-/** Hook to fetch user's gear library */
-function useGearLibrary(enabled: boolean) {
+/** Hook to fetch user's gear library — stub, endpoint not yet implemented */
+function useGearLibrary(_enabled: boolean) {
   return useQuery({
     queryKey: ['gear-items'],
-    queryFn: () => gearItemApi.list({ page: 1, page_size: 100 }),
+    queryFn: () => Promise.resolve({ gear_items: [], total: 0, page: 1, page_size: 100 } as GearItemListResponse),
     staleTime: 30000,
-    enabled,
+    enabled: false,
   });
 }
 

@@ -85,7 +85,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 - T3K = passwordless OAuth. No user credentials stored by GTS. Only OAuth access/refresh tokens.
 - Token-based auth (stateless). JWT validated per request. No server-side sessions.
 - Admin API (Webapp, port 8000, `/api/admin/*`): NO authentication. Network-level access control only.
-- User API (Webapp, port 8000): all `/api/v1/*` routes require `CurrentUser` token authentication.
+- User API (Webapp, port 8000): all `/api/*` routes require `CurrentUser` token authentication.
 
 ## Testing
 

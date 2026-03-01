@@ -12,7 +12,7 @@ from webapp.services.block_type_registry import BlockTypeRegistry
 if TYPE_CHECKING:
     from webapp.adapters.persistence.models.block_type import BlockType
 
-router = APIRouter(prefix="/api/v1/block-types", tags=["block-types"])
+router = APIRouter(prefix="/api/block-types", tags=["block-types"])
 
 
 @router.get("", response_model=list[BlockTypeResponse])

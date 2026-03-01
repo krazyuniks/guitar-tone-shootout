@@ -177,7 +177,7 @@ async def other_user_track(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestDITrackStreamEndpoint:
-    """Tests for GET /api/v1/di-tracks/{id}/stream endpoint."""
+    """Tests for GET /api/di-tracks/{id}/stream endpoint."""
 
     async def test_stream_wav_returns_correct_content_type(
         self,
@@ -195,7 +195,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{wav_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{wav_track.id}/stream")
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/wav"
@@ -218,7 +218,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{flac_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{flac_track.id}/stream")
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/flac"
@@ -240,7 +240,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{ogg_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{ogg_track.id}/stream")
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/ogg"
@@ -262,7 +262,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{mp3_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{mp3_track.id}/stream")
 
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/mpeg"
@@ -284,7 +284,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{wav_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{wav_track.id}/stream")
 
         assert response.status_code == 200
         # Verify file content matches what we wrote
@@ -307,7 +307,7 @@ class TestDITrackStreamEndpoint:
             base_url="http://test",
         ) as client:
             # test_user tries to stream other_user's track
-            response = await client.get(f"/api/v1/di-tracks/{other_user_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{other_user_track.id}/stream")
 
         # Should return 404, not 403, to avoid leaking existence
         assert response.status_code == 404
@@ -329,7 +329,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{fake_id}/stream")
+            response = await client.get(f"/api/di-tracks/{fake_id}/stream")
 
         assert response.status_code == 404
 
@@ -353,7 +353,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{wav_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{wav_track.id}/stream")
 
         # Should return 401 Unauthorized
         assert response.status_code == 401
@@ -374,7 +374,7 @@ class TestDITrackStreamEndpoint:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/di-tracks/{wav_track.id}/stream")
+            response = await client.get(f"/api/di-tracks/{wav_track.id}/stream")
 
         assert response.status_code == 200
 

@@ -45,7 +45,7 @@ export const GET: APIRoute = () => {
             {% if comment.is_own %}
               <button
                 class="text-[var(--color-text-muted)] hover:text-red-400 transition-colors"
-                hx-delete="/api/v1/shootouts/{{ shootout_id }}/comments/{{ comment.id }}"
+                hx-delete="/api/shootouts/{{ shootout_id }}/comments/{{ comment.id }}"
                 hx-confirm="Delete this comment?"
                 hx-target="closest [data-testid='comment-item']"
                 hx-swap="outerHTML swap:0.3s"
@@ -75,7 +75,7 @@ export const GET: APIRoute = () => {
   {% if current_user %}
     <form
       class="bg-[var(--color-bg-surface)] rounded-lg border border-[var(--border)] p-4"
-      hx-post="/api/v1/shootouts/{{ shootout_id }}/comments"
+      hx-post="/api/shootouts/{{ shootout_id }}/comments"
       hx-target="[data-testid='comments-list']"
       hx-swap="afterbegin"
       data-testid="comment-form"

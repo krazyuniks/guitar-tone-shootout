@@ -56,12 +56,12 @@ async def client(session: AsyncSession, test_user: User) -> AsyncGenerator[Async
 
 
 class TestListSignalChains:
-    """Tests for GET /api/v1/signal-chains/."""
+    """Tests for GET /api/signal-chains/."""
 
     async def test_list_empty(self, client: AsyncClient) -> None:
         """Test listing when user has no chains."""
         # Act
-        response = await client.get("/api/v1/signal-chains/")
+        response = await client.get("/api/signal-chains/")
 
         # Assert
         assert response.status_code == 200
@@ -75,7 +75,7 @@ class TestListSignalChains:
         """Test listing returns only current user's chains."""
         # Arrange - create a chain via API
         create_response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Test Chain",
                 "platform": "nam",
@@ -91,7 +91,7 @@ class TestListSignalChains:
         assert create_response.status_code == 201
 
         # Act
-        response = await client.get("/api/v1/signal-chains/")
+        response = await client.get("/api/signal-chains/")
 
         # Assert
         assert response.status_code == 200
@@ -110,7 +110,7 @@ class TestListSignalChains:
         # Arrange - create chain for other_user by switching override
         set_user_override(other_user)
         await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Other User Chain",
                 "platform": "nam",
@@ -128,7 +128,7 @@ class TestListSignalChains:
         set_user_override(test_user)
 
         # Act
-        response = await client.get("/api/v1/signal-chains/")
+        response = await client.get("/api/signal-chains/")
 
         # Assert
         assert response.status_code == 200
@@ -136,7 +136,7 @@ class TestListSignalChains:
 
 
 class TestCreateSignalChain:
-    """Tests for POST /api/v1/signal-chains/."""
+    """Tests for POST /api/signal-chains/."""
 
     async def test_create_valid_chain(
         self,
@@ -146,7 +146,7 @@ class TestCreateSignalChain:
         """Test creating a valid signal chain."""
         # Act
         response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "My Chain",
                 "description": "Test description",
@@ -177,7 +177,7 @@ class TestCreateSignalChain:
         """Test creating invalid chain returns 422 validation error."""
         # Act - chain with pedal only (no amp)
         response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Invalid Chain",
                 "platform": "nam",
@@ -206,7 +206,7 @@ class TestCreateSignalChain:
         async with AsyncClient(transport=transport, base_url="http://test") as unauth_client:
             # Act
             response = await unauth_client.post(
-                "/api/v1/signal-chains/",
+                "/api/signal-chains/",
                 json={
                     "name": "Test",
                     "platform": "nam",
@@ -219,7 +219,7 @@ class TestCreateSignalChain:
 
 
 class TestUpdateSignalChain:
-    """Tests for PUT /api/v1/signal-chains/{id}."""
+    """Tests for PUT /api/signal-chains/{id}."""
 
     async def test_update_chain_name(
         self,
@@ -228,7 +228,7 @@ class TestUpdateSignalChain:
         """Test updating a chain's name."""
         # Arrange - create chain
         create_response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Original",
                 "platform": "nam",
@@ -245,7 +245,7 @@ class TestUpdateSignalChain:
 
         # Act
         response = await client.put(
-            f"/api/v1/signal-chains/{chain_id}",
+            f"/api/signal-chains/{chain_id}",
             json={
                 "name": "Updated",
                 "platform": "nam",
@@ -271,7 +271,7 @@ class TestUpdateSignalChain:
         """Test updating nonexistent chain returns 404."""
         # Act
         response = await client.put(
-            f"/api/v1/signal-chains/{uuid4()}",
+            f"/api/signal-chains/{uuid4()}",
             json={
                 "name": "Test",
                 "platform": "nam",
@@ -295,7 +295,7 @@ class TestUpdateSignalChain:
         """Test updating to invalid state returns 422."""
         # Arrange - create valid chain
         create_response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Valid",
                 "platform": "nam",
@@ -312,7 +312,7 @@ class TestUpdateSignalChain:
 
         # Act - update to invalid state (no amp)
         response = await client.put(
-            f"/api/v1/signal-chains/{chain_id}",
+            f"/api/signal-chains/{chain_id}",
             json={
                 "name": "Invalid",
                 "platform": "nam",
@@ -340,7 +340,7 @@ class TestUpdateSignalChain:
         # Arrange - create chain as other_user
         set_user_override(other_user)
         create_response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Other User Chain",
                 "platform": "nam",
@@ -360,7 +360,7 @@ class TestUpdateSignalChain:
 
         # Act - try to update other user's chain
         response = await client.put(
-            f"/api/v1/signal-chains/{chain_id}",
+            f"/api/signal-chains/{chain_id}",
             json={
                 "name": "Hacked",
                 "platform": "nam",
@@ -379,7 +379,7 @@ class TestUpdateSignalChain:
 
 
 class TestDeleteSignalChain:
-    """Tests for DELETE /api/v1/signal-chains/{id}."""
+    """Tests for DELETE /api/signal-chains/{id}."""
 
     async def test_delete_existing_chain(
         self,
@@ -388,7 +388,7 @@ class TestDeleteSignalChain:
         """Test deleting an existing chain."""
         # Arrange - create chain
         create_response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "To Delete",
                 "platform": "nam",
@@ -404,13 +404,13 @@ class TestDeleteSignalChain:
         chain_id = create_response.json()["id"]
 
         # Act
-        response = await client.delete(f"/api/v1/signal-chains/{chain_id}")
+        response = await client.delete(f"/api/signal-chains/{chain_id}")
 
         # Assert
         assert response.status_code == 204
 
         # Verify deleted
-        get_response = await client.get("/api/v1/signal-chains/")
+        get_response = await client.get("/api/signal-chains/")
         assert get_response.json() == []
 
     async def test_delete_nonexistent_chain_returns_404(
@@ -419,7 +419,7 @@ class TestDeleteSignalChain:
     ) -> None:
         """Test deleting nonexistent chain returns 404."""
         # Act
-        response = await client.delete(f"/api/v1/signal-chains/{uuid4()}")
+        response = await client.delete(f"/api/signal-chains/{uuid4()}")
 
         # Assert
         assert response.status_code == 404
@@ -435,7 +435,7 @@ class TestDeleteSignalChain:
         # Arrange - create chain as other_user
         set_user_override(other_user)
         create_response = await client.post(
-            "/api/v1/signal-chains/",
+            "/api/signal-chains/",
             json={
                 "name": "Other User Chain",
                 "platform": "nam",
@@ -454,7 +454,7 @@ class TestDeleteSignalChain:
         set_user_override(test_user)
 
         # Act - try to delete other user's chain
-        response = await client.delete(f"/api/v1/signal-chains/{chain_id}")
+        response = await client.delete(f"/api/signal-chains/{chain_id}")
 
         # Assert
         assert response.status_code == 404  # Not 403, to avoid leaking existence

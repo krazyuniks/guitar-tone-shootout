@@ -4,7 +4,7 @@ Verifies that the built frontend template uses field names and URLs
 that match the actual API endpoint parameters. These are the known
 bugs documented in T124:
 
-1. hx-post URL must be "/api/v1/di-tracks" (not "/api/v1/di-tracks/upload")
+1. hx-post URL must be "/api/di-tracks" (not "/api/di-tracks/upload")
 2. Name input must use name="name" (not name="title")
 3. Pickup input must use name="pickup" (not name="pickups")
 """
@@ -30,15 +30,15 @@ class TestUploadFormURL:
     """Upload form must post to the correct API endpoint."""
 
     def test_form_posts_to_correct_api_endpoint(self, template_content: str) -> None:
-        """hx-post must target POST /api/v1/di-tracks (not /api/v1/di-tracks/upload).
+        """hx-post must target POST /api/di-tracks (not /api/di-tracks/upload).
 
-        The API router defines: @router.post("", ...) on prefix="/api/v1/di-tracks",
-        so the actual endpoint is POST /api/v1/di-tracks.
-        The frontend currently has hx-post="/api/v1/di-tracks/upload" which 404s.
+        The API router defines: @router.post("", ...) on prefix="/api/di-tracks",
+        so the actual endpoint is POST /api/di-tracks.
+        The frontend currently has hx-post="/api/di-tracks/upload" which 404s.
         """
         # The correct URL must be present
-        assert 'hx-post="/api/v1/di-tracks"' in template_content, (
-            "Upload form hx-post must be '/api/v1/di-tracks', not '/api/v1/di-tracks/upload'"
+        assert 'hx-post="/api/di-tracks"' in template_content, (
+            "Upload form hx-post must be '/api/di-tracks', not '/api/di-tracks/upload'"
         )
 
     def test_form_does_not_use_upload_suffix(self, template_content: str) -> None:
@@ -46,9 +46,8 @@ class TestUploadFormURL:
 
         This is the inverse check — ensures the buggy URL has been removed.
         """
-        assert '/api/v1/di-tracks/upload"' not in template_content, (
-            "Upload form still uses the wrong URL '/api/v1/di-tracks/upload'. "
-            "Must be '/api/v1/di-tracks'"
+        assert '/api/di-tracks/upload"' not in template_content, (
+            "Upload form still uses the wrong URL '/api/di-tracks/upload'. Must be '/api/di-tracks'"
         )
 
 

@@ -56,7 +56,7 @@ export function DITrackSelectModal({
     queryKey: ['di-tracks', 'system'],
     queryFn: () =>
       // The API uses system_only query param via URLSearchParams
-      fetch('/api/v1/di-tracks?page=1&page_size=100&system_only=true', {
+      fetch('/api/di-tracks?page=1&page_size=100&system_only=true', {
         credentials: 'include',
       }).then((res) => {
         if (!res.ok) throw new Error('Failed to fetch system tracks');

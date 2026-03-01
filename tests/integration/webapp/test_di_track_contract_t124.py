@@ -90,7 +90,7 @@ class TestDITrackTuningField:
         test_user: User,
         tmp_path: Path,
     ) -> None:
-        """POST /api/v1/di-tracks must accept a 'tuning' form field.
+        """POST /api/di-tracks must accept a 'tuning' form field.
 
         The frontend form sends tuning as a form parameter. The API
         endpoint must accept it and pass it through to the service.
@@ -116,7 +116,7 @@ class TestDITrackTuningField:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -160,7 +160,7 @@ class TestDITrackTuningField:
             base_url="http://test",
         ) as client:
             response = await client.post(
-                "/api/v1/di-tracks",
+                "/api/di-tracks",
                 files=files,
                 data=data,
             )
@@ -181,7 +181,7 @@ class TestDITrackTuningField:
         test_user: User,
         tmp_path: Path,
     ) -> None:
-        """GET /api/v1/di-tracks must include tuning in response items."""
+        """GET /api/di-tracks must include tuning in response items."""
         from fastapi import FastAPI
 
         track = DITrack(
@@ -204,7 +204,7 @@ class TestDITrackTuningField:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/di-tracks")
+            response = await client.get("/api/di-tracks")
 
         assert response.status_code == 200
         json_data = response.json()

@@ -56,37 +56,37 @@ def app_with_handlers() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Test routes that raise exceptions
-    @app.get("/api/v1/test/not-found")
+    @app.get("/api/test/not-found")
     async def api_not_found():
         raise NotFoundError(message="Resource not found", details={"resource_id": "123"})
 
-    @app.get("/api/v1/test/forbidden")
+    @app.get("/api/test/forbidden")
     async def api_forbidden():
         raise AuthorizationError(message="Access denied")
 
-    @app.get("/api/v1/test/conflict")
+    @app.get("/api/test/conflict")
     async def api_conflict():
         raise ConflictError(message="Username already exists")
 
-    @app.get("/api/v1/test/bad-request")
+    @app.get("/api/test/bad-request")
     async def api_bad_request():
         raise BadRequestError(message="Invalid input")
 
-    @app.get("/api/v1/test/validation-error")
+    @app.get("/api/test/validation-error")
     async def api_validation():
         raise ValidationError(message="Email is invalid", details={"field": "email"})
 
-    @app.get("/api/v1/test/http-exception")
+    @app.get("/api/test/http-exception")
     async def api_http_exception():
         from fastapi import HTTPException
 
         raise HTTPException(status_code=503, detail="Service unavailable")
 
-    @app.get("/api/v1/test/sqlalchemy-error")
+    @app.get("/api/test/sqlalchemy-error")
     async def api_sqlalchemy_error():
         raise SQLAlchemyError("Database connection failed")
 
-    @app.get("/api/v1/test/unhandled")
+    @app.get("/api/test/unhandled")
     async def api_unhandled():
         raise RuntimeError("Something went wrong")
 
@@ -111,7 +111,7 @@ class TestAppExceptionHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/not-found")
+            response = await client.get("/api/test/not-found")
 
             assert response.status_code == 404
             assert response.headers["content-type"] == "application/json"
@@ -127,7 +127,7 @@ class TestAppExceptionHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/forbidden")
+            response = await client.get("/api/test/forbidden")
 
             assert response.status_code == 403
             assert response.headers["content-type"] == "application/json"
@@ -142,7 +142,7 @@ class TestAppExceptionHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/conflict")
+            response = await client.get("/api/test/conflict")
 
             assert response.status_code == 409
             assert response.headers["content-type"] == "application/json"
@@ -157,7 +157,7 @@ class TestAppExceptionHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/bad-request")
+            response = await client.get("/api/test/bad-request")
 
             assert response.status_code == 400
             assert response.headers["content-type"] == "application/json"
@@ -172,7 +172,7 @@ class TestAppExceptionHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/validation-error")
+            response = await client.get("/api/test/validation-error")
 
             assert response.status_code == 422
             assert response.headers["content-type"] == "application/json"
@@ -209,7 +209,7 @@ class TestHTTPExceptionHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/http-exception")
+            response = await client.get("/api/test/http-exception")
 
             assert response.status_code == 503
             assert response.headers["content-type"] == "application/json"
@@ -239,16 +239,14 @@ class TestRequestValidationErrorHandler:
             email: str = Field(..., pattern=r".+@.+\..+")
             age: int = Field(..., gt=0)
 
-        @app_with_handlers.post("/api/v1/test/validate")
+        @app_with_handlers.post("/api/test/validate")
         async def validate_input(data: TestModel):
             return {"status": "ok"}
 
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.post(
-                "/api/v1/test/validate", json={"email": "invalid", "age": -1}
-            )
+            response = await client.post("/api/test/validate", json={"email": "invalid", "age": -1})
 
             assert response.status_code == 422
             assert response.headers["content-type"] == "application/json"
@@ -270,7 +268,7 @@ class TestSQLAlchemyErrorHandler:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/sqlalchemy-error")
+            response = await client.get("/api/test/sqlalchemy-error")
 
             assert response.status_code == 500
             assert response.headers["content-type"] == "application/json"
@@ -294,7 +292,7 @@ class TestUnhandledExceptionHandler:
             transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/test/unhandled")
+            response = await client.get("/api/test/unhandled")
 
             assert response.status_code == 500
             assert response.headers["content-type"] == "application/json"
@@ -320,7 +318,7 @@ class TestProductionSanitisation:
             transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/test/unhandled")
+            response = await client.get("/api/test/unhandled")
 
             assert response.status_code == 500
             data = response.json()
@@ -342,7 +340,7 @@ class TestProductionSanitisation:
         async with AsyncClient(
             transport=ASGITransport(app=app_with_handlers), base_url="http://test"
         ) as client:
-            response = await client.get("/api/v1/test/sqlalchemy-error")
+            response = await client.get("/api/test/sqlalchemy-error")
 
             assert response.status_code == 500
             data = response.json()
@@ -367,7 +365,7 @@ class TestDevelopmentMode:
             transport=ASGITransport(app=app_with_handlers, raise_app_exceptions=False),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/test/unhandled")
+            response = await client.get("/api/test/unhandled")
 
             assert response.status_code == 500
             data = response.json()

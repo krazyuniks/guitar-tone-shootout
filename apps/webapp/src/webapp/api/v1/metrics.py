@@ -31,7 +31,7 @@ from webapp.auth.dependencies import (
     get_db_session,
 )
 
-router = APIRouter(prefix="/api/v1/shootouts", tags=["shootout-metrics"])
+router = APIRouter(prefix="/api/shootouts", tags=["shootout-metrics"])
 
 
 async def _get_shootout_for_user(

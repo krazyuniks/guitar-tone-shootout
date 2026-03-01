@@ -1,4 +1,4 @@
-"""Integration tests for /api/v1/shootouts/ endpoints."""
+"""Integration tests for /api/shootouts/ endpoints."""
 
 from __future__ import annotations
 
@@ -81,7 +81,7 @@ async def test_list_shootouts_returns_users_shootouts(
     test_user: User,
     test_di_track: DITrack,
 ) -> None:
-    """Test GET /api/v1/shootouts/ returns user's shootouts."""
+    """Test GET /api/shootouts/ returns user's shootouts."""
     service = ShootoutService(db_session)
 
     # Create shootouts for test user
@@ -101,7 +101,7 @@ async def test_list_shootouts_returns_users_shootouts(
         await service.create(shootout2)
 
     # Request shootouts
-    response = await authenticated_client.get("/api/v1/shootouts/")
+    response = await authenticated_client.get("/api/shootouts/")
 
     assert response.status_code == 200
     data = response.json()
@@ -117,7 +117,7 @@ async def test_list_shootouts_does_not_return_other_users_shootouts(
     test_user: User,
     test_di_track: DITrack,
 ) -> None:
-    """Test GET /api/v1/shootouts/ does not return other users' shootouts."""
+    """Test GET /api/shootouts/ does not return other users' shootouts."""
     service = ShootoutService(db_session)
 
     # Create shootout for test user
@@ -154,7 +154,7 @@ async def test_list_shootouts_does_not_return_other_users_shootouts(
         await service.create(other_shootout)
 
     # Request shootouts
-    response = await authenticated_client.get("/api/v1/shootouts/")
+    response = await authenticated_client.get("/api/shootouts/")
 
     assert response.status_code == 200
     data = response.json()
@@ -170,14 +170,14 @@ async def test_create_shootout_creates_new_shootout(
     test_user: User,
     test_di_track: DITrack,
 ) -> None:
-    """Test POST /api/v1/shootouts/ creates a new shootout."""
+    """Test POST /api/shootouts/ creates a new shootout."""
     payload = {
         "name": "New Shootout",
         "di_track_id": str(test_di_track.id),
         "description": "Test description",
     }
 
-    response = await authenticated_client.post("/api/v1/shootouts/", json=payload)
+    response = await authenticated_client.post("/api/shootouts/", json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -194,7 +194,7 @@ async def test_create_shootout_requires_authentication(
     db_session: AsyncSession,
     test_di_track: DITrack,
 ) -> None:
-    """Test POST /api/v1/shootouts/ requires authentication."""
+    """Test POST /api/shootouts/ requires authentication."""
     # Create client without auth override
     set_session_override(db_session)
 
@@ -204,7 +204,7 @@ async def test_create_shootout_requires_authentication(
             "di_track_id": str(test_di_track.id),
         }
 
-        response = await client.post("/api/v1/shootouts/", json=payload)
+        response = await client.post("/api/shootouts/", json=payload)
 
         assert response.status_code == 401
 
@@ -216,13 +216,13 @@ async def test_create_shootout_requires_authentication(
 async def test_create_shootout_validates_required_fields(
     authenticated_client: AsyncClient,
 ) -> None:
-    """Test POST /api/v1/shootouts/ validates required fields."""
+    """Test POST /api/shootouts/ validates required fields."""
     # Missing name
     payload = {
         "di_track_id": "00000000-0000-0000-0000-000000000000",
     }
 
-    response = await authenticated_client.post("/api/v1/shootouts/", json=payload)
+    response = await authenticated_client.post("/api/shootouts/", json=payload)
 
     assert response.status_code == 422
 
@@ -235,13 +235,13 @@ async def test_create_shootout_persists_to_database(
     test_user: User,
     test_di_track: DITrack,
 ) -> None:
-    """Test POST /api/v1/shootouts/ persists to database."""
+    """Test POST /api/shootouts/ persists to database."""
     payload = {
         "name": "New Shootout",
         "di_track_id": str(test_di_track.id),
     }
 
-    response = await authenticated_client.post("/api/v1/shootouts/", json=payload)
+    response = await authenticated_client.post("/api/shootouts/", json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -264,7 +264,7 @@ async def test_get_shootout_by_id_returns_shootout(
     test_user: User,
     test_di_track: DITrack,
 ) -> None:
-    """Test GET /api/v1/shootouts/{id} returns shootout details."""
+    """Test GET /api/shootouts/{id} returns shootout details."""
     service = ShootoutService(db_session)
 
     shootout = Shootout(
@@ -277,7 +277,7 @@ async def test_get_shootout_by_id_returns_shootout(
     async with db_session.begin():
         await service.create(shootout)
 
-    response = await authenticated_client.get(f"/api/v1/shootouts/{shootout.id}")
+    response = await authenticated_client.get(f"/api/shootouts/{shootout.id}")
 
     assert response.status_code == 200
     data = response.json()
@@ -291,10 +291,10 @@ async def test_get_shootout_by_id_returns_shootout(
 async def test_get_shootout_by_id_returns_404_for_missing(
     authenticated_client: AsyncClient,
 ) -> None:
-    """Test GET /api/v1/shootouts/{id} returns 404 for non-existent shootout."""
+    """Test GET /api/shootouts/{id} returns 404 for non-existent shootout."""
     from uuid import uuid4
 
-    response = await authenticated_client.get(f"/api/v1/shootouts/{uuid4()}")
+    response = await authenticated_client.get(f"/api/shootouts/{uuid4()}")
 
     assert response.status_code == 404
 
@@ -306,7 +306,7 @@ async def test_get_shootout_by_id_returns_404_for_other_users_shootout(
     db_session: AsyncSession,
     test_di_track: DITrack,
 ) -> None:
-    """Test GET /api/v1/shootouts/{id} returns 404 for other user's shootout."""
+    """Test GET /api/shootouts/{id} returns 404 for other user's shootout."""
     service = ShootoutService(db_session)
 
     # Create another user and their shootout
@@ -334,7 +334,7 @@ async def test_get_shootout_by_id_returns_404_for_other_users_shootout(
         await service.create(other_shootout)
 
     # Try to access other user's shootout
-    response = await authenticated_client.get(f"/api/v1/shootouts/{other_shootout.id}")
+    response = await authenticated_client.get(f"/api/shootouts/{other_shootout.id}")
 
     # Returns 404 to avoid leaking existence
     assert response.status_code == 404

@@ -133,7 +133,7 @@ export const GET: APIRoute = () => {
         <span class="text-sm text-[var(--color-text-muted)]">{{ user.username }}</span>
         <button
           type="button"
-          hx-post="/api/v1/auth/logout"
+          hx-post="/auth/logout"
           hx-swap="none"
           hx-on::after-request="window.location.href = '/'"
           class="text-sm text-[var(--color-text-muted)] hover:text-amber-400 transition-colors"
@@ -260,7 +260,7 @@ export const GET: APIRoute = () => {
           <span class="block py-2 text-sm text-[var(--color-text-muted)]">{{ user.username }}</span>
           <button
             type="button"
-            hx-post="/api/v1/auth/logout"
+            hx-post="/auth/logout"
             hx-swap="none"
             hx-on::after-request="window.location.href = '/'"
             class="block w-full text-left py-2 text-base font-medium text-[var(--color-text-muted)] hover:text-amber-400"

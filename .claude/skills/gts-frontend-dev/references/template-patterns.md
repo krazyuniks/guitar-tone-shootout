@@ -42,7 +42,7 @@ astro/src/pages/               # Template source files (.html.ts)
   <div
     id="content-container"
     data-testid="content-container"
-    hx-get="/api/v1/html/content"
+    hx-get="/api/html/content"
     hx-trigger="load"
     hx-swap="innerHTML"
   >
@@ -74,7 +74,7 @@ astro/src/pages/               # Template source files (.html.ts)
   <h3 data-testid="item-card-title">{{ item.name }}</h3>
   <button
     data-testid="item-card-delete-btn"
-    hx-delete="/api/v1/html/items/{{ item.id }}"
+    hx-delete="/api/html/items/{{ item.id }}"
     hx-target="closest [data-testid='item-card']"
     hx-swap="outerHTML"
     hx-confirm="Delete this item?"
@@ -91,20 +91,20 @@ astro/src/pages/               # Template source files (.html.ts)
 
 | Backend Route | Template Path | Purpose |
 |---------------|---------------|---------|
-| `/api/v1/html/shootouts/sections` | `fragments/shootouts/sections.html` | Shootout sections |
-| `/api/v1/html/shootouts/list` | `fragments/shootouts/list.html` | Shootout list |
-| `/api/v1/html/library/shootouts` | `fragments/library/shootouts.html` | User's shootouts |
-| `/api/v1/html/my-gear/results` | `fragments/library/my_gear.html` | User gear list |
-| `/api/v1/html/gear/browse` | `fragments/gear/browse.html` | Browse gear |
-| `/api/v1/html/library/chains` | `fragments/library/chains.html` | User's signal chains |
-| `/api/v1/html/library/tracks` | `fragments/library/tracks.html` | User's DI tracks |
-| `/api/v1/html/library/groups` | `fragments/library/groups.html` | User's chain groups |
-| `/api/v1/html/di-tracks/browse` | `fragments/di-tracks/browse.html` | Browse DI tracks |
+| `POST /api/html/gear/model/{id}/toggle` | `fragments/gear/model_row.html` | Toggle gear model save/unsave |
+| `POST /api/html/gear/models/bulk-toggle` | (empty response) | Bulk toggle gear models |
+| `POST /api/html/library/tracks/{id}/toggle-public` | `fragments/library/track_item.html` | Toggle track visibility |
+| `POST /api/html/library/tracks/{id}/save` | (empty response) | Save track to library |
+| `GET /api/html/shootout-create/chains` | `fragments/shootouts/create/chain-list.html` | Wizard chain picker |
+| `GET /api/html/shootout-create/ditracks` | `fragments/shootouts/create/ditrack-list.html` | Wizard DI track picker |
+| `POST /api/html/shootout-create` | (redirect on success) | Wizard form submit |
+| `GET /api/html/shootouts/{id}/comments` | `fragments/shootouts/comments.html` | Comments section |
+| `GET /api/html/jobs/{id}` | (inline HTML) | Job status polling |
 
 ### Naming Convention
 
 ```
-Backend: /api/v1/html/{domain}/{action}
+Backend: /api/html/{domain}/{action}
 Template: fragments/{domain}/{action}.html
 ```
 
@@ -112,6 +112,6 @@ Template: fragments/{domain}/{action}.html
 
 1. Create template in `astro/src/pages/fragments/{domain}/{name}.html.ts`
 2. Run `just build-astro` to compile to `astro/dist/fragments/{domain}/{name}.html`
-3. Create backend endpoint in `apps/webapp/src/webapp/api/v1/html.py`
+3. Create backend endpoint in `apps/webapp/src/webapp/api/html.py`
 4. Add `data-testid` attributes to all interactive elements
 5. Wire up HTMX attributes in the parent page

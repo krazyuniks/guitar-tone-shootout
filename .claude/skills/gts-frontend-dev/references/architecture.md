@@ -15,7 +15,7 @@ Two rendering strategies, one build system.
                     ▼                         ▼                         ▼
          ┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
          │   Static Files   │      │   FastAPI/Jinja2 │      │     API Routes   │
-         │  (Astro SSG)     │      │   (Dynamic)      │      │   /api/v1/*      │
+         │  (Astro SSG)     │      │   (Dynamic)      │      │   /api/*      │
          └──────────────────┘      └──────────────────┘      └──────────────────┘
                     │                         │                         │
          /, /about, /login        /shootouts, /library/*         REST + HTML

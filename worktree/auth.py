@@ -240,7 +240,7 @@ def start_login_flow(webapp_url: str = "http://localhost:8000") -> bool:
     import subprocess
     import sys
 
-    login_url = f"{webapp_url}/api/v1/auth/login/t3k"
+    login_url = f"{webapp_url}/auth/login/t3k"
 
     try:
         # Use Chrome explicitly (required for proxy setup on dev machines)
@@ -293,7 +293,7 @@ def restore_session(webapp_url: str = "http://localhost:8000") -> tuple[bool, st
     # Call the restore-session endpoint
     try:
         with httpx.Client(timeout=10.0) as client:
-            response = client.post(f"{webapp_url}/api/v1/auth/restore-session")
+            response = client.post(f"{webapp_url}/auth/restore-session")
 
             if response.status_code == 200:
                 data = response.json()
@@ -327,7 +327,7 @@ def restore_session_browser(frontend_url: str = "http://localhost:4341") -> bool
     import subprocess
     import sys
 
-    restore_url = f"{frontend_url}/api/v1/auth/restore-session"
+    restore_url = f"{frontend_url}/auth/restore-session"
 
     try:
         if sys.platform == "darwin":
@@ -396,7 +396,7 @@ def check_auth_from_api(webapp_url: str) -> AuthStatus:
     """
     try:
         with httpx.Client(timeout=10.0) as client:
-            response = client.get(f"{webapp_url}/api/v1/auth/status")
+            response = client.get(f"{webapp_url}/auth/status")
 
             if response.status_code == 200:
                 data = response.json()

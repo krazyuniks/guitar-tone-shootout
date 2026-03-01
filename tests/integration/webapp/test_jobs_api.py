@@ -1,4 +1,4 @@
-"""Integration tests for /api/v1/jobs/ endpoints."""
+"""Integration tests for /api/jobs/ endpoints."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ async def test_get_job_by_id_returns_job_status(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/{id} returns job status."""
+    """Test GET /api/jobs/{id} returns job status."""
     repo = SQLAlchemyJobRepository(db_session)
 
     job = Job(
@@ -80,7 +80,7 @@ async def test_get_job_by_id_returns_job_status(
     async with db_session.begin():
         await repo.save(job)
 
-    response = await authenticated_client.get(f"/api/v1/jobs/{job.id}")
+    response = await authenticated_client.get(f"/api/jobs/{job.id}")
 
     assert response.status_code == 200
     data = response.json()
@@ -95,8 +95,8 @@ async def test_get_job_by_id_returns_job_status(
 async def test_get_job_by_id_returns_404_for_missing(
     authenticated_client: AsyncClient,
 ) -> None:
-    """Test GET /api/v1/jobs/{id} returns 404 for non-existent job."""
-    response = await authenticated_client.get(f"/api/v1/jobs/{uuid4()}")
+    """Test GET /api/jobs/{id} returns 404 for non-existent job."""
+    response = await authenticated_client.get(f"/api/jobs/{uuid4()}")
 
     assert response.status_code == 404
 
@@ -107,7 +107,7 @@ async def test_get_job_by_id_returns_404_for_other_users_job(
     authenticated_client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    """Test GET /api/v1/jobs/{id} returns 404 for other user's job."""
+    """Test GET /api/jobs/{id} returns 404 for other user's job."""
     repo = SQLAlchemyJobRepository(db_session)
 
     # Create another user and their job
@@ -124,7 +124,7 @@ async def test_get_job_by_id_returns_404_for_other_users_job(
         await repo.save(other_job)
 
     # Try to access other user's job
-    response = await authenticated_client.get(f"/api/v1/jobs/{other_job.id}")
+    response = await authenticated_client.get(f"/api/jobs/{other_job.id}")
 
     # Returns 404 to avoid leaking existence
     assert response.status_code == 404
@@ -137,7 +137,7 @@ async def test_get_job_by_id_requires_authentication(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/{id} requires authentication."""
+    """Test GET /api/jobs/{id} requires authentication."""
     repo = SQLAlchemyJobRepository(db_session)
 
     job = Job(
@@ -152,7 +152,7 @@ async def test_get_job_by_id_requires_authentication(
     set_session_override(db_session)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(f"/api/v1/jobs/{job.id}")
+        response = await client.get(f"/api/jobs/{job.id}")
 
         assert response.status_code == 401
 
@@ -166,7 +166,7 @@ async def test_list_user_jobs_returns_users_jobs(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/ returns user's jobs."""
+    """Test GET /api/jobs/ returns user's jobs."""
     repo = SQLAlchemyJobRepository(db_session)
 
     # Create jobs for test user
@@ -183,7 +183,7 @@ async def test_list_user_jobs_returns_users_jobs(
         await repo.save(job1)
         await repo.save(job2)
 
-    response = await authenticated_client.get("/api/v1/jobs/")
+    response = await authenticated_client.get("/api/jobs/")
 
     assert response.status_code == 200
     data = response.json()
@@ -200,7 +200,7 @@ async def test_list_user_jobs_does_not_return_other_users_jobs(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/ does not return other users' jobs."""
+    """Test GET /api/jobs/ does not return other users' jobs."""
     repo = SQLAlchemyJobRepository(db_session)
 
     # Create job for test user
@@ -223,7 +223,7 @@ async def test_list_user_jobs_does_not_return_other_users_jobs(
     async with db_session.begin():
         await repo.save(other_job)
 
-    response = await authenticated_client.get("/api/v1/jobs/")
+    response = await authenticated_client.get("/api/jobs/")
 
     assert response.status_code == 200
     data = response.json()
@@ -238,7 +238,7 @@ async def test_list_user_jobs_filters_by_status(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/?status=running filters by status."""
+    """Test GET /api/jobs/?status=running filters by status."""
     repo = SQLAlchemyJobRepository(db_session)
 
     # Create jobs with different statuses
@@ -251,7 +251,7 @@ async def test_list_user_jobs_filters_by_status(
         await repo.save(running)
         await repo.save(completed)
 
-    response = await authenticated_client.get("/api/v1/jobs/?status=running")
+    response = await authenticated_client.get("/api/jobs/?status=running")
 
     assert response.status_code == 200
     data = response.json()
@@ -266,7 +266,7 @@ async def test_list_user_jobs_filters_by_job_type(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/?job_type=audio_processing filters by type."""
+    """Test GET /api/jobs/?job_type=audio_processing filters by type."""
     repo = SQLAlchemyJobRepository(db_session)
 
     # Create jobs with different types
@@ -277,7 +277,7 @@ async def test_list_user_jobs_filters_by_job_type(
         await repo.save(audio)
         await repo.save(video)
 
-    response = await authenticated_client.get("/api/v1/jobs/?job_type=audio_processing")
+    response = await authenticated_client.get("/api/jobs/?job_type=audio_processing")
 
     assert response.status_code == 200
     data = response.json()
@@ -292,7 +292,7 @@ async def test_get_job_includes_timestamps(
     db_session: AsyncSession,
     test_user: User,
 ) -> None:
-    """Test GET /api/v1/jobs/{id} includes created_at and updated_at."""
+    """Test GET /api/jobs/{id} includes created_at and updated_at."""
     repo = SQLAlchemyJobRepository(db_session)
 
     job = Job(
@@ -303,7 +303,7 @@ async def test_get_job_includes_timestamps(
     async with db_session.begin():
         await repo.save(job)
 
-    response = await authenticated_client.get(f"/api/v1/jobs/{job.id}")
+    response = await authenticated_client.get(f"/api/jobs/{job.id}")
 
     assert response.status_code == 200
     data = response.json()

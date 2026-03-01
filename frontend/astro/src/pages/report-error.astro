@@ -74,7 +74,7 @@ const requestId = Astro.url.searchParams.get('request_id') || null;
       <!-- User Comment Form -->
       <form
         data-testid="error-report-form"
-        hx-post="/api/v1/html/error-reports"
+        hx-post="/api/html/error-reports"
         hx-target="#error-message"
         hx-swap="innerHTML"
         class="space-y-4"

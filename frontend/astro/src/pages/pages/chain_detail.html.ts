@@ -39,7 +39,7 @@ export const GET: APIRoute = () => {
     },
     performDelete() {
       this.deleting = true;
-      fetch('/api/v1/signal-chains/{{ chain.id }}', { method: 'DELETE' })
+      fetch('/api/signal-chains/{{ chain.id }}', { method: 'DELETE' })
         .then(response => {
           if (response.ok) {
             window.location.href = '/library/chains';

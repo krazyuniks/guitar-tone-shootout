@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse
 from webapp.config.uploads import get_secret_key, get_upload_base
 from webapp.services.asset_service import AssetService
 
-router = APIRouter(prefix="/api/v1/files", tags=["files"])
+router = APIRouter(prefix="/api/files", tags=["files"])
 
 
 def _get_asset_service() -> AssetService:

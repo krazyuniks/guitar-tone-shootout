@@ -488,16 +488,16 @@ class TestSignalChainGroupPermutations:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestGeneratePermutationsAPI:
-    """Test POST /api/v1/signal-chain-groups/{id}/generate endpoint."""
+    """Test POST /api/signal-chain-groups/{id}/generate endpoint."""
 
     async def test_generate_endpoint_exists(
         self,
         authenticated_client: AsyncClient,
         group_with_2x2: SignalChainGroup,
     ) -> None:
-        """Test that POST /api/v1/signal-chain-groups/{id}/generate exists."""
+        """Test that POST /api/signal-chain-groups/{id}/generate exists."""
         response = await authenticated_client.post(
-            f"/api/v1/signal-chain-groups/{group_with_2x2.id}/generate",
+            f"/api/signal-chain-groups/{group_with_2x2.id}/generate",
         )
 
         # Should not return 404 (endpoint exists)
@@ -510,7 +510,7 @@ class TestGeneratePermutationsAPI:
     ) -> None:
         """Test that generate endpoint returns list of created chain IDs."""
         response = await authenticated_client.post(
-            f"/api/v1/signal-chain-groups/{group_with_2x2.id}/generate",
+            f"/api/signal-chain-groups/{group_with_2x2.id}/generate",
         )
 
         assert response.status_code == 200
@@ -530,7 +530,7 @@ class TestGeneratePermutationsAPI:
         # Create unauthenticated client
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                f"/api/v1/signal-chain-groups/{group_with_2x2.id}/generate",
+                f"/api/signal-chain-groups/{group_with_2x2.id}/generate",
             )
 
         # Should return 401 Unauthorized
@@ -555,7 +555,7 @@ class TestGeneratePermutationsAPI:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
-                f"/api/v1/signal-chain-groups/{group_with_2x2.id}/generate",
+                f"/api/signal-chain-groups/{group_with_2x2.id}/generate",
             )
 
         # Should return 404 (not 403 to avoid leaking existence)
@@ -614,7 +614,7 @@ class TestGeneratePermutationsAPI:
         await db_session.flush()
 
         response = await authenticated_client.post(
-            f"/api/v1/signal-chain-groups/{group.id}/generate",
+            f"/api/signal-chain-groups/{group.id}/generate",
         )
 
         # Should return error status (400 or 422)

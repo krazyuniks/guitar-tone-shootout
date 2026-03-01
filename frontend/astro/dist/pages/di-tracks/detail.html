@@ -217,7 +217,7 @@
           <button
             type="button"
             data-testid="toggle-public-btn"
-            hx-post="/api/v1/di-tracks/{{ track.id }}/toggle-public"
+            hx-post="/api/di-tracks/{{ track.id }}/toggle-public"
             hx-swap="none"
             hx-on::after-request="window.location.reload()"
             class="px-4 py-2 text-sm font-medium rounded-lg transition-colors {% if track.is_public %}bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30{% else %}bg-green-500/20 text-green-400 hover:bg-green-500/30{% endif %}"

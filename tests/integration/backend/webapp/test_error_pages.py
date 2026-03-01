@@ -299,7 +299,7 @@ class TestExceptionHandlersServeErrorPages:
         """Verify 404 handler serves JSON for API routes regardless of Accept header."""
         # API routes always get JSON
         response = await client.get(
-            "/api/v1/this-does-not-exist",
+            "/api/this-does-not-exist",
             headers={"Accept": "text/html"},
         )
 

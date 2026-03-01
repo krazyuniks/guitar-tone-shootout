@@ -21,7 +21,7 @@ from webapp.auth.dependencies import (
 )
 from webapp.services.signal_chain_group_service import SignalChainGroupService
 
-router = APIRouter(prefix="/api/v1/signal-chain-groups", tags=["signal-chain-groups"])
+router = APIRouter(prefix="/api/signal-chain-groups", tags=["signal-chain-groups"])
 
 # Re-export for test compatibility
 __all__ = ["router", "set_session_override", "set_user_override"]

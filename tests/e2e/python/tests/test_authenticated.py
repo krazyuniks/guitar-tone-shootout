@@ -63,7 +63,7 @@ class TestGearDetailAuthenticated:
 
     async def _get_gear_slug(self, auth_page: Page, frontend_url: str) -> str:
         """Fetch a known gear slug from the API."""
-        api_response = await auth_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
+        api_response = await auth_page.request.get(f"{frontend_url}/api/gear/?limit=1")
         assert api_response.ok, "Gear API must return 200"
         data = await api_response.json()
         assert data.get("items"), "Database must contain gear data"
@@ -103,7 +103,7 @@ class TestModelSaveToggle:
 
     async def _get_gear_slug(self, auth_page: Page, frontend_url: str) -> str:
         """Fetch a known gear slug from the API."""
-        api_response = await auth_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
+        api_response = await auth_page.request.get(f"{frontend_url}/api/gear/?limit=1")
         assert api_response.ok
         data = await api_response.json()
         assert data.get("items"), "Database must contain gear data"

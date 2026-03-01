@@ -69,7 +69,7 @@ Jinja2 blocks available: `title`, `description`, `head`, `content`, `scripts`.
   <!-- HTMX container with loading skeleton -->
   <div
     id="content-container"
-    hx-get="/api/v1/html/content"
+    hx-get="/api/html/content"
     hx-trigger="load"
     hx-swap="innerHTML"
   >
@@ -101,7 +101,7 @@ Jinja2 blocks available: `title`, `description`, `head`, `content`, `scripts`.
   <h3 data-testid="item-card-title">{{ item.name }}</h3>
   <button
     data-testid="item-card-delete-btn"
-    hx-delete="/api/v1/html/items/{{ item.id }}"
+    hx-delete="/api/html/items/{{ item.id }}"
     hx-target="closest [data-testid='item-card']"
     hx-swap="outerHTML"
     hx-confirm="Delete this item?"
@@ -113,7 +113,7 @@ Jinja2 blocks available: `title`, `description`, `head`, `content`, `scripts`.
 
 {% if has_more %}
 <div
-  hx-get="/api/v1/html/items?page={{ page + 1 }}"
+  hx-get="/api/html/items?page={{ page + 1 }}"
   hx-trigger="revealed"
   hx-swap="outerHTML"
 >
@@ -158,7 +158,7 @@ from fastapi import APIRouter, Request, Depends
 from app.api.deps import CurrentUser
 from app.core.templates import templates
 
-router = APIRouter(prefix="/api/v1/html", tags=["html"])
+router = APIRouter(prefix="/api/html", tags=["html"])
 
 @router.get("/library/items")
 async def get_items_fragment(

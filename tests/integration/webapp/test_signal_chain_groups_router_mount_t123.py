@@ -102,8 +102,8 @@ class TestSignalChainGroupsRouterMount:
         self,
         unauthenticated_client: AsyncClient,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/ returns 401 without auth."""
-        response = await unauthenticated_client.get("/api/v1/signal-chain-groups/")
+        """Test GET /api/signal-chain-groups/ returns 401 without auth."""
+        response = await unauthenticated_client.get("/api/signal-chain-groups/")
 
         assert response.status_code == 401
 
@@ -112,8 +112,8 @@ class TestSignalChainGroupsRouterMount:
         authenticated_client: AsyncClient,
         test_user: User,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/ returns 200 with auth."""
-        response = await authenticated_client.get("/api/v1/signal-chain-groups/")
+        """Test GET /api/signal-chain-groups/ returns 200 with auth."""
+        response = await authenticated_client.get("/api/signal-chain-groups/")
 
         assert response.status_code == 200
         data = response.json()
@@ -124,7 +124,7 @@ class TestSignalChainGroupsRouterMount:
         unauthenticated_client: AsyncClient,
         base_chain: SignalChain,
     ) -> None:
-        """Test POST /api/v1/signal-chain-groups/ returns 401 without auth."""
+        """Test POST /api/signal-chain-groups/ returns 401 without auth."""
         payload = {
             "name": "Test Group",
             "base_chain_id": str(base_chain.id),
@@ -132,7 +132,7 @@ class TestSignalChainGroupsRouterMount:
             "gear_options": {"0": [str(uuid4())]},
         }
 
-        response = await unauthenticated_client.post("/api/v1/signal-chain-groups/", json=payload)
+        response = await unauthenticated_client.post("/api/signal-chain-groups/", json=payload)
 
         assert response.status_code == 401
 
@@ -141,7 +141,7 @@ class TestSignalChainGroupsRouterMount:
         authenticated_client: AsyncClient,
         base_chain: SignalChain,
     ) -> None:
-        """Test POST /api/v1/signal-chain-groups/ creates a group."""
+        """Test POST /api/signal-chain-groups/ creates a group."""
         gear_id = str(uuid4())
         payload = {
             "name": "New Group",
@@ -151,7 +151,7 @@ class TestSignalChainGroupsRouterMount:
             "gear_options": {"0": [gear_id]},
         }
 
-        response = await authenticated_client.post("/api/v1/signal-chain-groups/", json=payload)
+        response = await authenticated_client.post("/api/signal-chain-groups/", json=payload)
 
         assert response.status_code == 201
         data = response.json()
@@ -165,7 +165,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/{id} returns 401 without auth."""
+        """Test GET /api/signal-chain-groups/{id} returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -179,7 +179,7 @@ class TestSignalChainGroupsRouterMount:
         async with db_session.begin():
             await service.create(group)
 
-        response = await unauthenticated_client.get(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await unauthenticated_client.get(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 401
 
@@ -190,7 +190,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test GET /api/v1/signal-chain-groups/{id} returns group detail."""
+        """Test GET /api/signal-chain-groups/{id} returns group detail."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -205,7 +205,7 @@ class TestSignalChainGroupsRouterMount:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.get(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await authenticated_client.get(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -219,7 +219,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test PUT /api/v1/signal-chain-groups/{id} returns 401 without auth."""
+        """Test PUT /api/signal-chain-groups/{id} returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -236,7 +236,7 @@ class TestSignalChainGroupsRouterMount:
         payload = {"name": "Updated"}
 
         response = await unauthenticated_client.put(
-            f"/api/v1/signal-chain-groups/{group.id}", json=payload
+            f"/api/signal-chain-groups/{group.id}", json=payload
         )
 
         assert response.status_code == 401
@@ -248,7 +248,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test PUT /api/v1/signal-chain-groups/{id} updates a group."""
+        """Test PUT /api/signal-chain-groups/{id} updates a group."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -265,7 +265,7 @@ class TestSignalChainGroupsRouterMount:
         payload = {"name": "Updated"}
 
         response = await authenticated_client.put(
-            f"/api/v1/signal-chain-groups/{group.id}", json=payload
+            f"/api/signal-chain-groups/{group.id}", json=payload
         )
 
         assert response.status_code == 200
@@ -279,7 +279,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test DELETE /api/v1/signal-chain-groups/{id} returns 401 without auth."""
+        """Test DELETE /api/signal-chain-groups/{id} returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -293,7 +293,7 @@ class TestSignalChainGroupsRouterMount:
         async with db_session.begin():
             await service.create(group)
 
-        response = await unauthenticated_client.delete(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await unauthenticated_client.delete(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 401
 
@@ -304,7 +304,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test DELETE /api/v1/signal-chain-groups/{id} deletes a group."""
+        """Test DELETE /api/signal-chain-groups/{id} deletes a group."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -318,7 +318,7 @@ class TestSignalChainGroupsRouterMount:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.delete(f"/api/v1/signal-chain-groups/{group.id}")
+        response = await authenticated_client.delete(f"/api/signal-chain-groups/{group.id}")
 
         assert response.status_code == 204
 
@@ -333,7 +333,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test POST /api/v1/signal-chain-groups/{id}/generate returns 401 without auth."""
+        """Test POST /api/signal-chain-groups/{id}/generate returns 401 without auth."""
         service = SignalChainGroupService(db_session)
 
         group = SignalChainGroup(
@@ -348,7 +348,7 @@ class TestSignalChainGroupsRouterMount:
             await service.create(group)
 
         response = await unauthenticated_client.post(
-            f"/api/v1/signal-chain-groups/{group.id}/generate"
+            f"/api/signal-chain-groups/{group.id}/generate"
         )
 
         assert response.status_code == 401
@@ -360,7 +360,7 @@ class TestSignalChainGroupsRouterMount:
         test_user: User,
         base_chain: SignalChain,
     ) -> None:
-        """Test POST /api/v1/signal-chain-groups/{id}/generate generates permutations."""
+        """Test POST /api/signal-chain-groups/{id}/generate generates permutations."""
         service = SignalChainGroupService(db_session)
 
         gear_id = uuid4()
@@ -375,9 +375,7 @@ class TestSignalChainGroupsRouterMount:
         async with db_session.begin():
             await service.create(group)
 
-        response = await authenticated_client.post(
-            f"/api/v1/signal-chain-groups/{group.id}/generate"
-        )
+        response = await authenticated_client.post(f"/api/signal-chain-groups/{group.id}/generate")
 
         assert response.status_code == 200
         data = response.json()

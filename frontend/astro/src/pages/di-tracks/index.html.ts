@@ -30,84 +30,27 @@ const template = `{% extends "layouts/base.html" %}
     <div class="mb-6">
       <form
         id="di-tracks-search-form"
-        hx-get="/api/v1/html/di-tracks/results"
-        hx-target="#di-tracks-results-container"
-        hx-swap="innerHTML"
+        action="/di-tracks"
+        method="get"
       >
         <input
           type="search"
           name="search"
           data-testid="di-tracks-search-input"
           placeholder="Search DI tracks..."
+          value="{{ search or '' }}"
           class="w-full px-4 py-2 bg-[var(--color-bg-elevated)] border border-[var(--border)] rounded-lg text-[var(--color-text-primary)] placeholder-[var(--color-text-tertiary)] focus:outline-none focus:ring-2 focus:ring-blue-500"
-          hx-trigger="input changed delay:300ms, search"
         />
       </form>
     </div>
 
-    <!-- HTMX container that loads DI track results on page load -->
-    <div
-      id="di-tracks-results-container"
-      hx-get="/api/v1/html/di-tracks/results"
-      hx-trigger="load"
-      hx-swap="outerHTML"
-    >
-      <!-- Loading state - shows until HTMX replaces content -->
-      <div class="space-y-4">
-        <!-- Filter skeleton -->
-        <div class="mb-6 space-y-4">
-          <!-- Search bar skeleton -->
-          <div class="h-10 bg-[var(--color-bg-elevated)] rounded-lg animate-pulse"></div>
-          <!-- Filter buttons skeleton -->
-          <div class="flex gap-2">
-            {% for _ in range(4) %}
-            <div class="h-8 w-20 bg-[var(--color-bg-elevated)] rounded-full animate-pulse"></div>
-            {% endfor %}
-          </div>
-        </div>
-
-        <!-- Track cards skeleton -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {% for _ in range(6) %}
-          <div class="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--color-bg-elevated)]">
-            <div class="p-4 space-y-3">
-              <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 animate-pulse"></div>
-              <div class="flex gap-2">
-                <div class="h-4 w-16 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                <div class="h-4 w-20 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-              </div>
-              <div class="flex gap-4">
-                <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-                <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-
-        <!-- Hidden sample track for build tests - replaced by HTMX at runtime -->
-        <div style="display: none;" data-testid="track-item">
-          <audio data-testid="track-audio-player" src="/api/v1/di-tracks/sample-id/stream"></audio>
-        </div>
-      </div>
-    </div>
+    <!-- DI track results rendered server-side -->
+    {% include "fragments/di-tracks/public_browse.html" %}
   </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-  // Handle HTMX response errors
-  document.body.addEventListener('htmx:responseError', (event) => {
-    const xhr = event.detail?.xhr;
-    if (xhr && xhr.status === 401) {
-      // Not authenticated - redirect to login
-      const currentPath = window.location.pathname;
-      window.location.href = \`/login?next=\${encodeURIComponent(currentPath)}\`;
-    }
-  });
-</script>
-{% endblock %}`;
+`;
 
 export const GET: APIRoute = () => {
   return new Response(template, {

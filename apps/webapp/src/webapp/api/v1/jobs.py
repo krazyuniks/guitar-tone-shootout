@@ -14,7 +14,7 @@ from webapp.api.v1.schemas.job import JobResponse
 from webapp.services.job_service import JobService
 from webapp.services.processing_service import enqueue_to_worker
 
-router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
+router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 # Session and user overrides for testing
 _session_override: AsyncSession | None = None

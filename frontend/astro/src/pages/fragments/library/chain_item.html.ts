@@ -60,7 +60,7 @@ export const GET: APIRoute = () => {
       <button
         type="button"
         data-testid="chain-item-delete-btn"
-        onclick="handleDelete('/api/v1/signal-chains/{{ chain.id }}', '{{ chain.name | replace("'", "\\'") }}', '[data-chain-id=\\'{{ chain.id }}\\']')"
+        onclick="handleDelete('/api/signal-chains/{{ chain.id }}', '{{ chain.name | replace("'", "\\'") }}', '[data-chain-id=\\'{{ chain.id }}\\']')"
         class="flex-shrink-0 p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
         title="Delete chain"
       >

@@ -1,6 +1,6 @@
 """Integration tests for file serving API endpoint (T129).
 
-Tests GET /api/v1/files/{signature} which streams files
+Tests GET /api/files/{signature} which streams files
 using HMAC-signed URLs with expiration.
 """
 
@@ -64,7 +64,7 @@ def _create_app():
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestFilesEndpointStreaming:
-    """Tests for GET /api/v1/files/{signature} file streaming."""
+    """Tests for GET /api/files/{signature} file streaming."""
 
     async def test_valid_signature_streams_file(
         self,
@@ -100,7 +100,7 @@ class TestFilesEndpointStreaming:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{signature}")
+            response = await client.get(f"/api/files/{signature}")
 
         assert response.status_code == 200
         assert response.content == file_content
@@ -136,7 +136,7 @@ class TestFilesEndpointStreaming:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{signature}")
+            response = await client.get(f"/api/files/{signature}")
 
         assert response.status_code == 200
         assert "audio" in response.headers.get("content-type", "")
@@ -158,7 +158,7 @@ class TestFilesEndpointSignatureValidation:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get("/api/v1/files/invalid-signature-here")
+            response = await client.get("/api/files/invalid-signature-here")
 
         # Must return 404, not 403 — no existence leaking
         assert response.status_code == 404
@@ -191,7 +191,7 @@ class TestFilesEndpointSignatureValidation:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{signature}")
+            response = await client.get(f"/api/files/{signature}")
 
         assert response.status_code == 404
 
@@ -224,7 +224,7 @@ class TestFilesEndpointSignatureValidation:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{tampered}")
+            response = await client.get(f"/api/files/{tampered}")
 
         assert response.status_code == 404
 
@@ -240,7 +240,7 @@ class TestFilesEndpointSignatureValidation:
             base_url="http://test",
         ) as client:
             # With empty path segment, FastAPI may return 404 or 405
-            response = await client.get("/api/v1/files/")
+            response = await client.get("/api/files/")
 
         assert response.status_code in (404, 405, 422)
 
@@ -278,7 +278,7 @@ class TestFilesEndpointOwnership:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{signature}")
+            response = await client.get(f"/api/files/{signature}")
 
         assert response.status_code == 404
 
@@ -322,7 +322,7 @@ class TestFilesEndpointRangeHeaders:
             base_url="http://test",
         ) as client:
             response = await client.get(
-                f"/api/v1/files/{signature}",
+                f"/api/files/{signature}",
                 headers={"Range": "bytes=0-99"},
             )
 
@@ -363,7 +363,7 @@ class TestFilesEndpointRangeHeaders:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{signature}")
+            response = await client.get(f"/api/files/{signature}")
 
         assert response.status_code == 200
         assert response.content == file_content
@@ -412,6 +412,6 @@ class TestFilesEndpointPathTraversal:
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            response = await client.get(f"/api/v1/files/{signature}")
+            response = await client.get(f"/api/files/{signature}")
 
         assert response.status_code == 404

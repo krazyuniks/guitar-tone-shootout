@@ -81,7 +81,7 @@ For each truth, ask: "What must EXIST for this to be true?"
 Truth: "User can add amp block from gear library"
 Artefacts:
 - SignalChainBuilder React component (frontend/astro/src/components/)
-- UserGear query endpoint (apps/webapp/src/webapp/api/v1/)
+- UserGear query endpoint (apps/webapp/src/webapp/api/)
 - SignalChainBlock model (apps/webapp/src/webapp/adapters/persistence/models/)
 - Add block API endpoint
 
@@ -99,8 +99,8 @@ Artefacts:
 | ORM Model | `apps/webapp/src/webapp/adapters/persistence/models/` | SQLAlchemy |
 | Repository | `apps/webapp/src/webapp/adapters/persistence/repositories/` | Protocol impl |
 | Service | `apps/webapp/src/webapp/services/` | Transaction owner |
-| API Route | `apps/webapp/src/webapp/api/v1/` | FastAPI router |
-| Pydantic Schema | `apps/webapp/src/webapp/api/v1/schemas/` | Request/response |
+| API Route | `apps/webapp/src/webapp/api/` | FastAPI router |
+| Pydantic Schema | `apps/webapp/src/webapp/api/schemas/` | Request/response |
 | Consumer | `apps/{bc}-worker/src/` | pgmq consumer |
 | Jinja2 Template | `frontend/astro/src/pages/` (source) | `.html.ts` files |
 | HTMX Fragment | `frontend/astro/src/pages/fragments/` | HTML partials |
@@ -115,9 +115,9 @@ For each artefact, ask: "What must be CONNECTED for this to function?"
 
 **Example:**
 ```
-Artefact: POST /api/v1/chains endpoint
+Artefact: POST /api/chains endpoint
 Wiring:
-- FastAPI route registered in apps/webapp/src/webapp/api/v1/__init__.py
+- FastAPI route registered in apps/webapp/src/webapp/api/__init__.py
 - Pydantic request validation (SignalChainCreate schema)
 - SignalChainService transaction (service owns transaction)
 - SignalChainRepository persistence

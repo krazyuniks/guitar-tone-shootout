@@ -87,22 +87,7 @@ class TestHealth:
         assert response is not None and response.status == 200
 
     async def test_api_health(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/api/v1/health")
-        assert response is not None and response.status == 200
-
-
-# --- HTMX fragment endpoints (200, public) ---
-
-
-@pytest.mark.asyncio
-@pytest.mark.regression
-class TestPublicFragments:
-    async def test_di_tracks_results(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/api/v1/html/di-tracks/results")
-        assert response is not None and response.status == 200
-
-    async def test_shootouts_sections(self, guest_page: Page, frontend_url: str) -> None:
-        response = await guest_page.goto(f"{frontend_url}/api/v1/html/shootouts/sections")
+        response = await guest_page.goto(f"{frontend_url}/health")
         assert response is not None and response.status == 200
 
 
@@ -165,7 +150,7 @@ class TestGearDataPresent:
         self, guest_page: Page, frontend_url: str
     ) -> None:
         """Gear API reports at least MIN_GEAR_COUNT items."""
-        response = await guest_page.request.get(f"{frontend_url}/api/v1/gear/?limit=1")
+        response = await guest_page.request.get(f"{frontend_url}/api/gear/?limit=1")
         assert response.ok
         data = await response.json()
         total = data["total"]

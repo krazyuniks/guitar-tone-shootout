@@ -321,7 +321,7 @@
 
         init: async function() {
           try {
-            var res = await fetch('/api/v1/auth/me', {
+            var res = await fetch('/auth/me', {
               credentials: 'include',
             });
             var data = await res.json();
@@ -336,14 +336,14 @@
         },
 
         logout: async function() {
-          await fetch('/api/v1/auth/logout', {
+          await fetch('/auth/logout', {
             method: 'POST',
             credentials: 'include',
           });
           this.authenticated = false;
           this.username = '';
           // Redirect to login with prompt=login to try forcing T3K re-authentication
-          window.location.href = '/api/v1/auth/login?prompt=login';
+          window.location.href = '/auth/login?prompt=login';
         },
       };
     });

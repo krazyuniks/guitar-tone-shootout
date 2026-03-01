@@ -38,9 +38,6 @@ export const GET: APIRoute = () => {
       <a
         href="{{ prev_url }}"
         data-testid="pagination-prev"
-        hx-get="/api/v1/html{{ prev_url }}"
-        hx-target="#di-tracks-results"
-        hx-swap="innerHTML"
         class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
       >
         Previous
@@ -50,9 +47,6 @@ export const GET: APIRoute = () => {
       <a
         href="{{ next_url }}"
         data-testid="pagination-next"
-        hx-get="/api/v1/html{{ next_url }}"
-        hx-target="#di-tracks-results"
-        hx-swap="innerHTML"
         class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
       >
         Next

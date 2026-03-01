@@ -24,7 +24,7 @@ All interactive elements MUST have `data-testid` attributes for Playwright testi
 <button data-testid="tab-browse">
 
 <!-- HTMX containers -->
-<div id="my-gear-results" data-testid="my-gear-results" hx-get="/api/v1/html/my-gear/results">
+<div id="my-gear-results" data-testid="my-gear-results" hx-get="/api/html/my-gear/results">
 ```
 
 ## State Exposure
@@ -56,10 +56,10 @@ Containers with loading/error/empty states MUST expose them:
 
 ```html
 <!-- BAD: Missing test ID -->
-<button hx-delete="/api/v1/html/items/123">Delete</button>
+<button hx-delete="/api/html/items/123">Delete</button>
 
 <!-- GOOD: Has test ID -->
-<button data-testid="item-delete-btn" hx-delete="/api/v1/html/items/123">Delete</button>
+<button data-testid="item-delete-btn" hx-delete="/api/html/items/123">Delete</button>
 
 <!-- BAD: Generic test ID -->
 <button data-testid="button">Delete</button>
@@ -74,8 +74,8 @@ data-testid="item-{{ loop.index }}"
 data-item-id="{{ item.id }}"
 
 <!-- BAD: HTMX container without test ID -->
-<div id="items" hx-get="/api/v1/html/items">
+<div id="items" hx-get="/api/html/items">
 
 <!-- GOOD: HTMX container with test ID -->
-<div id="items" data-testid="items-container" hx-get="/api/v1/html/items">
+<div id="items" data-testid="items-container" hx-get="/api/html/items">
 ```

@@ -564,7 +564,7 @@ export const diTrackApi = {
       formData.append('recording_interface', params.recording_interface);
     }
 
-    const response = await fetch('/api/v1/di-tracks/upload', {
+    const response = await fetch('/api/di-tracks/upload', {
       method: 'POST',
       body: formData,
       credentials: 'include',
@@ -698,65 +698,6 @@ export interface GearItemListParams {
   sort_order?: 'asc' | 'desc';
 }
 
-// GearItem API methods
-export const gearItemApi = {
-  /**
-   * Create a new gear item.
-   */
-  create(data: GearItemCreate): Promise<GearItem> {
-    return api.post<GearItem>('/gear-items', data);
-  },
-
-  /**
-   * List gear items with filtering, search, and pagination.
-   */
-  list(params?: GearItemListParams): Promise<GearItemListResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.search) searchParams.set('search', params.search);
-    if (params?.gear_type) searchParams.set('gear_type', params.gear_type);
-    if (params?.is_favorite !== undefined)
-      searchParams.set('is_favorite', String(params.is_favorite));
-    if (params?.model_size) searchParams.set('model_size', params.model_size);
-    if (params?.tag_ids?.length) {
-      params.tag_ids.forEach((id) => searchParams.append('tag_ids', id));
-    }
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.page_size) searchParams.set('page_size', String(params.page_size));
-    if (params?.sort_by) searchParams.set('sort_by', params.sort_by);
-    if (params?.sort_order) searchParams.set('sort_order', params.sort_order);
-    const query = searchParams.toString();
-    return api.get(`/gear-items${query ? `?${query}` : ''}`);
-  },
-
-  /**
-   * Get a single gear item by ID.
-   */
-  get(id: string): Promise<GearItem> {
-    return api.get<GearItem>(`/gear-items/${id}`);
-  },
-
-  /**
-   * Delete a gear item.
-   */
-  delete(id: string): Promise<void> {
-    return api.delete<void>(`/gear-items/${id}`);
-  },
-
-  /**
-   * Toggle favorite status.
-   */
-  toggleFavorite(id: string, is_favorite: boolean): Promise<GearItem> {
-    return api.patch<GearItem>(`/gear-items/${id}`, { is_favorite });
-  },
-
-  /**
-   * Check if a tone is already saved to library.
-   */
-  async isInLibrary(tone3000ToneId: number): Promise<boolean> {
-    const result = await this.list({ page: 1, page_size: 100 });
-    return result.gear_items.some((item) => item.tone3000_tone_id === tone3000ToneId);
-  },
-};
 
 // Signal Chain types
 export type SignalChainPlatform = 'nam' | 'aida_x';
@@ -924,122 +865,6 @@ export const signalChainApi = {
   },
 };
 
-// Tones API search parameters
-export interface TonesSearchParams {
-  query?: string;
-  gear?: Gear;
-  platform?: Platform;
-  page?: number;
-  per_page?: number;
-}
-
-// Tones API methods for browsing Tone 3000 packs
-export const tonesApi = {
-  /**
-   * Search public tones on Tone 3000.
-   */
-  search(params?: TonesSearchParams): Promise<PaginatedTones> {
-    const searchParams = new URLSearchParams();
-    if (params?.query) searchParams.set('query', params.query);
-    if (params?.gear) searchParams.set('gear', params.gear);
-    if (params?.platform) searchParams.set('platform', params.platform);
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page));
-    const query = searchParams.toString();
-    return api.get<PaginatedTones>(`/tones/search${query ? `?${query}` : ''}`);
-  },
-
-  /**
-   * Get a specific tone by ID.
-   */
-  get(toneId: number): Promise<Tone> {
-    return api.get<Tone>(`/tones/${toneId}`);
-  },
-
-  /**
-   * Get downloadable models for a tone from local cache.
-   */
-  getModels(toneId: number): Promise<ToneModel[]> {
-    return api.get<ToneModel[]>(`/tones/${toneId}/models`);
-  },
-
-  /**
-   * Get user's own tones from Tone 3000.
-   */
-  getMine(params?: { page?: number; per_page?: number }): Promise<PaginatedTones> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page));
-    const query = searchParams.toString();
-    return api.get<PaginatedTones>(`/tones/mine${query ? `?${query}` : ''}`);
-  },
-
-  /**
-   * Get user's favorited tones from Tone 3000.
-   */
-  getFavorites(params?: { page?: number; per_page?: number }): Promise<PaginatedTones> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.per_page) searchParams.set('per_page', String(params.per_page));
-    const query = searchParams.toString();
-    return api.get<PaginatedTones>(`/tones/favorites${query ? `?${query}` : ''}`);
-  },
-};
-
-// Shootout V2 API types
-export interface ShootoutCreatePayload {
-  name: string;
-  description?: string;
-  di_track_id: string;
-  chain_ids: string[];
-}
-
-export interface ShootoutCreateResponse {
-  id: string;
-  name: string;
-}
-
-// Shootout API methods
-export const shootoutApi = {
-  /**
-   * Create a shootout from signal chains (V2).
-   */
-  createFromChains(data: ShootoutCreatePayload): Promise<ShootoutCreateResponse> {
-    return api.post('/shootouts/v2', data);
-  },
-
-  /**
-   * Get shootout details.
-   */
-  get(id: string): Promise<ShootoutDetail> {
-    return api.get(`/shootouts/${id}`);
-  },
-
-  /**
-   * List user's shootouts.
-   */
-  list(params?: { page?: number; page_size?: number }): Promise<ShootoutListResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.page_size) searchParams.set('page_size', String(params.page_size));
-    const query = searchParams.toString();
-    return api.get(`/shootouts${query ? `?${query}` : ''}`);
-  },
-
-  /**
-   * Get comparison data for a shootout.
-   */
-  getComparison(id: string): Promise<ShootoutComparisonResponse> {
-    return api.get(`/shootouts/${id}/comparison`);
-  },
-
-  /**
-   * Get metadata for a shootout.
-   */
-  getMetadata(id: string): Promise<ShootoutMetadataResponse> {
-    return api.get(`/shootouts/${id}/metadata`);
-  },
-};
 
 // =============================================================================
 // Signal Chain Group Types
@@ -1137,48 +962,3 @@ export interface SignalChainGroupListParams {
   sort_by?: 'created_at' | 'name' | 'updated_at';
   sort_order?: 'asc' | 'desc';
 }
-
-// Signal Chain Group API methods
-export const signalChainGroupApi = {
-  /**
-   * Create a new signal chain group with gear selections.
-   * Automatically generates all signal chain permutations.
-   */
-  create(data: SignalChainGroupCreate): Promise<SignalChainGroupResponse> {
-    return api.post<SignalChainGroupResponse>('/signal-chain-groups', data);
-  },
-
-  /**
-   * List signal chain groups with pagination.
-   */
-  list(params?: SignalChainGroupListParams): Promise<SignalChainGroupListResponse> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.page_size) searchParams.set('page_size', String(params.page_size));
-    if (params?.sort_by) searchParams.set('sort_by', params.sort_by);
-    if (params?.sort_order) searchParams.set('sort_order', params.sort_order);
-    const query = searchParams.toString();
-    return api.get(`/signal-chain-groups${query ? `?${query}` : ''}`);
-  },
-
-  /**
-   * Get a signal chain group by ID with all details.
-   */
-  get(id: string): Promise<SignalChainGroupResponse> {
-    return api.get<SignalChainGroupResponse>(`/signal-chain-groups/${id}`);
-  },
-
-  /**
-   * Delete a signal chain group.
-   */
-  delete(id: string): Promise<void> {
-    return api.delete<void>(`/signal-chain-groups/${id}`);
-  },
-
-  /**
-   * Rebuild all signal chain permutations for a group.
-   */
-  rebuild(id: string): Promise<SignalChainGroupRebuildResponse> {
-    return api.post<SignalChainGroupRebuildResponse>(`/signal-chain-groups/${id}/rebuild`);
-  },
-};

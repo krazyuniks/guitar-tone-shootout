@@ -6,9 +6,9 @@ GTS separates user-facing APIs from internal admin operations. Admin APIs are de
 
 | Route Prefix | Purpose | Auth Required |
 |--------------|---------|---------------|
-| `/api/v1/jobs` | User's own jobs | `CurrentUser` |
-| `/api/v1/auth` | Auth operations | Varies by endpoint |
-| `/api/v1/*` | All user operations | `CurrentUser` |
+| `/auth` | Auth operations (login, callback, logout, status) | Varies by endpoint |
+| `/api/jobs` | User's own jobs | `CurrentUser` |
+| `/api/*` | All user operations | `CurrentUser` |
 
 User endpoints require `CurrentUser` authentication via session cookie.
 Users can only access their own resources.

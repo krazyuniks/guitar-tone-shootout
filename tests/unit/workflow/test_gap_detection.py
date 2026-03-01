@@ -102,7 +102,7 @@ class TestPydanticModels:
                     id="d-1",
                     area="api",
                     description="Endpoint naming",
-                    decision="Follow existing /api/v1/ pattern",
+                    decision="Follow existing /api/ pattern",
                     rationale="All other endpoints use this pattern",
                 ),
             ],

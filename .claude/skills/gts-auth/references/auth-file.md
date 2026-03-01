@@ -68,7 +68,7 @@ chmod 600 $(dirname $(pwd))/.gts-auth.json
 
 **In code (backend):**
 ```bash
-curl http://localhost:8000/api/v1/auth/status
+curl http://localhost:8000/auth/status
 ```
 
 ## Session Start Hook

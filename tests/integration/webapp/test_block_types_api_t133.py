@@ -1,6 +1,6 @@
 """Integration tests for Block Types API (T133).
 
-Tests GET /api/v1/block-types endpoint that returns built-in processor
+Tests GET /api/block-types endpoint that returns built-in processor
 block types with their parameter definitions. This is a public,
 read-only, cacheable endpoint.
 """
@@ -47,14 +47,14 @@ async def client(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestBlockTypesAPI:
-    """Tests for GET /api/v1/block-types endpoint."""
+    """Tests for GET /api/block-types endpoint."""
 
     async def test_list_block_types_returns_200(
         self,
         client: AsyncClient,
     ) -> None:
-        """Test GET /api/v1/block-types returns 200 OK."""
-        response = await client.get("/api/v1/block-types")
+        """Test GET /api/block-types returns 200 OK."""
+        response = await client.get("/api/block-types")
 
         assert response.status_code == 200
 
@@ -63,7 +63,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test response includes all registered block types."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         assert response.status_code == 200
         data = response.json()
@@ -83,7 +83,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test each block type includes name field."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         for bt in data:
@@ -96,7 +96,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test each block type includes description field."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         for bt in data:
@@ -107,7 +107,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test each block type includes category field."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         for bt in data:
@@ -119,7 +119,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test each block type includes default_params with types/ranges/defaults."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         for bt in data:
@@ -131,7 +131,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test Compressor block type has expected parameter keys."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         compressor = next(bt for bt in data if bt["name"] == "Compressor")
@@ -147,7 +147,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test response includes Cache-Control header (block types are static)."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         assert response.status_code == 200
         cache_control = response.headers.get("cache-control")
@@ -166,7 +166,7 @@ class TestBlockTypesAPI:
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as bare_client:
-            response = await bare_client.get("/api/v1/block-types")
+            response = await bare_client.get("/api/block-types")
 
         set_session_override(None)
 
@@ -178,7 +178,7 @@ class TestBlockTypesAPI:
         client: AsyncClient,
     ) -> None:
         """Test each block type includes an id field."""
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         for bt in data:
@@ -193,7 +193,7 @@ class TestBlockTypesAPI:
 
         valid_categories = {c.value for c in BlockCategory}
 
-        response = await client.get("/api/v1/block-types")
+        response = await client.get("/api/block-types")
 
         data = response.json()
         for bt in data:
@@ -237,4 +237,4 @@ class TestBlockTypesRouterMount:
         # Collect all route paths
         routes = [route.path for route in app.routes]
 
-        assert "/api/v1/block-types" in routes
+        assert "/api/block-types" in routes

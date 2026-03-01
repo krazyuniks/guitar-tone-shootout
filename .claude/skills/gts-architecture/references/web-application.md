@@ -8,11 +8,9 @@ The webapp workspace member. Depends on core, NOT on sources.
 |---------|---------|
 | Shootout Service | Shootout CRUD + lifecycle management |
 | Signal Chain Service | Chain composition + validation |
-| Preset Service | Signal chains with parameter values |
 | Job Service | Background job lifecycle + retry logic |
 | Identity Service | OAuth provider linking (multi-provider per user) |
 | Block Type Registry | Built-in processor templates (EQ, compressor, etc.) |
-| IR Upload Service | User IR uploads -> unified Gear model |
 | DI Track Service | DI track uploads + validation |
 
 ## Authentication
@@ -53,19 +51,18 @@ All templates (static and dynamic) are authored in Astro. Dynamic templates cont
 **Interactivity:**
 - HTMX for partial page updates (HTML-over-the-wire)
 - Alpine.js for client-side UI state (tabs, toggles)
-- WebSocket for real-time notifications (job completion, alerts)
 - No SPA, no client-side routing
 
 **HTMX Fragment Convention:**
 
 | Backend Route | Template Path |
 |---------------|---------------|
-| `/api/v1/html/{domain}/{action}` | `fragments/{domain}/{action}.html` |
+| `/api/html/{domain}/{action}` | `fragments/{domain}/{action}.html` |
 
 Examples:
-- `DELETE /api/v1/html/chains/{id}` -> returns empty (element removed)
-- `POST /api/v1/html/chains/{id}/process` -> returns updated status fragment
-- `GET /api/v1/html/gear/browse` -> returns gear list fragment for filtering
+- `POST /api/html/gear/model/{id}/toggle` -> returns updated model row fragment
+- `GET /api/html/shootouts/{id}/comments` -> returns comments section fragment
+- `GET /api/html/jobs/{id}` -> returns job status polling fragment
 
 **React Island: Signal Chain Builder**
 
@@ -91,8 +88,8 @@ Shootouts are optional -- users can build chains, process audio, and manage thei
 
 | Route Prefix | Purpose |
 |--------------|---------|
-| `/api/v1/` | JSON API (data operations, auth) |
-| `/api/v1/html/` | HTML fragments (HTMX responses) |
+| `/api/` | JSON API (data operations, auth) |
+| `/api/html/` | HTML fragments (HTMX responses) |
 | `/` | SSR pages |
 
 **Note:** Admin APIs are served by the webapp at `/api/admin/*` (port 8000). See Admin API Architecture below.

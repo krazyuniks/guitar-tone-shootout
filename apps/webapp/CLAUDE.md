@@ -9,7 +9,7 @@ Cannot import: sources (worker bridges this gap)
 
 ## Key Patterns
 
-- All `/api/v1/*` routes require `CurrentUser` token authentication
+- All `/api/*` routes require `CurrentUser` token authentication
 - Resource ownership: always verify `resource.user_id == current_user.id`, return 404 not 403
 - Jinja2 templates extend `layouts/base.html` (built by Astro)
 - HTMX for small interactions only — not for page navigation
@@ -21,7 +21,7 @@ Cannot import: sources (worker bridges this gap)
 
 - `src/webapp/main.py` — `create_app()` FastAPI entrypoint
 - `src/webapp/auth/dependencies.py` — CurrentUser auth guard
-- `src/webapp/api/v1/` — REST API endpoints (~17 route modules)
+- `src/webapp/api/v1/` — REST API + HTMX fragment endpoints (13 route modules)
 - `src/webapp/services/` — Business logic (~15 service classes)
 - `src/webapp/adapters/persistence/repositories/` — SQLAlchemy repositories
 - `src/webapp/adapters/persistence/models/` — ORM models (~19)

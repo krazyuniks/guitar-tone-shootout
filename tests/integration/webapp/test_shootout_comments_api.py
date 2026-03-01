@@ -1,4 +1,4 @@
-"""Integration tests for /api/v1/shootouts/{id}/comments endpoints."""
+"""Integration tests for /api/shootouts/{id}/comments endpoints."""
 
 from __future__ import annotations
 
@@ -115,13 +115,13 @@ async def unauthenticated_client(
     set_session_override(None)
 
 
-# --- POST /api/v1/shootouts/{id}/comments ---
+# --- POST /api/shootouts/{id}/comments ---
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestCreateComment:
-    """Tests for POST /api/v1/shootouts/{id}/comments."""
+    """Tests for POST /api/shootouts/{id}/comments."""
 
     async def test_create_comment_returns_201(
         self,
@@ -130,7 +130,7 @@ class TestCreateComment:
     ) -> None:
         """POST creates a comment and returns 201."""
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
             json={"content": "Great shootout!"},
         )
 
@@ -149,7 +149,7 @@ class TestCreateComment:
     ) -> None:
         """POST response includes author username and avatar."""
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
             json={"content": "Test comment"},
         )
 
@@ -167,7 +167,7 @@ class TestCreateComment:
         from sqlalchemy import select
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
             json={"content": "Persisted comment"},
         )
 
@@ -186,7 +186,7 @@ class TestCreateComment:
     ) -> None:
         """POST returns 404 when shootout doesn't exist."""
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{uuid4()}/comments",
+            f"/api/shootouts/{uuid4()}/comments",
             json={"content": "Ghost shootout"},
         )
 
@@ -199,7 +199,7 @@ class TestCreateComment:
     ) -> None:
         """POST returns 422 for empty content."""
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
             json={"content": ""},
         )
 
@@ -212,7 +212,7 @@ class TestCreateComment:
     ) -> None:
         """POST returns 422 for content exceeding 2000 chars."""
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
             json={"content": "x" * 2001},
         )
 
@@ -225,20 +225,20 @@ class TestCreateComment:
     ) -> None:
         """POST returns 401 when not authenticated."""
         response = await unauthenticated_client.post(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
             json={"content": "Anon comment"},
         )
 
         assert response.status_code == 401
 
 
-# --- GET /api/v1/shootouts/{id}/comments ---
+# --- GET /api/shootouts/{id}/comments ---
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestListComments:
-    """Tests for GET /api/v1/shootouts/{id}/comments."""
+    """Tests for GET /api/shootouts/{id}/comments."""
 
     async def test_list_comments_returns_200(
         self,
@@ -247,7 +247,7 @@ class TestListComments:
     ) -> None:
         """GET returns 200 with empty list when no comments."""
         response = await authenticated_client.get(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
         )
 
         assert response.status_code == 200
@@ -275,7 +275,7 @@ class TestListComments:
         await db_session.commit()
 
         response = await authenticated_client.get(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
         )
 
         assert response.status_code == 200
@@ -303,7 +303,7 @@ class TestListComments:
         await db_session.commit()
 
         response = await authenticated_client.get(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
         )
 
         assert response.status_code == 200
@@ -317,7 +317,7 @@ class TestListComments:
     ) -> None:
         """GET returns 404 when shootout doesn't exist."""
         response = await authenticated_client.get(
-            f"/api/v1/shootouts/{uuid4()}/comments",
+            f"/api/shootouts/{uuid4()}/comments",
         )
 
         assert response.status_code == 404
@@ -329,19 +329,19 @@ class TestListComments:
     ) -> None:
         """GET returns 401 when not authenticated."""
         response = await unauthenticated_client.get(
-            f"/api/v1/shootouts/{test_shootout.id}/comments",
+            f"/api/shootouts/{test_shootout.id}/comments",
         )
 
         assert response.status_code == 401
 
 
-# --- DELETE /api/v1/shootouts/{id}/comments/{comment_id} ---
+# --- DELETE /api/shootouts/{id}/comments/{comment_id} ---
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestDeleteComment:
-    """Tests for DELETE /api/v1/shootouts/{id}/comments/{comment_id}."""
+    """Tests for DELETE /api/shootouts/{id}/comments/{comment_id}."""
 
     async def test_delete_comment_returns_204(
         self,
@@ -360,7 +360,7 @@ class TestDeleteComment:
         await db_session.commit()
 
         response = await authenticated_client.delete(
-            f"/api/v1/shootouts/{test_shootout.id}/comments/{comment.id}",
+            f"/api/shootouts/{test_shootout.id}/comments/{comment.id}",
         )
 
         assert response.status_code == 204
@@ -385,7 +385,7 @@ class TestDeleteComment:
         comment_id = comment.id
 
         await authenticated_client.delete(
-            f"/api/v1/shootouts/{test_shootout.id}/comments/{comment_id}",
+            f"/api/shootouts/{test_shootout.id}/comments/{comment_id}",
         )
 
         result = await db_session.execute(
@@ -400,7 +400,7 @@ class TestDeleteComment:
     ) -> None:
         """DELETE returns 404 when comment doesn't exist."""
         response = await authenticated_client.delete(
-            f"/api/v1/shootouts/{test_shootout.id}/comments/{uuid4()}",
+            f"/api/shootouts/{test_shootout.id}/comments/{uuid4()}",
         )
 
         assert response.status_code == 404
@@ -428,7 +428,7 @@ class TestDeleteComment:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.delete(
-                f"/api/v1/shootouts/{test_shootout.id}/comments/{comment.id}",
+                f"/api/shootouts/{test_shootout.id}/comments/{comment.id}",
             )
 
         set_session_override(None)
@@ -442,7 +442,7 @@ class TestDeleteComment:
     ) -> None:
         """DELETE returns 404 when shootout doesn't exist."""
         response = await authenticated_client.delete(
-            f"/api/v1/shootouts/{uuid4()}/comments/{uuid4()}",
+            f"/api/shootouts/{uuid4()}/comments/{uuid4()}",
         )
 
         assert response.status_code == 404
@@ -464,7 +464,7 @@ class TestDeleteComment:
         await db_session.commit()
 
         response = await unauthenticated_client.delete(
-            f"/api/v1/shootouts/{test_shootout.id}/comments/{comment.id}",
+            f"/api/shootouts/{test_shootout.id}/comments/{comment.id}",
         )
 
         assert response.status_code == 401

@@ -47,38 +47,9 @@ export const GET: APIRoute = () => {
     </div>
   </div>
 
-  <!-- HTMX-powered tracks list -->
-  <div
-    id="tracks-list-container"
-    data-testid="tracks-list-container"
-    hx-get="/api/v1/html/library/tracks"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <!-- Loading state while HTMX fetches content -->
-    <div class="space-y-3">
-      {% for i in range(4) %}
-      <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4 animate-pulse">
-        <div class="flex items-start gap-4">
-          <div class="flex-shrink-0 w-16 h-12 bg-[var(--color-bg-secondary)] rounded"></div>
-          <div class="flex-1">
-            <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 mb-2"></div>
-            <div class="h-4 bg-[var(--color-bg-secondary)] rounded w-1/2 mb-2"></div>
-            <div class="flex gap-2">
-              <div class="h-4 w-16 bg-[var(--color-bg-secondary)] rounded"></div>
-              <div class="h-4 w-20 bg-[var(--color-bg-secondary)] rounded"></div>
-              <div class="h-4 w-12 bg-[var(--color-bg-secondary)] rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-
-    <!-- Hidden sample track for build tests - replaced by HTMX at runtime -->
-    <div style="display: none;" data-testid="track-item">
-      <audio data-testid="track-audio-player" src="/api/v1/di-tracks/sample-id/stream"></audio>
-    </div>
+  <!-- Tracks list rendered server-side -->
+  <div id="tracks-list-container" data-testid="tracks-list-container">
+    {% include "fragments/library/tracks.html" %}
   </div>
 
   <!-- Upload Modal -->
@@ -95,7 +66,7 @@ export const GET: APIRoute = () => {
       <form
         id="upload-form"
         data-testid="upload-track-form"
-        hx-post="/api/v1/di-tracks"
+        hx-post="/api/di-tracks"
         hx-encoding="multipart/form-data"
         hx-target="#tracks-list-container"
         hx-swap="innerHTML"

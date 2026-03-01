@@ -32,46 +32,7 @@
     </div>
   </div>
 
-  <!-- HTMX-powered shootouts list -->
-  <div
-    id="shootouts-list-container"
-    data-testid="shootouts-list-container"
-    hx-get="/api/v1/html/library/shootouts"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <!-- Loading state while HTMX fetches content -->
-    <div class="space-y-4">
-      {% for i in range(4) %}
-      <div class="bg-[var(--color-bg-elevated)] rounded-lg p-4 animate-pulse">
-        <div class="flex items-start gap-4">
-          <div class="flex-shrink-0 w-24 h-24 bg-[var(--color-bg-secondary)] rounded-lg"></div>
-          <div class="flex-1">
-            <div class="h-5 bg-[var(--color-bg-secondary)] rounded w-3/4 mb-2"></div>
-            <div class="h-4 bg-[var(--color-bg-secondary)] rounded w-1/2 mb-2"></div>
-            <div class="flex gap-2">
-              <div class="h-4 w-16 bg-[var(--color-bg-secondary)] rounded"></div>
-              <div class="h-4 w-24 bg-[var(--color-bg-secondary)] rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-  </div>
+  <!-- Shootouts list rendered server-side -->
+  {% include "fragments/library/shootouts.html" %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  // Handle HTMX response errors for auth
-  document.body.addEventListener('htmx:responseError', (event) => {
-    const xhr = event.detail?.xhr;
-    if (xhr && xhr.status === 401) {
-      // Not authenticated - redirect to login
-      const currentPath = window.location.pathname;
-      window.location.href = `/login?next=${encodeURIComponent(currentPath)}`;
-    }
-  });
-</script>
 {% endblock %}

@@ -23,7 +23,7 @@ from webapp.auth.dependencies import (
 )
 from webapp.services.di_track_service import DITrackService
 
-router = APIRouter(prefix="/api/v1/di-tracks", tags=["di-tracks"])
+router = APIRouter(prefix="/api/di-tracks", tags=["di-tracks"])
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=DITrackResponse)

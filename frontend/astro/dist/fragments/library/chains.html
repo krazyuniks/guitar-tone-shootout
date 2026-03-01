@@ -13,8 +13,7 @@
         x-model="sortCombined"
         @change="() => {
           const [sortBy, sortOrder] = sortCombined.split('-');
-          const url = '/api/v1/html/library/chains?sort_by=' + sortBy + '&sort_order=' + sortOrder + '&page=1&page_size={{ page_size }}';
-          htmx.ajax('GET', url, { target: '[data-testid=chain-list]', swap: 'outerHTML' });
+          window.location.href = '/library/chains?sort_by=' + sortBy + '&sort_order=' + sortOrder + '&page=1&page_size={{ page_size }}';
         }"
       >
         <option value="date_added-desc" {% if sort_by == 'date_added' and sort_order == 'desc' %}selected{% endif %}>Newest First</option>
@@ -36,78 +35,29 @@
     <!-- Pagination -->
     {% if total_pages > 1 %}
     <div class="flex items-center justify-center gap-2 mt-8" data-testid="pagination">
-      <!-- First button -->
-      <button
-        data-testid="pagination-first"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page > 1 %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
-        {% if page > 1 %}
-        hx-get="/api/v1/html/library/chains?page=1&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-        hx-target="[data-testid='chain-list']"
-        hx-swap="outerHTML"
-        {% else %}
-        disabled
-        {% endif %}
-      >
-        First
-      </button>
+      {% if page > 1 %}
+        <a href="/library/chains?page=1&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}" data-testid="pagination-first" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">First</a>
+        <a href="/library/chains?page={{ page - 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}" data-testid="pagination-prev" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">Prev</a>
+      {% else %}
+        <span data-testid="pagination-first" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">First</span>
+        <span data-testid="pagination-prev" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">Prev</span>
+      {% endif %}
 
-      <!-- Prev button -->
-      <button
-        data-testid="pagination-prev"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_prev %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
-        {% if has_prev %}
-        hx-get="/api/v1/html/library/chains?page={{ page - 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-        hx-target="[data-testid='chain-list']"
-        hx-swap="outerHTML"
-        {% else %}
-        disabled
-        {% endif %}
-      >
-        Prev
-      </button>
-
-      <!-- Page numbers -->
       {% for page_num in range(1, total_pages + 1) %}
-        <button
-          data-testid="pagination-page-{{ page_num }}"
-          class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page_num == page %}bg-[var(--color-accent-primary)] text-white{% else %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% endif %}"
-          hx-get="/api/v1/html/library/chains?page={{ page_num }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-          hx-target="[data-testid='chain-list']"
-          hx-swap="outerHTML"
-        >
-          {{ page_num }}
-        </button>
+        {% if page_num == page %}
+          <span data-testid="pagination-page-{{ page_num }}" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-accent-primary)] text-white">{{ page_num }}</span>
+        {% else %}
+          <a href="/library/chains?page={{ page_num }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}" data-testid="pagination-page-{{ page_num }}" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">{{ page_num }}</a>
+        {% endif %}
       {% endfor %}
 
-      <!-- Next button -->
-      <button
-        data-testid="pagination-next"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if has_next %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
-        {% if has_next %}
-        hx-get="/api/v1/html/library/chains?page={{ page + 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-        hx-target="[data-testid='chain-list']"
-        hx-swap="outerHTML"
-        {% else %}
-        disabled
-        {% endif %}
-      >
-        Next
-      </button>
-
-      <!-- Last button -->
-      <button
-        data-testid="pagination-last"
-        class="px-3 py-2 rounded-lg text-sm font-medium transition-colors {% if page < total_pages %}bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]{% else %}bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed{% endif %}"
-        {% if page < total_pages %}
-        hx-get="/api/v1/html/library/chains?page={{ total_pages }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}"
-        hx-target="[data-testid='chain-list']"
-        hx-swap="outerHTML"
-        {% else %}
-        disabled
-        {% endif %}
-      >
-        Last
-      </button>
+      {% if has_next %}
+        <a href="/library/chains?page={{ page + 1 }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}" data-testid="pagination-next" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">Next</a>
+        <a href="/library/chains?page={{ total_pages }}&page_size={{ page_size }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}" data-testid="pagination-last" class="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-[var(--color-bg-elevated)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)]">Last</a>
+      {% else %}
+        <span data-testid="pagination-next" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">Next</span>
+        <span data-testid="pagination-last" class="px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)] cursor-not-allowed">Last</span>
+      {% endif %}
     </div>
     {% endif %}
   {% else %}

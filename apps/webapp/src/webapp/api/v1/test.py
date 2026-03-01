@@ -8,7 +8,7 @@ from fastapi import APIRouter
 
 from webapp.exceptions import BadRequestError, ConflictError, NotFoundError, ValidationError
 
-router = APIRouter(prefix="/api/v1/test")
+router = APIRouter(prefix="/api/test")
 
 
 @router.get("/error/404")

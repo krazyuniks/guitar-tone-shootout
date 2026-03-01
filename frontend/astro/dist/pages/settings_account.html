@@ -74,7 +74,7 @@
             <button
               {% if provider.is_last_provider %}disabled{% endif %}
               data-testid="unlink-{{ provider.name }}"
-              hx-delete="/api/v1/auth/unlink/{{ provider.name }}"
+              hx-delete="/auth/unlink/{{ provider.name }}"
               hx-confirm="Are you sure you want to unlink {{ provider.display_name }}?"
               class="rounded-lg border border-red-500/30 px-3 py-1.5 text-sm text-red-400 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -82,7 +82,7 @@
             </button>
             {% elif provider.available %}
             <a
-              href="/api/v1/auth/login/{{ provider.name }}"
+              href="/auth/login/{{ provider.name }}"
 
               class="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
             >

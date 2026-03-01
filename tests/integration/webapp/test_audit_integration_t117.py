@@ -37,7 +37,7 @@ class FakeT3KProvider:
         self.base_url = "https://www.tone3000.com"
 
     def build_login_url(self, callback_url: str) -> str:
-        return f"{self.base_url}/api/v1/auth?redirect_url={callback_url}"
+        return f"{self.base_url}/api/auth?redirect_url={callback_url}"
 
     async def exchange_api_key(self, api_key: str) -> dict[str, Any]:
         if self.exchange_error:
@@ -120,7 +120,7 @@ class TestLoginAuditLogging:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
-                "/api/v1/auth/callback?api_key=test_api_key",
+                "/auth/callback?api_key=test_api_key",
                 follow_redirects=False,
             )
 
@@ -156,7 +156,7 @@ class TestLoginAuditLogging:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
-                "/api/v1/auth/callback?api_key=invalid_key",
+                "/auth/callback?api_key=invalid_key",
                 follow_redirects=False,
             )
 
@@ -203,7 +203,7 @@ class TestLoginAuditLogging:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
-                "/api/v1/auth/callback?api_key=test_api_key",
+                "/auth/callback?api_key=test_api_key",
                 headers={"X-Forwarded-For": "192.168.1.100"},
                 follow_redirects=False,
             )
@@ -250,7 +250,7 @@ class TestLoginAuditLogging:
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
-                "/api/v1/auth/callback?api_key=test_api_key",
+                "/auth/callback?api_key=test_api_key",
                 headers={"User-Agent": "Mozilla/5.0 (Test Browser)"},
                 follow_redirects=False,
             )
@@ -314,7 +314,7 @@ class TestLogoutAuditLogging:
                 # Set the JWT cookie
                 client.cookies.set(JWT_COOKIE_NAME, jwt_token)
 
-                response = await client.post("/api/v1/auth/logout")
+                response = await client.post("/auth/logout")
 
                 assert response.status_code == 200
 

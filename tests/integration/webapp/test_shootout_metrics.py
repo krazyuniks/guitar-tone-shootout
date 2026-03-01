@@ -103,7 +103,7 @@ async def completed_shootout(db_session: AsyncSession, test_user: User) -> dict:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestMetadataEndpoint:
-    """Tests for GET /api/v1/shootouts/{id}/metadata."""
+    """Tests for GET /api/shootouts/{id}/metadata."""
 
     async def test_metadata_returns_chain_configs(
         self,
@@ -117,7 +117,7 @@ class TestMetadataEndpoint:
         app.include_router(router)
         sid = completed_shootout["shootout"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/metadata")
+            response = await client.get(f"/api/shootouts/{sid}/metadata")
         assert response.status_code == 200
         data = response.json()
         assert data["shootout_id"] == str(sid)
@@ -143,7 +143,7 @@ class TestMetadataEndpoint:
         app.include_router(router)
         sid = completed_shootout["shootout"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/metadata")
+            response = await client.get(f"/api/shootouts/{sid}/metadata")
         assert response.status_code == 404
         # Restore original user
         set_user_override(test_user)
@@ -152,7 +152,7 @@ class TestMetadataEndpoint:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestComparisonEndpoint:
-    """Tests for GET /api/v1/shootouts/{id}/comparison."""
+    """Tests for GET /api/shootouts/{id}/comparison."""
 
     async def test_comparison_returns_all_segments_with_averages(
         self,
@@ -166,7 +166,7 @@ class TestComparisonEndpoint:
         app.include_router(router)
         sid = completed_shootout["shootout"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/comparison")
+            response = await client.get(f"/api/shootouts/{sid}/comparison")
         assert response.status_code == 200
         data = response.json()
         assert len(data["segments"]) == 2
@@ -177,7 +177,7 @@ class TestComparisonEndpoint:
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestSegmentMetricsEndpoint:
-    """Tests for GET /api/v1/shootouts/{id}/segments/{position}/metrics."""
+    """Tests for GET /api/shootouts/{id}/segments/{position}/metrics."""
 
     async def test_segment_metrics_returns_metrics_for_position(
         self,
@@ -191,7 +191,7 @@ class TestSegmentMetricsEndpoint:
         app.include_router(router)
         sid = completed_shootout["shootout"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/segments/0/metrics")
+            response = await client.get(f"/api/shootouts/{sid}/segments/0/metrics")
         assert response.status_code == 200
         data = response.json()
         assert data["position"] == 0
@@ -209,5 +209,5 @@ class TestSegmentMetricsEndpoint:
         app.include_router(router)
         sid = completed_shootout["shootout"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/segments/99/metrics")
+            response = await client.get(f"/api/shootouts/{sid}/segments/99/metrics")
         assert response.status_code == 404

@@ -136,7 +136,7 @@ async def completed_shootout(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestMasterAudioStream:
-    """Tests for GET /api/v1/shootouts/{id}/audio/master."""
+    """Tests for GET /api/shootouts/{id}/audio/master."""
 
     async def test_stream_master_returns_flac(
         self,
@@ -150,7 +150,7 @@ class TestMasterAudioStream:
         app.include_router(router)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
-                f"/api/v1/shootouts/{completed_shootout['shootout'].id}/audio/master",
+                f"/api/shootouts/{completed_shootout['shootout'].id}/audio/master",
             )
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/flac"
@@ -172,7 +172,7 @@ class TestMasterAudioStream:
         app.include_router(router)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
-                f"/api/v1/shootouts/{completed_shootout['shootout'].id}/audio/master",
+                f"/api/shootouts/{completed_shootout['shootout'].id}/audio/master",
             )
         assert response.status_code == 404
 
@@ -186,14 +186,14 @@ class TestMasterAudioStream:
         app = FastAPI()
         app.include_router(router)
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{uuid4()}/audio/master")
+            response = await client.get(f"/api/shootouts/{uuid4()}/audio/master")
         assert response.status_code == 404
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestChainAudioStream:
-    """Tests for GET /api/v1/shootouts/{id}/chains/{chain_id}/audio."""
+    """Tests for GET /api/shootouts/{id}/chains/{chain_id}/audio."""
 
     async def test_stream_chain_audio_returns_flac(
         self,
@@ -208,7 +208,7 @@ class TestChainAudioStream:
         sid = completed_shootout["shootout"].id
         cid = completed_shootout["chain1"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/chains/{cid}/audio")
+            response = await client.get(f"/api/shootouts/{sid}/chains/{cid}/audio")
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/flac"
 
@@ -224,5 +224,5 @@ class TestChainAudioStream:
         app.include_router(router)
         sid = completed_shootout["shootout"].id
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(f"/api/v1/shootouts/{sid}/chains/{uuid4()}/audio")
+            response = await client.get(f"/api/shootouts/{sid}/chains/{uuid4()}/audio")
         assert response.status_code == 404

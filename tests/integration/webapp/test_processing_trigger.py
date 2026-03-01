@@ -177,7 +177,7 @@ async def unauthenticated_client(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestProcessingTriggerEndpoint:
-    """Test POST /api/v1/shootouts/{shootout_id}/process endpoint."""
+    """Test POST /api/shootouts/{shootout_id}/process endpoint."""
 
     async def test_returns_401_without_authentication(
         self,
@@ -186,7 +186,7 @@ class TestProcessingTriggerEndpoint:
     ) -> None:
         """Test endpoint returns 401 when user is not authenticated."""
         response = await unauthenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 401
@@ -204,7 +204,7 @@ class TestProcessingTriggerEndpoint:
             pass
 
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-        response = await authenticated_client.post(f"/api/v1/shootouts/{nonexistent_id}/process")
+        response = await authenticated_client.post(f"/api/shootouts/{nonexistent_id}/process")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -230,9 +230,7 @@ class TestProcessingTriggerEndpoint:
         set_user_override(other_user)
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.post(
-                f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
-            )
+            response = await client.post(f"/api/shootouts/{draft_shootout_with_chains.id}/process")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -260,7 +258,7 @@ class TestProcessingTriggerEndpoint:
         db_session.add(empty_shootout)
         await db_session.commit()
 
-        response = await authenticated_client.post(f"/api/v1/shootouts/{empty_shootout.id}/process")
+        response = await authenticated_client.post(f"/api/shootouts/{empty_shootout.id}/process")
 
         assert response.status_code == 400
         assert "no chains" in response.json()["detail"].lower()
@@ -277,7 +275,7 @@ class TestProcessingTriggerEndpoint:
         await db_session.commit()
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 400
@@ -294,7 +292,7 @@ class TestProcessingTriggerEndpoint:
         await db_session.commit()
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 400
@@ -311,7 +309,7 @@ class TestProcessingTriggerEndpoint:
         await db_session.commit()
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 400
@@ -334,7 +332,7 @@ class TestProcessingTriggerEndpoint:
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         # Verify response
@@ -367,7 +365,7 @@ class TestProcessingTriggerEndpoint:
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 202
@@ -391,7 +389,7 @@ class TestProcessingTriggerEndpoint:
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 202
@@ -415,7 +413,7 @@ class TestProcessingTriggerEndpoint:
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 202
@@ -441,7 +439,7 @@ class TestProcessingTriggerEndpoint:
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 202
@@ -473,7 +471,7 @@ class TestProcessingTriggerEndpoint:
         monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         response = await authenticated_client.post(
-            f"/api/v1/shootouts/{draft_shootout_with_chains.id}/process"
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 202
