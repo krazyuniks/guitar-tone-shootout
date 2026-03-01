@@ -407,14 +407,15 @@ class TestJobCancelEndpoint:
         self, admin_app: FastAPI, running_job: Job, db_session: AsyncSession
     ) -> None:
         """POST /api/admin/jobs/{job_id}/cancel sets job status to cancelled."""
+        job_id = running_job.id
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{running_job.id}/cancel")
+            response = await client.post(f"/api/admin/jobs/{job_id}/cancel")
             assert response.status_code == 200
 
             db_session.expire_all()
-            result = await db_session.execute(select(Job).where(Job.id == running_job.id))
+            result = await db_session.execute(select(Job).where(Job.id == job_id))
             job = result.scalar_one()
             assert job.status == JobStatus.CANCELLED
 
@@ -423,14 +424,15 @@ class TestJobCancelEndpoint:
         self, admin_app: FastAPI, sample_job: Job, db_session: AsyncSession
     ) -> None:
         """POST /api/admin/jobs/{job_id}/cancel works for pending job."""
+        job_id = sample_job.id
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{sample_job.id}/cancel")
+            response = await client.post(f"/api/admin/jobs/{job_id}/cancel")
             assert response.status_code == 200
 
             db_session.expire_all()
-            result = await db_session.execute(select(Job).where(Job.id == sample_job.id))
+            result = await db_session.execute(select(Job).where(Job.id == job_id))
             job = result.scalar_one()
             assert job.status == JobStatus.CANCELLED
 
@@ -494,14 +496,15 @@ class TestJobRetryEndpoint:
         self, admin_app: FastAPI, failed_job: Job, db_session: AsyncSession
     ) -> None:
         """POST /api/admin/jobs/{job_id}/retry resets job status to pending."""
+        job_id = failed_job.id
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{failed_job.id}/retry")
+            response = await client.post(f"/api/admin/jobs/{job_id}/retry")
             assert response.status_code == 200
 
             db_session.expire_all()
-            result = await db_session.execute(select(Job).where(Job.id == failed_job.id))
+            result = await db_session.execute(select(Job).where(Job.id == job_id))
             job = result.scalar_one()
             assert job.status == JobStatus.PENDING
 
@@ -510,14 +513,15 @@ class TestJobRetryEndpoint:
         self, admin_app: FastAPI, failed_job: Job, db_session: AsyncSession
     ) -> None:
         """POST /api/admin/jobs/{job_id}/retry clears error message."""
+        job_id = failed_job.id
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{failed_job.id}/retry")
+            response = await client.post(f"/api/admin/jobs/{job_id}/retry")
             assert response.status_code == 200
 
             db_session.expire_all()
-            result = await db_session.execute(select(Job).where(Job.id == failed_job.id))
+            result = await db_session.execute(select(Job).where(Job.id == job_id))
             job = result.scalar_one()
             assert job.error is None
 
@@ -526,14 +530,15 @@ class TestJobRetryEndpoint:
         self, admin_app: FastAPI, dead_lettered_job: Job, db_session: AsyncSession
     ) -> None:
         """POST /api/admin/jobs/{job_id}/retry works for dead-lettered job."""
+        job_id = dead_lettered_job.id
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
         ) as client:
-            response = await client.post(f"/api/admin/jobs/{dead_lettered_job.id}/retry")
+            response = await client.post(f"/api/admin/jobs/{job_id}/retry")
             assert response.status_code == 200
 
             db_session.expire_all()
-            result = await db_session.execute(select(Job).where(Job.id == dead_lettered_job.id))
+            result = await db_session.execute(select(Job).where(Job.id == job_id))
             job = result.scalar_one()
             assert job.status == JobStatus.PENDING
 
