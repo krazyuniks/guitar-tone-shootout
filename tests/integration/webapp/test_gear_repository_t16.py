@@ -29,12 +29,12 @@ def gear_repository(db_session: AsyncSession) -> SQLAlchemyGearRepository:
 
 @pytest.fixture
 def sample_gear() -> GearEntity:
-    """Create a sample gear entity."""
+    """Create a sample gear entity with a unique name to avoid T3K sync collisions."""
     return GearEntity(
-        name="Fender Deluxe Reverb",
+        name="TestMfr T16 Fixture Amp",
         gear_type=GearType.AMP,
         description="Classic tube amp",
-        manufacturer="Fender",
+        manufacturer="TestMfr",
         tags=["clean", "vintage"],
         is_public=True,
     )
@@ -50,12 +50,11 @@ async def test_get_by_slug_finds_gear(
     await gear_repository.save(sample_gear)
     await db_session.commit()
 
-    # Should be able to retrieve by slug (e.g., "fender-deluxe-reverb")
-    retrieved = await gear_repository.get_by_slug("fender-deluxe-reverb")
+    retrieved = await gear_repository.get_by_slug("testmfr-t16-fixture-amp")
 
     assert retrieved is not None
     assert retrieved.id == sample_gear.id
-    assert retrieved.name == "Fender Deluxe Reverb"
+    assert retrieved.name == "TestMfr T16 Fixture Amp"
 
 
 async def test_get_by_slug_returns_none_when_not_found(
@@ -71,9 +70,8 @@ async def test_get_by_slug_handles_special_characters(
     db_session: AsyncSession,
 ) -> None:
     """Test slug generation handles special characters correctly."""
-    # Create gear with special characters
     gear = GearEntity(
-        name="Boss MT-2 Metal Zone",
+        name="T16 Test-Pedal XZ-99",
         gear_type=GearType.PEDAL,
         description="High-gain pedal",
     )
@@ -81,11 +79,10 @@ async def test_get_by_slug_handles_special_characters(
     await gear_repository.save(gear)
     await db_session.commit()
 
-    # Should be able to retrieve by slug (special chars removed/normalized)
-    retrieved = await gear_repository.get_by_slug("boss-mt-2-metal-zone")
+    retrieved = await gear_repository.get_by_slug("t16-test-pedal-xz-99")
 
     assert retrieved is not None
-    assert retrieved.name == "Boss MT-2 Metal Zone"
+    assert retrieved.name == "T16 Test-Pedal XZ-99"
 
 
 async def test_get_by_slug_case_insensitive(
@@ -98,8 +95,7 @@ async def test_get_by_slug_case_insensitive(
     await gear_repository.save(sample_gear)
     await db_session.commit()
 
-    # Should find with different case
-    retrieved = await gear_repository.get_by_slug("FENDER-DELUXE-REVERB")
+    retrieved = await gear_repository.get_by_slug("TESTMFR-T16-FIXTURE-AMP")
 
     assert retrieved is not None
     assert retrieved.id == sample_gear.id
