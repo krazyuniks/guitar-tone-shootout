@@ -132,15 +132,6 @@ async def login_t3k(request: Request) -> RedirectResponse:
     return response
 
 
-@router.get("/login/{provider}")
-async def login_provider(provider: str) -> RedirectResponse:
-    """Redirect to provider login (returns 404 for unimplemented providers)."""
-    raise HTTPException(
-        status_code=404,
-        detail=f"Provider '{provider}' is not available yet",
-    )
-
-
 # --- Callback ---
 
 
@@ -491,15 +482,3 @@ async def _restore_session(
 
     _set_jwt_cookie(response, jwt_token)
     return response
-
-
-# --- Provider unlinking (future) ---
-
-
-@router.delete("/unlink/{provider}")
-async def unlink_provider(provider: str, current_user: CurrentUser) -> dict:
-    """Unlink a provider from user account. Future endpoint."""
-    raise HTTPException(
-        status_code=501,
-        detail=f"Unlinking '{provider}' is not yet implemented",
-    )

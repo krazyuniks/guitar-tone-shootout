@@ -18,21 +18,14 @@ from webapp.api.v1 import (
     block_types,
     di_tracks,
     files,
-    gear,
     health,
     html,
-    irs,
     jobs,
-    library,
     metrics,
-    notifications,
-    presets,
     shootouts,
     signal_chain_groups,
     signal_chains,
-    tags,
     test,
-    ws,
 )
 from webapp.auth.dependencies import RedirectToLogin
 from webapp.dependencies import get_db, init_db
@@ -119,20 +112,13 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(block_types.router)
     app.include_router(files.router)
-    app.include_router(gear.router)
     app.include_router(shootouts.router)
     app.include_router(metrics.router)
     app.include_router(jobs.router)
     app.include_router(html.router)
-    app.include_router(library.router)
     app.include_router(signal_chains.router)
     app.include_router(signal_chain_groups.router)
     app.include_router(di_tracks.router)
-    app.include_router(irs.router)
-    app.include_router(notifications.router)
-    app.include_router(tags.router)
-    app.include_router(presets.router)
-    app.include_router(ws.router)
     app.include_router(admin.router)
 
     # Include page routers
@@ -149,10 +135,10 @@ def create_app() -> FastAPI:
     # and overriding them would break test session injection via _session_override.
     if database_url:
         # Override only modules with their OWN local get_db_session.
-        # Modules using webapp.auth.dependencies.get_db_session (library,
-        # signal_chains, di_tracks) must NOT be overridden — the centralised
-        # function already falls back to get_db and supports test overrides.
-        for module in [health, gear, shootouts, jobs]:
+        # Modules using webapp.auth.dependencies.get_db_session (signal_chains,
+        # di_tracks) must NOT be overridden — the centralised function already
+        # falls back to get_db and supports test overrides.
+        for module in [health, shootouts, jobs]:
             if hasattr(module, "get_db_session"):
                 app.dependency_overrides[module.get_db_session] = get_db
 

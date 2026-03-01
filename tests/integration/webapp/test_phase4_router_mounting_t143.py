@@ -5,7 +5,7 @@ This is a comprehensive check that nothing was missed during Phase 4.
 
 T143 acceptance criterion:
 - All API routers mounted and reachable:
-  signal_chain_groups, notifications, tags, presets, block_types, irs, files, test (dev only)
+  signal_chain_groups, block_types, files, test (dev only)
 """
 
 from __future__ import annotations
@@ -65,25 +65,6 @@ class TestAllRoutersMounted:
             f"signal-chain-groups router not mounted (got {response.status_code})"
         )
 
-    async def test_notifications_router(self, client: AsyncClient) -> None:
-        """Notifications router is mounted at /api/v1/notifications/."""
-        response = await client.get("/api/v1/notifications/")
-        assert response.status_code != 404, (
-            f"notifications router not mounted (got {response.status_code})"
-        )
-
-    async def test_tags_router(self, client: AsyncClient) -> None:
-        """Tags router is mounted at /api/v1/tags/."""
-        response = await client.get("/api/v1/tags/")
-        assert response.status_code != 404, f"tags router not mounted (got {response.status_code})"
-
-    async def test_presets_router(self, client: AsyncClient) -> None:
-        """Presets router is mounted at /api/v1/presets/."""
-        response = await client.get("/api/v1/presets/")
-        assert response.status_code != 404, (
-            f"presets router not mounted (got {response.status_code})"
-        )
-
     async def test_block_types_router(self, client: AsyncClient) -> None:
         """Block types router is mounted at /api/v1/block-types (no trailing slash)."""
         response = await client.get("/api/v1/block-types")
@@ -91,12 +72,6 @@ class TestAllRoutersMounted:
         assert response.status_code == 200, f"block-types router returned {response.status_code}"
         data = response.json()
         assert isinstance(data, list), "block-types should return a JSON list"
-
-    async def test_irs_router(self, client: AsyncClient) -> None:
-        """IRs router is mounted at /api/v1/irs/upload."""
-        # POST to the upload endpoint to verify routing (not 404)
-        response = await client.post("/api/v1/irs/upload")
-        assert response.status_code != 404, f"irs router not mounted (got {response.status_code})"
 
     async def test_files_router(self, client: AsyncClient) -> None:
         """Files router is mounted at /api/v1/files/."""
@@ -120,13 +95,6 @@ class TestAllRoutersMounted:
             f"signal-chains router not mounted (got {response.status_code})"
         )
 
-    async def test_library_router(self, client: AsyncClient) -> None:
-        """Library HTML fragments router is mounted at /api/v1/html/library/my-gear/list."""
-        response = await client.get("/api/v1/html/library/my-gear/list")
-        assert response.status_code != 404, (
-            f"library router not mounted (got {response.status_code})"
-        )
-
     async def test_shootouts_router(self, client: AsyncClient) -> None:
         """Shootouts router is mounted at /api/v1/shootouts/."""
         response = await client.get("/api/v1/shootouts/")
@@ -134,14 +102,9 @@ class TestAllRoutersMounted:
             f"shootouts router not mounted (got {response.status_code})"
         )
 
-    async def test_gear_router(self, client: AsyncClient) -> None:
-        """Gear router is mounted at /api/v1/gear/."""
-        response = await client.get("/api/v1/gear/")
-        assert response.status_code == 200, f"gear router returned {response.status_code}"
-
     async def test_html_fragments_router(self, client: AsyncClient) -> None:
-        """HTML fragments router is mounted at /api/v1/html/."""
-        response = await client.get("/api/v1/html/gear/list")
+        """HTML fragments router is mounted at /api/v1/html/my-gear/results."""
+        response = await client.get("/api/v1/html/my-gear/results")
         # Route exists — any response other than 404 (FastAPI default) proves mounting
         assert response.status_code != 404, (
             f"html fragments router not mounted (got {response.status_code})"
