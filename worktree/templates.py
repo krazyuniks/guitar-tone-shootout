@@ -402,8 +402,8 @@ def write_worktree_configs(worktree: Worktree, worktree_path: Path) -> None:
     # Ensure Traefik variables are in .env (for docker-compose.traefik.yml)
     _update_env_traefik(env_path, worktree)
 
-    # Ensure OAuth encryption key is populated (generates Fernet key if empty)
-    _update_env_encryption_key(env_path)
+    # Ensure UID/GID are in .env (for docker-compose.yml build arg interpolation)
+    _update_env_uid_gid(env_path)
 
     # Write docker-compose.override.yml
     compose_override_path = worktree_path / "docker-compose.override.yml"
@@ -468,32 +468,6 @@ def _update_env_password(env_path: Path, db_password: str) -> None:
     env_path.write_text("\n".join(lines) + "\n")
 
 
-def _update_env_encryption_key(env_path: Path) -> None:
-    """Ensure OAUTH_ENCRYPTION_KEY is populated in .env file.
-
-    Generates a Fernet key if the value is empty. Idempotent — preserves
-    existing keys.
-
-    Args:
-        env_path: Path to .env file
-    """
-    if not env_path.exists():
-        return
-
-    content = env_path.read_text()
-    lines = content.splitlines()
-
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == "OAUTH_ENCRYPTION_KEY=":
-            import base64
-            import os
-
-            key = base64.urlsafe_b64encode(os.urandom(32)).decode()
-            lines[i] = f"OAUTH_ENCRYPTION_KEY={key}"
-            env_path.write_text("\n".join(lines) + "\n")
-            return
-
 
 def _update_env_traefik(env_path: Path, worktree: Worktree) -> None:
     """Update or add Traefik variables in .env file.
@@ -535,6 +509,45 @@ def _update_env_traefik(env_path: Path, worktree: Worktree) -> None:
             # Add at end of file
             if lines and lines[-1].strip():
                 lines.append("")  # Add blank line before if needed
+            lines.append(var_line)
+
+    env_path.write_text("\n".join(lines) + "\n")
+
+
+def _update_env_uid_gid(env_path: Path) -> None:
+    """Update or add UID/GID in .env for docker-compose interpolation.
+
+    Docker Compose variable interpolation reads .env (not env_file entries), so
+    UID/GID must be present here for build args that map container users to the
+    host user.
+
+    Args:
+        env_path: Path to .env file
+    """
+    if not env_path.exists():
+        return
+
+    uid_gid_vars = {
+        "UID": str(os.getuid()),
+        "GID": str(os.getgid()),
+    }
+
+    lines = env_path.read_text().splitlines()
+
+    for var_name, var_value in uid_gid_vars.items():
+        var_line = f"{var_name}={var_value}"
+        found = False
+
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith(f"{var_name}="):
+                lines[i] = var_line
+                found = True
+                break
+
+        if not found:
+            if lines and lines[-1].strip():
+                lines.append("")
             lines.append(var_line)
 
     env_path.write_text("\n".join(lines) + "\n")

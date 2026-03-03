@@ -23,7 +23,7 @@ up-d:
         PROFILE_ARGS="--profile jobs"
     fi
 
-    docker compose $PROFILE_ARGS up -d
+    env UID="$(id -u)" GID="$(id -g)" docker compose $PROFILE_ARGS up -d
 
 # Stop all services
 down:
@@ -47,7 +47,7 @@ health:
 
 # Rebuild and restart services
 rebuild *ARGS:
-    docker compose up -d --build {{ARGS}}
+    env UID="$(id -u)" GID="$(id -g)" docker compose up -d --build {{ARGS}}
 
 # =============================================================================
 # Quality Gates (all run in Docker)
