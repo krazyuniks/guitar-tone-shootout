@@ -1,0 +1,43 @@
+# Caches
+__pycache__/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.py[cod]
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (secrets)
+.env
+.env.local
+.env.secrets
+
+# Node modules (astro has its own Dockerfile)
+node_modules/
+
+# Test artifacts
+.playwright-mcp/
+tests/e2e/
+
+# Planning and documentation
+.planning/
+.claude/
+.gemini/
+.agents/
+wiki/
+
+# Docker compose overrides
+docker-compose.override.yml
+docker-compose.ci.yml
+docker-compose.traefik.yml
+
+# Storage (bind-mounted, not built into images)
+../gts-storage/

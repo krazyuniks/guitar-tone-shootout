@@ -399,6 +399,9 @@ def write_worktree_configs(worktree: Worktree, worktree_path: Path) -> None:
     # Ensure DB_PASSWORD is in .env (only updates if missing or different)
     _update_env_password(env_path, db_password)
 
+    # Ensure OAUTH_ENCRYPTION_KEY is in .env (generate Fernet key if missing)
+    _ensure_oauth_encryption_key(env_path)
+
     # Ensure Traefik variables are in .env (for docker-compose.traefik.yml)
     _update_env_traefik(env_path, worktree)
 
@@ -465,6 +468,53 @@ def _update_env_password(env_path: Path, db_password: str) -> None:
         if insert_pos > 0 and lines[insert_pos - 1].strip():
             lines.insert(insert_pos, "")  # Add blank line before
 
+    env_path.write_text("\n".join(lines) + "\n")
+
+
+def _generate_fernet_key() -> str:
+    """Generate a Fernet encryption key.
+
+    Returns:
+        URL-safe base64-encoded 32-byte key suitable for Fernet encryption.
+    """
+    import base64
+
+    key_bytes = secrets.token_bytes(32)
+    return base64.urlsafe_b64encode(key_bytes).decode()
+
+
+def _ensure_oauth_encryption_key(env_path: Path) -> None:
+    """Ensure OAUTH_ENCRYPTION_KEY is set in .env file.
+
+    Generates a Fernet key if the variable is missing or empty.
+    Idempotent: preserves existing key to avoid breaking encrypted tokens.
+
+    Args:
+        env_path: Path to .env file
+    """
+    if not env_path.exists():
+        return
+
+    content = env_path.read_text()
+    lines = content.splitlines()
+
+    # Check if OAUTH_ENCRYPTION_KEY is already set (non-empty)
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("OAUTH_ENCRYPTION_KEY=") and not stripped.startswith("#"):
+            value = stripped.split("=", 1)[1].strip()
+            if value:
+                return  # Already set, preserve it
+            # Empty value — generate and set
+            lines[i] = f"OAUTH_ENCRYPTION_KEY={_generate_fernet_key()}"
+            env_path.write_text("\n".join(lines) + "\n")
+            return
+
+    # Variable not present at all — add it
+    key = _generate_fernet_key()
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.append(f"OAUTH_ENCRYPTION_KEY={key}")
     env_path.write_text("\n".join(lines) + "\n")
 
 

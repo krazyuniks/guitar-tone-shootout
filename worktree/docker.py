@@ -860,10 +860,10 @@ def find_orphaned_networks() -> list[OrphanedNetwork]:
                                     subnet=subnet,
                                 )
                             )
-            except (subprocess.TimeoutExpired, json.JSONDecodeError):
+            except subprocess.TimeoutExpired, json.JSONDecodeError:
                 pass
 
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+    except subprocess.TimeoutExpired, subprocess.CalledProcessError:
         return []
 
     return orphans
@@ -901,7 +901,7 @@ def find_orphaned_containers() -> list[OrphanedContainer]:
         )
         if result.returncode != 0:
             return []
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+    except subprocess.TimeoutExpired, subprocess.CalledProcessError:
         return []
 
     orphans = []
@@ -1048,9 +1048,9 @@ def force_cleanup_project(compose_project: str) -> tuple[bool, list[str]]:
                         check=True,
                     )
                     removed.append(f"container:{container_id}")
-                except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                except subprocess.TimeoutExpired, subprocess.CalledProcessError:
                     all_success = False
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+    except subprocess.TimeoutExpired, subprocess.CalledProcessError:
         all_success = False
 
     # Step 2: Wait for network disconnections to propagate
@@ -1067,7 +1067,7 @@ def force_cleanup_project(compose_project: str) -> tuple[bool, list[str]]:
             check=True,
         )
         removed.append(f"network:{network_name}")
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+    except subprocess.TimeoutExpired, subprocess.CalledProcessError:
         # Network might not exist or might have straggler connections
         # Try a second time after another short wait
         time.sleep(0.5)
@@ -1079,7 +1079,7 @@ def force_cleanup_project(compose_project: str) -> tuple[bool, list[str]]:
                 check=True,
             )
             removed.append(f"network:{network_name}")
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        except subprocess.TimeoutExpired, subprocess.CalledProcessError:
             pass  # Network may not exist
 
     # Step 4: Remove all project volumes
@@ -1109,9 +1109,9 @@ def force_cleanup_project(compose_project: str) -> tuple[bool, list[str]]:
                         check=True,
                     )
                     removed.append(f"volume:{volume_name}")
-                except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                except subprocess.TimeoutExpired, subprocess.CalledProcessError:
                     pass  # Volume may be in use
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+    except subprocess.TimeoutExpired, subprocess.CalledProcessError:
         pass
 
     return all_success, removed
@@ -1173,7 +1173,7 @@ def cleanup_orphaned_containers(dry_run: bool = False) -> list[str]:
                 timeout=30,
             )
             cleaned.append(f"network:{network.network_name}")
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        except subprocess.TimeoutExpired, subprocess.CalledProcessError:
             pass  # Network may still have connected containers
 
     return cleaned
