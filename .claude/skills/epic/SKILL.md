@@ -139,7 +139,7 @@ For each story in plan.json:
 
 1. Check state assumption (if `"clean"`, reset DB before dispatch)
 2. Run pre-flight checks (verify inputs from previous stories exist)
-3. Construct prompt via `workflow/prompt_builder.py` (7-section: role, plan context, scope, implementation notes, verification, failure feedback, constraints)
+3. Construct prompt via `workflow/prompt_builder.py` (T0 epic context + T1 enriched story spec: acceptance criteria, architectural context, navigation hints, dependencies, scope, implementation notes, checkpoint criteria)
 4. Dispatch implementation agent via `workflow/dispatch.py` (model per plan.json: Codex/Sonnet/Opus)
 5. If validation checkpoint follows this story, run validation check
 6. On validation pass: dispatch **post-story Opus critique** (read-only, reviews code diff)
