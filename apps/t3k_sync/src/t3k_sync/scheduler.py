@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 class SyncScheduler:
     """Interval scheduler that keeps T3K sync running.
 
-    Integrates with SyncHealthTracker to back off when auth is broken
-    and to stop creating doomed jobs.
+    Simple fixed-interval loop. If auth is bad, logs once and retries
+    next cycle (no backoff — this is a small system we fully control).
     """
 
     def __init__(
@@ -42,15 +42,16 @@ class SyncScheduler:
         if not sync_enabled:
             return
 
-        # Pre-check auth before creating a job that will just fail
-        if self._tracker is not None:
-            auth_file = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
-            status = check_auth_status(auth_file)
-            if status.can_proceed():
-                self._tracker.record_auth_healthy(status)
-            else:
+        auth_file = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
+        status = check_auth_status(auth_file)
+        if not status.can_proceed():
+            logger.info("Auth not ready (%s), will retry next cycle", status.value)
+            if self._tracker is not None:
                 self._tracker.record_auth_failure(status)
-                raise RuntimeError(f"T3K auth status is {status.value}")
+            return
+
+        if self._tracker is not None:
+            self._tracker.record_auth_healthy(status)
 
         await run_source_sync(tracker=self._tracker)
 
@@ -62,11 +63,7 @@ class SyncScheduler:
             except Exception:
                 logger.exception("Scheduled ensure_sync_running cycle failed")
 
-            interval = self.base_interval
-            if self._tracker is not None:
-                interval = self._tracker.get_scheduler_interval(self.base_interval)
-
             try:
-                await asyncio.wait_for(self._shutdown_event.wait(), timeout=interval)
+                await asyncio.wait_for(self._shutdown_event.wait(), timeout=self.base_interval)
             except TimeoutError:
                 continue

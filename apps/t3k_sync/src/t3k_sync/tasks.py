@@ -306,14 +306,22 @@ async def dispatch_pending_jobs() -> None:
         del _dispatch_failures[jid]
 
     cutoff = now - timedelta(minutes=5)
-    stmt = text("""
+    # Only dispatch job types that the enqueue endpoint can handle.
+    # source_sync is self-managed; notification has no handler.
+    dispatchable = ("shootout", "shootout_audio", "shootout_master", "audio_processing")
+    placeholders = ", ".join(f":jt{i}" for i in range(len(dispatchable)))
+    stmt = text(f"""
         SELECT id FROM core_jobs
         WHERE status = :pending_status
           AND created_at < :cutoff
-          AND job_type != 'source_sync'
+          AND job_type IN ({placeholders})
         LIMIT 50
     """)
-    params = {"pending_status": JobStatus.PENDING.value, "cutoff": cutoff}
+    params = {
+        "pending_status": JobStatus.PENDING.value,
+        "cutoff": cutoff,
+        **{f"jt{i}": jt for i, jt in enumerate(dispatchable)},
+    }
 
     if _test_session is not None:
         result = await _test_session.execute(stmt, params)

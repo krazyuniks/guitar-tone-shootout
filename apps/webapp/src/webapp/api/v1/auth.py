@@ -6,8 +6,9 @@ Uses JWT httponly cookies for stateless auth.
 
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -207,11 +208,17 @@ async def callback(
         # Save tokens to auth file
         try:
             encryptor = TokenEncryptor()
+            # Compute expires_at from expires_in if T3K doesn't provide it
+            expires_at = token_data.get("expires_at")
+            if not expires_at:
+                expires_in = token_data.get("expires_in", 3600)
+                expires_at = (datetime.now(UTC) + timedelta(seconds=expires_in)).isoformat()
+
             auth_data = {
                 "user_id": str(user.id),
                 "username": user.username,
                 "access_token": encryptor.encrypt(access_token),
-                "expires_at": token_data.get("expires_at"),
+                "expires_at": expires_at,
                 "provider": "t3k",
                 "saved_at": datetime.now(UTC).isoformat(),
             }
@@ -221,6 +228,22 @@ async def callback(
 
             auth_file = _get_auth_file()
             auth_file.save(auth_data)
+
+            # Fire-and-forget: ask t3k-sync to refresh immediately so we get
+            # a rolling token pair from the start (avoids 5-min cron gap).
+            try:
+                async with httpx.AsyncClient() as http:
+                    await http.post(
+                        "http://t3k-sync:8003/api/admin/auth/refresh-t3k",
+                        json={
+                            "auth_file_path": os.getenv("GTS_AUTH_FILE", "/.gts-auth.json"),
+                            "base_url": os.getenv("T3K_API_URL", "https://www.tone3000.com"),
+                            "encryption_key": os.getenv("OAUTH_ENCRYPTION_KEY", ""),
+                        },
+                        timeout=5.0,
+                    )
+            except Exception:
+                logger.debug("t3k-sync refresh trigger skipped (service unavailable)")
         except Exception:
             logger.warning("Failed to save auth file", exc_info=True)
 
