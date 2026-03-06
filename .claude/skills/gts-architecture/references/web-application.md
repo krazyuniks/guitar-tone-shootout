@@ -92,7 +92,7 @@ Shootouts are optional -- users can build chains, process audio, and manage thei
 | `/api/html/` | HTML fragments (HTMX responses) |
 | `/` | SSR pages |
 
-**Note:** Admin APIs are served by the webapp at `/api/admin/*` (port 8000). See Admin API Architecture below.
+**Note:** Admin APIs are split across webapp (port 8000) and t3k-sync (port 8003). See Admin API Architecture below.
 
 ## Admin API Architecture
 
@@ -102,13 +102,13 @@ Internal admin API for infrastructure management. Not exposed publicly -- access
 
 | Principle | Rationale |
 |-----------|-----------|
-| **Centralised in webapp** | Webapp already has all database connections needed (single `gts_core` DB) |
+| **BC ownership** | Each BC serves admin endpoints for its own tables and services |
 | **No authentication** | Network-level access control (routes not exposed publicly) |
-| **Composite health** | Single `/health` endpoint reports all component status |
+| **Composite health** | Each service has its own `/health` endpoint |
 
 ### Admin API (Webapp -- port 8000, `/api/admin/*`)
 
-All admin endpoints served by the webapp container:
+Job management and source-agnostic endpoints:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -117,17 +117,29 @@ All admin endpoints served by the webapp container:
 | `/admin/jobs/dead-lettered` | GET | List dead-lettered jobs |
 | `/admin/jobs/{id}/retry` | POST | Retry failed job |
 | `/admin/jobs/pending-retries/count` | GET | Pending retry count |
-| `/admin/t3k/sync/status` | GET | Current sync state and pagination |
-| `/admin/t3k/sync` | POST | Trigger catalog sync |
-| `/admin/t3k/sync/stats` | GET | Pack/model counts |
-| `/admin/t3k/sync/lag` | GET | Time since last sync |
-| `/admin/t3k/auth/status` | GET | OAuth token validity |
-| `/admin/t3k/errors/summary` | GET | Error aggregation by type |
+| `/admin/sources/{source}/sync` | POST | Trigger catalog sync |
+| `/admin/sources/{source}/errors/summary` | GET | Error aggregation by type |
+| `/admin/sources/{source}/sync/unlock` | POST | Release sync lock |
+| `/admin/scheduler/unlock` | POST | Release scheduler lock |
+| `/admin/enqueue` | POST | Enqueue a job to pgmq |
 | `/health` | GET | Composite health check |
 
-**Why webapp serves admin endpoints:** All BCs share the single `gts_core` database. The webapp already has the database connection needed to query sync status, job state, stats, and checkpoints. No separate admin server required.
+### Admin API (T3K Sync -- port 8003, `/api/admin/*`)
 
-**Future sources:** When AIDA-X or other sources are added, their admin endpoints (`/api/admin/aidax/*`) will also be served by the webapp, querying the shared `gts_core` database.
+T3K-specific sync status, stats, and token management:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/admin/sources/{source}/sync/status` | GET | Current sync state and checkpoint |
+| `/admin/sources/{source}/sync/stats` | GET | Total synced counts |
+| `/admin/sources/{source}/sync/lag` | GET | Time since last sync |
+| `/admin/sources/{source}/sync/api-stats` | GET | API call rate metrics |
+| `/admin/auth/refresh-t3k` | POST | Refresh T3K OAuth token |
+| `/health` | GET | T3K sync service health |
+
+**Why endpoints are split:** T3K sync endpoints query `SyncCheckpoint` (T3K-owned table) and use T3K-internal services (token manager, API call tracker). Keeping them in t3k-sync respects BC boundaries and eliminates the `webapp-no-sources` import-linter violation.
+
+**Future sources:** When AIDA-X or other sources are added, their admin endpoints will live in their own sync service.
 
 ### Composite Health Endpoint
 

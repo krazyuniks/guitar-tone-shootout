@@ -23,7 +23,12 @@ import httpx
 
 def get_base_url() -> str:
     """Get base URL from environment or default to Docker internal URL."""
-    return os.environ.get("GTS_WORKER_URL", "http://worker:8001")
+    return os.environ.get("GTS_WORKER_URL", "http://webapp:8000")
+
+
+def get_t3k_sync_url() -> str:
+    """Get T3K sync service base URL."""
+    return os.environ.get("GTS_T3K_SYNC_URL", "http://t3k-sync:8003")
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -79,10 +84,10 @@ async def source_status(source: str, base_url: str | None = None) -> None:
 
     Args:
         source: Source name (e.g., t3k)
-        base_url: Worker API base URL (default from get_base_url())
+        base_url: T3K sync API base URL (default from get_t3k_sync_url())
     """
     if base_url is None:
-        base_url = get_base_url()
+        base_url = get_t3k_sync_url()
 
     url = f"{base_url}/api/admin/sources/{source}/sync/status"
 
@@ -147,21 +152,27 @@ async def source_diagnose(source: str, base_url: str | None = None) -> None:
 
     Args:
         source: Source name (e.g., t3k)
-        base_url: Worker API base URL (default from get_base_url())
+        base_url: Webapp API base URL (default from get_base_url())
     """
     if base_url is None:
         base_url = get_base_url()
 
+    t3k_url = get_t3k_sync_url()
+
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
+            # Health from both services
             health_resp = await client.get(f"{base_url}/health")
-            status_resp = await client.get(f"{base_url}/api/admin/sources/{source}/sync/status")
-            lag_resp = await client.get(f"{base_url}/api/admin/sources/{source}/sync/lag")
-            stats_resp = await client.get(f"{base_url}/api/admin/sources/{source}/sync/stats")
+            t3k_health_resp = await client.get(f"{t3k_url}/health")
+            # T3K sync endpoints (served by t3k-sync on port 8003)
+            status_resp = await client.get(f"{t3k_url}/api/admin/sources/{source}/sync/status")
+            lag_resp = await client.get(f"{t3k_url}/api/admin/sources/{source}/sync/lag")
+            stats_resp = await client.get(f"{t3k_url}/api/admin/sources/{source}/sync/stats")
+            # Webapp endpoints (still on port 8000)
             errors_resp = await client.get(f"{base_url}/api/admin/sources/{source}/errors/summary")
             jobs_resp = await client.get(f"{base_url}/api/admin/jobs?job_type=source_sync")
 
-            responses = [health_resp, status_resp, lag_resp, stats_resp, errors_resp, jobs_resp]
+            responses = [health_resp, t3k_health_resp, status_resp, lag_resp, stats_resp, errors_resp, jobs_resp]
             bad = next((r for r in responses if r.status_code != 200), None)
             if bad is not None:
                 print(f"Error: HTTP {bad.status_code}")
@@ -169,6 +180,7 @@ async def source_diagnose(source: str, base_url: str | None = None) -> None:
                 sys.exit(1)
 
             health = health_resp.json()
+            t3k_health = t3k_health_resp.json()
             sync_status = status_resp.json()
             lag = lag_resp.json()
             stats = stats_resp.json()
@@ -186,8 +198,8 @@ async def source_diagnose(source: str, base_url: str | None = None) -> None:
         print(f"\nSource Diagnostics: {source}")
         print("─" * 72)
         print(
-            f"Worker: status={health.get('status')} redis={health.get('redis')} "
-            f"db={health.get('database')}"
+            f"Webapp: status={health.get('status')} db={health.get('database')}  "
+            f"T3K-sync: status={t3k_health.get('status')}"
         )
         print(
             f"Sync: state={sync_status.get('status')} "
@@ -205,8 +217,11 @@ async def source_diagnose(source: str, base_url: str | None = None) -> None:
         print("─" * 72)
 
         print("Diagnosis")
-        if health.get("status") in {"unhealthy", "degraded"}:
-            print("- Infrastructure issue: worker health degraded/unhealthy.")
+        if health.get("status") in {"unhealthy", "degraded"} or t3k_health.get("status") in {
+            "unhealthy",
+            "degraded",
+        }:
+            print("- Infrastructure issue: service health degraded/unhealthy.")
         if len(failed_jobs) > 0:
             print("- SOURCE_SYNC failures present: inspect latest failed job details/logs.")
         if sync_status.get("status") == "idle" and len(running_jobs) == 0:

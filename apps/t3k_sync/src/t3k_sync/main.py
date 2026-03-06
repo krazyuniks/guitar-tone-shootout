@@ -91,6 +91,11 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="GTS T3K Sync", version="0.1.0", lifespan=lifespan)
 
+# Admin API endpoints for T3K sync management
+from t3k_sync.api.admin import router as admin_router  # noqa: E402
+
+app.include_router(admin_router)
+
 
 @app.get("/health")
 async def health() -> dict[str, str | None]:

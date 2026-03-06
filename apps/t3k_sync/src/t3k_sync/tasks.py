@@ -133,40 +133,34 @@ async def refresh_t3k_token(
 
     _update_auth_status(auth_file_path, SourceAuthStatus.EXPIRING_SOON)
 
-    worker_url = os.getenv("WORKER_ADMIN_URL", "http://webapp:8000")
+    from source_t3k.adapters.inbound.exceptions import T3KAPIError
+    from source_t3k.adapters.inbound.token_manager import T3KTokenManager
+
+    new_status = SourceAuthStatus.REFRESH_FAILED
+    token_manager = T3KTokenManager(
+        auth_file_path=auth_file_path,
+        base_url=base_url,
+        encryption_key=encryption_key,
+    )
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{worker_url}/api/admin/auth/refresh-t3k",
-                json={
-                    "auth_file_path": auth_file_path,
-                    "base_url": base_url,
-                    "encryption_key": encryption_key,
-                },
-            )
-            response.raise_for_status()
-            result = response.json()
-            new_status_str = result.get("auth_status", "refresh_failed")
-            try:
-                new_status = SourceAuthStatus(new_status_str)
-            except ValueError:
-                new_status = SourceAuthStatus.REFRESH_FAILED
-            _update_auth_status(auth_file_path, new_status)
-            if new_status == SourceAuthStatus.VALID:
-                logger.info("T3K token refreshed successfully")
-            elif new_status == SourceAuthStatus.LOGIN_REQUIRED:
-                logger.error("T3K refresh token expired — run `just t3k-login`")
-            else:
-                logger.warning("T3K token refresh failed — status: %s", new_status_str)
-    except httpx.HTTPStatusError as error:
-        _update_auth_status(auth_file_path, SourceAuthStatus.REFRESH_FAILED)
-        logger.error("Worker returned error during T3K token refresh: %s", error)
-    except httpx.RequestError as error:
-        _update_auth_status(auth_file_path, SourceAuthStatus.REFRESH_FAILED)
-        logger.error("Worker unreachable during T3K token refresh: %s", error)
+        await token_manager.get_access_token()
+        new_status = SourceAuthStatus.VALID
+        logger.info("T3K token refreshed successfully")
+    except T3KAPIError as e:
+        error_msg = str(e)
+        if "expired" in error_msg.lower() or "re-authenticate" in error_msg.lower():
+            new_status = SourceAuthStatus.LOGIN_REQUIRED
+            logger.error("T3K refresh token expired — run `just t3k-login`")
+        else:
+            new_status = SourceAuthStatus.REFRESH_FAILED
+            logger.warning("T3K token refresh failed: %s", error_msg)
     except Exception:
-        _update_auth_status(auth_file_path, SourceAuthStatus.REFRESH_FAILED)
+        new_status = SourceAuthStatus.REFRESH_FAILED
         logger.exception("Unexpected error during T3K token refresh")
+    finally:
+        await token_manager.close()
+
+    _update_auth_status(auth_file_path, new_status)
 
 
 # ---------------------------------------------------------------------------
