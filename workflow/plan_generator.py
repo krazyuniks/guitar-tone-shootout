@@ -22,7 +22,7 @@ from workflow.dispatch import (
     get_dispatch_params,
 )
 from workflow.epic_config import EpicConfig
-from workflow.models import Plan, render_plan_md
+from workflow.models import Plan, TestSpec, render_plan_md
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -224,6 +224,68 @@ Budget defaults (starting points):
 | Regression tests (Codex) | 30 | $3.00 |"""
 
 
+# Test spec guidance (assertion types + fixture catalogue + example)
+TEST_SPEC_GUIDANCE = """\
+Every story SHOULD include a `test_spec` object that defines how the story's
+acceptance criteria will be verified by automated tests. Stories without a
+test_spec will produce a validation warning (not an error) for backwards
+compatibility.
+
+### Assertion Type Catalogue
+
+| Type | Purpose | Key Fields |
+|------|---------|------------|
+| `http_status` | Verify HTTP response code | `method`, `route`, `auth`, `expected_status` |
+| `dom_element` | Verify DOM element exists with text | `selector`, `expected_text` |
+| `dom_absent` | Verify DOM element does NOT exist | `selector`, `context` |
+| `db_state` | Verify database state via SQL | `query`, `params`, `expected` |
+| `api_response` | Verify JSON API response body | `method`, `route`, `auth`, `expected_json` |
+
+### Fixture Catalogue
+
+Available test fixtures (from tests/FIXTURES.md):
+
+**Factory fixtures** (return async callables):
+- `make_user(**overrides)` — create a User
+- `make_di_track(user, **overrides)` — create a DITrack
+- `make_shootout(user, di_track, *, chains=0, **overrides)` — create a Shootout with optional chains
+- `make_gear(gear_type, platform, *, models=1, **overrides)` — create Gear with source, tag, models
+- `make_signal_chain(user, *, blocks=[], **overrides)` — create a SignalChain with optional blocks
+- `make_user_gear(user_id, gear_model_id)` — create a UserGear junction record
+
+**Singleton fixtures** (one per test):
+- `test_user` — User with random suffix
+- `test_di_track` — DITrack owned by test_user
+- `test_gear` — Gear (AMP/NAM) with source, tag, 1 model
+- `test_shootout` — Shootout with 2 chains
+- `test_signal_chain` — SignalChain with 1 FULL_RIG block
+
+**Client fixtures:**
+- `authenticated_client` — HTTPX AsyncClient authenticated as test_user
+
+### Example test_spec
+
+```json
+{
+  "test_type": "integration",
+  "fixtures": ["make_user", "make_di_track", "make_shootout(chains=2)"],
+  "assertions": [
+    {"type": "http_status", "method": "GET", "route": "/shootout/{shootout.id}", "auth": "test_user", "expected_status": 200},
+    {"type": "dom_element", "selector": "[data-testid='shootout-name']", "expected_text": "{shootout.name}"},
+    {"type": "dom_absent", "selector": "[data-testid='edit-button']", "context": "other user viewing"},
+    {"type": "db_state", "query": "SELECT count(*) FROM core_shootout_chains WHERE shootout_id = :id", "params": {"id": "{shootout.id}"}, "expected": 2}
+  ]
+}
+```
+
+### Rules for test_spec
+
+- `test_type` must be "integration" or "e2e".
+- `fixtures` should reference fixture names from the catalogue above.
+- Each assertion's `type` must be one of: http_status, dom_element, dom_absent, db_state, api_response.
+- Use template placeholders like `{shootout.id}` for dynamic values from fixtures."""
+
+
 def _build_decisions_section(user_decisions: str | None) -> str:
     """Build the user decisions section for the planner prompt."""
     if not user_decisions:
@@ -336,6 +398,10 @@ completes in a single invocation.
 
 {STORY_ENRICHMENT_GUIDANCE}
 
+### Step 3c: Add Test Specs
+
+{TEST_SPEC_GUIDANCE}
+
 ### Step 4: Define User Journeys
 
 Create connected, end-to-end narratives that link observable truths into coherent
@@ -394,7 +460,7 @@ Key fields:
 - `stories`: ordered array with story_id ("01-name"), name, purpose,
   agent config, scope, acceptance_criteria (required non-empty), architectural_context,
   navigation_hints, depends_on_summary, implementation_notes, truths_addressed,
-  wiki_sections
+  wiki_sections, test_spec (optional but recommended)
 - `validation_checkpoints`: array with after_story, check_type, checks
 
 The critical_transitions use {{source, to, mechanism}}.
@@ -418,6 +484,8 @@ The critical_transitions use {{source, to, mechanism}}.
     from `.planning/wiki-indexes/` for the Stage 4 prompt builder.
 12. Every story MUST have non-empty acceptance_criteria. Stories without acceptance
     criteria will fail Phase A validation.
+13. Every story SHOULD include a test_spec with test_type, fixtures, and assertions.
+    Missing test_spec produces a warning, not an error.
 
 Think step by step, then emit the JSON in a ```json code fence."""
 

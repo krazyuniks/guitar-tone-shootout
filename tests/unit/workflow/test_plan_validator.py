@@ -1,4 +1,4 @@
-"""Tests for plan_validator — scope coherence and story enrichment validation."""
+"""Tests for plan_validator — scope coherence, story enrichment, and test spec validation."""
 
 from workflow.models import (
     AgentConfig,
@@ -8,6 +8,8 @@ from workflow.models import (
     Plan,
     Scope,
     Story,
+    TestAssertion,
+    TestSpec,
     UserJourney,
     ValidationCheckpoint,
 )
@@ -15,6 +17,7 @@ from workflow.plan_validator import (
     _check_acceptance_criteria,
     _check_scope_coherence,
     _check_story_enrichment,
+    _check_test_specs,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,6 +54,7 @@ def _make_story(
     architectural_context: list[str] | None = None,
     navigation_hints: list[str] | None = None,
     depends_on_summary: list[str] | None = None,
+    test_spec: TestSpec | None = None,
 ) -> Story:
     """Build a minimal Story with the given scope and enrichment fields."""
     return Story(
@@ -70,6 +74,7 @@ def _make_story(
         else ["placeholder navigation hint"],
         depends_on_summary=depends_on_summary if depends_on_summary is not None else [],
         truths_addressed=[1],
+        test_spec=test_spec,
     )
 
 
@@ -273,3 +278,113 @@ class TestStoryEnrichment:
         checks = {e.message.split("empty ")[1].split(".")[0] for e in errors}
         assert "architectural_context" in checks
         assert "navigation_hints" in checks
+
+
+class TestTestSpecs:
+    """Tests for _check_test_specs validation."""
+
+    def test_missing_test_spec_produces_no_errors(self) -> None:
+        """Missing test_spec is a warning (logged), not an error."""
+        plan = _make_plan([_make_story("s1")])
+        errors = _check_test_specs(plan)
+        assert errors == []
+
+    def test_valid_test_spec_passes(self) -> None:
+        """A fully valid test_spec produces no errors."""
+        spec = TestSpec(
+            test_type="integration",
+            fixtures=["make_user", "make_shootout(chains=2)"],
+            assertions=[
+                TestAssertion(
+                    type="http_status", details={"route": "/foo", "expected_status": 200}
+                ),
+                TestAssertion(type="dom_element", details={"selector": "[data-testid='x']"}),
+            ],
+        )
+        plan = _make_plan([_make_story("s1", test_spec=spec)])
+        errors = _check_test_specs(plan)
+        assert errors == []
+
+    def test_invalid_test_type_fails(self) -> None:
+        """test_type must be 'integration' or 'e2e'."""
+        spec = TestSpec(test_type="unit", fixtures=[], assertions=[])
+        plan = _make_plan([_make_story("s1", test_spec=spec)])
+        errors = _check_test_specs(plan)
+        assert len(errors) == 1
+        assert errors[0].check == "test_spec"
+        assert "'unit'" in errors[0].message
+
+    def test_unknown_fixture_fails(self) -> None:
+        """Fixture names not in the known catalogue produce errors."""
+        spec = TestSpec(
+            test_type="integration",
+            fixtures=["make_user", "make_nonexistent"],
+            assertions=[],
+        )
+        plan = _make_plan([_make_story("s1", test_spec=spec)])
+        errors = _check_test_specs(plan)
+        assert len(errors) == 1
+        assert "make_nonexistent" in errors[0].message
+
+    def test_fixture_with_args_validated_by_base_name(self) -> None:
+        """Fixture args like 'make_shootout(chains=2)' are stripped before lookup."""
+        spec = TestSpec(
+            test_type="integration",
+            fixtures=["make_shootout(chains=2)"],
+            assertions=[],
+        )
+        plan = _make_plan([_make_story("s1", test_spec=spec)])
+        errors = _check_test_specs(plan)
+        assert errors == []
+
+    def test_invalid_assertion_type_fails(self) -> None:
+        """Assertion type must be one of the known types."""
+        spec = TestSpec(
+            test_type="e2e",
+            fixtures=[],
+            assertions=[
+                TestAssertion(type="screenshot", details={}),
+            ],
+        )
+        plan = _make_plan([_make_story("s1", test_spec=spec)])
+        errors = _check_test_specs(plan)
+        assert len(errors) == 1
+        assert "'screenshot'" in errors[0].message
+
+    def test_multiple_errors_reported(self) -> None:
+        """All test_spec errors across stories are reported."""
+        spec = TestSpec(
+            test_type="bad_type",
+            fixtures=["unknown_fixture"],
+            assertions=[TestAssertion(type="invalid_type", details={})],
+        )
+        plan = _make_plan([_make_story("s1", test_spec=spec)])
+        errors = _check_test_specs(plan)
+        assert len(errors) == 3  # bad test_type + unknown fixture + invalid assertion type
+
+
+class TestTestAssertionFlatFormat:
+    """Tests for TestAssertion flat-format parsing."""
+
+    def test_flat_format_collected_into_details(self) -> None:
+        """Extra keys at top level are moved into details."""
+        assertion = TestAssertion.model_validate(
+            {"type": "http_status", "route": "/foo", "expected_status": 200}
+        )
+        assert assertion.type == "http_status"
+        assert assertion.details == {"route": "/foo", "expected_status": 200}
+
+    def test_nested_format_preserved(self) -> None:
+        """Explicit details dict is preserved as-is."""
+        assertion = TestAssertion.model_validate(
+            {"type": "db_state", "details": {"query": "SELECT 1", "expected": 1}}
+        )
+        assert assertion.type == "db_state"
+        assert assertion.details == {"query": "SELECT 1", "expected": 1}
+
+    def test_flat_format_merges_with_details(self) -> None:
+        """Flat keys merge into existing details."""
+        assertion = TestAssertion.model_validate(
+            {"type": "http_status", "details": {"route": "/foo"}, "auth": "test_user"}
+        )
+        assert assertion.details == {"route": "/foo", "auth": "test_user"}

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # ---------------------------------------------------------------------------
 # Leaf models
@@ -57,6 +57,55 @@ class AgentConfig(BaseModel):
     model: Literal["opus", "sonnet", "haiku", "codex"] = Field(description="Model tier.")
     skills: list[str] = Field(default_factory=list, description="Skill names to inject.")
     tools: list[str] = Field(default_factory=list, description="Tools available to the agent.")
+
+
+class TestAssertion(BaseModel):
+    """Individual assertion within a test spec.
+
+    Accepts both flat and nested formats:
+      Flat:   {"type": "http_status", "route": "/foo", "expected_status": 200}
+      Nested: {"type": "http_status", "details": {"route": "/foo", "expected_status": 200}}
+
+    In both cases, type-specific fields end up in ``details``.
+    """
+
+    type: str = Field(
+        description="Assertion type: http_status, dom_element, dom_absent, db_state, api_response."
+    )
+    details: dict = Field(
+        default_factory=dict,
+        description="Type-specific fields (e.g. route, selector, query).",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _collect_flat_fields(cls, data: object) -> object:
+        """Move non-schema keys into details (supports flat assertion format)."""
+        if not isinstance(data, dict):
+            return data
+        known_keys = {"type", "details"}
+        extra = {k: v for k, v in data.items() if k not in known_keys}
+        if extra:
+            details = dict(data.get("details", {}))
+            details.update(extra)
+            return {"type": data["type"], "details": details}
+        return data
+
+
+class TestSpec(BaseModel):
+    """Machine-readable test specification for a story."""
+
+    test_type: str = Field(
+        description="Test type: 'integration' or 'e2e'."
+    )
+    fixtures: list[str] = Field(
+        default_factory=list,
+        description="Fixture names to use (e.g. 'make_user', 'make_shootout(chains=2)').",
+    )
+    assertions: list[TestAssertion] = Field(
+        default_factory=list,
+        description="Ordered list of assertions to verify.",
+    )
 
 
 class CheckCriterion(BaseModel):
@@ -124,6 +173,10 @@ class Story(BaseModel):
     )
     wiki_sections: list[str] = Field(
         default_factory=list, description="Wiki section headers for Stage 4 prompt builder."
+    )
+    test_spec: TestSpec | None = Field(
+        default=None,
+        description="Machine-readable test specification for automated validation.",
     )
 
 
@@ -255,6 +308,18 @@ def render_plan_md(plan: Plan) -> str:
             lines.append("")
         lines.append(f"**Truths Addressed:** {', '.join(str(t) for t in story.truths_addressed)}")
         lines.append("")
+        if story.test_spec:
+            lines.append("### Test Spec")
+            lines.append("")
+            lines.append(f"**Type:** {story.test_spec.test_type}")
+            if story.test_spec.fixtures:
+                lines.append(f"**Fixtures:** {', '.join(story.test_spec.fixtures)}")
+            if story.test_spec.assertions:
+                lines.append("**Assertions:**")
+                for assertion in story.test_spec.assertions:
+                    detail_str = ", ".join(f"{k}={v}" for k, v in assertion.details.items())
+                    lines.append(f"- [{assertion.type}] {detail_str}")
+            lines.append("")
         lines.append("---")
         lines.append("")
 

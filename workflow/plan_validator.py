@@ -443,6 +443,99 @@ def _check_checkpoint_coverage(plan: Plan) -> list[ValidationError]:
     return errors
 
 
+# Valid assertion types for test_spec
+_VALID_ASSERTION_TYPES = {"http_status", "dom_element", "dom_absent", "db_state", "api_response"}
+
+# Valid test types for test_spec
+_VALID_TEST_TYPES = {"integration", "e2e"}
+
+# Known fixture names (base names without arguments)
+_KNOWN_FIXTURES = {
+    "make_user",
+    "make_di_track",
+    "make_shootout",
+    "make_gear",
+    "make_signal_chain",
+    "make_user_gear",
+    "test_user",
+    "test_di_track",
+    "test_gear",
+    "test_shootout",
+    "test_signal_chain",
+    "authenticated_client",
+    "db_session",
+    "session",
+    "seeded_db_session",
+}
+
+
+def _check_test_specs(plan: Plan) -> list[ValidationError]:
+    """Check test_spec fields on stories.
+
+    - Warns (not errors) if a story is missing test_spec.
+    - Errors if test_type is invalid.
+    - Errors if fixtures reference unknown fixture names.
+    - Errors if assertions have invalid type values.
+    """
+    import re
+
+    errors: list[ValidationError] = []
+    warnings: list[ValidationError] = []
+
+    for story in plan.stories:
+        if story.test_spec is None:
+            warnings.append(
+                ValidationError(
+                    check="test_spec",
+                    message=f"Story '{story.story_id}' has no test_spec. "
+                    f"Consider adding a test_spec for automated validation.",
+                )
+            )
+            continue
+
+        spec = story.test_spec
+
+        # Validate test_type
+        if spec.test_type not in _VALID_TEST_TYPES:
+            errors.append(
+                ValidationError(
+                    check="test_spec",
+                    message=f"Story '{story.story_id}' test_spec.test_type is "
+                    f"'{spec.test_type}', must be one of: {sorted(_VALID_TEST_TYPES)}.",
+                )
+            )
+
+        # Validate fixture names (strip parenthesised arguments)
+        for fixture in spec.fixtures:
+            base_name = re.split(r"[(\s]", fixture)[0]
+            if base_name not in _KNOWN_FIXTURES:
+                errors.append(
+                    ValidationError(
+                        check="test_spec",
+                        message=f"Story '{story.story_id}' test_spec.fixtures references "
+                        f"unknown fixture '{base_name}'. Known fixtures: "
+                        f"{sorted(_KNOWN_FIXTURES)}.",
+                    )
+                )
+
+        # Validate assertion types
+        for i, assertion in enumerate(spec.assertions):
+            if assertion.type not in _VALID_ASSERTION_TYPES:
+                errors.append(
+                    ValidationError(
+                        check="test_spec",
+                        message=f"Story '{story.story_id}' test_spec.assertions[{i}].type is "
+                        f"'{assertion.type}', must be one of: {sorted(_VALID_ASSERTION_TYPES)}.",
+                    )
+                )
+
+    # Log warnings but don't include them in errors
+    for w in warnings:
+        logger.warning("Test spec warning: %s", w.message)
+
+    return errors
+
+
 def validate_plan(epic_dir: Path) -> ValidationResult:
     """Run 7 deterministic validation checks on plan.json.
 
@@ -508,6 +601,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_checkpoint_coverage(plan))
     all_errors.extend(_check_acceptance_criteria(plan))
     all_errors.extend(_check_story_enrichment(plan))
+    all_errors.extend(_check_test_specs(plan))
 
     # Check 8: Command coverage (warnings only — doesn't fail validation)
     command_warnings = _check_command_coverage(plan)
