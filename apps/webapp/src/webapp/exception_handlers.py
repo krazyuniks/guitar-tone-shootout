@@ -254,6 +254,14 @@ async def http_exception_handler(
     error_code = error_code_map.get(exc.status_code, "HTTP_ERROR")
     message = str(exc.detail) if exc.detail else "An error occurred"
 
+    # Pass through WWW-Authenticate header for 401s (enables browser Basic Auth dialog)
+    if exc.status_code == 401 and getattr(exc, "headers", None):
+        return JSONResponse(
+            status_code=401,
+            content={"error_code": error_code, "message": message},
+            headers=exc.headers,
+        )
+
     return _create_error_response(
         request=request,
         status_code=exc.status_code,

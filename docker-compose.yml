@@ -79,6 +79,7 @@ services:
       - ./pyproject.toml:/app/pyproject.toml
       - ./uv.lock:/app/uv.lock
       - ./scripts:/app/scripts
+      - ./.planning:/app/.planning
     depends_on:
       db:
         condition: service_healthy

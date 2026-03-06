@@ -42,6 +42,7 @@ docker-compose.override.yml
 .planning/epics/*/stories/
 .planning/epics/*/CONTEXT.md
 .planning/epics/*/SUMMARY.md
+.planning/epics/*/REPORT.html
 .planning/codebase/
 .gemini/
 .agents/

@@ -428,6 +428,10 @@ epic-status epic_num:
 epic-validate-plan epic_num:
     ./wf epic validate-plan {{epic_num}}
 
+# Generate HTML timeline report for an epic
+epic-report epic_num:
+    python -m workflow.report {{epic_num}}
+
 # Regenerate .planning/codebase/ files
 map-codebase:
     ./wf map codebase
