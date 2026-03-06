@@ -21,21 +21,6 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user for file serving tests."""
-    user = User(
-        id=uuid4(),
-        username="fileuser",
-        email="fileuser@example.com",
-        is_active=True,
-    )
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def other_user(db_session: AsyncSession) -> User:
     """Create another user for ownership tests."""
     user = User(

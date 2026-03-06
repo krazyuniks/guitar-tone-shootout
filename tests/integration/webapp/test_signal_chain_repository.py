@@ -21,20 +21,6 @@ from webapp.adapters.persistence.repositories.signal_chain_repository import (
 
 
 @pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create a test user."""
-    suffix = uuid.uuid4().hex[:8]
-    user = User(
-        id=uuid.uuid4(),
-        username=f"testuser_{suffix}",
-        email=f"test_{suffix}@example.com",
-    )
-    session.add(user)
-    await session.flush()
-    return user
-
-
-@pytest.fixture
 def sample_chain(test_user: User) -> SignalChain:
     """Create a sample signal chain entity."""
     chain = SignalChain(

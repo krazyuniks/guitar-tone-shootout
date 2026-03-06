@@ -7,13 +7,10 @@ and sample_rate from actual WAV files (not minimal-header stubs).
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 import numpy as np
-import pytest
 import soundfile as sf
 
-from webapp.adapters.persistence.models.user import User
 from webapp.services.di_track_service import DITrackService
 
 if TYPE_CHECKING:
@@ -21,19 +18,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username=f"realaudiotestuser_{uuid4().hex[:8]}",
-        email=f"realaudio_{uuid4().hex[:8]}@example.com",
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 def _create_real_mono_wav(path: Path, *, duration: float = 1.0, sample_rate: int = 44100) -> Path:

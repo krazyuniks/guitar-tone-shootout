@@ -10,56 +10,12 @@ from httpx import ASGITransport, AsyncClient
 from gts.domain.entities.shootout import Shootout
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.user import User
-from webapp.auth.dependencies import set_session_override, set_user_override
+from webapp.auth.dependencies import set_session_override
 from webapp.main import app
 from webapp.services.shootout_service import ShootoutService
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(username="testuser", email="test@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-async def test_di_track(db_session: AsyncSession, test_user: User) -> DITrack:
-    """Create a test DI track."""
-    di_track = DITrack(
-        user_id=test_user.id,
-        name="Test DI",
-        file_path="/path/to/di.wav",
-        original_filename="di.wav",
-        duration_seconds=60.0,
-        sample_rate=48000,
-    )
-    db_session.add(di_track)
-    await db_session.flush()
-    await db_session.refresh(di_track)
-    return di_track
-
-
-@pytest.fixture
-async def authenticated_client(
-    db_session: AsyncSession,
-    test_user: User,
-) -> AsyncClient:
-    """Create an authenticated HTTP client."""
-    set_session_override(db_session)
-    set_user_override(test_user)
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        yield client
-
-    # Cleanup
-    set_session_override(None)
-    set_user_override(None)
 
 
 @pytest.mark.asyncio

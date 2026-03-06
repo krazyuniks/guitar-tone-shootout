@@ -19,21 +19,6 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username="testuser",
-        email="test@example.com",
-        is_active=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def t3k_provider(db_session: AsyncSession) -> OAuthProvider:
     """Get or create T3K OAuth provider."""
     from sqlalchemy import select

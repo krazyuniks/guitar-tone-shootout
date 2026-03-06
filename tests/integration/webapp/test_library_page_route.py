@@ -13,26 +13,12 @@ from httpx import ASGITransport, AsyncClient
 
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.user import User
 from webapp.main import create_app
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username="testuser",
-        email="test@example.com",
-        is_active=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 @pytest.fixture

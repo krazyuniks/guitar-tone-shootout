@@ -12,51 +12,10 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from webapp.adapters.persistence.models.user import User
-from webapp.auth.dependencies import (
-    set_session_override,
-    set_user_override,
-)
 from webapp.main import app
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    suffix = uuid4().hex[:8]
-    user = User(
-        id=uuid4(),
-        username=f"testuser_{suffix}",
-        email=f"test_{suffix}@example.com",
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-async def authenticated_client(
-    db_session: AsyncSession,
-    test_user: User,
-) -> AsyncGenerator[AsyncClient, None]:
-    """Create authenticated HTTP client."""
-    set_session_override(db_session)
-    set_user_override(test_user)
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as client:
-        yield client
-
-    set_session_override(None)
-    set_user_override(None)
 
 
 @pytest.fixture

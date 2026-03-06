@@ -29,12 +29,13 @@ from sqlalchemy.orm import joinedload
 from gts.domain.value_objects.signal_chain_enums import Platform
 from webapp.adapters.persistence.models.shootout import DITrack, Shootout
 from webapp.adapters.persistence.models.signal_chain import SignalChain as SignalChainModel
-from webapp.adapters.persistence.models.user import User
 from webapp.api.pages.shootouts import router
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from webapp.adapters.persistence.models.user import User
 
 
 @pytest.fixture
@@ -45,16 +46,6 @@ def app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
     return app
-
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user for wizard step 3 tests."""
-    user = User(username="step3user", email="step3@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
 
 
 @pytest.fixture

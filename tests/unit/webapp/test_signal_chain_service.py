@@ -10,7 +10,6 @@ import pytest
 from gts.domain.entities.signal_chain import SignalChain as SignalChainEntity
 from gts.domain.entities.signal_chain import SignalChainBlock as BlockEntity
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.user import User
 from webapp.services.signal_chain_service import (
     SignalChainService,
     ValidationException,
@@ -19,15 +18,7 @@ from webapp.services.signal_chain_service import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create test user."""
-    _sfx = uuid4().hex[:8]
-    user = User(username=f"testuser_{_sfx}", email=f"test_{_sfx}@example.com")
-    session.add(user)
-    await session.commit()
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 @pytest.fixture

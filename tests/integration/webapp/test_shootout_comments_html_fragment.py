@@ -28,21 +28,6 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-async def test_user(db_session: "AsyncSession") -> User:
-    """Create a test user for comments tests."""
-    user = User(
-        id=uuid4(),
-        username="commentuser",
-        email="comment@example.com",
-        is_active=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def other_user(db_session: "AsyncSession") -> User:
     """Create a second user for ownership tests."""
     user = User(
@@ -55,23 +40,6 @@ async def other_user(db_session: "AsyncSession") -> User:
     await db_session.commit()
     await db_session.refresh(user)
     return user
-
-
-@pytest.fixture
-async def test_di_track(db_session: "AsyncSession", test_user: User) -> DITrack:
-    """Create a test DI track for shootout."""
-    di_track = DITrack(
-        user_id=test_user.id,
-        name="Test DI",
-        file_path="/path/to/di.wav",
-        original_filename="di.wav",
-        duration_seconds=60.0,
-        sample_rate=48000,
-    )
-    db_session.add(di_track)
-    await db_session.flush()
-    await db_session.refresh(di_track)
-    return di_track
 
 
 @pytest.fixture
@@ -140,7 +108,7 @@ class TestCommentsFragmentRendersRealData:
 
         assert response.status_code == 200
         html = response.text
-        assert "commentuser" in html
+        assert test_user.username in html
 
     async def test_fragment_shows_multiple_comments(
         self,

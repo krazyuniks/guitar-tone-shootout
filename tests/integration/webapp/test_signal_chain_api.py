@@ -19,16 +19,6 @@ from webapp.main import create_app
 
 
 @pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create test user."""
-    suffix = uuid4().hex[:8]
-    user = User(username=f"testuser_{suffix}", email=f"test_{suffix}@example.com")
-    session.add(user)
-    await session.commit()
-    return user
-
-
-@pytest.fixture
 async def other_user(session: AsyncSession) -> User:
     """Create second test user for isolation tests."""
     suffix = uuid4().hex[:8]

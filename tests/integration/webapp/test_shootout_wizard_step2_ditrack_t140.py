@@ -41,16 +41,6 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user for wizard step 2 tests."""
-    user = User(username="wizarduser", email="wizard@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def other_user(db_session: AsyncSession) -> User:
     """Create another user for isolation tests."""
     user = User(username="otheruser", email="other@example.com")

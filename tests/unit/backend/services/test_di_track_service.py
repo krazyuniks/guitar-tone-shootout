@@ -6,30 +6,15 @@ Tests the service layer for DI track upload and validation.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 import pytest
-
-from webapp.adapters.persistence.models.user import User
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username=f"testuser_{uuid4().hex[:8]}",
-        email=f"test_{uuid4().hex[:8]}@example.com",
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 class TestDITrackService:

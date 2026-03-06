@@ -39,16 +39,6 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(username="testuser", email="test@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def base_chain(db_session: AsyncSession, test_user: User) -> SignalChain:
     """Create a test signal chain to use as base for groups."""
     chain = SignalChain(

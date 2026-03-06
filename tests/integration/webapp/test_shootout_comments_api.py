@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from webapp.adapters.persistence.models.shootout_comment import ShootoutComment
 from webapp.adapters.persistence.models.user import User
@@ -17,6 +16,8 @@ from webapp.api.v1.shootouts import router, set_session_override, set_user_overr
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from webapp.adapters.persistence.models.di_track import DITrack
 
 
 @pytest.fixture
@@ -30,16 +31,6 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(username="testuser", email="test@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def other_user(db_session: AsyncSession) -> User:
     """Create a second test user."""
     user = User(username="otheruser", email="other@example.com")
@@ -47,23 +38,6 @@ async def other_user(db_session: AsyncSession) -> User:
     await db_session.flush()
     await db_session.refresh(user)
     return user
-
-
-@pytest.fixture
-async def test_di_track(db_session: AsyncSession, test_user: User) -> DITrack:
-    """Create a test DI track."""
-    di_track = DITrack(
-        user_id=test_user.id,
-        name="Test DI",
-        file_path="/path/to/di.wav",
-        original_filename="di.wav",
-        duration_seconds=60.0,
-        sample_rate=48000,
-    )
-    db_session.add(di_track)
-    await db_session.flush()
-    await db_session.refresh(di_track)
-    return di_track
 
 
 @pytest.fixture
@@ -309,7 +283,7 @@ class TestListComments:
         assert response.status_code == 200
         data = response.json()
         items = data["items"] if isinstance(data, dict) and "items" in data else data
-        assert items[0]["author_username"] == "testuser"
+        assert items[0]["author_username"] == test_user.username
 
     async def test_list_comments_returns_404_for_missing_shootout(
         self,

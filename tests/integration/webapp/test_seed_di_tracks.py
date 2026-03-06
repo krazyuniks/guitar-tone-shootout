@@ -16,8 +16,9 @@ import pytest
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from webapp.adapters.persistence.models.user import User
+
 from webapp.adapters.persistence.models.shootout import DITrack
-from webapp.adapters.persistence.models.user import User
 
 # Import the script module — scripts/ is not mounted in Docker containers,
 # so skip the entire module if the import fails.
@@ -29,16 +30,6 @@ try:
     from seed_di_tracks import SeedDITracks
 except ModuleNotFoundError:
     pytest.skip("seed_di_tracks not available (scripts/ not mounted)", allow_module_level=True)
-
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user for seeding."""
-    user = User(username="seeduser", email="seed@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
 
 
 @pytest.fixture

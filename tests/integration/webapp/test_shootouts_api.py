@@ -29,33 +29,6 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(username="testuser", email="test@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
-async def test_di_track(db_session: AsyncSession, test_user: User) -> DITrack:
-    """Create a test DI track."""
-    di_track = DITrack(
-        user_id=test_user.id,
-        name="Test DI",
-        file_path="/path/to/di.wav",
-        original_filename="di.wav",
-        duration_seconds=60.0,
-        sample_rate=48000,
-    )
-    db_session.add(di_track)
-    await db_session.flush()
-    await db_session.refresh(di_track)
-    return di_track
-
-
-@pytest.fixture
 async def authenticated_client(
     app: FastAPI,
     db_session: AsyncSession,

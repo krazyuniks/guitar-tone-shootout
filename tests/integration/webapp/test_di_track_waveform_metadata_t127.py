@@ -7,13 +7,11 @@ Tests that the DI track upload flow extracts and persists audio metadata
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
 from webapp.adapters.persistence.models.shootout import DITrack
-from webapp.adapters.persistence.models.user import User
 from webapp.services.di_track_service import DITrackService
 
 if TYPE_CHECKING:
@@ -21,19 +19,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user for upload tests."""
-    user = User(
-        id=uuid4(),
-        username="waveform_testuser",
-        email="waveform@example.com",
-    )
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 def _create_minimal_wav(path: Path) -> Path:

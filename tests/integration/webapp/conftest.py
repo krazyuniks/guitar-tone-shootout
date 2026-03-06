@@ -1,4 +1,14 @@
-"""Shared pytest fixtures for webapp integration tests."""
+"""Shared pytest fixtures for webapp integration tests.
+
+Provides:
+- Factory fixtures (make_user, make_di_track, make_shootout, make_gear,
+  make_signal_chain) — each returns an async callable for flexible creation.
+- Singleton fixtures (test_user, test_di_track, test_gear, test_shootout,
+  test_signal_chain) — one canonical instance per test.
+- authenticated_client — HTTPX AsyncClient with auth wired.
+- seeded_db_session — pre-populated gear catalogue for page tests.
+- Auto-wiring hooks for auth session and user override.
+"""
 
 from __future__ import annotations
 
@@ -7,8 +17,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Callable, Coroutine
+    from typing import Any
 
+    from httpx import AsyncClient
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from datetime import UTC, datetime
@@ -18,24 +30,345 @@ from gts.domain.value_objects.signal_chain_enums import GearType, ModelSize, Pla
 from webapp.adapters.persistence.models.gear import Gear, GearTag
 from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
+from webapp.adapters.persistence.models.shootout import DITrack, Shootout, ShootoutChain
+from webapp.adapters.persistence.models.signal_chain import (
+    SignalChain,
+    SignalChainBlock,
+)
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.models.user_gear import UserGear
 
+# ---------------------------------------------------------------------------
+# Factory fixtures — return async callables for flexible test data creation
+# ---------------------------------------------------------------------------
+
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    suffix = uuid4().hex[:8]
-    user = User(
-        id=uuid4(),
-        username=f"testuser_{suffix}",
-        email=f"test_{suffix}@example.com",
-        is_active=True,
-    )
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
+def make_user(db_session: AsyncSession) -> Callable[..., Coroutine[Any, Any, User]]:
+    """Factory fixture for creating User instances.
+
+    Returns an async callable ``_make(**overrides)`` that creates and
+    persists a User with sensible defaults. Any keyword argument
+    overrides the default value.
+
+    Usage::
+
+        user = await make_user()
+        admin = await make_user(username="admin", email="admin@example.com")
+    """
+
+    async def _make(**overrides: Any) -> User:
+        suffix = uuid4().hex[:8]
+        defaults = {
+            "id": uuid4(),
+            "username": f"testuser_{suffix}",
+            "email": f"test_{suffix}@example.com",
+            "is_active": True,
+        }
+        defaults.update(overrides)
+        user = User(**defaults)
+        db_session.add(user)
+        await db_session.flush()
+        await db_session.refresh(user)
+        return user
+
+    return _make
+
+
+@pytest.fixture
+def make_di_track(db_session: AsyncSession) -> Callable[..., Coroutine[Any, Any, DITrack]]:
+    """Factory fixture for creating DITrack instances.
+
+    Returns an async callable ``_make(user, **overrides)``.
+
+    Usage::
+
+        track = await make_di_track(test_user)
+        track = await make_di_track(test_user, name="Custom DI")
+    """
+
+    async def _make(user: User, **overrides: Any) -> DITrack:
+        defaults = {
+            "id": uuid4(),
+            "user_id": user.id,
+            "name": "Test DI Track",
+            "file_path": "/audio/test_di.wav",
+            "original_filename": "test_di.wav",
+            "duration_seconds": 60.0,
+            "sample_rate": 48000,
+        }
+        defaults.update(overrides)
+        track = DITrack(**defaults)
+        db_session.add(track)
+        await db_session.flush()
+        await db_session.refresh(track)
+        return track
+
+    return _make
+
+
+@pytest.fixture
+def make_shootout(
+    db_session: AsyncSession,
+) -> Callable[..., Coroutine[Any, Any, Shootout]]:
+    """Factory fixture for creating Shootout instances.
+
+    Returns an async callable ``_make(user, di_track, chains=0, **overrides)``.
+    When ``chains > 0``, creates that many ShootoutChain stubs (each
+    referencing a new empty SignalChain).
+
+    Usage::
+
+        shootout = await make_shootout(test_user, test_di_track)
+        shootout = await make_shootout(test_user, test_di_track, chains=3)
+    """
+
+    async def _make(
+        user: User, di_track: DITrack, *, chains: int = 0, **overrides: Any
+    ) -> Shootout:
+        defaults = {
+            "id": uuid4(),
+            "user_id": user.id,
+            "di_track_id": di_track.id,
+            "name": "Test Shootout",
+        }
+        defaults.update(overrides)
+        shootout = Shootout(**defaults)
+        db_session.add(shootout)
+        await db_session.flush()
+
+        for i in range(chains):
+            chain_model = SignalChain(
+                id=uuid4(),
+                user_id=user.id,
+                name=f"Chain {i + 1}",
+                platform=Platform.NAM,
+            )
+            db_session.add(chain_model)
+            await db_session.flush()
+            link = ShootoutChain(
+                id=uuid4(),
+                shootout_id=shootout.id,
+                signal_chain_id=chain_model.id,
+                position=i,
+                label=f"Chain {i + 1}",
+            )
+            db_session.add(link)
+
+        await db_session.flush()
+        await db_session.refresh(shootout)
+        return shootout
+
+    return _make
+
+
+@pytest.fixture
+def make_gear(db_session: AsyncSession) -> Callable[..., Coroutine[Any, Any, Gear]]:
+    """Factory fixture for creating Gear instances with source, tags, and models.
+
+    Returns an async callable
+    ``_make(gear_type, platform, models=1, **overrides)``.
+
+    Usage::
+
+        gear = await make_gear(GearType.AMP, Platform.NAM)
+        gear = await make_gear(GearType.PEDAL, Platform.NAM, models=3)
+    """
+
+    async def _make(
+        gear_type: GearType = GearType.AMP,
+        platform: Platform = Platform.NAM,
+        *,
+        models: int = 1,
+        **overrides: Any,
+    ) -> Gear:
+        suffix = uuid4().hex[:8]
+        now = datetime.now(UTC)
+
+        source = GearSource(
+            id=uuid4(),
+            source_name="t3k",
+            source_record_id=f"t3k-gear-{suffix}",
+            source_updated_at=now,
+        )
+        db_session.add(source)
+        await db_session.flush()
+
+        tag = GearTag(id=uuid4(), name=f"tag_{suffix}")
+        db_session.add(tag)
+        await db_session.flush()
+
+        defaults = {
+            "id": uuid4(),
+            "name": f"Test Gear {suffix}",
+            "slug": f"test-gear-{suffix}",
+            "gear_type": gear_type,
+            "platform": platform,
+            "manufacturer": "Test Manufacturer",
+            "is_public": True,
+            "source_id": source.id,
+        }
+        defaults.update(overrides)
+        gear = Gear(**defaults)
+        gear.tags = [tag]
+        db_session.add(gear)
+        await db_session.flush()
+
+        for i in range(models):
+            size = [ModelSize.STANDARD, ModelSize.LITE, ModelSize.NANO][i % 3]
+            model = GearModel(
+                id=uuid4(),
+                gear_id=gear.id,
+                platform=platform,
+                size=size,
+            )
+            db_session.add(model)
+
+        await db_session.flush()
+        await db_session.refresh(gear)
+        return gear
+
+    return _make
+
+
+@pytest.fixture
+def make_signal_chain(
+    db_session: AsyncSession,
+) -> Callable[..., Coroutine[Any, Any, SignalChain]]:
+    """Factory fixture for creating SignalChain instances.
+
+    Returns an async callable ``_make(user, blocks=[], **overrides)``.
+    Each entry in *blocks* is a dict of column overrides for
+    ``SignalChainBlock``; at minimum provide ``gear_type``.
+
+    Usage::
+
+        chain = await make_signal_chain(test_user)
+        chain = await make_signal_chain(
+            test_user,
+            blocks=[{"gear_type": GearType.FULL_RIG}],
+        )
+    """
+
+    async def _make(
+        user: User, *, blocks: list[dict[str, Any]] | None = None, **overrides: Any
+    ) -> SignalChain:
+        defaults = {
+            "id": uuid4(),
+            "user_id": user.id,
+            "name": "Test Signal Chain",
+            "platform": Platform.NAM,
+        }
+        defaults.update(overrides)
+        chain = SignalChain(**defaults)
+        db_session.add(chain)
+        await db_session.flush()
+
+        for i, block_kw in enumerate(blocks or []):
+            block_defaults = {
+                "id": uuid4(),
+                "signal_chain_id": chain.id,
+                "position": i,
+                "user_gear_id": uuid4(),
+            }
+            block_defaults.update(block_kw)
+            block = SignalChainBlock(**block_defaults)
+            db_session.add(block)
+
+        await db_session.flush()
+        await db_session.refresh(chain)
+        return chain
+
+    return _make
+
+
+# ---------------------------------------------------------------------------
+# Singleton fixtures — one canonical instance per test
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def test_user(make_user: Callable[..., Coroutine[Any, Any, User]]) -> User:
+    """Create a single test user (canonical fixture).
+
+    Uses ``make_user`` factory internally. All integration tests under
+    ``tests/integration/webapp/`` should use this fixture instead of
+    defining their own.
+    """
+    return await make_user()
+
+
+@pytest.fixture
+async def test_di_track(
+    make_di_track: Callable[..., Coroutine[Any, Any, DITrack]],
+    test_user: User,
+) -> DITrack:
+    """Create a single test DI track owned by ``test_user``."""
+    return await make_di_track(test_user)
+
+
+@pytest.fixture
+async def test_gear(
+    make_gear: Callable[..., Coroutine[Any, Any, Gear]],
+) -> Gear:
+    """Create a single test gear item with source, tag, and one model."""
+    return await make_gear(GearType.AMP, Platform.NAM, models=1)
+
+
+@pytest.fixture
+async def test_shootout(
+    make_shootout: Callable[..., Coroutine[Any, Any, Shootout]],
+    test_user: User,
+    test_di_track: DITrack,
+) -> Shootout:
+    """Create a single test shootout with two chains."""
+    return await make_shootout(test_user, test_di_track, chains=2)
+
+
+@pytest.fixture
+async def test_signal_chain(
+    make_signal_chain: Callable[..., Coroutine[Any, Any, SignalChain]],
+    test_user: User,
+) -> SignalChain:
+    """Create a single test signal chain with one FULL_RIG block."""
+    return await make_signal_chain(test_user, blocks=[{"gear_type": GearType.FULL_RIG}])
+
+
+# ---------------------------------------------------------------------------
+# Authenticated client fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def authenticated_client(
+    db_session: AsyncSession,
+    test_user: User,
+) -> AsyncGenerator[AsyncClient, None]:
+    """HTTPX AsyncClient with auth wired for ``test_user``.
+
+    The ``_wire_auth_session`` autouse fixture already sets the session
+    override; this fixture additionally sets the user override and
+    yields a client bound to the main webapp.
+
+    Usage::
+
+        async def test_something(authenticated_client):
+            resp = await authenticated_client.get("/library/shootouts")
+            assert resp.status_code == 200
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    from webapp.auth.dependencies import set_user_override
+    from webapp.main import app
+
+    set_user_override(test_user)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+
+
+# ---------------------------------------------------------------------------
+# Existing fixtures (kept for backwards compatibility)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -147,6 +480,11 @@ async def seeded_db_session(db_session: AsyncSession) -> AsyncSession:
     await db_session.commit()
 
     return db_session
+
+
+# ---------------------------------------------------------------------------
+# Hooks — auth wiring
+# ---------------------------------------------------------------------------
 
 
 def pytest_runtest_call(item: pytest.Item) -> None:

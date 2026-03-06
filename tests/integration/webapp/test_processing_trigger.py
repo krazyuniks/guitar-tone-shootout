@@ -12,7 +12,6 @@ from sqlalchemy import select
 from gts.domain.entities.shootout import Shootout, ShootoutChain
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from gts.domain.value_objects.signal_chain_enums import Platform
-from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
@@ -26,6 +25,8 @@ from webapp.adapters.persistence.models.user import User
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from webapp.adapters.persistence.models.di_track import DITrack
 
 
 @pytest.fixture
@@ -41,16 +42,6 @@ def app() -> FastAPI:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(username="testuser", email="test@example.com")
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def other_user(db_session: AsyncSession) -> User:
     """Create another test user for ownership tests."""
     user = User(username="otheruser", email="other@example.com")
@@ -58,23 +49,6 @@ async def other_user(db_session: AsyncSession) -> User:
     await db_session.flush()
     await db_session.refresh(user)
     return user
-
-
-@pytest.fixture
-async def test_di_track(db_session: AsyncSession, test_user: User) -> DITrack:
-    """Create a test DI track."""
-    di_track = DITrack(
-        user_id=test_user.id,
-        name="Test DI",
-        file_path="/path/to/di.wav",
-        original_filename="di.wav",
-        duration_seconds=60.0,
-        sample_rate=48000,
-    )
-    db_session.add(di_track)
-    await db_session.flush()
-    await db_session.refresh(di_track)
-    return di_track
 
 
 @pytest.fixture

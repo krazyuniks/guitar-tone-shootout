@@ -15,7 +15,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from webapp.adapters.persistence.models.shootout import DITrack
-from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.di_tracks import router
 
 if TYPE_CHECKING:
@@ -23,19 +22,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username="contract_test_user",
-        email="contract@example.com",
-    )
-    db_session.add(user)
-    await db_session.flush()
-    await db_session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 @pytest.mark.asyncio

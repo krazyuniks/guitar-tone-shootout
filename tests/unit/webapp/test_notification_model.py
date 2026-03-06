@@ -11,25 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from webapp.adapters.persistence.models.notification import UserNotification
-from webapp.adapters.persistence.models.user import User
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username="testuser",
-        email="test@example.com",
-        is_active=True,
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 class TestUserNotificationModel:

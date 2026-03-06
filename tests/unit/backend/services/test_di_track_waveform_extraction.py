@@ -7,11 +7,7 @@ extraction errors gracefully during upload.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
 
-import pytest
-
-from webapp.adapters.persistence.models.user import User
 from webapp.services.di_track_service import DITrackService
 
 if TYPE_CHECKING:
@@ -19,19 +15,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-
-@pytest.fixture
-async def test_user(session: AsyncSession) -> User:
-    """Create a test user."""
-    user = User(
-        id=uuid4(),
-        username=f"testuser_{uuid4().hex[:8]}",
-        email=f"test_{uuid4().hex[:8]}@example.com",
-    )
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
+    from webapp.adapters.persistence.models.user import User
 
 
 def _create_minimal_wav(path: Path, *, channels: int = 1) -> Path:
