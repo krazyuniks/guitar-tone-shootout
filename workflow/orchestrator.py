@@ -52,7 +52,6 @@ from workflow.jsonl_logger import (
     generate_run_id,
     get_resumable_state,
     is_story_complete,
-    is_test_generation_complete,
     read_log,
 )
 from workflow.story_executor import execute_story
@@ -1480,127 +1479,13 @@ def _run_epic_loop(
 # ---------------------------------------------------------------------------
 
 
-def _check_gate_event(epic_dir: Path, event_type: str) -> bool:
-    """Check if a specific gate event exists in epic.jsonl."""
-    from workflow.jsonl_logger import find_last_event
-
-    log_path = epic_dir / "epic.jsonl"
-    events = read_log(log_path)
-    return find_last_event(events, event_type) is not None
-
-
-def _run_test_generation_stage(epic_number: int, epic_dir: Path) -> bool:
-    """Run test generation for stories with test_specs.
-
-    Pre-flight: refuses to run if ``tests_approved`` is not in JSONL.
-    On success: logs ``tests_generated``, commits tests, pushes.
-
-    Args:
-        epic_number: The GitHub issue number of the epic.
-        epic_dir: Path to the epic directory.
-
-    Returns:
-        True if test generation succeeded (or no specs), False on failure.
-    """
-    import json as _json
-
-    from workflow.test_generator import run_test_generation
-
-    plan_path = epic_dir / "plan.json"
-    if not plan_path.is_file():
-        return True
-
-    plan = _json.loads(plan_path.read_text(encoding="utf-8"))
-    stories_with_specs = [
-        s.get("story_id", "unknown")
-        for s in plan.get("stories", [])
-        if s.get("test_spec") is not None
-    ]
-
-    if not stories_with_specs:
-        logger.info("No stories with test_specs. Skipping test generation.")
-        return True
-
-    epic_log_path = epic_dir / "epic.jsonl"
-    events = read_log(epic_log_path)
-
-    # Check if already complete
-    if is_test_generation_complete(events, stories_with_specs):
-        logger.info("Test generation already complete for all %d stories.", len(stories_with_specs))
-        return True
-
-    # Load config
-    config_path = ensure_epic_config(epic_dir)
-    config = load_config(override_path=config_path)
-
-    # Reuse existing run_id if available, otherwise generate new
-    run_id = events[-1].get("run_id", "") if events else ""
-    if not run_id:
-        run_id = generate_run_id()
-
-    epic_logger = EventLogger(epic_log_path, run_id)
-
-    logger.info(
-        "Running test generation for %d stories with test_specs...",
-        len(stories_with_specs),
-    )
-
-    with dispatch_logging(epic_dir, run_id):
-        test_report = run_test_generation(
-            epic_dir=epic_dir,
-            plan=plan,
-            config=config,
-            event_logger=epic_logger,
-        )
-
-    if not test_report.all_passed:
-        logger.error(
-            "Test generation failed: %d passed, %d failed. Cannot proceed.",
-            len(test_report.passed),
-            len(test_report.failed),
-        )
-        return False
-
-    # Log tests_generated and commit
-    epic_logger.log_event(
-        "tests_generated",
-        epic=epic_number,
-        stories_count=len(test_report.passed),
-    )
-
-    logger.info("All %d tests passed review. Committing test files...", len(test_report.passed))
-
-    try:
-        from workflow.git_helpers import robust_commit
-
-        test_paths = [r.test_file_path for r in test_report.passed if r.test_file_path is not None]
-        # Also commit the epic.jsonl with new events
-        test_paths.append(str(epic_log_path.relative_to(PROJECT_ROOT)))
-
-        commit_hash = robust_commit(
-            f"test(epic-{epic_number}): generated tests approved",
-            test_paths,
-        )
-        logger.info("Tests committed: %s", commit_hash)
-
-        git_sync()
-        logger.info("Pushed test commit.")
-    except (GitConflictError, GitPushError) as exc:
-        logger.warning("Failed to commit/push tests: %s", exc)
-        # Non-fatal — tests are generated, execution can proceed
-
-    return True
-
-
 def run_pipeline(epic_number: int) -> None:
     """Idempotent epic pipeline entry point.
 
-    Reads JSONL state and does the next thing. Three user interactions
-    for a full epic:
+    Reads JSONL state and does the next thing. Two user interactions:
 
     1. ``just epic N`` — plans, stops after approval (logs plan_committed)
-    2. ``/epic review-tests N`` — CC interactive test spec review (logs tests_approved)
-    3. ``just epic N`` — generates tests, then executes stories
+    2. ``just epic N`` — executes stories (test generation is per-story)
 
     Args:
         epic_number: The GitHub issue number of the epic.
@@ -1611,32 +1496,14 @@ def run_pipeline(epic_number: int) -> None:
 
     # Gate 1: plan_committed
     if not _check_plan_committed(epic_dir):
-        # Run planning pipeline (Steps 1-6), which STOPs after commit+push
+        # Run planning pipeline, which STOPs after commit+push
         _run_planning_pipeline(epic_number)
         return
 
     logger.info("Plan already committed for epic #%d.", epic_number)
 
-    # Gate 2: tests_approved
-    if not _check_gate_event(epic_dir, "tests_approved"):
-        print(
-            f"\nPlan committed. Run /epic review-tests {epic_number} "
-            "to review and approve test specs before proceeding."
-        )
-        return
-
-    # Gate 3: tests_generated
-    if not _check_gate_event(epic_dir, "tests_generated"):
-        if not _run_test_generation_stage(epic_number, epic_dir):
-            logger.error(
-                "Test generation failed for epic #%d. Fix issues and re-run.",
-                epic_number,
-            )
-            return
-        # Fall through to execution
-
-    # Stage 4: Execution
-    logger.info("Starting Stage 4 execution for epic #%d.", epic_number)
+    # Stage 4: Execution (test generation happens per-story, after implementation)
+    logger.info("Starting story execution for epic #%d.", epic_number)
     run_epic(epic_number, resume=True)
 
 
@@ -1714,8 +1581,6 @@ def show_status(epic_number: int) -> None:
 
     # Determine pipeline stage from events
     has_plan_committed = any(e.get("event") == "plan_committed" for e in events)
-    has_tests_approved = any(e.get("event") == "tests_approved" for e in events)
-    has_tests_generated = any(e.get("event") == "tests_generated" for e in events)
     has_epic_complete = any(
         e.get("event") == "epic_complete" and e.get("run_id") == run_id for e in events
     )
@@ -1727,12 +1592,8 @@ def show_status(epic_number: int) -> None:
         stage = "COMPLETE"
     elif has_epic_failed:
         stage = "FAILED"
-    elif has_tests_generated:
-        stage = "EXECUTION"
-    elif has_tests_approved:
-        stage = "TEST GENERATION"
     elif has_plan_committed:
-        stage = "AWAITING TEST REVIEW"
+        stage = "EXECUTION"
     else:
         stage = "PLANNING"
 
@@ -1744,8 +1605,6 @@ def show_status(epic_number: int) -> None:
     # Show gate status
     print("\nGates:")
     print(f"  plan_committed:  {'YES' if has_plan_committed else 'no'}")
-    print(f"  tests_approved:  {'YES' if has_tests_approved else 'no'}")
-    print(f"  tests_generated: {'YES' if has_tests_generated else 'no'}")
 
     if state.get("failed_story_id"):
         print(f"Failed story: {state['failed_story_id']}")

@@ -200,13 +200,6 @@
             "minimum": 1
           },
           "description": "IDs of observable truths this story contributes to."
-        },
-        "wiki_sections": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Wiki section header names from .planning/wiki-indexes/ for targeted loading in Stage 4 prompt builder."
         }
       },
       "required": [

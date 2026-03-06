@@ -73,13 +73,6 @@ critical_transitions with {{from, to, mechanism}}.
 
 {CHECKPOINT_PLACEMENT_GUIDANCE}
 
-### Step 6: Specify Wiki Sections
-
-For each story, specify `wiki_sections` — a list of wiki section header names from
-the project wiki indexes (`.planning/wiki-indexes/`). The Stage 4 prompt builder
-uses this to load targeted wiki sections into each story's agent prompt, keeping
-prompt size manageable.
-
 ---
 
 ## Agent Configuration Reference
@@ -213,4 +206,3 @@ Emit the two outputs separated by these exact delimiters:
    criteria depend on known data state.
 9. The plan.json epic_number must be {epic_number}.
 10. Do NOT invent features not described in the epic. Stay within scope.
-11. Include wiki_sections per story for Stage 4 prompt builder consumption.

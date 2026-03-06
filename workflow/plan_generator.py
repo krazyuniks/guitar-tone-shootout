@@ -1,11 +1,11 @@
-"""V2 plan generation — single Opus invocation producing JSON.
+"""Plan generation — agent-based planner producing JSON.
 
-Reads CONTEXT.md (from context assembly), constructs the planner prompt
-(with JSON schema embedded in text), dispatches via dispatch_agent(),
-and parses the output into plan.json via Pydantic. PLAN.md is rendered
-deterministically from the model.
+The planner receives only the enriched epic body (from GitHub) and the
+plan.json schema. It explores the codebase itself using tools (Read, Grep,
+Glob) rather than receiving pre-assembled context.
 
-Reference: Research doc Section 8.4 Decisions 1, 3, 4, 5, 6, 7.
+Dispatches via dispatch_agent(), parses the output into plan.json via
+Pydantic. PLAN.md is rendered deterministically from the model.
 
 Usage:
     python -m workflow.plan_generator <epic_number>
@@ -35,27 +35,19 @@ class PlanGenerationError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Context reader
+# Input readers
 # ---------------------------------------------------------------------------
 
 
-def _read_context(epic_dir: Path) -> str:
-    """Read CONTEXT.md from the epic directory."""
-    context_path = epic_dir / "CONTEXT.md"
-    if not context_path.is_file():
+def _read_epic_md(epic_dir: Path) -> str:
+    """Read EPIC.md from the epic directory."""
+    epic_path = epic_dir / "EPIC.md"
+    if not epic_path.is_file():
         raise PlanGenerationError(
-            f"CONTEXT.md not found at {context_path}. "
-            "Run context assembly first: python -m workflow.context_assembler <number>"
+            f"EPIC.md not found at {epic_path}. "
+            "Run ingestion first: ./wf epic run <number>"
         )
-    return context_path.read_text(encoding="utf-8")
-
-
-def _read_user_decisions(epic_dir: Path) -> str | None:
-    """Read user-decisions.json from the epic directory, if it exists."""
-    decisions_path = epic_dir / "user-decisions.json"
-    if not decisions_path.is_file():
-        return None
-    return decisions_path.read_text(encoding="utf-8")
+    return epic_path.read_text(encoding="utf-8")
 
 
 def _read_epic_number(epic_dir: Path) -> int:
@@ -109,118 +101,6 @@ Examples:
 
 Criteria without a `command` field fall back to keyword matching (e.g. "quality gates
 pass" maps to `just check`), but explicit commands are preferred for precision."""
-
-# Story sizing guidance (Section 8.4 Decision 7)
-STORY_SIZING_GUIDANCE = """\
-Story sizing constraints:
-- ONE FEATURE PER STORY. Never bundle unrelated features into one story, even
-  if they share a theme (e.g. "security"). If two changes can be described,
-  tested, and reverted independently, they are separate stories.
-- Each story is a vertical slice: one feature through all layers (DB → service
-  → API → UI). The agent completes it in one invocation.
-- 3-8 files created/modified per story.
-- Each story should use <50% of the agent context window.
-- Each story should produce something checkable.
-- Each story builds on the previous but is self-contained.
-- If a single feature is complex (e.g. intricate UI interaction, complex
-  business rules), split into a scaffold story (vertical slice with simple
-  placeholder implementation) followed by a refinement story (full logic).
-- More stories is fine. Prefer 5 focused stories over 3 bloated ones. There is
-  no penalty for having more stories — the orchestrator handles sequencing.
-- State assumption: declare whether the story expects cumulative state (default)
-  or clean state (orchestrator runs db-reset before dispatch)."""
-
-# Story enrichment guidance (Step 3b)
-STORY_ENRICHMENT_GUIDANCE = """\
-After grouping artefacts into stories, populate the four enrichment fields for EVERY
-story. Be specific — reference concrete paths, method names, and prior story outputs.
-Generic bullets are useless to an agent that has never seen this codebase.
-
-#### acceptance_criteria
-User-perspective, testable statements. Each criterion must be independently verifiable
-by running a command or checking a visible behaviour.
-
-Good:
-- "POST /api/v1/gears creates a gear and returns 201 with the gear ID"
-- "The /gear page shows gear items for the authenticated user"
-
-Bad (too technical, not user-visible):
-- "GearRepository has a create method"
-- "The Pydantic schema validates input"
-
-#### architectural_context
-Patterns, module boundaries, and design decisions the agent must follow. Reference
-actual files so the agent knows where to look.
-
-Good:
-- "Repositories follow the pattern in webapp/adapters/persistence/repositories/signal_chain.py"
-- "API routes use the pattern in webapp/api/v1/signal_chains.py — include the CurrentUser dependency"
-
-Bad (too abstract):
-- "Use the repository pattern"
-- "Follow existing API patterns"
-
-#### navigation_hints
-File paths, symbol names, and entry points. Assume the agent starts cold with no
-knowledge of where things live.
-
-Good:
-- "API route entry point: webapp/api/v1/signal_chains.py — copy the route registration pattern"
-- "ORM model base class: libs/core/domain/base.py"
-
-Bad:
-- "Follow existing patterns"
-- "Look in the webapp directory"
-
-#### depends_on_summary
-Outputs from prior stories that this story consumes. Reference specific files and
-symbols, not story names.
-
-Good:
-- "Story 01 created GearModel in libs/core/domain/gear.py with fields: id, name, user_id"
-- "Story 02 created POST /api/v1/gears — use that route's response schema for the form submission"
-
-Bad:
-- "Depends on Story 01"
-- "Uses the gear model from the previous story"
-"""
-
-# Skill mapping per story type (Section 8.5 Decision 3)
-SKILL_MAPPING_REFERENCE = """\
-Skill mapping per story type (select appropriate skills for each story):
-| Story Type | Typical Skills |
-|------------|---------------|
-| Architecture | `gts-architecture`, `repository-patterns`, `service-patterns` |
-| API + Schemas | `gts-backend-dev`, `web-handlers`, `error-handling` |
-| UI Scaffolding | `gts-frontend-dev`, `htmx`, `astro-frontend` |
-| CRUD Features | `gts-frontend-dev`, `htmx`, `gts-backend-dev` |
-| Regression Tests | `gts-testing`, `playwright` |"""
-
-# Tool restrictions per agent role (Section 8.2 Strategy 4)
-TOOL_REFERENCE = """\
-Tool restrictions per agent role:
-| Agent Role | Tools |
-|------------|-------|
-| Implementation | Read, Edit, Write, Bash, Glob, Grep |
-| Regression test | Read, Edit, Write, Bash, Glob, Grep |
-
-Note: Validation checkpoints run commands directly (no agent dispatch).
-Validation does not need tool configuration.
-
-Codex agents receive MCP tools (Serena, Pyright, Playwright, Chrome DevTools)
-automatically via ~/.codex/config.toml. Do not specify tools in the agent
-config for Codex — they are configured globally."""
-
-# Budget defaults (Section 8.2 Strategy 7)
-BUDGET_REFERENCE = """\
-Budget defaults (starting points):
-| Agent Type | Max Turns | Max Budget |
-|------------|-----------|------------|
-| Architecture (Codex) | 30 | $3.00 |
-| Implementation (Codex) | 40 | $4.00 |
-| Validation (Haiku) | 15 | $0.50 |
-| Regression tests (Codex) | 30 | $3.00 |"""
-
 
 # Test spec guidance (assertion types + fixture catalogue + example)
 TEST_SPEC_GUIDANCE = """\
@@ -284,37 +164,18 @@ Available test fixtures (from tests/FIXTURES.md):
 - Use template placeholders like `{shootout.id}` for dynamic values from fixtures."""
 
 
-def _build_decisions_section(user_decisions: str | None) -> str:
-    """Build the user decisions section for the planner prompt."""
-    if not user_decisions:
-        return ""
-    return f"""---
-
-## Scope Decisions (from Gap Detection)
-
-The following decisions were made during interactive gap detection (Stage 2b).
-These are locked — do not redefine or contradict them.
-
-<user_decisions>
-{user_decisions}
-</user_decisions>
-
-"""
-
-
 def _build_planner_prompt(
-    context: str,
+    epic_md: str,
     epic_number: int,
-    user_decisions: str | None = None,
 ) -> str:
-    """Construct the Opus planner prompt.
+    """Construct the planner prompt.
 
-    The prompt instructs Opus to produce a plan.json structure only.
+    The planner is a tool-equipped agent. It receives only the epic body
+    and JSON schema, and explores the codebase using tools (Read, Grep,
+    Glob) to find actual files, services, models, and routes.
+
     PLAN.md is rendered deterministically from the validated model.
-    The JSON schema is included inline so the model knows the structure
-    without relying on --json-schema constrained decoding.
     """
-    # Generate schema for prompt context
     plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
 
     prompt = f"""\
@@ -323,6 +184,12 @@ def _build_planner_prompt(
 You are the planner for the GTS (Guitar Tone Shootout) project. Your job is to
 produce a complete plan for epic #{epic_number} that will be executed by AI agents
 under an automated orchestrator.
+
+**You are a tool-equipped agent.** Use Read, Grep, and Glob to explore the
+codebase. Find actual files, services, models, routes, and patterns. Do NOT
+guess at file paths or architecture — look them up.
+
+Read AGENTS.md and DEVELOPMENT.md first for project conventions and structure.
 
 Think through the plan step by step first, then emit the final JSON inside a
 ```json code fence. The orchestrator extracts JSON from your response
@@ -333,6 +200,8 @@ Before emitting the JSON, verify your own work:
 - Count your observable truths and confirm every ID appears in at least one
   story's truths_addressed AND at least one journey's truths_covered.
 - Confirm every checkpoint after_story references a real story_id.
+- Confirm every scope.modify path points to a file that actually exists (use
+  Glob to verify).
 - List any gaps and fix them before writing the JSON.
 
 ---
@@ -347,16 +216,12 @@ Your output must conform to this schema:
 
 ---
 
-## Input Context
+## Epic
 
-The following is the assembled context for this epic, including the epic description
-from GitHub and codebase architecture.
+<epic>
+{epic_md}
+</epic>
 
-<context>
-{context}
-</context>
-
-{_build_decisions_section(user_decisions)}
 ---
 
 ## Planning Methodology: Goal-Backward Analysis
@@ -372,29 +237,47 @@ see or do when the epic is complete.
 Good truths:
 - "A user can visit /gear and see a list of their gear items"
 - "Clicking a gear item navigates to a detail page showing model information"
-- "Submitting the edit form updates the gear name, visible on return to detail page"
 
 Bad truths (too technical):
 - "GearRepository has a get_by_id method"
 - "The Pydantic schema validates input"
-- "The migration adds a gear table"
 
-### Step 2: Derive Required Artefacts
+### Step 2: Explore the Codebase
 
-For each truth, identify what code artefacts must exist for the truth to be
-observable. Walk the full stack: entity -> ORM model -> repository -> service ->
-API endpoint -> page template -> navigation link.
+Use your tools to understand the current state:
+- Read AGENTS.md and DEVELOPMENT.md for conventions
+- Grep for existing patterns (repositories, services, API routes, templates)
+- Find files that will need modification
+- Understand the module structure and dependency rules
 
 ### Step 3: Organise Artefacts into Stories
 
 Group artefacts into stories. Each story is a coherent chunk that one AI agent
 completes in a single invocation.
 
-{STORY_SIZING_GUIDANCE}
+Story sizing constraints:
+- ONE FEATURE PER STORY. Never bundle unrelated features into one story.
+- Each story is a vertical slice: one feature through all layers.
+- 3-8 files created/modified per story.
+- Each story should produce something checkable.
+- Each story builds on the previous but is self-contained.
+- More stories is fine. Prefer 5 focused stories over 3 bloated ones.
+- state_assumption defaults to "cumulative". Only set "clean" when validation
+  criteria depend on known data state.
 
 ### Step 3b: Enrich Each Story
 
-{STORY_ENRICHMENT_GUIDANCE}
+For EVERY story, populate these fields with specific, concrete information:
+
+- **acceptance_criteria**: User-perspective, testable statements. Each must be
+  independently verifiable.
+- **architectural_context**: Patterns, module boundaries, design decisions.
+  Reference actual files so the agent knows where to look.
+- **navigation_hints**: File paths, symbol names, entry points. Assume the
+  agent starts cold with no knowledge of where things live.
+- **depends_on_summary**: Outputs from prior stories that this story consumes.
+  Reference specific files and symbols, not story names.
+- **implementation_notes**: Domain-specific hints.
 
 ### Step 3c: Add Test Specs
 
@@ -403,42 +286,18 @@ completes in a single invocation.
 ### Step 4: Define User Journeys
 
 Create connected, end-to-end narratives that link observable truths into coherent
-flows. Not isolated assertions ("GET /gear returns 200") but connected walks
-("user clicks Gear in nav, sees list, clicks item, sees detail").
-
-Every truth must appear in at least one journey. Journeys include
-critical_transitions with {{from, to, mechanism}}.
+flows. Every truth must appear in at least one journey.
 
 ### Step 5: Place Validation Checkpoints
 
 {CHECKPOINT_PLACEMENT_GUIDANCE}
-
-### Step 6: Specify Wiki Sections
-
-For each story, specify `wiki_sections` — a list of wiki section header names from
-the project wiki indexes (`.planning/wiki-indexes/`). The Stage 4 prompt builder
-uses this to load targeted wiki sections into each story's agent prompt, keeping
-prompt size manageable.
-
----
-
-## Agent Configuration Reference
-
-For each story, specify the full agent dispatch configuration.
-
-{SKILL_MAPPING_REFERENCE}
-
-{TOOL_REFERENCE}
-
-{BUDGET_REFERENCE}
 
 ---
 
 ## Validation Checkpoints: Command-Based
 
 Validation checkpoints run shell commands directly — no LLM agents. Each criterion
-should include a `command` field. The `evidence_fields` default to
-`["command", "exit_code", "output_tail"]` and can be omitted.
+should include a `command` field.
 
 {EVIDENCE_FIELDS_TABLE}
 
@@ -458,7 +317,7 @@ Key fields:
 - `stories`: ordered array with story_id ("01-name"), name, purpose,
   agent config, scope, acceptance_criteria (required non-empty), architectural_context,
   navigation_hints, depends_on_summary, implementation_notes, truths_addressed,
-  wiki_sections, test_spec (optional but recommended)
+  test_spec (optional but recommended)
 - `validation_checkpoints`: array with after_story, check_type, checks
 
 The critical_transitions use {{source, to, mechanism}}.
@@ -472,18 +331,15 @@ The critical_transitions use {{source, to, mechanism}}.
 3. Every checkpoint after_story must reference a valid story_id.
 4. Every journey truths_covered ID must exist in observable_truths.
 5. Files in scope.modify must be real files that exist in the GTS codebase.
+   USE GLOB TO VERIFY.
 6. Files in scope.create must have parent directories that exist.
 7. Stories that use files created by earlier stories must appear after them.
 8. state_assumption defaults to "cumulative". Only set "clean" when validation
    criteria depend on known data state.
 9. The plan.json epic_number must be {epic_number}.
 10. Do NOT invent features not described in the epic. Stay within scope.
-11. Every story MUST include `wiki_sections` — a list of wiki section header names
-    from `.planning/wiki-indexes/` for the Stage 4 prompt builder.
-12. Every story MUST have non-empty acceptance_criteria. Stories without acceptance
-    criteria will fail Phase A validation.
-13. Every story SHOULD include a test_spec with test_type, fixtures, and assertions.
-    Missing test_spec produces a warning, not an error.
+11. Every story MUST have non-empty acceptance_criteria.
+12. Every story SHOULD include a test_spec with test_type, fixtures, and assertions.
 
 Think step by step, then emit the JSON in a ```json code fence."""
 
@@ -500,9 +356,6 @@ def build_revision_prompt(
     validation_errors: list[str],
 ) -> str:
     """Build a revision prompt when Phase A validation fails.
-
-    Appends the validation errors to the original prompt so the planner
-    can fix structural issues in plan.json.
 
     **Legacy:** No longer called from the revision dispatch path. The
     targeted ``build_targeted_phase_a_revision_prompt`` is used instead.
@@ -533,27 +386,14 @@ JSON object and NOTHING ELSE — no markdown, no explanation. Raw JSON only.
 
 
 def _extract_finding_items(dim_data: dict, key: str) -> list:
-    """Get finding items from nested dict, flat dict, or array layout.
-
-    The verifier prompt asks for findings as an array of objects with
-    severity fields, but earlier code expected a dict with named keys
-    (e.g. ``{"findings": {"gaps": [...]}}``) or flat keys. This handles
-    all three:
-
-    - Array: ``{"findings": [{"severity": "must_fix", ...}]}``
-    - Nested dict: ``{"findings": {"gaps": [...]}}``
-    - Flat: ``{"gaps": [...]}``
-    """
+    """Get finding items from nested dict, flat dict, or array layout."""
     findings = dim_data.get("findings")
-    # Array of finding objects — return must_fix items directly
     if isinstance(findings, list):
         return [f for f in findings if f.get("severity") == "must_fix"]
-    # Nested dict with named keys
     if isinstance(findings, dict):
         items = findings.get(key, [])
         if items:
             return items
-    # Flat: dim_data[key]
     return dim_data.get(key, [])
 
 
@@ -572,17 +412,6 @@ def build_verifier_revision_prompt(
 ) -> str:
     """Build a revision prompt when Phase B verification fails.
 
-    Appends the structured verifier output so the planner can address
-    specific gaps: journey incompleteness, uncovered transitions, intent
-    misalignment, logical gaps, and weak validations.
-
-    Handles both flat and nested verifier output layouts:
-    - Nested: ``{"dimensions": {"journey_completeness": {"findings": {"gaps": [...]}}}}``
-    - Flat: ``{"journey_completeness": {"gaps": [...]}}``
-
-    Also handles findings items as either plain strings or dicts with
-    structured keys (the verifier is not constrained to one format).
-
     **Legacy:** No longer called from the revision dispatch path. The
     targeted ``build_targeted_phase_b_revision_prompt`` is used instead.
     """
@@ -597,12 +426,10 @@ def build_verifier_revision_prompt(
         "",
     ]
 
-    # Resolve dimensions dict (nested under "dimensions" key or flat at top level)
     dims = verifier_result.get("dimensions")
     if not isinstance(dims, dict):
         dims = verifier_result
 
-    # Journey completeness
     jc = dims.get("journey_completeness", {})
     if isinstance(jc, dict) and jc.get("status") == "fail":
         feedback_lines.append("### Journey Completeness Gaps")
@@ -610,7 +437,6 @@ def build_verifier_revision_prompt(
             feedback_lines.append(f"- {_format_finding_item(gap)}")
         feedback_lines.append("")
 
-    # Transition coverage
     tc = dims.get("transition_coverage", {})
     if isinstance(tc, dict) and tc.get("status") == "fail":
         feedback_lines.append("### Uncovered Transitions")
@@ -618,7 +444,6 @@ def build_verifier_revision_prompt(
             feedback_lines.append(f"- {_format_finding_item(uc)}")
         feedback_lines.append("")
 
-    # Intent alignment
     ia = dims.get("intent_alignment", {})
     if isinstance(ia, dict) and ia.get("status") == "fail":
         feedback_lines.append("### Intent Alignment Issues")
@@ -628,7 +453,6 @@ def build_verifier_revision_prompt(
             feedback_lines.append(f"- Scope creep: {_format_finding_item(creep)}")
         feedback_lines.append("")
 
-    # Gap detection
     gd = dims.get("gap_detection", {})
     if isinstance(gd, dict) and gd.get("status") == "fail":
         feedback_lines.append("### Logical Gaps Between Stories")
@@ -636,7 +460,6 @@ def build_verifier_revision_prompt(
             feedback_lines.append(f"- {_format_finding_item(gap)}")
         feedback_lines.append("")
 
-    # Validation sufficiency
     vs = dims.get("validation_sufficiency", {})
     if isinstance(vs, dict) and vs.get("status") == "fail":
         feedback_lines.append("### Weak Validation Checks")
@@ -664,15 +487,7 @@ def build_targeted_phase_a_revision_prompt(
     """Build a targeted Phase A revision prompt.
 
     Sends only the current plan.json + errors + JSON schema (~25K total)
-    instead of rebuilding the entire planning prompt (~150K). The planner
-    makes minimal edits rather than rewriting from scratch.
-
-    Args:
-        plan_json_str: Current plan.json content as a string.
-        errors: List of Phase A validation error messages.
-
-    Returns:
-        The revision prompt string.
+    instead of rebuilding the entire planning prompt.
     """
     plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
     error_list = "\n".join(f"- {err}" for err in errors)
@@ -727,20 +542,10 @@ def build_targeted_phase_b_revision_prompt(
 ) -> str:
     """Build a targeted Phase B revision prompt.
 
-    Sends only the current plan.json + must_fix findings + JSON schema
-    (~25K total) instead of rebuilding the entire planning prompt (~150K).
-    The planner addresses specific findings rather than rewriting from scratch.
-
-    Args:
-        plan_json_str: Current plan.json content as a string.
-        verifier_result: The Phase B verifier result dict.
-
-    Returns:
-        The revision prompt string.
+    Sends only the current plan.json + must_fix findings + JSON schema.
     """
     plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
 
-    # Extract must_fix findings into readable feedback
     feedback_lines: list[str] = []
 
     dims = verifier_result.get("dimensions")
@@ -837,14 +642,9 @@ plan."""
 
 
 def _parse_structured_plan(result) -> Plan:
-    """Parse a dispatch result into a validated Plan model.
-
-    The model produces reasoning text followed by JSON in a ```json code fence.
-    We extract the fenced JSON and validate with Pydantic.
-    """
+    """Parse a dispatch result into a validated Plan model."""
     text = result.output.strip()
 
-    # Extract JSON from ```json code fence
     fence_match = re.search(r"```json\s*\n(.*?)```", text, re.DOTALL)
     json_text = fence_match.group(1).strip() if fence_match else text
 
@@ -877,55 +677,40 @@ def generate_plan(
     epic_dir: Path,
     config: EpicConfig | None = None,
 ) -> tuple[Path, Path]:
-    """Generate PLAN.md and plan.json from assembled context.
+    """Generate PLAN.md and plan.json from the epic body.
 
-    Dispatches a single planner invocation to produce plan JSON.
-    The JSON schema is included in the prompt text (not via --json-schema
-    constrained decoding, which fails on large outputs). PLAN.md is rendered
-    deterministically from the validated Pydantic model.
+    The planner is dispatched as a tool-equipped agent that explores the
+    codebase itself. It receives only the epic body and JSON schema.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
-            Must contain CONTEXT.md from context assembly.
-        config: Optional epic config. If provided, uses config.models.planner
-            and config.budgets for dispatch parameters.
+            Must contain EPIC.md from ingestion.
+        config: Optional epic config for model/budget overrides.
 
     Returns:
         Tuple of (plan_md_path, plan_json_path).
 
     Raises:
-        PlanGenerationError: If context is missing, dispatch fails, or
+        PlanGenerationError: If EPIC.md is missing, dispatch fails, or
             output cannot be parsed.
     """
-    # Read inputs
-    context = _read_context(epic_dir)
+    epic_md = _read_epic_md(epic_dir)
     epic_number = _read_epic_number(epic_dir)
-    user_decisions = _read_user_decisions(epic_dir)
 
-    # Build the planner prompt (includes JSON schema as context)
     prompt = _build_planner_prompt(
-        context=context,
+        epic_md=epic_md,
         epic_number=epic_number,
-        user_decisions=user_decisions,
     )
 
-    # Warn if prompt is likely to cause planner timeout
     prompt_tokens = len(prompt) // 4
-    if prompt_tokens > 25_000:
-        logger.warning(
-            "Planning prompt is ~%d tokens — Opus may struggle or timeout. "
-            "Consider breaking this epic into smaller pieces.",
-            prompt_tokens,
-        )
-
-    planner_model = config.models.planner if config else "opus"
+    planner_model = config.models.planner if config else "sonnet"
 
     logger.info(
         "Dispatching %s planner for epic #%d (%d chars, ~%d tokens)",
         planner_model,
         epic_number,
         len(prompt),
-        len(prompt) // 4,
+        prompt_tokens,
     )
 
     mcp_servers, timeout = get_dispatch_params("planning", config)
@@ -940,7 +725,7 @@ def generate_plan(
 
     if not result.success:
         raise PlanGenerationError(
-            f"Opus planner dispatch failed (exit_code={result.exit_code}). "
+            f"Planner dispatch failed (exit_code={result.exit_code}). "
             f"Output: {result.output[:500]}"
         )
 
@@ -950,10 +735,8 @@ def generate_plan(
         result.turns or "unknown",
     )
 
-    # Parse structured output into Pydantic model
     plan = _parse_structured_plan(result)
 
-    # Write plan.json (serialised from validated model)
     plan_json_path = epic_dir / "plan.json"
     plan_json_path.write_text(
         json.dumps(plan.model_dump(), indent=2, ensure_ascii=False) + "\n",
@@ -961,7 +744,6 @@ def generate_plan(
     )
     logger.info("Wrote plan.json to %s", plan_json_path)
 
-    # Render and write PLAN.md deterministically
     plan_md_path = epic_dir / "PLAN.md"
     plan_md_path.write_text(render_plan_md(plan), encoding="utf-8")
     logger.info("Wrote PLAN.md to %s", plan_md_path)
@@ -996,7 +778,7 @@ def main() -> None:
     if not epic_dir.is_dir():
         print(
             f"Error: Epic directory not found: {epic_dir}. "
-            f"Run ingestion and context assembly first.",
+            f"Run ingestion first.",
             file=sys.stderr,
         )
         sys.exit(1)

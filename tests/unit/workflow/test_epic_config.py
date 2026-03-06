@@ -33,10 +33,9 @@ class TestEpicConfigParsing:
         _validate_cross_model(models)  # no exception
 
     def test_budget_timeout_defaults(self):
-        """Planning and gap_detection get 1800s timeout, others get 600s."""
+        """Planning gets 1800s timeout, others get 600s."""
         config = load_config(DEFAULT_CONFIG_PATH)
         assert config.budgets["planning"].timeout == 1800
-        assert config.budgets["gap_detection"].timeout == 1800
         assert config.budgets["implementation"].timeout == 600
         assert config.budgets["critique_plan"].timeout == 600
         assert config.budgets["critique_story"].timeout == 600
@@ -135,7 +134,7 @@ class TestWriteConfigOverrides:
         config = load_config(DEFAULT_CONFIG_PATH, config_path)
         assert config.models.implementor == "haiku"
         # Other models unchanged
-        assert config.models.planner == "opus"
+        assert config.models.planner == "sonnet"
         assert config.models.story_critic == "opus"
 
     def test_writes_budget_overrides(self, tmp_path):

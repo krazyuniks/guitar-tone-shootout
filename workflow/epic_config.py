@@ -24,13 +24,12 @@ DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "default_config.toml"
 class ModelConfig:
     """Model assignments per role."""
 
-    planner: str = "opus"
-    plan_critic: str = "opus"
+    planner: str = "sonnet"
+    plan_critic: str = "codex"
     implementor: str = "codex"
     story_critic: str = "opus"
     epic_critic: str = "opus"
     test_writer: str = "sonnet"
-    test_reviewer: str = "codex"
 
 
 @dataclass(frozen=True)
@@ -40,6 +39,14 @@ class BudgetConfig:
     timeout: int = 600  # seconds; 0 = no timeout
 
 
+
+@dataclass(frozen=True)
+class GatesConfig:
+    """Toggle mandatory validation gates per-epic."""
+
+    skip_golden_path: bool = False
+
+
 @dataclass(frozen=True)
 class EpicConfig:
     """Complete epic configuration profile."""
@@ -47,6 +54,7 @@ class EpicConfig:
     models: ModelConfig = field(default_factory=ModelConfig)
     budgets: dict[str, BudgetConfig] = field(default_factory=dict)
     mcp: dict[str, list[str]] = field(default_factory=dict)
+    gates: GatesConfig = field(default_factory=GatesConfig)
 
 
 def _parse_toml(path: Path) -> dict:
@@ -87,12 +95,6 @@ def _validate_cross_model(models: ModelConfig) -> None:
             "epic_critic and implementor are both %s — consider using different models "
             "for diverse review biases",
             models.implementor,
-        )
-    if models.test_writer == models.test_reviewer:
-        logger.warning(
-            "test_writer and test_reviewer are both %s — consider using different models "
-            "for diverse review biases",
-            models.test_writer,
         )
 
 
@@ -137,7 +139,11 @@ def load_config(
     # Parse MCP
     mcp = data.get("mcp", {})
 
-    return EpicConfig(models=models, budgets=budgets, mcp=mcp)
+    # Parse gates
+    gates_data = data.get("gates", {})
+    gates = GatesConfig(**gates_data)
+
+    return EpicConfig(models=models, budgets=budgets, mcp=mcp, gates=gates)
 
 
 def ensure_epic_config(epic_dir: Path) -> Path:
@@ -168,7 +174,6 @@ _ROLE_DISPATCH_MAP = {
     "story_critic": "critique",
     "epic_critic": "critique",
     "test_writer": "test_writing",
-    "test_reviewer": "test_review",
 }
 
 # Map from config role name → budget key
@@ -177,7 +182,6 @@ _ROLE_BUDGET_MAP = {
     "story_critic": "critique_story",
     "epic_critic": "critique_epic",
     "test_writer": "test_writing",
-    "test_reviewer": "test_review",
 }
 
 

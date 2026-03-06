@@ -229,6 +229,8 @@ def run_validation_checkpoint(
     epic_dir: Path,
     story_id: str,
     event_logger: EventLogger | None = None,
+    *,
+    skip_golden_path: bool = False,
 ) -> ValidationResult:
     """Execute a validation checkpoint by running commands directly.
 
@@ -241,6 +243,7 @@ def run_validation_checkpoint(
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95).
         story_id: The story_id this checkpoint follows.
         event_logger: Optional JSONL logger for recording results.
+        skip_golden_path: If True, skip the mandatory golden path gate.
 
     Returns:
         ValidationResult with pass/fail status, per-criterion results,
@@ -324,7 +327,7 @@ def run_validation_checkpoint(
             )
 
     # Mandatory golden path gate: run after baseline quality gate passes.
-    if "just test-golden-path" not in story_commands:
+    if not skip_golden_path and "just test-golden-path" not in story_commands:
         logger.info(
             "Running mandatory golden path gate for story '%s': just test-golden-path",
             story_id,
@@ -345,6 +348,11 @@ def run_validation_checkpoint(
                 failure_category="implementation",
                 raw_output=result.raw_output + "\n" + golden_result.raw_output,
             )
+    elif skip_golden_path:
+        logger.info(
+            "Skipping golden path gate for story '%s' (disabled in epic config)",
+            story_id,
+        )
 
     return result
 

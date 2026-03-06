@@ -27,7 +27,6 @@ Parse the arguments above and run the matching command. Do NOT ask clarifying qu
 | `brainstorm <N>`, `/epic brainstorm <N>` | Load `brainstorm.md` skill and follow it |
 | `status <N>`, `/epic status <N>` | `just epic-status <N>` |
 | `validate-plan <N>`, `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
-| `review-tests <N>`, `/epic review-tests <N>` | Load `review-tests.md` skill and follow it |
 | `deps <N>`, `/epic deps <N>` | Load `deps.md` skill and follow it |
 | `next`, `/epic next` | Load `next.md` skill and follow it |
 
@@ -108,16 +107,14 @@ If args are empty (blank or whitespace only), ask which epic number. That is the
 - **Never suggest** reducing scope, cutting features, or building an MVP subset
 - The epic defines the work. ALL of it gets planned. ALL of it gets built.
 
-### Phase Flow
+### Phase Flow (2 agent dispatches)
 
 1. **Ingest** -- Fetch epic from GitHub via `gh issue view`, write EPIC.md with YAML frontmatter
-2. **Context Assembly** -- Read EPIC.md + wiki + codebase files, keyword scan for relevant areas, write CONTEXT.md (deterministic, $0)
-3. **Interactive Scope** -- User confirms scope, resolves ambiguities, locks decisions
-4. **Plan Generation** -- Opus performs goal-backward analysis: observable truths -> user journeys -> stories -> validation checkpoints. Produces PLAN.md + plan.json
-5. **Schema Validation** -- Phase A: deterministic checks on plan.json (referential integrity, truth coverage, scope coherence, dependency ordering)
-6. **Plan Verification** -- Phase B: Codex adversarial critique -- journey completeness, transition coverage, intent alignment, gap detection, validation sufficiency
-7. **Decision Gate** -- Human approves, revises, or rejects
-8. **Commit + Push** -- Planning artefacts committed to remote
+2. **Plan Generation** -- Planner agent (default: Sonnet) explores codebase with tools, performs goal-backward analysis: observable truths -> user journeys -> stories -> validation checkpoints. Produces PLAN.md + plan.json
+3. **Schema Validation** -- Phase A: deterministic checks on plan.json (referential integrity, truth coverage, scope coherence, dependency ordering)
+4. **Plan Verification** -- Phase B: Codex adversarial critique -- 6 dimensions: journey completeness, transition coverage, intent alignment, gap detection, validation sufficiency, gap sufficiency
+5. **Decision Gate** -- Human approves, revises, or rejects
+6. **Commit + Push** -- Planning artefacts committed to remote
 
 ### READ Before DERIVE (MANDATORY)
 

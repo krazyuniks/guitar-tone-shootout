@@ -127,7 +127,6 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
         ("story_critic", "critique_story", "critique"),
         ("epic_critic", "critique_epic", "critique"),
         ("test_writer", "test_writing", "test_writing"),
-        ("test_reviewer", "test_review", "test_review"),
     ]
 
     available_mcp = _get_available_mcp_servers()
@@ -272,10 +271,16 @@ def _run_planning_steps(
     config,
     epic_logger,
 ) -> None:
-    """Execute Steps 1-6 of the planning pipeline (wrapped in dispatch_logging)."""
-    from workflow.context_assembler import AssemblyError, assemble_context
+    """Execute Steps 1-4 of the planning pipeline (wrapped in dispatch_logging).
+
+    Pipeline (2 agent dispatches):
+      1. Ingest — fetch epic from GitHub
+      2. Plan — agent explores codebase, breaks epic into stories
+      3. Verify — Phase A (deterministic) + Phase B (cross-model critique)
+      4. Decision Gate — human approval
+      5. Commit + Push
+    """
     from workflow.epic_ingest import IngestionError, ingest_epic
-    from workflow.gap_detection import GapDetectionError, run_gap_detection
     from workflow.git_helpers import GitPushError, robust_commit
     from workflow.plan_generator import PlanGenerationError, generate_plan
     from workflow.plan_verifier import (
@@ -298,44 +303,13 @@ def _run_planning_steps(
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 2: Context Assembly
-    context_path = epic_dir / "CONTEXT.md"
-    if _should_skip(context_path, "CONTEXT.md"):
-        console.print("[dim]Step 2: Context Assembly — skipped[/dim]")
-    else:
-        console.print("[bold]Step 2:[/bold] Assembling context...")
-        try:
-            path = assemble_context(epic_dir, PROJECT_ROOT)
-            size = path.stat().st_size
-            console.print(
-                f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)} "
-                f"({size:,d} bytes, ~{size // 4:,d} tokens)"
-            )
-        except AssemblyError as exc:
-            console.print(f"  [red]Error:[/red] {exc}")
-            raise typer.Exit(1) from exc
-
-    # Step 2b: Gap Detection
-    decisions_path = epic_dir / "user-decisions.json"
-    if _should_skip(decisions_path, "user-decisions.json"):
-        console.print("[dim]Step 2b: Gap Detection — skipped[/dim]")
-    else:
-        console.print()
-        console.print("[bold]Step 2b:[/bold] Gap detection...")
-        try:
-            path = run_gap_detection(epic_dir, epic_logger, config=config)
-            console.print(f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)}")
-        except GapDetectionError as exc:
-            console.print(f"  [red]Error:[/red] {exc}")
-            raise typer.Exit(1) from exc
-
-    # Step 3: Plan Generation
+    # Step 2: Plan Generation
     plan_json_path = epic_dir / "plan.json"
     plan_md_path = epic_dir / "PLAN.md"
     if _should_skip(plan_json_path, "plan.json"):
-        console.print("[dim]Step 3: Plan Generation — skipped[/dim]")
+        console.print("[dim]Step 2: Plan Generation — skipped[/dim]")
     else:
-        console.print("[bold]Step 3:[/bold] Generating plan...")
+        console.print("[bold]Step 2:[/bold] Generating plan...")
 
         epic_logger.log_event(
             "planner_dispatched",
@@ -368,10 +342,10 @@ def _run_planning_steps(
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 4: Verification (structural validation + cross-model review)
+    # Step 3: Verification (structural validation + cross-model review)
     critic_model = config.models.plan_critic if config else "codex"
     console.print()
-    console.print("[bold]Step 4:[/bold] Verifying plan...")
+    console.print("[bold]Step 3:[/bold] Verifying plan...")
 
     try:
         verifier_result, success = verify_with_revision_cycle(epic_dir, config=config)
@@ -389,6 +363,7 @@ def _run_planning_steps(
                 "intent_alignment",
                 "gap_detection",
                 "validation_sufficiency",
+                "gap_sufficiency",
             ]
         }
         epic_logger.log_event("phase_b_pass", epic=epic_number, attempt=1, scores=scores)
@@ -420,7 +395,7 @@ def _run_planning_steps(
         console.print("\n  Review findings at the Decision Gate below.")
         # Fall through to Decision Gate — human can still approve
 
-    # Step 5: Decision Gate
+    # Step 4: Decision Gate
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
 
@@ -530,9 +505,9 @@ def _run_planning_steps(
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
         return
 
-    # Step 6: Commit + Push
+    # Step 5: Commit + Push
     console.print()
-    console.print("[bold]Step 6:[/bold] Committing planning artefacts...")
+    console.print("[bold]Step 5:[/bold] Committing planning artefacts...")
 
     planning_paths = [
         str(epic_dir.relative_to(PROJECT_ROOT)),
@@ -562,10 +537,10 @@ def _run_planning_steps(
     epic_logger.log_event("plan_committed", epic=epic_number, commit=commit_hash)
 
     console.print()
-    console.print("[green]Stage 3 complete.[/green] Plan committed.")
+    console.print("[green]Planning complete.[/green] Plan committed.")
     console.print(
-        f"\n[bold]Next step:[/bold] Run [cyan]/epic review-tests {epic_number}[/cyan] "
-        "to review and approve test specs."
+        f"\n[bold]Next step:[/bold] Run [cyan]just epic {epic_number}[/cyan] "
+        "again to start story execution."
     )
 
 

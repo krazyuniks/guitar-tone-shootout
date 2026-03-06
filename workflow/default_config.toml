@@ -1,30 +1,12 @@
-# Default epic configuration profile.
-# Copied to .planning/epics/E{N}/config.toml per epic.
-# User selects options interactively during Stage 4 setup.
-
 [models]
-# Planner and plan critic (Stage 3)
-planner = "opus"
-plan_critic = "opus"
-
-# Story implementor and critics (Stage 4)
-# Constraint: story_critic != implementor, epic_critic != implementor
-implementor = "codex"
-story_critic = "opus"
 epic_critic = "opus"
-
-# Test writing and review (Stage 4)
-# Constraint: test_reviewer != test_writer (cross-model review)
+implementor = "codex"
+plan_critic = "codex"
+planner = "sonnet"
+story_critic = "opus"
 test_writer = "sonnet"
-test_reviewer = "codex"
 
-[budgets.planning]
-timeout = 1800
-
-[budgets.implementation]
-timeout = 600
-
-[budgets.validation]
+[budgets.critique_epic]
 timeout = 600
 
 [budgets.critique_plan]
@@ -33,27 +15,21 @@ timeout = 600
 [budgets.critique_story]
 timeout = 600
 
-[budgets.critique_epic]
+[budgets.implementation]
 timeout = 600
 
-[budgets.gap_detection]
+[budgets.planning]
 timeout = 1800
 
 [budgets.test_writing]
 timeout = 300
 
-[budgets.test_review]
-timeout = 300
+[budgets.validation]
+timeout = 600
 
-# MCP servers per dispatch role.
-# Named servers are resolved from ~/.claude/settings.json + ~/.claude.json
-# Any agent that inspects code gets serena + pyright.
-# Web-facing tasks add chrome-devtools + playwright.
 [mcp]
-planning = ["serena", "pyright"]
-implementation = ["serena", "pyright"]
 critique = ["serena", "pyright"]
-validation = []
-gap_detection = ["serena", "pyright"]
+implementation = ["serena", "pyright"]
+planning = ["serena", "pyright"]
 test_writing = ["serena", "pyright"]
-test_review = []
+validation = []

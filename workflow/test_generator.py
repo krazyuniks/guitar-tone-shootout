@@ -396,8 +396,8 @@ def review_test(
 
     prompt = _build_reviewer_prompt(test_code, test_spec)
 
-    model = config.models.test_reviewer
-    mcp_servers, timeout = get_dispatch_params("test_review", config)
+    model = config.models.test_writer
+    mcp_servers, timeout = get_dispatch_params("test_writing", config)
 
     result: AgentResult = dispatch_agent(
         prompt=prompt,

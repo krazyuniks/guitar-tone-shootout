@@ -65,18 +65,6 @@ DOMAIN_TO_SKILLS: dict[str, list[str]] = {
     "infrastructure": ["docker-infra"],
 }
 
-# Domain to wiki section names mapping
-# (sections from GTS-Technical-Architecture.index and domain-specific indexes)
-DOMAIN_TO_WIKI_SECTIONS: dict[str, list[str]] = {
-    "backend": ["api-design", "design-patterns"],
-    "frontend": ["frontend"],
-    "database": ["persistence", "domain-model"],
-    "testing": ["testing"],
-    "security": ["auth"],
-    "audio": ["audio"],
-    "infrastructure": ["infrastructure"],
-}
-
 
 # ---------------------------------------------------------------------------
 # Domain derivation
@@ -185,7 +173,7 @@ def build_doc_index(
 ) -> str:
     """Build compressed doc index string.
 
-    Format: [GTS]|rules:{...}|skills:{...}|wiki:{...}
+    Format: [GTS]|rules:{...}|skills:{...}
     """
     # Rules: strip .md extension, comma-separated
     rules_names = sorted(r.removesuffix(".md") for r in selected_rules)
@@ -197,19 +185,10 @@ def build_doc_index(
         skills.update(mapped)
     skills_sorted = sorted(skills)
 
-    # Wiki sections: collect from domain mapping, deduplicate
-    wiki_sections: set[str] = set()
-    for domain in story_domains:
-        mapped = DOMAIN_TO_WIKI_SECTIONS.get(domain, [])
-        wiki_sections.update(mapped)
-    wiki_sorted = sorted(wiki_sections)
-
     parts = ["[GTS]"]
     parts.append(f"rules:{{{','.join(rules_names)}}}")
     if skills_sorted:
         parts.append(f"skills:{{{','.join(skills_sorted)}}}")
-    if wiki_sorted:
-        parts.append(f"wiki:{{{','.join(wiki_sorted)}}}")
 
     return "|".join(parts)
 

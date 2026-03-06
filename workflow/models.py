@@ -171,9 +171,6 @@ class Story(BaseModel):
     truths_addressed: list[int] = Field(
         description="IDs of observable truths this story contributes to."
     )
-    wiki_sections: list[str] = Field(
-        default_factory=list, description="Wiki section headers for Stage 4 prompt builder."
-    )
     test_spec: TestSpec | None = Field(
         default=None,
         description="Machine-readable test specification for automated validation.",
@@ -298,9 +295,6 @@ def render_plan_md(plan: Plan) -> str:
         for dep in story.depends_on_summary:
             lines.append(f"- {dep}")
         lines.append("")
-        if story.wiki_sections:
-            lines.append(f"**Wiki Sections:** {', '.join(story.wiki_sections)}")
-            lines.append("")
         if story.implementation_notes:
             lines.append("**Implementation Notes:**")
             for note in story.implementation_notes:

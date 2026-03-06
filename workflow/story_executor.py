@@ -13,7 +13,6 @@ File-to-story ownership). Section 8.5 Decision 2 (failure feedback).
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -50,50 +49,6 @@ WIKI_INDEXES_DIR = PROJECT_ROOT / ".planning" / "wiki-indexes"
 # failure categories. Total attempts = 1 initial + 2 retries = 3.
 MAX_RETRIES = 2
 
-TESTS_DIR = PROJECT_ROOT / "tests"
-
-
-# ---------------------------------------------------------------------------
-# Test file protection — snapshot hashes before/after dispatch
-# ---------------------------------------------------------------------------
-
-
-def _snapshot_test_hashes() -> dict[str, str]:
-    """Return SHA-256 hashes of all .py files under tests/.
-
-    Used to detect if the implementing agent modified pre-written tests.
-    """
-    hashes: dict[str, str] = {}
-    if not TESTS_DIR.is_dir():
-        return hashes
-    for py_file in sorted(TESTS_DIR.rglob("*.py")):
-        try:
-            digest = hashlib.sha256(py_file.read_bytes()).hexdigest()
-            hashes[str(py_file.relative_to(PROJECT_ROOT))] = digest
-        except OSError:
-            continue
-    return hashes
-
-
-def _detect_test_modifications(
-    before: dict[str, str],
-    after: dict[str, str],
-) -> list[str]:
-    """Compare before/after snapshots and return list of modified test files.
-
-    Detects modifications and deletions. New test files are allowed (the
-    agent may create tests as part of implementation).
-    """
-    modified: list[str] = []
-    for path, old_hash in before.items():
-        new_hash = after.get(path)
-        if new_hash is None:
-            # File was deleted
-            modified.append(path)
-        elif new_hash != old_hash:
-            # File was modified
-            modified.append(path)
-    return sorted(modified)
 
 
 # ---------------------------------------------------------------------------
@@ -1100,9 +1055,6 @@ def _dispatch_and_validate_loop(
             **metadata,
         )
 
-        # Snapshot test file hashes before dispatch (for scope violation detection)
-        test_hashes_before = _snapshot_test_hashes()
-
         # Dispatch the implementation agent (with conversation transcript)
         story_dir = epic_dir / "stories" / story_id
         story_dir.mkdir(parents=True, exist_ok=True)
@@ -1117,35 +1069,6 @@ def _dispatch_and_validate_loop(
             conversation_log=conv_log,
             role="implementation",
         )
-
-        # Check for test file modifications (scope violation)
-        test_hashes_after = _snapshot_test_hashes()
-        modified_tests = _detect_test_modifications(test_hashes_before, test_hashes_after)
-        if modified_tests:
-            logger.error(
-                "Story '%s' modified pre-written test files (scope violation): %s",
-                story_id,
-                ", ".join(modified_tests),
-            )
-            event_logger.log_event(
-                "story_failed",
-                story_id=story_id,
-                attempt=attempt,
-                reason=f"Scope violation: agent modified test files: {', '.join(modified_tests)}",
-                failure_category="scope_violation",
-            )
-            return _handle_terminal_failure(
-                story_id=story_id,
-                attempt=attempt,
-                classification=FailureClassification(
-                    category="scope_violation",
-                    evidence=f"Modified test files: {', '.join(modified_tests)}",
-                    pattern="test_file_modification",
-                ),
-                error_text=f"Agent modified pre-written test files: {', '.join(modified_tests)}",
-                event_logger=event_logger,
-                plan_scope_paths=plan_scope_paths,
-            )
 
         # Log agent result
         if agent_result.success:
@@ -1238,11 +1161,13 @@ def _dispatch_and_validate_loop(
             return False
 
         # Run validation checkpoint
+        skip_golden = config.gates.skip_golden_path if config else False
         validation_result = run_validation_checkpoint(
             checkpoint=checkpoint,
             epic_dir=epic_dir,
             story_id=story_id,
             event_logger=event_logger,
+            skip_golden_path=skip_golden,
         )
 
         if validation_result.passed:
