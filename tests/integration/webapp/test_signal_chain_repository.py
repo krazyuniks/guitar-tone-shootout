@@ -168,9 +168,6 @@ async def test_save_with_multiple_blocks(
     assert retrieved.blocks[2].gear_type == GearType.IR
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing: test isolation — passes individually, fails in full suite", strict=False
-)
 async def test_update_blocks(
     session: AsyncSession,
     sample_chain: SignalChain,

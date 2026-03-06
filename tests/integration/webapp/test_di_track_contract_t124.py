@@ -81,9 +81,6 @@ class TestDITrackTuningField:
             "DITrackResponse must include 'tuning' field to match frontend form"
         )
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: Upload directory permissions in Docker (T124)", strict=False
-    )
     async def test_upload_endpoint_accepts_tuning_parameter(
         self,
         db_session: AsyncSession,
@@ -128,9 +125,6 @@ class TestDITrackTuningField:
         json_data = response.json()
         assert json_data["tuning"] == "Drop D", "Upload response must include the tuning value"
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: Upload directory permissions in Docker (T124)", strict=False
-    )
     async def test_upload_tuning_persisted_to_database(
         self,
         db_session: AsyncSession,

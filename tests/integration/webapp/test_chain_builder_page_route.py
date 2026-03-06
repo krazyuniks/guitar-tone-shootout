@@ -159,17 +159,15 @@ class TestChainBuilderPageRoute:
         )
         assert has_script, "No React mounting scripts found"
 
-    @pytest.mark.xfail(
-        reason="Pre-existing: Auth redirects to login (302) instead of 401", strict=False
-    )
     async def test_builder_requires_authentication(
         self,
         guest_client: AsyncClient,
     ) -> None:
-        """Unauthenticated requests should return 401."""
-        response = await guest_client.get("/library/chains/build")
+        """Unauthenticated requests to SSR pages redirect to login."""
+        response = await guest_client.get("/library/chains/build", follow_redirects=False)
 
-        assert response.status_code == 401
+        assert response.status_code == 302
+        assert "/login" in response.headers.get("location", "")
 
 
 @pytest.mark.asyncio

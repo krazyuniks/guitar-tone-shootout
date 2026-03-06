@@ -10,23 +10,12 @@ from httpx import ASGITransport, AsyncClient
 from gts.domain.entities.shootout import Shootout
 from webapp.adapters.persistence.models.di_track import DITrack
 from webapp.adapters.persistence.models.user import User
-from webapp.api.pages import router
 from webapp.auth.dependencies import set_session_override, set_user_override
+from webapp.main import app
 from webapp.services.shootout_service import ShootoutService
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
     from sqlalchemy.ext.asyncio import AsyncSession
-
-
-@pytest.fixture
-def app() -> FastAPI:
-    """Create a FastAPI app with pages router."""
-    from fastapi import FastAPI
-
-    app = FastAPI()
-    app.include_router(router)
-    return app
 
 
 @pytest.fixture
@@ -58,7 +47,6 @@ async def test_di_track(db_session: AsyncSession, test_user: User) -> DITrack:
 
 @pytest.fixture
 async def authenticated_client(
-    app: FastAPI,
     db_session: AsyncSession,
     test_user: User,
 ) -> AsyncClient:
@@ -86,23 +74,19 @@ async def test_library_shootouts_page_renders(
     assert "text/html" in response.headers["content-type"]
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing: Auth redirects to login (302) instead of 401", strict=False
-)
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_library_shootouts_page_requires_authentication(
-    app: FastAPI,
     db_session: AsyncSession,
 ) -> None:
-    """Test GET /library/shootouts requires authentication."""
-    # Create client without auth override
+    """Test GET /library/shootouts redirects unauthenticated users to login."""
     set_session_override(db_session)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/library/shootouts")
+        response = await client.get("/library/shootouts", follow_redirects=False)
 
-        assert response.status_code == 401
+        assert response.status_code == 302
+        assert "/login" in response.headers.get("location", "")
 
     set_session_override(None)
 
@@ -187,24 +171,20 @@ async def test_shootout_detail_page_returns_404_for_other_users_shootout(
     assert response.status_code == 404
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing: Auth redirects to login (302) instead of 401", strict=False
-)
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_shootout_detail_page_requires_authentication(
-    app: FastAPI,
     db_session: AsyncSession,
 ) -> None:
-    """Test GET /shootout/{id} requires authentication."""
+    """Test GET /shootout/{id} redirects unauthenticated users to login."""
     from uuid import uuid4
 
-    # Create client without auth override
     set_session_override(db_session)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(f"/shootout/{uuid4()}")
+        response = await client.get(f"/shootout/{uuid4()}", follow_redirects=False)
 
-        assert response.status_code == 401
+        assert response.status_code == 302
+        assert "/login" in response.headers.get("location", "")
 
     set_session_override(None)
