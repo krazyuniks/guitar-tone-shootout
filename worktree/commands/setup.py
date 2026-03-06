@@ -402,9 +402,7 @@ def _run_setup(
                 worktree_path=worktree_path,
                 worktree_name=worktree_name,
                 is_main=is_main,
-                resuming=resuming,
                 skip_db_import=skip_db_import,
-                build=build,
                 force=force,
                 health_timeout=health_timeout,
                 backup_file=backup_file,
@@ -541,9 +539,7 @@ def _start_and_configure_services(
     worktree_path: Path,
     worktree_name: str,
     is_main: bool,
-    resuming: bool,
     skip_db_import: bool,
-    build: bool,
     force: bool,
     health_timeout: int,
     backup_file: Path | None,
@@ -551,13 +547,15 @@ def _start_and_configure_services(
     """Start services and configure database."""
     import subprocess
 
-    # Step 6: Build images if requested
-    if build:
-        status.update("[bold green]Building Docker images...")
-        try:
-            build_images(worktree_path)
-        except Exception as e:
-            print_warning(f"Image build failed: {e}")
+    # Step 6: Build images
+    # Always build on fresh setup.  docker compose up -d builds implicitly
+    # when no image exists, but start_services() has a 120s timeout which
+    # is too short for a first-time image build.  build_images() uses 600s.
+    status.update("[bold green]Building Docker images...")
+    try:
+        build_images(worktree_path)
+    except Exception as e:
+        print_warning(f"Image build failed: {e}")
 
     # Step 6.5: Clean up any leftover containers from previous failed attempts
     # This MUST happen BEFORE starting db, not after (start_services used to
