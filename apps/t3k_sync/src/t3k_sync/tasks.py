@@ -18,8 +18,11 @@ from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus
 from gts.domain.value_objects.source_auth_status import SourceAuthStatus
 from messaging.db import get_core_session
+from t3k_sync.source_sync import _PG_ADVISORY_LOCK_KEY
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -27,10 +30,16 @@ logger = logging.getLogger(__name__)
 _REFRESH_WINDOW_SECONDS = 600
 _FALLBACK_REFRESH_SECONDS = 1800
 _BACKUPS_DIR = Path("/app/backups")
+_DISPATCH_MAX_FAILURES = 3
+_DISPATCH_COOLDOWN = timedelta(minutes=30)
 
 # Test hook: set by tests to inject the test session into DB tasks.
 # Allows task functions to share the test's SAVEPOINT-isolated session.
 _test_session: AsyncSession | None = None
+
+# In-memory cooldown tracker for dispatch_pending_jobs.
+# Maps job_id -> (failure_count, last_failure_time).
+_dispatch_failures: dict[UUID, tuple[int, datetime]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +81,8 @@ async def refresh_t3k_token(
     status = check_auth_status(auth_file_path)
     if status == SourceAuthStatus.LOGIN_REQUIRED:
         logger.debug("Auth login_required — skipping refresh (run `just t3k-login`)")
+        return
+    if status == SourceAuthStatus.UNKNOWN and not Path(auth_file_path).exists():
         return
 
     try:
@@ -164,26 +175,104 @@ async def refresh_t3k_token(
 
 
 async def monitor_stale_jobs() -> None:
-    """Mark RUNNING jobs with stale heartbeats as DEAD_LETTERED."""
+    """Mark RUNNING jobs with stale heartbeats as DEAD_LETTERED.
+
+    For SOURCE_SYNC jobs, checks the advisory lock before marking dead.
+    If the lock is held, the sync is still alive regardless of heartbeat.
+    """
     stale_threshold = datetime.now(UTC) - timedelta(minutes=2)
-    stmt = text("""
+    now = datetime.now(UTC)
+
+    # Non-SOURCE_SYNC jobs: heartbeat-only check (unchanged behaviour)
+    non_sync_stmt = text("""
         UPDATE core_jobs SET status = :dead_status, error = :error, completed_at = :now
         WHERE status = :running_status
+          AND job_type != 'source_sync'
           AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
           AND (started_at IS NULL OR started_at < :threshold)
     """)
-    params = {
+    non_sync_params = {
         "dead_status": JobStatus.DEAD_LETTERED.value,
         "error": "Stale heartbeat detected: worker failed to update heartbeat within 2 minutes",
         "running_status": JobStatus.RUNNING.value,
         "threshold": stale_threshold,
-        "now": datetime.now(UTC),
+        "now": now,
     }
+
+    # SOURCE_SYNC jobs: check advisory lock before killing
+    sync_check_stmt = text("""
+        SELECT id FROM core_jobs
+        WHERE status = :running_status
+          AND job_type = 'source_sync'
+          AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
+          AND (started_at IS NULL OR started_at < :threshold)
+    """)
+    sync_check_params = {
+        "running_status": JobStatus.RUNNING.value,
+        "threshold": stale_threshold,
+    }
+
     if _test_session is not None:
-        await _test_session.execute(stmt, params)
+        await _test_session.execute(non_sync_stmt, non_sync_params)
+        # In tests we can't probe advisory locks across sessions,
+        # so skip SOURCE_SYNC lock check — tests use non-sync job types.
         return
+
     async with get_core_session() as session:
-        await session.execute(stmt, params)
+        await session.execute(non_sync_stmt, non_sync_params)
+
+        # Check if any SOURCE_SYNC jobs look stale
+        result = await session.execute(sync_check_stmt, sync_check_params)
+        stale_sync_ids = [row[0] for row in result.fetchall()]
+        if not stale_sync_ids:
+            return
+
+    # Probe the advisory lock in a separate session (non-transactional).
+    # pg_try_advisory_lock acquires if free — we must release immediately.
+    from messaging.db import get_core_session_no_tx
+
+    async with get_core_session_no_tx() as lock_session:
+        lock_result = await lock_session.execute(
+            text("SELECT pg_try_advisory_lock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
+        )
+        lock_free = lock_result.scalar()
+        if lock_free:
+            # Lock was free — sync truly died. Release our test lock.
+            await lock_session.execute(
+                text("SELECT pg_advisory_unlock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
+            )
+            # Mark the stale SOURCE_SYNC jobs as dead
+            async with get_core_session() as session:
+                kill_stmt = text("""
+                    UPDATE core_jobs SET status = :dead_status, error = :error, completed_at = :now
+                    WHERE id = ANY(:ids) AND status = :running_status
+                """)
+                await session.execute(
+                    kill_stmt,
+                    {
+                        "dead_status": JobStatus.DEAD_LETTERED.value,
+                        "error": "Stale heartbeat detected: sync lock free, worker died",
+                        "running_status": JobStatus.RUNNING.value,
+                        "now": now,
+                        "ids": stale_sync_ids,
+                    },
+                )
+        else:
+            # Lock held — sync is alive, just slow. Update heartbeat to prevent
+            # re-checking every cycle.
+            async with get_core_session() as session:
+                touch_stmt = text("""
+                    UPDATE core_jobs SET last_heartbeat = :now
+                    WHERE id = ANY(:ids) AND status = :running_status
+                """)
+                await session.execute(
+                    touch_stmt,
+                    {
+                        "now": now,
+                        "running_status": JobStatus.RUNNING.value,
+                        "ids": stale_sync_ids,
+                    },
+                )
 
 
 async def process_pending_retries() -> None:
@@ -209,8 +298,20 @@ async def process_pending_retries() -> None:
 
 
 async def dispatch_pending_jobs() -> None:
-    """Dispatch jobs stuck in PENDING status to the worker."""
-    cutoff = datetime.now(UTC) - timedelta(minutes=5)
+    """Dispatch jobs stuck in PENDING status to the worker.
+
+    Tracks consecutive failures per job ID. After 3 consecutive 400s,
+    the job is skipped for 30 minutes to avoid log spam.
+    """
+    # Expire old cooldowns
+    now = datetime.now(UTC)
+    expired = [
+        jid for jid, (count, ts) in _dispatch_failures.items() if now - ts > _DISPATCH_COOLDOWN
+    ]
+    for jid in expired:
+        del _dispatch_failures[jid]
+
+    cutoff = now - timedelta(minutes=5)
     stmt = text("""
         SELECT id FROM core_jobs
         WHERE status = :pending_status
@@ -231,10 +332,19 @@ async def dispatch_pending_jobs() -> None:
     if not job_ids:
         return
 
+    # Filter out jobs in cooldown
+    eligible = [
+        jid
+        for jid in job_ids
+        if jid not in _dispatch_failures or _dispatch_failures[jid][0] < _DISPATCH_MAX_FAILURES
+    ]
+    if not eligible:
+        return
+
     worker_url = os.getenv("WORKER_ADMIN_URL", "http://webapp:8000")
     dispatched = 0
     async with httpx.AsyncClient() as client:
-        for job_id in job_ids:
+        for job_id in eligible:
             try:
                 response = await client.post(
                     f"{worker_url}/api/admin/enqueue",
@@ -243,8 +353,19 @@ async def dispatch_pending_jobs() -> None:
                 )
                 if response.status_code < 300:
                     dispatched += 1
+                    _dispatch_failures.pop(job_id, None)
                 else:
-                    logger.warning("Failed to enqueue job %s: %d", job_id, response.status_code)
+                    prev_count, _ = _dispatch_failures.get(job_id, (0, now))
+                    _dispatch_failures[job_id] = (prev_count + 1, now)
+                    if prev_count + 1 >= _DISPATCH_MAX_FAILURES:
+                        logger.warning(
+                            "Job %s failed dispatch %d times, cooling down for %d min",
+                            job_id,
+                            prev_count + 1,
+                            int(_DISPATCH_COOLDOWN.total_seconds() / 60),
+                        )
+                    else:
+                        logger.warning("Failed to enqueue job %s: %d", job_id, response.status_code)
             except Exception:
                 logger.exception("Error enqueuing job %s", job_id)
 

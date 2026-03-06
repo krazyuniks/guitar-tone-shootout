@@ -15,6 +15,7 @@ from fastapi import FastAPI
 
 from messaging.db import get_core_session_no_tx
 from t3k_sync.consumer import GearSyncConsumer
+from t3k_sync.health import SyncHealthTracker
 from t3k_sync.scheduler import SyncScheduler
 from t3k_sync.tasks import (
     backup_all_databases,
@@ -33,6 +34,9 @@ _PERIODIC_TASKS: list[tuple[str, Callable[[], Coroutine[Any, Any, None]], float]
     ("dispatch_pending_jobs", dispatch_pending_jobs, 120.0),
     ("backup_all_databases", backup_all_databases, 43200.0),
 ]
+
+# Module-level tracker so the health endpoint can read it.
+_tracker = SyncHealthTracker()
 
 
 async def _run_periodic(
@@ -58,7 +62,7 @@ async def lifespan(_: FastAPI):
     """Start consumer, sync scheduler, and periodic tasks for container lifetime."""
     async with get_core_session_no_tx() as session:
         consumer = GearSyncConsumer(session)
-        scheduler = SyncScheduler(interval_seconds=60.0)
+        scheduler = SyncScheduler(interval_seconds=60.0, tracker=_tracker)
 
         await consumer.message_bus.create_queue(consumer.queue_name)
         await consumer.message_bus.create_queue(consumer.dead_letter_queue)
@@ -89,6 +93,10 @@ app = FastAPI(title="GTS T3K Sync", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    """Container health endpoint."""
-    return {"status": "healthy"}
+async def health() -> dict[str, str | None]:
+    """Container health endpoint.
+
+    Returns 200 for healthy and degraded (don't trigger Docker restart).
+    Degraded includes reason and timestamp for observability.
+    """
+    return _tracker.health_response()

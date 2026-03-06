@@ -6,6 +6,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, text
@@ -20,6 +21,9 @@ from source_t3k.domain.value_objects import SyncMode
 from source_t3k.services.model_downloader import ModelDownloader
 from source_t3k.services.sync_service import T3KSyncService
 from webapp.adapters.persistence.models.job import Job
+
+if TYPE_CHECKING:
+    from t3k_sync.health import SyncHealthTracker
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +106,11 @@ async def _update_job_status(job_id: UUID, status: JobStatus, **fields: object) 
                 setattr(job, key, value)
 
 
-async def run_source_sync(job_id: UUID | None = None) -> UUID:
+async def run_source_sync(
+    job_id: UUID | None = None,
+    *,
+    tracker: SyncHealthTracker | None = None,
+) -> UUID:
     """Run one source sync batch (one-shot, lock-protected)."""
     tracked_job_id = job_id if job_id is not None else await _create_source_sync_job()
 
@@ -177,6 +185,8 @@ async def run_source_sync(job_id: UUID | None = None) -> UUID:
                 JobStatus.COMPLETED,
                 completed_at=datetime.now(UTC),
             )
+            if tracker is not None:
+                tracker.record_sync_success()
         except Exception:
             logger.exception("Sync batch failed")
             await _update_job_status(
@@ -185,6 +195,8 @@ async def run_source_sync(job_id: UUID | None = None) -> UUID:
                 error="Sync batch failed",
                 completed_at=datetime.now(UTC),
             )
+            if tracker is not None:
+                tracker.record_sync_failure("Sync batch failed")
         finally:
             if token_manager is not None:
                 await token_manager.close()
