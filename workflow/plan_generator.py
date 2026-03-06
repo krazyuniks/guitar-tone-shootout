@@ -22,7 +22,7 @@ from workflow.dispatch import (
     get_dispatch_params,
 )
 from workflow.epic_config import EpicConfig
-from workflow.models import Plan, TestSpec, render_plan_md
+from workflow.models import Plan, render_plan_md
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -844,12 +844,6 @@ def _parse_structured_plan(result) -> Plan:
     """
     text = result.output.strip()
 
-    # Dump raw output for debugging
-    dump_path = PLANNING_DIR.parent / "logs" / "last-planner-output.txt"
-    dump_path.parent.mkdir(parents=True, exist_ok=True)
-    dump_path.write_text(text, encoding="utf-8")
-    logger.info("Raw planner output dumped to %s (%d chars)", dump_path, len(text))
-
     # Extract JSON from ```json code fence
     fence_match = re.search(r"```json\s*\n(.*?)```", text, re.DOTALL)
     json_text = fence_match.group(1).strip() if fence_match else text
@@ -866,8 +860,7 @@ def _parse_structured_plan(result) -> Plan:
         raise PlanGenerationError(
             f"Planner output is not valid JSON: {exc}\n"
             f"Context around error (char {pos}):\n"
-            f"{error_context}\n{marker_line}\n"
-            f"Full output dumped to: {dump_path}"
+            f"{error_context}\n{marker_line}"
         ) from exc
     try:
         return Plan.model_validate(data)

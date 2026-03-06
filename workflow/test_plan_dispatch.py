@@ -21,20 +21,34 @@ if str(current) not in sys.path:
     sys.path.insert(0, str(current))
 
 from workflow.dispatch import AgentResult  # noqa: E402
+from workflow.dispatch_log import read_dispatch_log  # noqa: E402
 from workflow.plan_generator import _parse_structured_plan  # noqa: E402
 
-LOGS_DIR = current / ".planning" / "logs"
-SAVED_OUTPUT = LOGS_DIR / "last-planner-output.txt"
+PLANNING_DIR = current / ".planning" / "epics"
+
+
+def _find_latest_planner_response() -> str | None:
+    """Find the latest planner response from any epic's dispatch.jsonl."""
+    for epic_dir in sorted(PLANNING_DIR.iterdir(), reverse=True):
+        if not epic_dir.is_dir() or not epic_dir.name.startswith("E"):
+            continue
+        entries = read_dispatch_log(epic_dir)
+        for entry in reversed(entries):
+            if entry.get("role") == "planner":
+                response_file = epic_dir / entry.get("response_file", "")
+                if response_file.exists():
+                    return response_file.read_text(encoding="utf-8")
+    return None
 
 
 def test_parse():
     """Parse the last saved planner output — instant, no dispatch."""
-    if not SAVED_OUTPUT.exists():
-        print(f"No saved output at {SAVED_OUTPUT}")
+    text = _find_latest_planner_response()
+    if text is None:
+        print("No planner response found in any epic dispatch log.")
         print("Run with --dispatch first to generate one.")
         sys.exit(1)
 
-    text = SAVED_OUTPUT.read_text(encoding="utf-8")
     print(f"Parsing saved output ({len(text)} chars)...")
 
     result = AgentResult(success=True, output=text)
@@ -130,10 +144,6 @@ apps/webapp/src/webapp/templates/ — Jinja2 templates
     if not result.success:
         print(f"FAILED: {result.output[:500]}")
         sys.exit(1)
-
-    # Save for future --parse runs
-    SAVED_OUTPUT.write_text(result.output, encoding="utf-8")
-    print(f"Saved to {SAVED_OUTPUT}")
 
     try:
         plan = _parse_structured_plan(result)

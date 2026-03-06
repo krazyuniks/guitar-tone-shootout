@@ -215,26 +215,6 @@ class CodexAdapter:
             return str(volta_path)
         return "codex"  # fall through to PATH
 
-    def _log_response(self, output: str, output_path_str: str) -> None:
-        """Log the Codex agent response for post-mortem debugging.
-
-        Writes to .planning/logs/codex-response-<timestamp>.txt alongside
-        the dispatch prompt logs. The original temp file path is included
-        as a header for correlation.
-        """
-        logs_dir = PROJECT_ROOT / ".planning" / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-        path = logs_dir / f"codex-response-{ts}.txt"
-        try:
-            path.write_text(
-                f"# Codex response (from {output_path_str})\n\n{output}",
-                encoding="utf-8",
-            )
-            logger.debug("Codex response logged to %s (%d chars)", path, len(output))
-        except OSError as exc:
-            logger.warning("Failed to write Codex response log: %s", exc)
-
     def build_args(
         self,
         model: str,  # noqa: ARG002
@@ -298,9 +278,6 @@ class CodexAdapter:
                 if output_path.exists():
                     output = output_path.read_text(encoding="utf-8")
             finally:
-                # Log the response before cleaning up, for post-mortem debugging
-                if output:
-                    self._log_response(output, output_path_str)
                 with contextlib.suppress(OSError):
                     output_path.unlink(missing_ok=True)
 
@@ -536,6 +513,8 @@ def dispatch_agent(
     Returns:
         AgentResult with success status, output, and turn count.
     """
+    from workflow.dispatch_log import DispatchTimer, get_active_dispatch_log
+
     if adapter is None:
         adapter = get_adapter(model)
 
@@ -545,12 +524,13 @@ def dispatch_agent(
 
     role_label = role.replace("_", " ").title()
     console.print(
-        f"  Dispatching [bold]{role_label}[/bold]: model={model}, "
-        f"prompt_tokens=~{prompt_tokens}"
+        f"  Dispatching [bold]{role_label}[/bold]: model={model}, prompt_tokens=~{prompt_tokens}"
     )
 
-    # Write prompt to logs dir for post-mortem debugging
-    _log_dispatch_prompt(prompt, prompt_hash, model)
+    # Write prompt to logs dir (fallback when no dispatch log is active)
+    dispatch_log = get_active_dispatch_log()
+    if dispatch_log is None:
+        _log_dispatch_prompt(prompt, prompt_hash, model)
 
     args = adapter.build_args(
         model=model,
@@ -560,6 +540,9 @@ def dispatch_agent(
 
     # Clear CLAUDECODE env var to allow nested dispatch from within a Claude session.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
+    timer = DispatchTimer()
+    timer.start()
 
     if conversation_log is not None:
         # Streaming mode: Popen with line-by-line reading + conversation logger.
@@ -584,9 +567,26 @@ def dispatch_agent(
             timeout=timeout,
         )
 
+    duration_ms = timer.elapsed_ms
+
+    # Record to unified dispatch log if active
+    if dispatch_log is not None:
+        dispatch_log.record(
+            role=role,
+            model=model,
+            prompt=prompt,
+            output=result.output or "",
+            success=result.success,
+            exit_code=result.exit_code,
+            turns=result.turns,
+            duration_ms=duration_ms,
+        )
+
     status = "[green]success[/green]" if result.success else "[red]failed[/red]"
     turns = result.turns or "unknown"
-    console.print(f"  {role_label} complete: {status}, turns={turns}")
+    console.print(
+        f"  {role_label} complete: {status}, turns={turns}, duration={duration_ms / 1000:.1f}s"
+    )
 
     return result
 

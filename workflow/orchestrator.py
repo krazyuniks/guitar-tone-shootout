@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+from rich.console import Console
 
 from workflow.config_validator import validate_config
 from workflow.dispatch import (
@@ -35,6 +36,7 @@ from workflow.dispatch import (
     extract_json_from_text,
     get_dispatch_params,
 )
+from workflow.dispatch_log import dispatch_logging, token_summary
 from workflow.epic_config import (
     EpicConfig,
     ensure_epic_config,
@@ -56,6 +58,7 @@ from workflow.jsonl_logger import (
 from workflow.story_executor import execute_story
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -1243,6 +1246,36 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         logger.debug("agent-sync not available or timed out, continuing")
 
+    # Activate unified dispatch logging for all dispatch_agent() calls
+    with dispatch_logging(epic_dir, run_id):
+        _run_epic_loop(
+            epic_number=epic_number,
+            epic_dir=epic_dir,
+            epic_log_path=epic_log_path,
+            epic_logger=epic_logger,
+            plan=plan,
+            run_id=run_id,
+            config=config,
+            completed_stories=completed_stories,
+        )
+
+    # Print token usage summary
+    summary = token_summary(epic_dir, run_id)
+    console.print(f"\n[bold]Dispatch Token Summary[/bold]\n{summary}")
+
+
+def _run_epic_loop(
+    *,
+    epic_number: int,
+    epic_dir: Path,
+    epic_log_path: Path,
+    epic_logger: EventLogger,
+    plan: dict,
+    run_id: str,
+    config: EpicConfig,
+    completed_stories: list[str],
+) -> None:
+    """Inner execution loop for an epic run (extracted for dispatch_logging scope)."""
     # The outer loop
     while True:
         # Re-read the log to get latest state (events accumulate)
@@ -1512,12 +1545,13 @@ def _run_test_generation_stage(epic_number: int, epic_dir: Path) -> bool:
         len(stories_with_specs),
     )
 
-    test_report = run_test_generation(
-        epic_dir=epic_dir,
-        plan=plan,
-        config=config,
-        event_logger=epic_logger,
-    )
+    with dispatch_logging(epic_dir, run_id):
+        test_report = run_test_generation(
+            epic_dir=epic_dir,
+            plan=plan,
+            config=config,
+            event_logger=epic_logger,
+        )
 
     if not test_report.all_passed:
         logger.error(
@@ -1539,11 +1573,7 @@ def _run_test_generation_stage(epic_number: int, epic_dir: Path) -> bool:
     try:
         from workflow.git_helpers import robust_commit
 
-        test_paths = [
-            r.test_file_path
-            for r in test_report.passed
-            if r.test_file_path is not None
-        ]
+        test_paths = [r.test_file_path for r in test_report.passed if r.test_file_path is not None]
         # Also commit the epic.jsonl with new events
         test_paths.append(str(epic_log_path.relative_to(PROJECT_ROOT)))
 
@@ -1712,7 +1742,7 @@ def show_status(epic_number: int) -> None:
     print(f"Completed: {len(state['completed_stories'])}/{len(stories)}")
 
     # Show gate status
-    print(f"\nGates:")
+    print("\nGates:")
     print(f"  plan_committed:  {'YES' if has_plan_committed else 'no'}")
     print(f"  tests_approved:  {'YES' if has_tests_approved else 'no'}")
     print(f"  tests_generated: {'YES' if has_tests_generated else 'no'}")
@@ -1774,3 +1804,8 @@ def show_status(epic_number: int) -> None:
             reason = e.get("reason", "Unknown")
             category = e.get("failure_category", "unknown")
             print(f"  {sid}: [{category}] {reason[:120]}")
+
+    # Dispatch token summary
+    dispatch_summary = token_summary(epic_dir, run_id)
+    if not dispatch_summary.startswith("No dispatch"):
+        print(f"\nToken Usage:\n{dispatch_summary}")

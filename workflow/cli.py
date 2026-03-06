@@ -235,19 +235,8 @@ def _run_planning_pipeline(epic_number: int) -> None:
     import logging
     import uuid
 
-    from workflow.context_assembler import AssemblyError, assemble_context
     from workflow.epic_config import ensure_epic_config
-    from workflow.epic_ingest import IngestionError, ingest_epic
-    from workflow.gap_detection import GapDetectionError, run_gap_detection
-    from workflow.git_helpers import GitPushError, robust_commit
     from workflow.jsonl_logger import EventLogger
-    from workflow.plan_generator import PlanGenerationError, generate_plan
-    from workflow.plan_verifier import (
-        DecisionGateResult,
-        PlanVerificationError,
-        present_decision_gate,
-        verify_with_revision_cycle,
-    )
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -269,6 +258,32 @@ def _run_planning_pipeline(epic_number: int) -> None:
     # Set up JSONL logging for planning events
     run_id = str(uuid.uuid4())
     epic_logger = EventLogger(epic_dir / "epic.jsonl", run_id)
+
+    # Activate unified dispatch logging for all dispatch_agent() calls
+    from workflow.dispatch_log import dispatch_logging
+
+    with dispatch_logging(epic_dir, run_id):
+        _run_planning_steps(epic_number, epic_dir, config, epic_logger)
+
+
+def _run_planning_steps(
+    epic_number: int,
+    epic_dir: Path,
+    config,
+    epic_logger,
+) -> None:
+    """Execute Steps 1-6 of the planning pipeline (wrapped in dispatch_logging)."""
+    from workflow.context_assembler import AssemblyError, assemble_context
+    from workflow.epic_ingest import IngestionError, ingest_epic
+    from workflow.gap_detection import GapDetectionError, run_gap_detection
+    from workflow.git_helpers import GitPushError, robust_commit
+    from workflow.plan_generator import PlanGenerationError, generate_plan
+    from workflow.plan_verifier import (
+        DecisionGateResult,
+        PlanVerificationError,
+        present_decision_gate,
+        verify_with_revision_cycle,
+    )
 
     # Step 1: Ingestion
     epic_md_path = epic_dir / "EPIC.md"
