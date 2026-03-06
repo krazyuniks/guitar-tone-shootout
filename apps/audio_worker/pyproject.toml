@@ -7,6 +7,7 @@ dependencies = [
     "gts-domain",
     "gts-messaging",
     "gts-audio",
+    "gts-webapp",
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
     "sqlalchemy[asyncio]>=2.0.36",
@@ -18,6 +19,7 @@ dependencies = [
 gts-domain = { workspace = true }
 gts-messaging = { workspace = true }
 gts-audio = { workspace = true }
+gts-webapp = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

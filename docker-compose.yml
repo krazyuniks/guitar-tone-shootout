@@ -168,6 +168,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       ENV: ${ENV:-development}
       GTS_STORAGE_ROOT: /app/storage
+      PYTHONPATH: /app/apps/webapp/src:/app/sources/t3k/src
     env_file:
       - path: .env
         required: false
@@ -179,6 +180,8 @@ services:
       - ./model:/app/model
       - ./infra:/app/infra
       - ./apps/audio_worker:/app/apps/audio_worker
+      - ./apps/webapp:/app/apps/webapp
+      - ./sources:/app/sources
       - ../gts-storage:/app/storage
     depends_on:
       db:
@@ -192,7 +195,7 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Video Worker - render_video queue consumer (Remotion runtime base)
+  # Video Worker - shootout orchestration consumer (Remotion runtime base)
   # ==========================================================================
   video-worker:
     profiles:
