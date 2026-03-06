@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """Selective context assembly for the V2 epic planner.
 
-Reads EPIC.md, performs keyword-based area detection, and injects only
-the wiki sections and codebase files relevant to the detected areas.
-Replaces the wholesale concatenation approach from V1.
-
-All pure Python I/O -- zero AI tokens spent.
+Reads EPIC.md, performs LLM-based area detection (via Haiku), and injects
+only the wiki sections and codebase files relevant to the detected areas.
 
 Usage:
     python workflow/context_assembler.py --epic-dir .planning/epics/E95/ --project-root .
@@ -15,176 +12,39 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import json
 import logging
+import os
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+
 class AssemblyError(Exception):
     """Raised when context assembly fails."""
 
 
 # ---------------------------------------------------------------------------
-# Keyword-to-area mapping
+# Area descriptions (used in LLM prompt for area detection)
 # ---------------------------------------------------------------------------
-# Extracted from .claude/skills/epic/references/gray-areas.md
-# Each entry maps a set of keywords to the area IDs they suggest.
 
-# Each entry: (keywords, areas).
-# Multi-word phrases match as substrings. Single words use word-boundary
-# matching (\\b) so that "audio" in "audio_commands" doesn't trigger the
-# audio processing area — only prose like "audio processing" or "audio file".
-KEYWORD_AREA_MAP: list[tuple[list[str], list[str]]] = [
-    # GTS domain-specific patterns (multi-word phrases are precise)
-    (
-        ["signal chain", "signal_chain"],
-        ["signal_chain", "audio_processing", "gear_model"],
-    ),
-    (
-        ["audio processing", "audio file", "pedalboard", "loudness", "waveform"],
-        ["audio_processing", "job_processing"],
-    ),
-    (
-        ["video composition", "video render", "remotion"],
-        ["job_processing"],
-    ),
-    (
-        ["amp model", "pedal", "cabinet", "impulse response", "nam model", "capture"],
-        ["gear_model", "signal_chain"],
-    ),
-    (
-        ["shootout", "comparison", "a/b test"],
-        ["signal_chain", "audio_processing", "job_processing", "frontend_layers"],
-    ),
-    (
-        ["gear library", "my gear", "gear collection", "gear list"],
-        ["gear_model", "frontend_layers", "data_model"],
-    ),
-    (
-        ["t3k sync", "tone3000", "t3k_sync", "source_t3k", "t3k api"],
-        ["database_architecture", "job_processing"],
-    ),
-    # Infrastructure patterns
-    (
-        ["pgmq", "queue topology", "consumer offset", "dead letter", "message queue"],
-        ["job_processing", "data_model"],
-    ),
-    (
-        ["alembic", "migration", "table rename", "database consolidat"],
-        ["data_model", "database_architecture"],
-    ),
-    # Standard patterns (multi-word to avoid false positives)
-    (
-        ["form submit", "form validation", "user input", "create new"],
-        ["data_model", "api_contract", "security", "frontend_layers"],
-    ),
-    (
-        ["notification", "alert", "email"],
-        ["job_processing"],
-    ),
-    (
-        ["file upload", "di track", "recording"],
-        ["data_model", "api_contract", "security", "job_processing"],
-    ),
-    (
-        ["search page", "filter by", "browse", "list page", "sort by"],
-        ["data_model", "api_contract", "frontend_layers"],
-    ),
-    (
-        ["auth", "login", "oauth", "user session", "login session"],
-        ["security", "data_model", "api_contract"],
-    ),
-    (
-        ["page template", "jinja template", "ui component", "frontend page"],
-        ["frontend_layers", "api_contract"],
-    ),
-]
-
-# Required area mappings -- if feature mentions these, always include the areas.
-# Same word-boundary rules apply.
-REQUIRED_AREA_MAP: list[tuple[list[str], list[str]]] = [
-    (
-        ["signal chain", "signal_chain"],
-        ["signal_chain", "gear_model"],
-    ),
-    (
-        ["audio processing", "audio file", "pedalboard"],
-        ["audio_processing", "job_processing"],
-    ),
-    (
-        ["t3k sync", "t3k_sync", "source_t3k"],
-        ["database_architecture"],
-    ),
-    (
-        ["page template", "jinja template", "htmx"],
-        ["frontend_layers"],
-    ),
-    (
-        ["background job", "job queue", "pgmq", "worker"],
-        ["job_processing"],
-    ),
-]
-
-# Area definitions from gray-areas.md
-AREA_DEFINITIONS: dict[str, dict[str, str]] = {
-    "signal_chain": {
-        "name": "Signal Chain",
-        "description": "Block types, ordering, validation rules",
-        "questions": "HEAD vs FULL_RIG, IR requirements, loop effects",
-    },
-    "gear_model": {
-        "name": "Gear Model",
-        "description": "Unified gear, sources, sync records",
-        "questions": "Source attribution, GearModel files, UserGear",
-    },
-    "database_architecture": {
-        "name": "Database Architecture",
-        "description": "Single database with BC table prefixes (core_*, t3k_*, msg_*)",
-        "questions": "Table ownership, BC isolation, pgmq messages",
-    },
-    "frontend_layers": {
-        "name": "Frontend Layers",
-        "description": "Astro SSG vs Jinja2 SSR vs HTMX fragments",
-        "questions": "Page type, React island, navigation patterns",
-    },
-    "job_processing": {
-        "name": "Jobs/Queues",
-        "description": "TaskIQ jobs, pgmq consumers, parent/child",
-        "questions": "Retry strategy, progress reporting, Redis locks",
-    },
-    "audio_processing": {
-        "name": "Audio Processing",
-        "description": "NAM, IR, loudness normalization",
-        "questions": "libs/audio vs apps/worker, processing pipeline",
-    },
-    "data_model": {
-        "name": "Data Model",
-        "description": "Tables, columns, relations (SQLAlchemy ORM)",
-        "questions": "Primary entity, lifecycle, indexes",
-    },
-    "orm_patterns": {
-        "name": "ORM Patterns",
-        "description": "Repository pattern, transactions",
-        "questions": "Reference repository, eager/lazy loading",
-    },
-    "api_contract": {
-        "name": "API Contract",
-        "description": "Endpoints, Pydantic schemas, errors",
-        "questions": "REST vs HTML endpoints, validation, pagination",
-    },
-    "security": {
-        "name": "Security",
-        "description": "Auth, session cookies, ownership checks",
-        "questions": "Authentication required, CurrentUser, rate limiting",
-    },
-    "testing": {
-        "name": "Testing Strategy",
-        "description": "Unit/integration/E2E boundaries, no-mock policy",
-        "questions": "What to test at each level, all real services",
-    },
+AREA_DESCRIPTIONS: dict[str, str] = {
+    "signal_chain": "Signal chain block types, ordering, validation rules (HEAD vs FULL_RIG, IR requirements)",
+    "gear_model": "Unified gear model, sources, sync records, gear library, UserGear",
+    "database_architecture": "Single database with BC table prefixes (core_*, t3k_*, msg_*), pgmq, migrations",
+    "frontend_layers": "Astro SSG, Jinja2 SSR, HTMX fragments, page templates, React islands",
+    "job_processing": "TaskIQ jobs, pgmq consumers, background workers, queues, retry strategy",
+    "audio_processing": "NAM, IR, loudness normalization, audio pipeline, pedalboard",
+    "data_model": "Tables, columns, relations, SQLAlchemy ORM, entity lifecycle",
+    "orm_patterns": "Repository pattern, transactions, eager/lazy loading",
+    "api_contract": "Endpoints, Pydantic schemas, REST vs HTML, validation, pagination",
+    "security": "Auth, OAuth, session cookies, ownership checks, CORS, rate limiting",
+    "testing": "Unit/integration/E2E boundaries, no-mock policy, real services",
 }
 
 
@@ -215,7 +75,7 @@ ALWAYS_INCLUDE_SECTIONS: list[str] = ["architecture-layers"]
 AREA_TO_WIKI_FILES: dict[str, str] = {
     "frontend_layers": "Frontend-Architecture",
     "audio_processing": "Audio-Processing",
-    # video area isn't in AREA_DEFINITIONS, but audio_processing + job_processing
+    # video area isn't in AREA_DESCRIPTIONS, but audio_processing + job_processing
     # covers video rendering via the Remotion architecture
 }
 
@@ -261,45 +121,112 @@ FRESHNESS_SOURCE_DIRS: list[str] = [
 
 
 # ---------------------------------------------------------------------------
-# Keyword scanning
+# LLM-based area detection
 # ---------------------------------------------------------------------------
 
+AREA_DETECTION_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "areas": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": sorted(AREA_DESCRIPTIONS.keys()),
+            },
+        },
+    },
+    "required": ["areas"],
+    "additionalProperties": False,
+}
 
-def _keyword_matches(keyword: str, text_lower: str) -> bool:
-    """Check if a keyword matches in the text.
 
-    Multi-word phrases (containing a space or underscore) match as substrings.
-    Single words use word-boundary matching to avoid false positives from
-    compound identifiers (e.g. "audio" in "audio_commands").
+def _build_area_prompt(epic_body: str) -> str:
+    """Build the prompt for LLM area detection."""
+    area_list = "\n".join(f"- **{area_id}**: {desc}" for area_id, desc in AREA_DESCRIPTIONS.items())
+    return (
+        "You are a context selector for a software project planner. "
+        "Given an epic description, identify which architecture areas are relevant.\n\n"
+        "## Available Areas\n\n"
+        f"{area_list}\n\n"
+        "## Epic Description\n\n"
+        f"{epic_body}\n\n"
+        "## Instructions\n\n"
+        "Return ONLY the areas that are directly relevant to implementing this epic. "
+        "Be selective — fewer, more precise areas produce better plans than broad matches. "
+        "If no specific area applies, return an empty list."
+    )
+
+
+def detect_areas(epic_body: str) -> set[str]:
+    """Detect relevant architecture areas using a lightweight LLM call.
+
+    Dispatches the epic body to Haiku via ``claude -p`` with a JSON schema
+    constraint. Returns a set of area IDs.
+
+    Raises:
+        AssemblyError: If the LLM call fails or returns unparseable output.
     """
-    kw = keyword.lower()
-    if " " in kw or "_" in kw:
-        return kw in text_lower
-    return bool(re.search(rf"\b{re.escape(kw)}\b", text_lower))
+    prompt = _build_area_prompt(epic_body)
 
+    args = [
+        "claude",
+        "-p",
+        "-",
+        "--model",
+        "haiku",
+        "--no-session-persistence",
+        "--output-format",
+        "json",
+        "--json-schema",
+        json.dumps(AREA_DETECTION_SCHEMA),
+    ]
 
-def scan_keywords(text: str) -> set[str]:
-    """Scan text for keywords and return matching area IDs.
+    # Strip CLAUDECODE env var to allow nested dispatch from within a Claude session
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-    Returns a deduplicated set of area IDs.
-    """
-    text_lower = text.lower()
-    matched_areas: set[str] = set()
+    try:
+        completed = subprocess.run(
+            args,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssemblyError("Area detection timed out (30s)")
 
-    for keywords, areas in KEYWORD_AREA_MAP:
-        for keyword in keywords:
-            if _keyword_matches(keyword, text_lower):
-                matched_areas.update(areas)
-                break  # One keyword match is enough for this group
+    if completed.returncode != 0:
+        stderr = (completed.stderr or "").strip()
+        raise AssemblyError(f"Area detection failed (exit {completed.returncode}): {stderr}")
 
-    # Apply required area rules (stricter -- always include these)
-    for keywords, areas in REQUIRED_AREA_MAP:
-        for keyword in keywords:
-            if _keyword_matches(keyword, text_lower):
-                matched_areas.update(areas)
-                break
+    raw = (completed.stdout or "").strip()
+    if not raw:
+        raise AssemblyError("Area detection returned empty output")
 
-    return matched_areas
+    try:
+        envelope = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AssemblyError(f"Area detection returned invalid JSON: {exc}") from exc
+
+    # Claude --output-format json wraps in an envelope with structured_output
+    if isinstance(envelope, dict):
+        areas_data = envelope.get("structured_output") or envelope.get("result")
+        if isinstance(areas_data, str):
+            with contextlib.suppress(json.JSONDecodeError):
+                areas_data = json.loads(areas_data)
+    else:
+        areas_data = envelope
+
+    if isinstance(areas_data, dict) and "areas" in areas_data:
+        area_list = areas_data["areas"]
+    elif isinstance(areas_data, list):
+        area_list = areas_data
+    else:
+        raise AssemblyError(f"Unexpected area detection response structure: {raw[:200]}")
+
+    valid_areas = set(AREA_DESCRIPTIONS.keys())
+    return {a for a in area_list if a in valid_areas}
 
 
 # ---------------------------------------------------------------------------
@@ -340,11 +267,6 @@ def extract_sections(
             result[name] = match.group(2).strip()
 
     return result
-
-
-# ---------------------------------------------------------------------------
-# Token estimation and budget trimming
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -565,8 +487,7 @@ def _build_context_md(
         f"**Detected Areas:** {area_list}\n\n"
         f"This document is an intermediate artefact for the plan generator. "
         f"It combines the epic description, selectively loaded architecture "
-        f"documentation, and codebase context based on detected areas. "
-        f"Zero AI tokens were spent producing this file.\n"
+        f"documentation, and codebase context based on LLM-detected areas.\n"
     )
 
     # Freshness warnings
@@ -622,9 +543,9 @@ def assemble_context(
 ) -> Path:
     """Assemble context for the planner with selective content injection.
 
-    Reads EPIC.md (must exist), performs keyword scanning, then loads only
-    the wiki sections and codebase files relevant to the detected areas.
-    Writes the assembled context to CONTEXT.md in the epic directory.
+    Reads EPIC.md (must exist), performs LLM-based area detection, then
+    loads only the wiki sections and codebase files relevant to the
+    detected areas. Writes the assembled context to CONTEXT.md.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -650,8 +571,8 @@ def assemble_context(
     epic_md_content = _read_epic_md(epic_dir)
     epic_body = _extract_epic_body(epic_md_content)
 
-    # Keyword scanning on the epic body
-    detected_areas = scan_keywords(epic_body)
+    # LLM-based area detection
+    detected_areas = detect_areas(epic_body)
 
     # Selective loading based on detected areas
     wiki_sections = _resolve_wiki_sections(detected_areas, wiki_dir)
@@ -717,14 +638,13 @@ def main() -> None:
         rel = path.relative_to(project_root)
         print(f"Assembled context at {rel}")
 
-        # Report what was loaded
-        epic_md_content = _read_epic_md(epic_dir)
-        epic_body = _extract_epic_body(epic_md_content)
-        areas = scan_keywords(epic_body)
-        if areas:
-            print(f"Detected areas: {', '.join(sorted(areas))}")
-        else:
-            print("No specific areas detected")
+        # Report detected areas from the written CONTEXT.md header
+        content = path.read_text(encoding="utf-8")
+        for line in content.splitlines():
+            if line.startswith("**Detected Areas:**"):
+                areas_str = line.split("**Detected Areas:**", 1)[1].strip()
+                print(f"Detected areas: {areas_str}")
+                break
 
         # Report size
         size = path.stat().st_size

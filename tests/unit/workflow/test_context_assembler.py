@@ -1,37 +1,24 @@
-"""Tests for context_assembler — token estimation and section extraction."""
+"""Tests for context_assembler — section extraction and area detection prompt."""
 
 from workflow.context_assembler import (
-    estimate_context_tokens,
+    AREA_DESCRIPTIONS,
+    _build_area_prompt,
     extract_sections,
-    scan_keywords,
 )
 
 
-class TestEstimateContextTokens:
-    """Test token estimation."""
+class TestBuildAreaPrompt:
+    """Test that the area detection prompt is well-formed."""
 
-    def test_basic_estimate(self):
-        text = "a" * 400
-        assert estimate_context_tokens(text) == 100
+    def test_includes_all_areas(self):
+        prompt = _build_area_prompt("test epic body")
+        for area_id in AREA_DESCRIPTIONS:
+            assert area_id in prompt
 
-    def test_empty_string(self):
-        assert estimate_context_tokens("") == 0
-
-
-class TestScanKeywords:
-    """Test keyword scanning (existing functionality, for coverage)."""
-
-    def test_detects_signal_chain_area(self):
-        areas = scan_keywords("This epic adds a new amp model to the signal chain")
-        assert "signal_chain" in areas
-
-    def test_detects_frontend_area(self):
-        areas = scan_keywords("Add a new page template for the gear library UI")
-        assert "frontend_layers" in areas
-
-    def test_no_areas_from_generic_text(self):
-        areas = scan_keywords("Bump version number to 2.0")
-        assert len(areas) == 0
+    def test_includes_epic_body(self):
+        body = "Add comment editing to shootouts"
+        prompt = _build_area_prompt(body)
+        assert body in prompt
 
 
 class TestExtractSections:
