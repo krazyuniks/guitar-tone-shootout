@@ -135,6 +135,8 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 **GitHub issues are the source of truth.** All work traces back to a GitHub issue.
 
+**No branches on main worktree.** The `main` worktree commits directly to `main`. NEVER create feature branches in it. Each worktree IS a branch — use `./worktree.py setup <name>` for feature work. Creating branches within a worktree causes staging area race conditions when multiple sessions commit concurrently.
+
 ## Session Context Management
 
 **Separate exploration from execution.** Research sessions should NOT be used for implementation.
