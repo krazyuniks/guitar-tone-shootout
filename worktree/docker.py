@@ -1,18 +1,74 @@
 """Docker Compose operations for worktree management."""
 
 import contextlib
+import logging
 import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 from .config import get_main_worktree_path, settings
+
+logger = logging.getLogger(__name__)
 from .registry import Worktree
 
 
 class DockerError(Exception):
     """Docker operation failed."""
+
+
+def _ensure_bind_mount_dirs(cwd: Path) -> None:
+    """Pre-create missing bind-mount source directories before docker compose up.
+
+    Docker daemon creates missing bind-mount source paths as root:root.
+    This is a security problem — directories in user worktrees must be
+    owned by the user. We parse the compose file and mkdir any missing
+    relative-path sources before Docker gets a chance to.
+    """
+    compose_file = cwd / "docker-compose.yml"
+    if not compose_file.is_file():
+        return
+
+    try:
+        config = yaml.safe_load(compose_file.read_text())
+    except yaml.YAMLError:
+        return
+
+    services = config.get("services", {})
+    for service_name, service_config in services.items():
+        for volume in service_config.get("volumes", []):
+            if isinstance(volume, str) and ":" in volume:
+                host_path = volume.split(":")[0]
+            elif isinstance(volume, dict):
+                host_path = volume.get("source", "")
+            else:
+                continue
+
+            # Only handle relative paths (absolute paths are not our concern)
+            if not host_path.startswith("./") and not host_path.startswith("../"):
+                continue
+
+            resolved = (cwd / host_path).resolve()
+
+            if resolved.exists():
+                continue
+
+            # Files tracked in git should already exist. Anything missing
+            # is a directory that needs creating (e.g. .planning/).
+            # Don't create paths that look like files (have an extension
+            # in the final component) — those are genuine missing-file errors.
+            if "." in resolved.name and not resolved.name.startswith("."):
+                continue
+
+            logger.info(
+                "Pre-creating bind-mount directory %s (service: %s)",
+                host_path,
+                service_name,
+            )
+            resolved.mkdir(parents=True, exist_ok=True)
 
 
 def is_traefik_running() -> bool:
@@ -57,6 +113,11 @@ def run_compose(
         DockerError: If check=True and command fails
     """
     import os
+
+    # Pre-create bind-mount directories before any 'up' command to prevent
+    # Docker daemon from creating them as root:root.
+    if "up" in args:
+        _ensure_bind_mount_dirs(cwd)
 
     cmd = ["docker", "compose", *args]
 

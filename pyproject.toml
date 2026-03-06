@@ -264,7 +264,7 @@ known-first-party = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG001", "ARG002", "E402", "B017", "B011", "RUF043"]
+"tests/**/*.py" = ["ARG001", "ARG002", "E402", "B017", "B011", "RUF043", "TCH001"]
 # SQLAlchemy models need runtime imports for Mapped[] annotations — cannot move to TYPE_CHECKING
 "apps/webapp/src/webapp/adapters/persistence/models/*.py" = ["TCH001", "TCH002", "TCH003"]
 "apps/webapp/src/webapp/adapters/persistence/unit_of_work.py" = ["TCH002"]
