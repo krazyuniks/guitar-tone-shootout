@@ -112,7 +112,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 - **Principle: "No model marks its own homework."** Opus plans, Codex critiques the plan, agents implement, Opus critiques the implementation.
 - Epics run via the stateless orchestrator (`workflow/orchestrator.py`). JSONL log is the only state — enables crash-resume.
-- **9 verification gates:** epic structure (ingest), gap sufficiency (AI + human), Phase A (deterministic, 11 checks), Phase B (adversarial critique), decision gate (human), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model), epic critique (cross-model).
+- **11 verification gates:** epic structure (ingest), gap sufficiency (AI + human), Phase A (deterministic, 11 checks), Phase B (adversarial critique), decision gate (human), test generation (test_writer + test_reviewer per story), test file protection (SHA-256 hash verification), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model, hard gate), epic critique (cross-model).
 - `just epic N` — full pipeline: ingest -> plan -> verify -> gate -> execute -> critique.
 - `just epic-status N` — check progress from JSONL logs (read-only).
 - `just epic-validate-plan N` — run Phase A deterministic validation only (read-only).

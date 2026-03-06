@@ -112,7 +112,39 @@ Synthetic validation of the complete ingestion pipeline:
 
 Canary test failures trigger P2 alerts (significant degradation).
 
+## Fixture Catalogue
+
+Factory fixtures in `tests/integration/webapp/conftest.py` provide canonical test data setup:
+
+- **Factory fixtures:** `make_user`, `make_di_track`, `make_shootout`, `make_gear`, `make_signal_chain` — create entities with customisable parameters
+- **Singleton fixtures:** `test_user`, `test_di_track`, `test_gear`, `test_shootout`, `test_signal_chain` — pre-built instances using the factories
+- **`authenticated_client`** — single canonical definition for authenticated HTTP client
+
+All factory fixtures are documented in `tests/FIXTURES.md`. Tests must use these fixtures rather than ad-hoc setup. Duplicate fixture definitions across test files are prohibited.
+
+## Test Generation Pipeline
+
+Step 5b in the epic workflow generates test code from approved `test_spec` fields in `plan.json`, before story execution begins.
+
+- **`test_writer`** (default: sonnet) writes test code from the test_spec + fixture catalogue
+- **`test_reviewer`** (default: codex) reviews against a 5-item binary checklist (assertion coverage, factory fixtures used, no mocks, data flows verified, tests would fail without feature)
+- Max 3 retries per story — reviewer feedback fed back to writer
+- Output: `tests/epic/E{N}/test_{story_id}.py` per story
+- Config roles defined in `workflow/default_config.toml` under `[budgets.test_writing]` and `[budgets.test_review]`
+- Cross-model warning if `test_writer == test_reviewer`
+
+**Module:** `workflow/test_generator.py`
+
+## Test File Protection
+
+Implementing agents cannot modify pre-written test files. Before agent dispatch, the pipeline takes a SHA-256 hash snapshot of all `tests/**/*.py` files. After the agent completes, hashes are re-verified. If any pre-existing test file was modified or deleted, the story fails with `scope_violation` (0 retries, immediate exit to human).
+
+## Golden Path Gate
+
+`just test-golden-path` runs as a mandatory gate after every story execution. If any existing golden path test fails, the story fails with category `implementation` (retryable). This ensures implementing agents do not break existing functionality.
+
 **Reference:**
 - Markers defined in `tests/conftest.py`
 - Fixtures in `tests/fixtures/`
+- Fixture catalogue in `tests/FIXTURES.md`
 - Structure documented in `tests/AGENTS.md`
