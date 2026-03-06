@@ -50,6 +50,7 @@ from workflow.jsonl_logger import (
     generate_run_id,
     get_resumable_state,
     is_story_complete,
+    is_test_generation_complete,
     read_log,
 )
 from workflow.story_executor import execute_story
@@ -1445,6 +1446,83 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _ensure_test_generation(epic_number: int, epic_dir: Path) -> bool:
+    """Check and run test generation if incomplete.
+
+    Reads the plan and JSONL log to determine whether test generation
+    has completed for all stories with test_specs. If not, re-runs
+    Step 5b for the incomplete stories (the per-story resume in
+    ``run_test_generation`` handles skipping already-passing stories).
+
+    Args:
+        epic_number: The GitHub issue number of the epic.
+        epic_dir: Path to the epic directory.
+
+    Returns:
+        True if test generation is complete (or no specs), False if
+        test generation failed and execution should not proceed.
+    """
+    import json as _json
+
+    plan_path = epic_dir / "plan.json"
+    if not plan_path.is_file():
+        return True
+
+    plan = _json.loads(plan_path.read_text(encoding="utf-8"))
+    stories_with_specs = [
+        s.get("story_id", "unknown")
+        for s in plan.get("stories", [])
+        if s.get("test_spec") is not None
+    ]
+
+    if not stories_with_specs:
+        return True
+
+    epic_log_path = epic_dir / "epic.jsonl"
+    events = read_log(epic_log_path)
+
+    if is_test_generation_complete(events, stories_with_specs):
+        logger.info("Test generation already complete for all %d stories.", len(stories_with_specs))
+        return True
+
+    # Tests incomplete — re-run Step 5b
+    logger.info(
+        "Test generation incomplete. Re-running Step 5b for epic #%d...",
+        epic_number,
+    )
+
+    from workflow.epic_config import ensure_epic_config, load_config
+    from workflow.test_generator import run_test_generation
+
+    config_path = ensure_epic_config(epic_dir)
+    config = load_config(override_path=config_path)
+
+    # Reuse existing run_id if available, otherwise generate new
+    run_id = events[-1].get("run_id", "") if events else ""
+    if not run_id:
+        run_id = generate_run_id()
+
+    epic_logger = EventLogger(epic_log_path, run_id)
+
+    test_report = run_test_generation(
+        epic_dir=epic_dir,
+        plan=plan,
+        config=config,
+        event_logger=epic_logger,
+    )
+
+    if test_report.all_passed:
+        logger.info("Test generation complete: all %d tests passed.", len(test_report.passed))
+        return True
+
+    logger.error(
+        "Test generation failed: %d passed, %d failed. Cannot proceed to execution.",
+        len(test_report.passed),
+        len(test_report.failed),
+    )
+    return False
+
+
 def run_pipeline(epic_number: int) -> None:
     """Run the full epic pipeline: Stages 1-3 (planning) then Stage 4 (execution).
 
@@ -1453,7 +1531,9 @@ def run_pipeline(epic_number: int) -> None:
     continues to Stage 4 execution when the plan is committed.
 
     The pipeline detects completed stages via artefacts and JSONL events,
-    prompting the user to skip or re-run each step.
+    prompting the user to skip or re-run each step. On resume, also
+    checks whether test generation (Step 5b) completed — if not, re-runs
+    it for incomplete stories before proceeding to execution.
 
     Args:
         epic_number: The GitHub issue number of the epic.
@@ -1462,9 +1542,19 @@ def run_pipeline(epic_number: int) -> None:
 
     epic_dir = PLANNING_DIR / f"E{epic_number}"
 
-    # Check if plan is already committed — skip to Stage 4
+    # Check if plan is already committed — check test gen, then skip to Stage 4
     if _check_plan_committed(epic_dir):
-        logger.info("Plan already committed for epic #%d. Starting Stage 4 execution.", epic_number)
+        logger.info("Plan already committed for epic #%d.", epic_number)
+
+        # Ensure test generation is complete before execution
+        if not _ensure_test_generation(epic_number, epic_dir):
+            logger.error(
+                "Test generation incomplete for epic #%d. Fix issues and re-run.",
+                epic_number,
+            )
+            return
+
+        logger.info("Starting Stage 4 execution for epic #%d.", epic_number)
         run_epic(epic_number, resume=True)
         return
 

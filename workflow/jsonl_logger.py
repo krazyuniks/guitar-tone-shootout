@@ -182,6 +182,7 @@ def get_resumable_state(
     - Which stories have been completed in this run
     - What the last significant event was
     - What the next action should be
+    - Whether test generation is complete
 
     This is used for crash recovery: the orchestrator reads the log,
     finds the latest run_id, and calls this function to determine
@@ -196,8 +197,9 @@ def get_resumable_state(
         - completed_stories: list of story_id strings that are done
         - last_event: the most recent event dict for this run (or None)
         - next_action: one of "continue", "retry_story", "exit_to_human",
-          "epic_complete", or "start" (if no events for this run)
+          "epic_complete", "test_generation", or "start"
         - failed_story_id: story_id of the last failed story (if applicable)
+        - stories_with_passing_tests: list of story_id strings with passing tests
     """
     # Filter events belonging to this run
     run_events = [e for e in events if e.get("run_id") == run_id]
@@ -208,6 +210,7 @@ def get_resumable_state(
             "last_event": None,
             "next_action": "start",
             "failed_story_id": None,
+            "stories_with_passing_tests": [],
         }
 
     # Collect completed stories
@@ -216,6 +219,16 @@ def get_resumable_state(
             e["story_id"]
             for e in run_events
             if e.get("event") == "story_complete" and "story_id" in e
+        }
+    )
+
+    # Collect stories with passing tests (not scoped to run_id — test_review_pass
+    # events are valid across runs, matching _is_test_already_passing behaviour)
+    stories_with_passing_tests = sorted(
+        {
+            e["story_id"]
+            for e in events
+            if e.get("event") == "test_review_pass" and "story_id" in e
         }
     )
 
@@ -232,6 +245,10 @@ def get_resumable_state(
     elif last_event_type in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
         next_action = "retry_story"
         failed_story_id = last_event.get("story_id")
+    elif last_event_type in ("test_gen_started", "test_gen_attempt", "test_review_fail"):
+        # Mid-test-generation: crashed or interrupted during test gen
+        next_action = "test_generation"
+        failed_story_id = None
     else:
         # Normal continuation — either mid-story or between stories
         next_action = "continue"
@@ -242,4 +259,38 @@ def get_resumable_state(
         "last_event": last_event,
         "next_action": next_action,
         "failed_story_id": failed_story_id,
+        "stories_with_passing_tests": stories_with_passing_tests,
     }
+
+
+def is_test_generation_complete(
+    events: list[dict],
+    stories_with_specs: list[str],
+) -> bool:
+    """Check if test generation is complete for all stories that need tests.
+
+    Compares stories that have test_specs against stories with
+    test_review_pass events. Test generation is complete when every
+    story with a test_spec has a passing test.
+
+    Not scoped to run_id — test_review_pass events are valid across
+    runs (matching _is_test_already_passing in test_generator.py).
+
+    Args:
+        events: List of event dicts (from read_log).
+        stories_with_specs: List of story_id strings that have test_specs.
+
+    Returns:
+        True if all stories with specs have passing tests, or if
+        there are no stories with specs.
+    """
+    if not stories_with_specs:
+        return True
+
+    passed_stories = {
+        e["story_id"]
+        for e in events
+        if e.get("event") == "test_review_pass" and "story_id" in e
+    }
+
+    return all(sid in passed_stories for sid in stories_with_specs)
