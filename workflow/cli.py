@@ -473,6 +473,8 @@ def _run_planning_pipeline(epic_number: int) -> None:
                 f"  [red]Structural validation failed after revision"
                 f" ({len(phase_a_result.errors)} errors). Restoring pre-revision plan.[/red]"
             )
+            for err in phase_a_result.errors:
+                console.print(f"    • [red]{err.check}:[/red] {err.message}")
             plan_json_path.write_text(snapshot_json, encoding="utf-8")
             if snapshot_md:
                 plan_md_path.write_text(snapshot_md, encoding="utf-8")

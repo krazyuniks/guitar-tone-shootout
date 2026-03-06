@@ -657,6 +657,8 @@ def verify_with_revision_cycle(
             "Restoring pre-revision plan and continuing with Phase B failure.",
             len(phase_a_result.errors),
         )
+        for err in phase_a_result.errors:
+            logger.warning("  Phase A error: [%s] %s", err.check, err.message)
         # Restore the original plan that passed Phase A
         plan_json_path.write_text(original_plan_json, encoding="utf-8")
         if original_plan_md:
