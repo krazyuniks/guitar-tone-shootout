@@ -976,6 +976,7 @@ def _run_epic_critique(
         mcp_servers=mcp_servers,
         timeout=timeout,
         cwd=PROJECT_ROOT,
+        role="epic_critique",
     )
 
     if not result.success:

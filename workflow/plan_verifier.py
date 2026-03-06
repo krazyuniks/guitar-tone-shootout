@@ -541,6 +541,7 @@ def verify_plan(
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="plan_verifier",
     )
 
     if not result.success:
@@ -743,6 +744,7 @@ def _regenerate_plan_with_errors(
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="planner_revision",
     )
 
     if not result.success:
@@ -787,6 +789,7 @@ def _regenerate_plan_with_verifier_feedback(
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="planner_revision",
     )
 
     if not result.success:

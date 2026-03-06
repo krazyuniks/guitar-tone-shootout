@@ -342,6 +342,7 @@ def write_test_for_story(
         model=model,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="test_writer",
     )
 
     if not result.success:
@@ -404,6 +405,7 @@ def review_test(
         json_schema=TEST_REVIEW_SCHEMA,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="test_reviewer",
     )
 
     if not result.success:

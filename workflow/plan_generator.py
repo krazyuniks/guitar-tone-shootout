@@ -113,24 +113,22 @@ pass" maps to `just check`), but explicit commands are preferred for precision."
 # Story sizing guidance (Section 8.4 Decision 7)
 STORY_SIZING_GUIDANCE = """\
 Story sizing constraints:
-- Target 2-5 stories per epic. Each story is a coherent chunk an agent completes
-  in one invocation.
+- ONE FEATURE PER STORY. Never bundle unrelated features into one story, even
+  if they share a theme (e.g. "security"). If two changes can be described,
+  tested, and reverted independently, they are separate stories.
+- Each story is a vertical slice: one feature through all layers (DB → service
+  → API → UI). The agent completes it in one invocation.
 - 3-8 files created/modified per story.
 - Each story should use <50% of the agent context window.
-- Full vertical slice OR one layer across multiple entities.
 - Each story should produce something checkable.
 - Each story builds on the previous but is self-contained.
+- If a single feature is complex (e.g. intricate UI interaction, complex
+  business rules), split into a scaffold story (vertical slice with simple
+  placeholder implementation) followed by a refinement story (full logic).
+- More stories is fine. Prefer 5 focused stories over 3 bloated ones. There is
+  no penalty for having more stories — the orchestrator handles sequencing.
 - State assumption: declare whether the story expects cumulative state (default)
-  or clean state (orchestrator runs db-reset before dispatch).
-
-Example story breakdown for a typical GTS epic:
-| Story | Scope | Model | Budget |
-|-------|-------|-------|--------|
-| 1. Architecture | Entity, ORM, repo, service, migration | Codex | $3 |
-| 2. API + Schemas | Routes, Pydantic schemas, route registration | Codex | $2 |
-| 3. UI Scaffolding | Page templates, fragments, navigation | Codex | $3 |
-| 4. CRUD Features | Form handling, HTMX interactions, DB writes | Codex | $4 |
-| 5. Regression Tests | E2E tests, regression test updates | Codex | $3 |"""
+  or clean state (orchestrator runs db-reset before dispatch)."""
 
 # Story enrichment guidance (Step 3b)
 STORY_ENRICHMENT_GUIDANCE = """\
@@ -944,6 +942,7 @@ def generate_plan(
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="planner",
     )
 
     if not result.success:

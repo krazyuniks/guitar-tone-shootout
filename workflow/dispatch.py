@@ -20,12 +20,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
+from rich.console import Console
+
 if TYPE_CHECKING:
     from workflow.epic_config import EpicConfig
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 
 # ---------------------------------------------------------------------------
@@ -504,6 +507,7 @@ def dispatch_agent(
     mcp_servers: list[str] | None = None,
     timeout: int = 600,
     conversation_log: Path | None = None,
+    role: str = "agent",
 ) -> AgentResult:
     """Dispatch a prompt to an agent and return the structured result.
 
@@ -526,6 +530,8 @@ def dispatch_agent(
         conversation_log: Path to write per-dispatch conversation JSONL.
             When provided, enables streaming Popen mode with full
             transcript capture.
+        role: Human-readable role label for log lines (e.g. "gap_detector",
+            "critique", "implementation"). Defaults to "agent".
 
     Returns:
         AgentResult with success status, output, and turn count.
@@ -537,11 +543,10 @@ def dispatch_agent(
     prompt_hash = compute_prompt_hash(prompt)
     prompt_tokens = estimate_tokens(prompt)
 
-    logger.info(
-        "Dispatching agent: model=%s, prompt_hash=%s, prompt_tokens=%d",
-        model,
-        prompt_hash,
-        prompt_tokens,
+    role_label = role.replace("_", " ").title()
+    console.print(
+        f"  Dispatching [bold]{role_label}[/bold]: model={model}, "
+        f"prompt_tokens=~{prompt_tokens}"
     )
 
     # Write prompt to logs dir for post-mortem debugging
@@ -579,12 +584,9 @@ def dispatch_agent(
             timeout=timeout,
         )
 
-    logger.info(
-        "Agent complete: success=%s, exit_code=%d, turns=%s",
-        result.success,
-        result.exit_code,
-        result.turns or "unknown",
-    )
+    status = "[green]success[/green]" if result.success else "[red]failed[/red]"
+    turns = result.turns or "unknown"
+    console.print(f"  {role_label} complete: {status}, turns={turns}")
 
     return result
 

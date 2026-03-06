@@ -23,10 +23,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-CHARS_PER_TOKEN = 4
-CONTEXT_TOKEN_WARN = 15_000  # Warn if CONTEXT.md exceeds this token estimate
-
-
 class AssemblyError(Exception):
     """Raised when context assembly fails."""
 
@@ -349,11 +345,6 @@ def extract_sections(
 # ---------------------------------------------------------------------------
 # Token estimation and budget trimming
 # ---------------------------------------------------------------------------
-
-
-def estimate_context_tokens(text: str) -> int:
-    """Estimate token count using 4-chars-per-token heuristic."""
-    return len(text) // CHARS_PER_TOKEN
 
 
 # ---------------------------------------------------------------------------
@@ -682,16 +673,6 @@ def assemble_context(
     # Write output
     context_path = epic_dir / "CONTEXT.md"
     context_path.write_text(context_content, encoding="utf-8")
-
-    # Warn if context is large (but don't trim — the planner may need it all)
-    context_tokens = estimate_context_tokens(context_content)
-    if context_tokens > CONTEXT_TOKEN_WARN:
-        logger.warning(
-            "CONTEXT.md is ~%d tokens (threshold: %d). "
-            "Consider whether the epic scope is too broad.",
-            context_tokens,
-            CONTEXT_TOKEN_WARN,
-        )
 
     return context_path
 

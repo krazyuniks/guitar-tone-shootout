@@ -942,6 +942,7 @@ def _run_story_critique(
         mcp_servers=mcp_servers,
         timeout=timeout,
         cwd=PROJECT_ROOT,
+        role="story_critique",
     )
 
     if not result.success:
@@ -1114,6 +1115,7 @@ def _dispatch_and_validate_loop(
             mcp_servers=mcp_servers_impl,
             timeout=0,  # streaming mode; no subprocess timeout
             conversation_log=conv_log,
+            role="implementation",
         )
 
         # Check for test file modifications (scope violation)

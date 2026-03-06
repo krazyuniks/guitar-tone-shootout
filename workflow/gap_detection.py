@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 import typer
 from pydantic import BaseModel, Field
 from rich.console import Console
-from rich.panel import Panel
 from rich.rule import Rule
 
 from workflow.dispatch import (
@@ -37,6 +36,17 @@ logger = logging.getLogger(__name__)
 console = Console()
 
 GAP_DETECTION_GUIDE = Path(__file__).parent / "references" / "gap-detection-guide.md"
+
+# Required coverage areas — the gap detector must check all of these.
+# If any are missing from the report, the sufficiency check fails automatically.
+REQUIRED_COVERAGE_AREAS = frozenset({
+    "bounded_contexts",
+    "data_model",
+    "api_contracts",
+    "frontend",
+    "security",
+    "testing",
+})
 
 
 class GapDetectionError(Exception):
@@ -451,6 +461,7 @@ def run_gap_detection(
         model=gap_model,
         mcp_servers=mcp_servers_gap,
         timeout=timeout_gap,
+        role="gap_detector",
     )
 
     if not gap_result.success:
@@ -465,13 +476,13 @@ def run_gap_detection(
     n_locked = len(gap_report.locked_decisions)
     n_escalated = len(gap_report.escalated_questions)
     console.print(
-        f"  Agent resolved [bold]{n_locked}[/bold] gaps autonomously, "
-        f"escalating [bold]{n_escalated}[/bold] for your input"
+        f"  Resolved [bold]{n_locked}[/bold] gaps autonomously, "
+        f"[bold]{n_escalated}[/bold] flagged for critique review"
     )
 
     # --- Step 2: Critique Agent ---
     console.print()
-    console.print("[bold]Step 2b.2:[/bold] Critiquing gap report...")
+    console.print(f"[bold]Step 2b.2:[/bold] Critiquing {n_escalated} escalation(s)...")
     gap_report_json = gap_report.model_dump_json(indent=2)
 
     critique_prompt = _build_critique_prompt(epic_md, context_md, gap_report_json)
@@ -481,6 +492,7 @@ def run_gap_detection(
         model=critique_model,
         mcp_servers=mcp_servers_crit,
         timeout=timeout_crit,
+        role="gap_critique",
     )
 
     if not critique_result.success:
@@ -512,47 +524,12 @@ def run_gap_detection(
         demoted_count=len(critique_report.false_escalations) if critique_report else 0,
     )
 
-    # --- Step 3: Display locked decisions + critique ---
-    if gap_report.locked_decisions:
-        console.print()
-        lines = []
-        for d in gap_report.locked_decisions:
-            lines.append(f"[bold]{d.id}[/bold] ({d.area})")
-            lines.append(f"  {d.decision}")
-            lines.append(f"  [dim]{d.rationale}[/dim]")
-            lines.append("")
-        console.print(
-            Panel(
-                "\n".join(lines).rstrip(),
-                title="Locked Decisions (auto-resolved)",
-                border_style="green",
-            )
-        )
-
+    # --- Step 3: Summary ---
     console.print()
-    if critique_report:
-        critique_lines = []
-        if critique_report.false_escalations:
-            critique_lines.append(
-                f"[bold]False escalations demoted:[/bold] {len(critique_report.false_escalations)}"
-            )
-            for fe in critique_report.false_escalations:
-                critique_lines.append(f"  • {fe.question_id}: {fe.reason}")
-        critique_lines.append(f"\n[bold]Verdict:[/bold] {critique_report.verdict}")
-        console.print(Panel("\n".join(critique_lines), title="Critique", border_style="yellow"))
-    else:
-        console.print(Panel(critique_result.output, title="Critique", border_style="yellow"))
-    console.print()
-
-    from workflow.cli import flush_stdin
-
-    flush_stdin()
-    user_feedback = typer.prompt(
-        "Press Enter to proceed to questions, or type feedback",
-        default="",
+    console.print(
+        f"  [green]{n_locked}[/green] gaps auto-resolved, "
+        f"[bold]{n_escalated}[/bold] need your input"
     )
-    if user_feedback:
-        logger.info("User feedback on gap report: %s", user_feedback)
 
     # --- Step 4: Interactive Q&A (escalated questions only) ---
     console.print()
@@ -573,17 +550,17 @@ def run_gap_detection(
             answer=answer.answer,
         )
 
-    # --- Step 5: Sufficiency confirmation ---
-    console.print()
-    console.print("[bold]Step 2b.4:[/bold] Sufficiency check")
-    console.print()
-    console.print("[bold]Coverage areas checked:[/bold]")
-    for area in gap_report.coverage_areas_checked:
-        console.print(f"  - {area}")
-    console.print()
+    # --- Step 5: Sufficiency check (deterministic) ---
+    reported_areas = frozenset(gap_report.coverage_areas_checked)
+    missing_areas = REQUIRED_COVERAGE_AREAS - reported_areas
+    sufficiency = len(missing_areas) == 0
 
-    flush_stdin()
-    sufficiency = typer.confirm("Are all gaps resolved and scope decisions locked?", default=True)
+    if missing_areas:
+        console.print(
+            f"  [red]Coverage gap:[/red] missing areas: {', '.join(sorted(missing_areas))}"
+        )
+    else:
+        console.print(f"  All {len(REQUIRED_COVERAGE_AREAS)} required coverage areas checked")
 
     # --- Step 6: Write user-decisions.json ---
     decisions = UserDecisions(
