@@ -19,7 +19,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import ProcessAudioCommand, ShootoutCommand
+from messaging.commands import ProcessAudioCommand, RenderVideoCommand
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.api.v1.schemas.admin import (
@@ -222,7 +222,7 @@ async def enqueue_job(
             detail="SOURCE_SYNC is self-managed by t3k-sync",
         )
     elif job.job_type == JobType.SHOOTOUT:
-        cmd = ShootoutCommand(source_bc="webapp", payload={"job_id": str(job.id)})
+        cmd = RenderVideoCommand(source_bc="webapp", payload={"job_id": str(job.id)})
         await pgmq.send("shootout_commands", cmd)
     elif (
         job.job_type in (JobType.SHOOTOUT_AUDIO, JobType.SHOOTOUT_MASTER)
