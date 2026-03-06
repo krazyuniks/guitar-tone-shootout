@@ -13,6 +13,7 @@ File-to-story ownership). Section 8.5 Decision 2 (failure feedback).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -48,6 +49,51 @@ WIKI_INDEXES_DIR = PROJECT_ROOT / ".planning" / "wiki-indexes"
 # The plan specifies "2 retries" for scope, implementation, and unknown
 # failure categories. Total attempts = 1 initial + 2 retries = 3.
 MAX_RETRIES = 2
+
+TESTS_DIR = PROJECT_ROOT / "tests"
+
+
+# ---------------------------------------------------------------------------
+# Test file protection — snapshot hashes before/after dispatch
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_test_hashes() -> dict[str, str]:
+    """Return SHA-256 hashes of all .py files under tests/.
+
+    Used to detect if the implementing agent modified pre-written tests.
+    """
+    hashes: dict[str, str] = {}
+    if not TESTS_DIR.is_dir():
+        return hashes
+    for py_file in sorted(TESTS_DIR.rglob("*.py")):
+        try:
+            digest = hashlib.sha256(py_file.read_bytes()).hexdigest()
+            hashes[str(py_file.relative_to(PROJECT_ROOT))] = digest
+        except OSError:
+            continue
+    return hashes
+
+
+def _detect_test_modifications(
+    before: dict[str, str],
+    after: dict[str, str],
+) -> list[str]:
+    """Compare before/after snapshots and return list of modified test files.
+
+    Detects modifications and deletions. New test files are allowed (the
+    agent may create tests as part of implementation).
+    """
+    modified: list[str] = []
+    for path, old_hash in before.items():
+        new_hash = after.get(path)
+        if new_hash is None:
+            # File was deleted
+            modified.append(path)
+        elif new_hash != old_hash:
+            # File was modified
+            modified.append(path)
+    return sorted(modified)
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +444,8 @@ def get_retry_budget(category: str) -> int:
         return 0  # Exit immediately -- infrastructure problem
     if category == "upstream":
         return 0  # Exit to human -- earlier story bug
+    if category == "scope_violation":
+        return 0  # Exit immediately -- agent modified protected files
     # scope, implementation, unknown all get retries
     return MAX_RETRIES
 
@@ -1051,6 +1099,9 @@ def _dispatch_and_validate_loop(
             **metadata,
         )
 
+        # Snapshot test file hashes before dispatch (for scope violation detection)
+        test_hashes_before = _snapshot_test_hashes()
+
         # Dispatch the implementation agent (with conversation transcript)
         story_dir = epic_dir / "stories" / story_id
         story_dir.mkdir(parents=True, exist_ok=True)
@@ -1064,6 +1115,35 @@ def _dispatch_and_validate_loop(
             timeout=0,  # streaming mode; no subprocess timeout
             conversation_log=conv_log,
         )
+
+        # Check for test file modifications (scope violation)
+        test_hashes_after = _snapshot_test_hashes()
+        modified_tests = _detect_test_modifications(test_hashes_before, test_hashes_after)
+        if modified_tests:
+            logger.error(
+                "Story '%s' modified pre-written test files (scope violation): %s",
+                story_id,
+                ", ".join(modified_tests),
+            )
+            event_logger.log_event(
+                "story_failed",
+                story_id=story_id,
+                attempt=attempt,
+                reason=f"Scope violation: agent modified test files: {', '.join(modified_tests)}",
+                failure_category="scope_violation",
+            )
+            return _handle_terminal_failure(
+                story_id=story_id,
+                attempt=attempt,
+                classification=FailureClassification(
+                    category="scope_violation",
+                    evidence=f"Modified test files: {', '.join(modified_tests)}",
+                    pattern="test_file_modification",
+                ),
+                error_text=f"Agent modified pre-written test files: {', '.join(modified_tests)}",
+                event_logger=event_logger,
+                plan_scope_paths=plan_scope_paths,
+            )
 
         # Log agent result
         if agent_result.success:
@@ -1194,29 +1274,64 @@ def _dispatch_and_validate_loop(
                 )
                 return True
 
-            # Critique failed -- soft gate: append advisory notes, complete anyway
+            # Critique failed -- hard gate: treat as implementation failure + retry
+            critique_error = "; ".join(
+                f.get("issue", str(f)) if isinstance(f, dict) else str(f)
+                for f in findings
+            )
+            classification = FailureClassification(
+                category="implementation",
+                evidence=critique_error[:500],
+                pattern="critique_failure",
+            )
+
             logger.warning(
-                "Story '%s' critique found %d issues (attempt %d) — "
-                "recording as advisory notes and marking complete",
+                "Critique failed for story '%s' (attempt %d, %d findings) — "
+                "treating as implementation failure",
                 story_id,
-                len(findings),
                 attempt,
+                len(findings),
             )
-            _append_critique_to_story_context(epic_dir, story_id, findings)
+
+            # Check retry budget
+            retry_allowed = get_retry_budget(classification.category)
+            remaining_attempts = max_attempts - attempt
+
+            if retry_allowed == 0 or remaining_attempts == 0:
+                return _handle_terminal_failure(
+                    story_id=story_id,
+                    attempt=attempt,
+                    classification=classification,
+                    error_text=critique_error,
+                    event_logger=event_logger,
+                    plan_scope_paths=plan_scope_paths,
+                )
+
+            # Build retry context with critique failure details
+            retry_context = {
+                "attempt": attempt,
+                "error": _extract_key_error(critique_error),
+                "files_modified": plan_scope_paths,
+                "jsonl_excerpt": json.dumps(
+                    {
+                        "event": "critique_fail",
+                        "story_id": story_id,
+                        "attempt": attempt,
+                        "failure_category": "implementation",
+                        "findings_count": len(findings),
+                    }
+                ),
+            }
+
+            # Log story_started for the retry attempt
             event_logger.log_event(
-                "story_complete",
+                "story_started",
                 story_id=story_id,
-                attempt=attempt,
-                commit=_get_latest_commit_hash(),
-                critique_advisory=True,
+                attempt=attempt + 1,
+                index=_find_story_index(plan, story_id),
             )
-            logger.info(
-                "Story '%s' completed with advisory critique (%d findings, attempt %d)",
-                story_id,
-                len(findings),
-                attempt,
-            )
-            return True
+
+            continue  # Retry
 
         # Validation failed -- classify and decide whether to retry
         error_text = validation_result.failure_reason or ""
@@ -1376,35 +1491,6 @@ def _handle_terminal_failure(
 # Helpers
 # ---------------------------------------------------------------------------
 
-
-def _append_critique_to_story_context(epic_dir: Path, story_id: str, findings: list) -> None:
-    """Append deferred critique findings to STORY_CONTEXT.md as advisory notes.
-
-    Called by the soft critique gate when validation passes but critique fails.
-    The next story agent will see these findings as advisory context.
-
-    Note: The orchestrator regenerates STORY_CONTEXT.md from JSONL events after
-    story_complete, so these findings will persist via the critique_fail event.
-    This append provides immediate visibility between story completion and
-    orchestrator regeneration.
-    """
-    context_path = epic_dir / "STORY_CONTEXT.md"
-    if not context_path.is_file():
-        return
-
-    note_lines = ["", f"## Advisory Notes — {story_id}", ""]
-    for f in findings:
-        file_ref = f.get("file", "?") if isinstance(f, dict) else "?"
-        line_ref = f.get("line", "?") if isinstance(f, dict) else "?"
-        issue = f.get("issue", str(f)) if isinstance(f, dict) else str(f)
-        severity = f.get("severity", "?") if isinstance(f, dict) else "?"
-        note_lines.append(f"- [{severity}] `{file_ref}:{line_ref}` — {issue}")
-
-    existing = context_path.read_text(encoding="utf-8")
-    context_path.write_text(
-        existing.rstrip() + "\n" + "\n".join(note_lines) + "\n",
-        encoding="utf-8",
-    )
 
 
 def _get_latest_commit_hash() -> str:

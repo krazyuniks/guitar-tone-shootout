@@ -323,6 +323,29 @@ def run_validation_checkpoint(
                 raw_output=result.raw_output + "\n" + baseline_result.raw_output,
             )
 
+    # Mandatory golden path gate: run after baseline quality gate passes.
+    if "just test-golden-path" not in story_commands:
+        logger.info(
+            "Running mandatory golden path gate for story '%s': just test-golden-path",
+            story_id,
+        )
+        golden_check = CheckCriterion(
+            criterion="Golden path integration tests pass",
+            command="just test-golden-path",
+        )
+        golden_result = _run_checks_directly([golden_check], "golden_path", story_id)
+        if event_logger:
+            _log_validation_event(event_logger, story_id, golden_result)
+        if not golden_result.passed:
+            return ValidationResult(
+                passed=False,
+                check_type=check_type,
+                results=result.results + golden_result.results,
+                failure_reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+                raw_output=result.raw_output + "\n" + golden_result.raw_output,
+            )
+
     return result
 
 
