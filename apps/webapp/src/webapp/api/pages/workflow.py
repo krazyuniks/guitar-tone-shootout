@@ -152,13 +152,13 @@ def _render_shell(epics: list[dict]) -> str:
             )
 
         epic_items.append(f"""
-        <div x-data="{{ open: false }}" style="margin-bottom:2px;">
+        <div x-data="{{ open: false }}" style="margin-bottom:2px;cursor:pointer;">
             <div @click="open = !open"
                  style="padding:8px 12px;cursor:pointer;border-radius:6px;display:flex;
                  justify-content:space-between;align-items:center;"
                  :style="open ? 'background:#1e293b' : ''"
-                 onmouseover="if(!this.__x_refs)this.style.background='#1e293b'"
-                 onmouseout="if(!this.__x_refs)this.style.background=''">
+                 onmouseover="this.style.background='#1e293b'"
+                 onmouseout="if(!this.getAttribute('x-data'))this.style.background=''">
                 <div>
                     <span style="font-weight:600;font-size:14px;">E{epic["number"]}</span>
                     <span style="font-size:11px;color:{colour};margin-left:8px;">{label}</span>
