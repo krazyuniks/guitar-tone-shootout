@@ -295,10 +295,12 @@ def prompt_execution_config(config_path: Path) -> EpicConfig:
 
     # Write overrides to config.toml
     _write_config_overrides(config_path, overrides)
+    # Also update defaults so future epics inherit the changes
+    _write_config_overrides(DEFAULT_CONFIG_PATH, overrides)
 
     # Reload and return
     updated = load_config(override_path=config_path)
-    console.print("[green]Config updated.[/green]")
+    console.print("[green]Config updated (also saved as new defaults).[/green]")
     return updated
 
 

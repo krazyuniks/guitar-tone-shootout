@@ -223,7 +223,7 @@ AREA_TO_WIKI_FILES: dict[str, str] = {
     # covers video rendering via the Remotion architecture
 }
 
-# GTS-Remotion-Architecture is loaded when both audio_processing and job_processing
+# GTS-Video-Architecture is loaded when both audio_processing and job_processing
 # are detected (video rendering involves both)
 REMOTION_AREAS: set[str] = {"audio_processing", "job_processing"}
 
@@ -396,7 +396,7 @@ def _resolve_wiki_sections(
 
     For GTS-Technical-Architecture.md, extracts specific sections using
     CONTEXT markers. For domain-specific wiki files (Frontend-Architecture.md,
-    Audio-Processing.md, GTS-Remotion-Architecture.md), loads the full file
+    Audio-Processing.md, GTS-Video-Architecture.md), loads the full file
     when the corresponding area is detected.
 
     Returns a dict mapping descriptive labels to content strings.
@@ -447,16 +447,16 @@ def _resolve_wiki_sections(
             )
         result[label] = content
 
-    # 4. Load Remotion architecture when both audio and job processing detected
+    # 4. Load Video architecture when both audio and job processing detected
     if REMOTION_AREAS.issubset(detected_areas):
-        remotion_path = wiki_dir / "GTS-Remotion-Architecture.md"
-        content = _read_file_safe(remotion_path)
+        video_path = wiki_dir / "GTS-Video-Architecture.md"
+        content = _read_file_safe(video_path)
         if content is None:
             raise AssemblyError(
-                f"Wiki file not found: {remotion_path}. "
+                f"Wiki file not found: {video_path}. "
                 "Required when both audio_processing and job_processing areas are detected."
             )
-        result["GTS-Remotion-Architecture"] = content
+        result["GTS-Video-Architecture"] = content
 
     return result
 

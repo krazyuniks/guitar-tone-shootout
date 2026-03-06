@@ -108,6 +108,7 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
 
     from workflow.epic_config import (
         AVAILABLE_MODELS,
+        DEFAULT_CONFIG_PATH,
         BudgetConfig,
         ModelConfig,
         _get_available_mcp_servers,
@@ -218,8 +219,10 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
                 )
 
     _write_config_overrides(config_path, overrides)
+    # Also update defaults so future epics inherit the changes
+    _write_config_overrides(DEFAULT_CONFIG_PATH, overrides)
     updated = load_config(override_path=config_path)
-    console.print("[green]Config updated.[/green]")
+    console.print("[green]Config updated (also saved as new defaults).[/green]")
     return updated
 
 
