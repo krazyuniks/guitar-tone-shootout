@@ -379,6 +379,20 @@ Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
 
 ---
 
+## Epic Workflow (Quick Reference)
+
+Epics run through an idempotent 3-command flow:
+
+```bash
+just epic N                # 1. Plans, stops after approval
+/epic review-tests N       # 2. CC interactive test spec review
+just epic N                # 3. Generates tests, executes stories
+```
+
+See [AGENTS.md](./AGENTS.md) and [wiki/Epic-Workflow.md](https://github.com/krazyuniks/guitar-tone-shootout/wiki/Epic-Workflow) for full documentation.
+
+---
+
 ## Related Documentation
 
 - [AGENTS.md](./AGENTS.md) - AI/Claude agent workflow instructions

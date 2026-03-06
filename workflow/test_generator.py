@@ -579,6 +579,9 @@ def run_test_generation(
 ) -> TestGenReport:
     """Run test generation for all stories with test_specs.
 
+    Pre-flight: refuses to run if ``tests_approved`` event is not in the
+    JSONL log. This ensures the interactive CC review has been completed.
+
     Processes stories sequentially. Skips stories that already have a
     test_review_pass event in the JSONL log (resume support).
 
@@ -590,10 +593,20 @@ def run_test_generation(
 
     Returns:
         TestGenReport with passed and failed results.
+
+    Raises:
+        RuntimeError: If tests_approved event is missing from JSONL.
     """
     stories = plan.get("stories", [])
     log_path = event_logger.log_path
     events = read_log(log_path)
+
+    # Pre-flight: require tests_approved gate
+    if find_last_event(events, "tests_approved") is None:
+        raise RuntimeError(
+            "Cannot run test generation: tests_approved event not found in JSONL. "
+            "Run /epic review-tests N to review and approve test specs first."
+        )
 
     report = TestGenReport()
 

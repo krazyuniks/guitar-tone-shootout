@@ -75,6 +75,12 @@
         },
         "plan_committed": {
           "description": "Fields: epic, commit"
+        },
+        "tests_approved": {
+          "description": "Fields: epic. Logged by /epic review-tests after interactive CC review approves test specs."
+        },
+        "tests_generated": {
+          "description": "Fields: epic, stories_count. Logged after test_writer/test_reviewer loop passes for all stories."
         }
       }
     },

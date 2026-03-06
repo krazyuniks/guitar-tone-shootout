@@ -245,8 +245,13 @@ def get_resumable_state(
     elif last_event_type in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
         next_action = "retry_story"
         failed_story_id = last_event.get("story_id")
-    elif last_event_type in ("test_gen_started", "test_gen_attempt", "test_review_fail"):
-        # Mid-test-generation: crashed or interrupted during test gen
+    elif last_event_type in (
+        "test_gen_started",
+        "test_gen_attempt",
+        "test_review_fail",
+        "tests_approved",
+    ):
+        # Mid-test-generation or awaiting test gen after approval
         next_action = "test_generation"
         failed_story_id = None
     else:

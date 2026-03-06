@@ -510,51 +510,6 @@ def _run_planning_pipeline(epic_number: int) -> None:
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
         return
 
-    # Step 5b: Test Generation
-    plan_json_path = epic_dir / "plan.json"
-    if plan_json_path.is_file():
-        import json as _json
-
-        plan_data = _json.loads(plan_json_path.read_text(encoding="utf-8"))
-        stories_with_specs = [
-            s for s in plan_data.get("stories", []) if s.get("test_spec") is not None
-        ]
-
-        if stories_with_specs:
-            from workflow.test_generator import run_test_generation
-
-            console.print()
-            console.print(
-                f"[bold]Step 5b:[/bold] Generating tests for "
-                f"{len(stories_with_specs)} stories with test specs..."
-            )
-
-            test_report = run_test_generation(
-                epic_dir=epic_dir,
-                plan=plan_data,
-                config=config,
-                event_logger=epic_logger,
-            )
-
-            console.print(
-                f"  [green]Passed:[/green] {len(test_report.passed)}  "
-                f"[red]Failed:[/red] {len(test_report.failed)}"
-            )
-
-            if not test_report.all_passed:
-                for fail in test_report.failed:
-                    console.print(f"  [red]-[/red] {fail.story_id} ({fail.attempts} attempts)")
-                    for fb in fail.feedback_trail[-1:]:
-                        for suggestion in fb.get("suggestions", [])[:3]:
-                            console.print(f"    {suggestion}")
-                console.print(
-                    "\n[red]Test generation failed.[/red] Fix issues and re-run the pipeline."
-                )
-                return
-            console.print("  [green]All tests passed review.[/green]")
-        else:
-            console.print("\n[dim]Step 5b: Test Generation — no test specs in plan[/dim]")
-
     # Step 6: Commit + Push
     console.print()
     console.print("[bold]Step 6:[/bold] Committing planning artefacts...")
@@ -588,6 +543,10 @@ def _run_planning_pipeline(epic_number: int) -> None:
 
     console.print()
     console.print("[green]Stage 3 complete.[/green] Plan committed.")
+    console.print(
+        f"\n[bold]Next step:[/bold] Run [cyan]/epic review-tests {epic_number}[/cyan] "
+        "to review and approve test specs."
+    )
 
 
 # ---------------------------------------------------------------------------
