@@ -29,6 +29,8 @@ class ModelConfig:
     implementor: str = "codex"
     story_critic: str = "opus"
     epic_critic: str = "opus"
+    test_writer: str = "sonnet"
+    test_reviewer: str = "codex"
 
 
 @dataclass(frozen=True)
@@ -85,6 +87,12 @@ def _validate_cross_model(models: ModelConfig) -> None:
             "epic_critic and implementor are both %s — consider using different models "
             "for diverse review biases",
             models.implementor,
+        )
+    if models.test_writer == models.test_reviewer:
+        logger.warning(
+            "test_writer and test_reviewer are both %s — consider using different models "
+            "for diverse review biases",
+            models.test_writer,
         )
 
 
@@ -159,6 +167,8 @@ _ROLE_DISPATCH_MAP = {
     "implementor": "implementation",
     "story_critic": "critique",
     "epic_critic": "critique",
+    "test_writer": "test_writing",
+    "test_reviewer": "test_review",
 }
 
 # Map from config role name → budget key
@@ -166,6 +176,8 @@ _ROLE_BUDGET_MAP = {
     "implementor": "implementation",
     "story_critic": "critique_story",
     "epic_critic": "critique_epic",
+    "test_writer": "test_writing",
+    "test_reviewer": "test_review",
 }
 
 

@@ -13,6 +13,11 @@ implementor = "codex"
 story_critic = "opus"
 epic_critic = "opus"
 
+# Test writing and review (Stage 4)
+# Constraint: test_reviewer != test_writer (cross-model review)
+test_writer = "sonnet"
+test_reviewer = "codex"
+
 [budgets.planning]
 timeout = 1800
 
@@ -34,6 +39,12 @@ timeout = 600
 [budgets.gap_detection]
 timeout = 1800
 
+[budgets.test_writing]
+timeout = 300
+
+[budgets.test_review]
+timeout = 300
+
 # MCP servers per dispatch role.
 # Named servers are resolved from ~/.claude/settings.json + ~/.claude.json
 # Any agent that inspects code gets serena + pyright.
@@ -44,3 +55,5 @@ implementation = ["serena", "pyright"]
 critique = ["serena", "pyright"]
 validation = []
 gap_detection = ["serena", "pyright"]
+test_writing = ["serena", "pyright"]
+test_review = []

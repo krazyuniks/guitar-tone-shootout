@@ -125,6 +125,8 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
         ("implementor", "implementation", "implementation"),
         ("story_critic", "critique_story", "critique"),
         ("epic_critic", "critique_epic", "critique"),
+        ("test_writer", "test_writing", "test_writing"),
+        ("test_reviewer", "test_review", "test_review"),
     ]
 
     available_mcp = _get_available_mcp_servers()
