@@ -10,6 +10,7 @@ from workflow.artifacts import (
     DispatchResultArtifact,
     EpicArtifact,
     FailureClassificationArtifact,
+    PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
     PlanArtifact,
     PlanDecisionArtifact,
@@ -204,6 +205,34 @@ class TestPlanVerificationResultArtifact:
 
 
 class TestPlanDecisionArtifact:
+    def test_non_rejected_decisions_round_trip_without_extra_payload(self) -> None:
+        approved = PlanDecisionArtifact(epic_number=155, decision="approved")
+        revised = PlanDecisionArtifact(epic_number=155, decision="revised")
+
+        assert approved.event_payload == {"epic": 155}
+        assert (
+            PlanDecisionArtifact.from_event(
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T11:59:00+00:00",
+                    event=approved.event_name,
+                    data=approved.event_payload,
+                )
+            ).decision
+            == "approved"
+        )
+        assert (
+            PlanDecisionArtifact.from_event(
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:00:00+00:00",
+                    event=revised.event_name,
+                    data=revised.event_payload,
+                )
+            ).decision
+            == "revised"
+        )
+
     def test_rejection_from_phase_a_result_serializes_structured_details(self) -> None:
         verification = PlanVerificationResultArtifact.from_phase_a_errors(
             ["Story 01 missing checkpoint", "Story 02 missing acceptance criteria"]
@@ -306,6 +335,30 @@ class TestPhaseBVerificationEventArtifact:
         assert round_tripped.verifier_feedback is None
         assert round_tripped.detail_payload["error"] == "Verifier dispatch failed"
         assert round_tripped.summary_text == "Verifier dispatch failed"
+
+
+class TestPhaseAValidationEventArtifact:
+    def test_pass_and_fail_events_round_trip(self) -> None:
+        passed_event = PhaseAValidationEventArtifact.passed_event(155, 1)
+        failed_event = PhaseAValidationEventArtifact.failed_event(
+            155,
+            1,
+            ["Story 01 missing checkpoint", "Story 02 missing acceptance criteria"],
+        )
+
+        assert passed_event.event_name == "phase_a_pass"
+        assert passed_event.event_payload == {"epic": 155, "attempt": 1}
+        assert failed_event.summary_text == (
+            "Story 01 missing checkpoint; Story 02 missing acceptance criteria"
+        )
+        assert PhaseAValidationEventArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:02:00+00:00",
+                event=failed_event.event_name,
+                data=failed_event.event_payload,
+            )
+        ).failures == ("Story 01 missing checkpoint", "Story 02 missing acceptance criteria")
 
 
 class TestCritiqueArtifacts:

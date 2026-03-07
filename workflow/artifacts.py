@@ -326,6 +326,86 @@ class PlanVerificationResultArtifact:
 
 
 @dataclass(frozen=True)
+class PhaseAValidationEventArtifact:
+    """Typed Phase A validation event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    passed: bool
+    failures: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.passed and self.failures:
+            raise ValueError("Phase A pass events cannot include failures")
+        if not self.passed and not self.failures:
+            raise ValueError("Phase A fail events require at least one failure")
+
+    @classmethod
+    def passed_event(cls, epic_number: int, attempt: int) -> "PhaseAValidationEventArtifact":
+        return cls(epic_number=epic_number, attempt=attempt, passed=True)
+
+    @classmethod
+    def failed_event(
+        cls,
+        epic_number: int,
+        attempt: int,
+        failures: list[str] | tuple[str, ...],
+    ) -> "PhaseAValidationEventArtifact":
+        return cls(
+            epic_number=epic_number,
+            attempt=attempt,
+            passed=False,
+            failures=tuple(str(item) for item in failures),
+        )
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PhaseAValidationEventArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event not in {"phase_a_pass", "phase_a_fail"}:
+            raise ValueError(
+                f"Cannot build PhaseAValidationEventArtifact from event {event_artifact.event}"
+            )
+
+        failures_payload = event_artifact.get("failures", [])
+        if not isinstance(failures_payload, list):
+            raise TypeError("Phase A event failures must be a list")
+
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            passed=event_artifact.event == "phase_a_pass",
+            failures=tuple(str(item) for item in failures_payload),
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "phase_a_pass" if self.passed else "phase_a_fail"
+
+    @property
+    def summary_text(self) -> str:
+        if self.passed:
+            return "Structural validation passed"
+        return "; ".join(self.failures[:3])
+
+    @property
+    def failures_payload(self) -> list[str]:
+        return list(self.failures)
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+        }
+        if self.failures:
+            payload["failures"] = self.failures_payload
+        return payload
+
+
+@dataclass(frozen=True)
 class PhaseBVerificationEventArtifact:
     """Typed Phase B verification event boundary for planning/report consumers."""
 

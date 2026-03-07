@@ -280,7 +280,11 @@ def _run_planning_steps(
       4. Decision Gate — human approval
       5. Commit + Push
     """
-    from workflow.artifacts import PhaseBVerificationEventArtifact, PlanDecisionArtifact
+    from workflow.artifacts import (
+        PhaseAValidationEventArtifact,
+        PhaseBVerificationEventArtifact,
+        PlanDecisionArtifact,
+    )
     from workflow.epic_ingest import IngestionError, ingest_epic
     from workflow.git_helpers import GitPushError, robust_commit
     from workflow.plan_generator import PlanGenerationError, generate_plan
@@ -356,7 +360,8 @@ def _run_planning_steps(
     if success:
         verifier_feedback = verification_result.verifier_feedback
         assert verifier_feedback is not None
-        epic_logger.log_event("phase_a_pass", epic=epic_number, attempt=1)
+        phase_a_event = PhaseAValidationEventArtifact.passed_event(epic_number, 1)
+        epic_logger.log_event(phase_a_event.event_name, **phase_a_event.event_payload)
         phase_b_event = PhaseBVerificationEventArtifact.from_result(
             epic_number,
             1,
@@ -367,12 +372,12 @@ def _run_planning_steps(
     else:
         phase_a_errors = list(verification_result.phase_a_errors)
         if phase_a_errors:
-            epic_logger.log_event(
-                "phase_a_fail",
-                epic=epic_number,
-                attempt=1,
-                failures=phase_a_errors,
+            phase_a_event = PhaseAValidationEventArtifact.failed_event(
+                epic_number,
+                1,
+                phase_a_errors,
             )
+            epic_logger.log_event(phase_a_event.event_name, **phase_a_event.event_payload)
             console.print("  [red]Structural validation failed after revision.[/red]")
             for err in phase_a_errors[:5]:
                 console.print(f"    - {err}")
@@ -407,10 +412,12 @@ def _run_planning_steps(
     gate_result = present_decision_gate(plan_md_path, verification_result)
 
     if gate_result.approved:
-        epic_logger.log_event("plan_approved", epic=epic_number)
+        decision = PlanDecisionArtifact(epic_number=epic_number, decision="approved")
+        epic_logger.log_event(decision.event_name, **decision.event_payload)
         console.print("\n[green]Plan approved.[/green]")
     elif gate_result.needs_revision:
-        epic_logger.log_event("plan_revised", epic=epic_number)
+        decision = PlanDecisionArtifact(epic_number=epic_number, decision="revised")
+        epic_logger.log_event(decision.event_name, **decision.event_payload)
 
         # Feed remaining verifier findings back to planner for another revision
         from workflow.plan_validator import validate_plan
@@ -473,7 +480,8 @@ def _run_planning_steps(
         # Present the gate again with fresh verifier results
         gate_result = present_decision_gate(plan_md_path, verifier_feedback)
         if gate_result.approved:
-            epic_logger.log_event("plan_approved", epic=epic_number)
+            decision = PlanDecisionArtifact(epic_number=epic_number, decision="approved")
+            epic_logger.log_event(decision.event_name, **decision.event_payload)
             console.print("\n[green]Plan approved.[/green]")
         elif gate_result.rejected:
             rejection = PlanDecisionArtifact.for_rejection(

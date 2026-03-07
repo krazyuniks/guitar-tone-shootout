@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from workflow.artifacts import (
+    PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
     PlanDecisionArtifact,
     PreflightArtifact,
@@ -333,6 +334,23 @@ class TestTypedReportConsumers:
 
         assert "Show critique feedback" in phase_b_html
         assert "Intent alignment needs revision" in phase_b_html
+
+    def test_render_event_details_uses_typed_phase_a_reconstruction(self, tmp_path) -> None:
+        phase_a_event = PhaseAValidationEventArtifact.failed_event(
+            155,
+            1,
+            ["Story 01 missing checkpoint", "Story 02 missing acceptance criteria"],
+        )
+
+        phase_a_html = _render_event_details(
+            _event(
+                "2026-03-07T12:02:00+00:00", phase_a_event.event_name, **phase_a_event.event_payload
+            ),
+            tmp_path,
+        )
+
+        assert "Story 01 missing checkpoint" in phase_a_html
+        assert "Show failures" in phase_a_html
 
     def test_render_event_details_uses_typed_plan_rejection_reconstruction(self, tmp_path) -> None:
         rejection = PlanDecisionArtifact.for_rejection(

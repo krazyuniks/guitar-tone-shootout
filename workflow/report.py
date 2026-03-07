@@ -22,6 +22,7 @@ from workflow.artifacts import (
     CheckpointRunArtifact,
     CritiqueFindingArtifact,
     CritiqueRunArtifact,
+    PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
     PlanDecisionArtifact,
     PreflightEventArtifact,
@@ -650,12 +651,30 @@ def _render_event_details(
                 elif isinstance(feedback, str) and feedback.strip():
                     parts.append(_render_collapsible("Show critique feedback", feedback))
 
-    elif event_type in ("phase_a_fail",):
-        failures = event.get("failures", [])
-        if failures:
-            parts.append(
-                _render_collapsible("Show failures", json.dumps(failures, indent=2, default=str))
-            )
+    elif event_type in ("phase_a_pass", "phase_a_fail"):
+        try:
+            phase_a_event = PhaseAValidationEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            phase_a_event = None
+
+        if phase_a_event is not None:
+            if phase_a_event.summary_text:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(phase_a_event.summary_text[:300])}</span>'
+                )
+            if phase_a_event.failures:
+                parts.append(
+                    _render_collapsible(
+                        "Show failures",
+                        json.dumps(phase_a_event.failures_payload, indent=2, default=str),
+                    )
+                )
+        else:
+            failures = event.get("failures", [])
+            if failures:
+                parts.append(
+                    _render_collapsible("Show failures", json.dumps(failures, indent=2, default=str))
+                )
 
     elif event_type in ("validation_pass", "validation_fail"):
         checkpoint: CheckpointRunArtifact | None = None
