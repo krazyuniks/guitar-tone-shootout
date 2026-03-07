@@ -3,13 +3,17 @@
 import pytest
 
 from workflow.artifacts import (
+    CheckpointRunArtifact,
     DispatchArtifact,
     DispatchResultArtifact,
     EpicArtifact,
+    FailureClassificationArtifact,
     PlanArtifact,
+    PreflightArtifact,
     RevisionRequestArtifact,
     RunArtifact,
     RunEventArtifact,
+    StoryFailureContextArtifact,
     StoryRunArtifact,
     TestReviewArtifact,
     VerifierFeedbackArtifact,
@@ -230,6 +234,24 @@ class TestDispatchAndRunArtifacts:
             [
                 RunEventArtifact(
                     run_id="run-1",
+                    ts="2026-03-07T11:59:00+00:00",
+                    event="validation_fail",
+                    data={
+                        "story_id": "01-sample",
+                        "check_type": "http+dom",
+                        "results": [
+                            {
+                                "criterion": "Page renders",
+                                "status": "fail",
+                                "evidence": {"command": "just check", "exit_code": 1},
+                            }
+                        ],
+                        "failure_reason": "Baseline quality gate failed",
+                        "failure_category": "implementation",
+                    },
+                ),
+                RunEventArtifact(
+                    run_id="run-1",
                     ts="2026-03-07T12:00:00+00:00",
                     event="test_gen_started",
                     data={"story_id": "01-sample"},
@@ -273,6 +295,9 @@ class TestDispatchAndRunArtifacts:
         assert run.latest_test_file_path == "tests/epic/E146/test_01_sample.py"
         assert len(run.review_failures) == 1
         assert run.review_failures[0].checklist[0].note == "Missing db assertion"
+        assert run.last_checkpoint is not None
+        assert run.last_checkpoint.check_type == "http+dom"
+        assert run.last_checkpoint.failure_reason == "Baseline quality gate failed"
 
 
 class TestTestReviewArtifact:
@@ -290,6 +315,76 @@ class TestTestReviewArtifact:
 
         assert TestReviewArtifact.from_dict(review.to_dict()) == review
         assert review.passed is False
+
+
+class TestExecutionArtifacts:
+    def test_failure_classification_round_trips_and_formats_terminal_reason(self) -> None:
+        classification = FailureClassificationArtifact(
+            category="upstream",
+            evidence="Earlier story owns apps/webapp/main.py",
+            pattern="File owned by earlier story: 01-setup",
+        )
+
+        assert FailureClassificationArtifact.from_dict(classification.to_dict()) == classification
+        assert classification.terminal_reason.startswith("Failure (upstream):")
+
+    def test_preflight_artifact_round_trips_and_exposes_joined_views(self) -> None:
+        preflight = PreflightArtifact(
+            passed=False,
+            issues=("Missing file a.py", "Missing file b.py"),
+            is_minor=False,
+        )
+
+        assert PreflightArtifact.from_dict(preflight.to_dict()) == preflight
+        assert preflight.description == "Missing file a.py; Missing file b.py"
+        assert preflight.combined_issues == "Missing file a.py\nMissing file b.py"
+
+    def test_story_failure_context_round_trips_and_builds_prompt_block(self) -> None:
+        context = StoryFailureContextArtifact(
+            story_id="01-sample",
+            attempt=2,
+            last_error="AssertionError: boom",
+            files_affected=("apps/webapp/main.py",),
+            jsonl_excerpt='{"event":"validation_fail"}',
+        )
+
+        assert StoryFailureContextArtifact.from_dict(context.to_dict()) == context
+        assert "Failure Feedback (Attempt 2)" in context.prompt_block
+        assert context.event_context["files_affected"] == ["apps/webapp/main.py"]
+
+    def test_checkpoint_run_artifact_round_trips_and_reconstructs_from_event(self) -> None:
+        checkpoint = CheckpointRunArtifact.from_dict(
+            {
+                "story_id": "01-sample",
+                "check_type": "http+dom",
+                "passed": False,
+                "results": [
+                    {
+                        "criterion": "Page renders",
+                        "status": "fail",
+                        "evidence": {"command": "just check", "exit_code": 1},
+                    }
+                ],
+                "failure_reason": "Baseline quality gate failed",
+                "failure_category": "implementation",
+                "raw_output": "Traceback...",
+            }
+        )
+
+        round_tripped = CheckpointRunArtifact.from_dict(checkpoint.to_dict())
+        from_event = CheckpointRunArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:00:00+00:00",
+                event=round_tripped.event_name,
+                data=round_tripped.event_payload,
+            )
+        )
+
+        assert round_tripped.story_id == "01-sample"
+        assert round_tripped.results[0].criterion == "Page renders"
+        assert from_event.failure_category == "implementation"
+        assert from_event.raw_output == ""
 
 
 class TestRevisionRequestArtifact:

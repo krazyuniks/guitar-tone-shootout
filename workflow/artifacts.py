@@ -466,6 +466,237 @@ class TestReviewArtifact:
 
 
 @dataclass(frozen=True)
+class FailureClassificationArtifact:
+    """Typed story failure classification used for retries and exit decisions."""
+
+    category: str
+    evidence: str
+    pattern: str
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "FailureClassificationArtifact":
+        return cls(
+            category=str(payload["category"]),
+            evidence=str(payload["evidence"]),
+            pattern=str(payload["pattern"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "category": self.category,
+            "evidence": self.evidence,
+            "pattern": self.pattern,
+        }
+
+    @property
+    def terminal_reason(self) -> str:
+        return f"Failure ({self.category}): {self.pattern} -- {self.evidence[:200]}"
+
+
+@dataclass(frozen=True)
+class PreflightArtifact:
+    """Typed result for story pre-flight checks."""
+
+    passed: bool
+    issues: tuple[str, ...] = ()
+    is_minor: bool = False
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "PreflightArtifact":
+        issues = payload.get("issues", [])
+        if not isinstance(issues, list):
+            raise TypeError("issues must be a list")
+        return cls(
+            passed=bool(payload["passed"]),
+            issues=tuple(str(issue) for issue in issues),
+            is_minor=bool(payload.get("is_minor", False)),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "passed": self.passed,
+            "issues": list(self.issues),
+            "is_minor": self.is_minor,
+        }
+
+    @property
+    def description(self) -> str:
+        return "; ".join(self.issues)
+
+    @property
+    def combined_issues(self) -> str:
+        return "\n".join(self.issues)
+
+
+@dataclass(frozen=True)
+class StoryFailureContextArtifact:
+    """Typed failure context used in retry prompts and exit_to_human payloads."""
+
+    story_id: str
+    attempt: int
+    last_error: str
+    files_affected: tuple[str, ...]
+    jsonl_excerpt: str
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "StoryFailureContextArtifact":
+        files_affected = payload.get("files_affected", [])
+        if not isinstance(files_affected, list):
+            raise TypeError("files_affected must be a list")
+        return cls(
+            story_id=str(payload["story_id"]),
+            attempt=int(payload["attempt"]),
+            last_error=str(payload["last_error"]),
+            files_affected=tuple(str(path) for path in files_affected),
+            jsonl_excerpt=str(payload["jsonl_excerpt"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "story_id": self.story_id,
+            "attempt": self.attempt,
+            "last_error": self.last_error,
+            "files_affected": list(self.files_affected),
+            "jsonl_excerpt": self.jsonl_excerpt,
+        }
+
+    @property
+    def prompt_block(self) -> str:
+        return (
+            f"\n\n---\n## Failure Feedback (Attempt {self.attempt})\n\n"
+            f"**Error:** {self.last_error}\n"
+            f"**Files modified:** {', '.join(self.files_affected)}\n"
+            f"**JSONL excerpt:** {self.jsonl_excerpt}\n"
+        )
+
+    @property
+    def event_context(self) -> dict[str, Any]:
+        return self.to_dict()
+
+
+@dataclass(frozen=True)
+class CheckpointCriterionResultArtifact:
+    """Typed result for one validation checkpoint criterion."""
+
+    criterion: str
+    status: str
+    evidence: dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "CheckpointCriterionResultArtifact":
+        evidence = payload.get("evidence", {})
+        if not isinstance(evidence, dict):
+            raise TypeError("evidence must be a dict")
+        return cls(
+            criterion=str(payload["criterion"]),
+            status=str(payload["status"]),
+            evidence=evidence,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "criterion": self.criterion,
+            "status": self.status,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass(frozen=True)
+class CheckpointRunArtifact:
+    """Typed validation checkpoint result and JSONL event boundary."""
+
+    story_id: str
+    check_type: str
+    passed: bool
+    results: tuple[CheckpointCriterionResultArtifact, ...]
+    failure_reason: str | None = None
+    failure_category: str | None = None
+    raw_output: str = ""
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "CheckpointRunArtifact":
+        results_payload = payload.get("results", [])
+        if not isinstance(results_payload, list):
+            raise TypeError("results must be a list")
+        return cls(
+            story_id=str(payload["story_id"]),
+            check_type=str(payload["check_type"]),
+            passed=bool(payload["passed"]),
+            results=tuple(CheckpointCriterionResultArtifact.from_dict(item) for item in results_payload),
+            failure_reason=(
+                str(payload["failure_reason"]) if payload.get("failure_reason") is not None else None
+            ),
+            failure_category=(
+                str(payload["failure_category"])
+                if payload.get("failure_category") is not None
+                else None
+            ),
+            raw_output=str(payload.get("raw_output", "")),
+        )
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "CheckpointRunArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event not in {"validation_pass", "validation_fail"}:
+            raise ValueError(f"Cannot build CheckpointRunArtifact from event {event_artifact.event}")
+
+        return cls(
+            story_id=str(event_artifact.get("story_id")),
+            check_type=str(event_artifact.get("check_type")),
+            passed=event_artifact.event == "validation_pass",
+            results=tuple(
+                CheckpointCriterionResultArtifact.from_dict(item)
+                for item in event_artifact.get("results", [])
+                if isinstance(item, dict)
+            ),
+            failure_reason=(
+                str(event_artifact.get("failure_reason"))
+                if event_artifact.get("failure_reason") is not None
+                else None
+            ),
+            failure_category=(
+                str(event_artifact.get("failure_category"))
+                if event_artifact.get("failure_category") is not None
+                else None
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "story_id": self.story_id,
+            "check_type": self.check_type,
+            "passed": self.passed,
+            "results": [result.to_dict() for result in self.results],
+            "raw_output": self.raw_output,
+        }
+        if self.failure_reason is not None:
+            payload["failure_reason"] = self.failure_reason
+        if self.failure_category is not None:
+            payload["failure_category"] = self.failure_category
+        return payload
+
+    @property
+    def event_name(self) -> str:
+        return "validation_pass" if self.passed else "validation_fail"
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "story_id": self.story_id,
+            "check_type": self.check_type,
+            "results": [result.to_dict() for result in self.results],
+        }
+        if not self.passed and self.failure_category:
+            payload["failure_category"] = self.failure_category
+        if not self.passed and self.failure_reason:
+            payload["failure_reason"] = self.failure_reason
+        return payload
+
+
+@dataclass(frozen=True)
 class RunEventArtifact:
     """Typed JSONL event entry for epic and story logs."""
 
@@ -522,6 +753,7 @@ class StoryRunArtifact:
     has_passing_test: bool
     latest_test_file_path: str | None
     review_failures: tuple[TestReviewArtifact, ...]
+    last_checkpoint: CheckpointRunArtifact | None
     last_error: str | None
     last_event: RunEventArtifact | None
 
@@ -565,6 +797,14 @@ class StoryRunArtifact:
             for feedback in [event.get("reviewer_feedback")]
             if isinstance(feedback, dict) and "verdict" in feedback
         )
+        last_checkpoint = next(
+            (
+                CheckpointRunArtifact.from_event(event)
+                for event in reversed(story_events)
+                if event.event in {"validation_pass", "validation_fail"}
+            ),
+            None,
+        )
         last_error = next(
             (
                 str(event.get("error"))
@@ -598,6 +838,7 @@ class StoryRunArtifact:
             has_passing_test=has_passing_test,
             latest_test_file_path=latest_test_file_path,
             review_failures=review_failures,
+            last_checkpoint=last_checkpoint,
             last_error=last_error,
             last_event=last_event,
         )

@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from workflow.artifacts import CheckpointRunArtifact, CheckpointCriterionResultArtifact
 from workflow.jsonl_logger import EventLogger
 from workflow.models import CheckCriterion, ValidationCheckpoint
 
@@ -81,21 +82,7 @@ CHECK_TYPE_CONFIGS: dict[str, CheckTypeConfig] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Validation result
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ValidationResult:
-    """Result of a validation checkpoint execution."""
-
-    passed: bool
-    check_type: str
-    results: list[dict]
-    failure_reason: str | None = None
-    failure_category: str | None = None
-    raw_output: str = ""
+ValidationResult = CheckpointRunArtifact
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +132,7 @@ def _run_checks_directly(
     runs it, and determines pass/fail from the exit code. Combined test
     output is stored in ``raw_output`` so it flows into retry prompts.
     """
-    per_criterion_results: list[dict] = []
+    per_criterion_results: list[CheckpointCriterionResultArtifact] = []
     all_pass = True
     all_output_parts: list[str] = []
 
@@ -156,11 +143,11 @@ def _run_checks_directly(
         if cmd is None:
             logger.warning("Cannot map criterion to command (failing): %s", criterion)
             per_criterion_results.append(
-                {
-                    "criterion": criterion,
-                    "status": "fail",
-                    "evidence": {"note": f"No command mapping for: {criterion}"},
-                }
+                CheckpointCriterionResultArtifact(
+                    criterion=criterion,
+                    status="fail",
+                    evidence={"note": f"No command mapping for: {criterion}"},
+                )
             )
             all_pass = False
             continue
@@ -178,11 +165,11 @@ def _run_checks_directly(
             )
         except subprocess.TimeoutExpired:
             per_criterion_results.append(
-                {
-                    "criterion": criterion,
-                    "status": "fail",
-                    "evidence": {"error": f"Command timed out: {cmd}"},
-                }
+                CheckpointCriterionResultArtifact(
+                    criterion=criterion,
+                    status="fail",
+                    evidence={"error": f"Command timed out: {cmd}"},
+                )
             )
             all_pass = False
             all_output_parts.append(f"[TIMEOUT] {cmd}")
@@ -196,23 +183,24 @@ def _run_checks_directly(
         all_output_parts.append(output)
 
         per_criterion_results.append(
-            {
-                "criterion": criterion,
-                "status": "pass" if passed else "fail",
-                "evidence": {
+            CheckpointCriterionResultArtifact(
+                criterion=criterion,
+                status="pass" if passed else "fail",
+                evidence={
                     "command": cmd,
                     "exit_code": completed.returncode,
                     "output_tail": output[-2000:] if output else "",
                 },
-            }
+            )
         )
 
     combined_output = "\n".join(all_output_parts)
 
     return ValidationResult(
+        story_id=story_id,
         passed=all_pass,
         check_type=check_type,
-        results=per_criterion_results,
+        results=tuple(per_criterion_results),
         failure_reason=None if all_pass else "One or more checks failed",
         failure_category=None if all_pass else "implementation",
         raw_output=combined_output,
@@ -259,9 +247,10 @@ def run_validation_checkpoint(
             story_id,
         )
         result = ValidationResult(
+            story_id=story_id,
             passed=True,
             check_type=check_type,
-            results=[],
+            results=(),
         )
         if event_logger:
             _log_validation_event(event_logger, story_id, result)
@@ -275,9 +264,10 @@ def run_validation_checkpoint(
             story_id,
         )
         result = ValidationResult(
+            story_id=story_id,
             passed=False,
             check_type=check_type,
-            results=[],
+            results=(),
             failure_reason=f"Unknown check type: {check_type}",
             failure_category="scope",
         )
@@ -318,6 +308,7 @@ def run_validation_checkpoint(
         if not baseline_result.passed:
             # Merge baseline failure into the result
             return ValidationResult(
+                story_id=story_id,
                 passed=False,
                 check_type=check_type,
                 results=result.results + baseline_result.results,
@@ -341,6 +332,7 @@ def run_validation_checkpoint(
             _log_validation_event(event_logger, story_id, golden_result)
         if not golden_result.passed:
             return ValidationResult(
+                story_id=story_id,
                 passed=False,
                 check_type=check_type,
                 results=result.results + golden_result.results,
@@ -374,29 +366,7 @@ def _log_validation_event(
         story_id: The story this validation applies to.
         result: The validation result to log.
     """
-    event_type = "validation_pass" if result.passed else "validation_fail"
-
-    # Build the event-specific fields
-    event_fields: dict = {
-        "story_id": story_id,
-        "check_type": result.check_type,
-        "results": [
-            {
-                "criterion": r.get("criterion", ""),
-                "status": r.get("status", "unknown"),
-                "evidence": r.get("evidence", {}),
-            }
-            for r in result.results
-        ],
-    }
-
-    if not result.passed and result.failure_category:
-        event_fields["failure_category"] = result.failure_category
-
-    if not result.passed and result.failure_reason:
-        event_fields["failure_reason"] = result.failure_reason
-
-    event_logger.log_event(event_type, **event_fields)
+    event_logger.log_event(result.event_name, **result.event_payload)
 
     logger.info(
         "Validation %s for story '%s' (check_type=%s, criteria=%d)",

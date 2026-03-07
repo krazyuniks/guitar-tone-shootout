@@ -17,10 +17,14 @@ import json
 import logging
 import re
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from workflow.artifacts import (
+    FailureClassificationArtifact,
+    PreflightArtifact,
+    StoryFailureContextArtifact,
+)
 from workflow.dispatch import (
     STORY_CRITIQUE_SCHEMA,
     compute_prompt_hash,
@@ -48,6 +52,10 @@ WIKI_INDEXES_DIR = PROJECT_ROOT / ".planning" / "wiki-indexes"
 # The plan specifies "2 retries" for scope, implementation, and unknown
 # failure categories. Total attempts = 1 initial + 2 retries = 3.
 MAX_RETRIES = 2
+
+# Compatibility aliases while callers migrate to typed artifact names.
+FailureClassification = FailureClassificationArtifact
+PreflightResult = PreflightArtifact
 
 
 
@@ -144,19 +152,6 @@ def build_file_ownership_map(plan: dict) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Failure classification (Section 2)
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class FailureClassification:
-    """Result of classifying a failure event.
-
-    Contains both the category and the matched evidence so the JSONL
-    failure_category entry is auditable.
-    """
-
-    category: str  # env, scope, implementation, upstream, unknown
-    evidence: str  # The matched pattern + source text
-    pattern: str  # The specific pattern that triggered classification
 
 
 # Explicit pattern tables for failure classification.
@@ -291,7 +286,7 @@ def classify_failure(
     file_ownership: dict[str, str],
     completed_stories: list[str],
     plan_scope_paths: list[str] | None = None,
-) -> FailureClassification:
+) -> FailureClassificationArtifact:
     """Classify a failure into one of 5 categories with evidence.
 
     The classification order matters -- earlier checks take priority:
@@ -316,10 +311,10 @@ def classify_failure(
             disambiguation.
 
     Returns:
-        FailureClassification with category, evidence, and pattern.
+        FailureClassificationArtifact with category, evidence, and pattern.
     """
     if not error_text:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="unknown",
             evidence="No error text available",
             pattern="empty_error",
@@ -328,7 +323,7 @@ def classify_failure(
     # 1. Check env patterns first (infrastructure problems)
     env_match = _match_patterns(error_text, ENV_PATTERNS)
     if env_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="env",
             evidence=env_match[0],
             pattern=env_match[1],
@@ -339,7 +334,7 @@ def classify_failure(
         error_text, current_story_id, file_ownership, completed_stories
     )
     if upstream_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="upstream",
             evidence=upstream_match[0],
             pattern=upstream_match[1],
@@ -353,7 +348,7 @@ def classify_failure(
         # Check if the error references a plan scope path
         for scope_path in plan_scope_paths:
             if scope_path in error_text:
-                return FailureClassification(
+                return FailureClassificationArtifact(
                     category="scope",
                     evidence=f"{scope_match[0]} (references plan scope path: {scope_path})",
                     pattern=scope_match[1],
@@ -361,7 +356,7 @@ def classify_failure(
     # If we matched a scope pattern but can't confirm it references plan paths,
     # still classify as scope (the pattern itself is strong enough)
     if scope_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="scope",
             evidence=scope_match[0],
             pattern=scope_match[1],
@@ -370,7 +365,7 @@ def classify_failure(
     # 4. Check implementation patterns (code errors)
     impl_match = _match_patterns(error_text, IMPLEMENTATION_PATTERNS)
     if impl_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="implementation",
             evidence=impl_match[0],
             pattern=impl_match[1],
@@ -379,7 +374,7 @@ def classify_failure(
     # 5. Fallback: unknown
     # Include the first 300 chars of error text as evidence
     truncated = error_text[:300].strip()
-    return FailureClassification(
+    return FailureClassificationArtifact(
         category="unknown",
         evidence=truncated,
         pattern="no_pattern_matched",
@@ -408,15 +403,6 @@ def get_retry_budget(category: str) -> int:
 # ---------------------------------------------------------------------------
 # Pre-flight checks (Section 2)
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class PreflightResult:
-    """Result of pre-flight checks for a story."""
-
-    passed: bool
-    issues: list[str]
-    is_minor: bool = False  # True if all issues are minor (agent can self-fix)
 
 
 def _get_scope_paths(story: dict) -> list[str]:
@@ -459,7 +445,7 @@ def _get_files_from_previous_stories(plan: dict, current_story_id: str) -> list[
 def run_preflight_checks(
     story: dict,
     plan: dict,
-) -> PreflightResult:
+) -> PreflightArtifact:
     """Run pre-flight checks before dispatching a story's agent.
 
     Verifies that inputs from previous stories are present: files that
@@ -471,7 +457,7 @@ def run_preflight_checks(
         plan: The full plan.json dict.
 
     Returns:
-        PreflightResult with pass/fail status and any issues found.
+        PreflightArtifact with pass/fail status and any issues found.
     """
     story_id = story.get("story_id", "")
     issues: list[str] = []
@@ -497,14 +483,14 @@ def run_preflight_checks(
             issues.append(f"Parent directory for file to create missing: {parent}")
 
     if not issues:
-        return PreflightResult(passed=True, issues=[])
+        return PreflightArtifact(passed=True)
 
     # Apply minor/major heuristic
     is_minor = _is_minor_preflight_issue(issues, story)
 
-    return PreflightResult(
+    return PreflightArtifact(
         passed=False,
-        issues=issues,
+        issues=tuple(issues),
         is_minor=is_minor,
     )
 
@@ -683,6 +669,13 @@ def execute_story(
 
     # Step 2: Handle state assumption
     if not handle_state_assumption(state_assumption):
+        failure_context = StoryFailureContextArtifact(
+            story_id=story_id,
+            attempt=1,
+            last_error="just db-reset failed",
+            files_affected=(),
+            jsonl_excerpt="state_assumption=clean, db-reset failed",
+        )
         event_logger.log_event(
             "preflight_fail",
             story_id=story_id,
@@ -696,13 +689,7 @@ def execute_story(
             attempt=1,
             reason="Database reset failed",
             failure_category="env",
-            context={
-                "story_id": story_id,
-                "attempt": 1,
-                "last_error": "just db-reset failed",
-                "files_affected": [],
-                "jsonl_excerpt": "state_assumption=clean, db-reset failed",
-            },
+            context=failure_context.event_context,
         )
         return False
 
@@ -721,7 +708,7 @@ def execute_story(
                 "preflight_pass",
                 story_id=story_id,
                 attempt=1,
-                note=f"Minor issues (agent self-fix): {'; '.join(preflight.issues)}",
+                note=f"Minor issues (agent self-fix): {preflight.description}",
             )
         else:
             # Major issues -- cannot proceed
@@ -735,17 +722,28 @@ def execute_story(
                 story_id=story_id,
                 attempt=1,
                 failure_category="scope",
-                description="; ".join(preflight.issues),
+                description=preflight.description,
             )
 
             # Classify the preflight failure more precisely
-            combined_issues = "\n".join(preflight.issues)
             classification = classify_failure(
-                combined_issues,
+                preflight.combined_issues,
                 story_id,
                 file_ownership,
                 completed_stories,
                 plan_scope_paths,
+            )
+            failure_context = StoryFailureContextArtifact(
+                story_id=story_id,
+                attempt=1,
+                last_error=preflight.description,
+                files_affected=tuple(plan_scope_paths),
+                jsonl_excerpt=json.dumps(
+                    {
+                        "classification": classification.category,
+                        "evidence": classification.evidence,
+                    }
+                ),
             )
 
             if get_retry_budget(classification.category) == 0:
@@ -754,20 +752,9 @@ def execute_story(
                     story_id=story_id,
                     attempt=1,
                     reason=f"Pre-flight failure ({classification.category}): "
-                    f"{'; '.join(preflight.issues)}",
+                    f"{preflight.description}",
                     failure_category=classification.category,
-                    context={
-                        "story_id": story_id,
-                        "attempt": 1,
-                        "last_error": "; ".join(preflight.issues),
-                        "files_affected": plan_scope_paths,
-                        "jsonl_excerpt": json.dumps(
-                            {
-                                "classification": classification.category,
-                                "evidence": classification.evidence,
-                            }
-                        ),
-                    },
+                    context=failure_context.event_context,
                 )
                 return False
 
@@ -777,7 +764,7 @@ def execute_story(
                 "story_failed",
                 story_id=story_id,
                 attempt=1,
-                reason=f"Pre-flight failure: {'; '.join(preflight.issues)}",
+                reason=f"Pre-flight failure: {preflight.description}",
             )
             return False
     else:
@@ -1007,7 +994,7 @@ def _dispatch_and_validate_loop(
     # Read agent config — prefer epic config, fall back to story dict
     agent = story.get("agent", {})
     model = config.models.implementor if config else agent.get("model", "sonnet")
-    retry_context: dict | None = None
+    retry_context: StoryFailureContextArtifact | None = None
     max_attempts = MAX_RETRIES + 1  # initial + retries
     base_commit = _get_latest_commit_hash()  # snapshot before any dispatch
 
@@ -1033,10 +1020,7 @@ def _dispatch_and_validate_loop(
 
         # For retries, append failure feedback section to the prompt
         if retry_context:
-            prompt += f"\n\n---\n## Failure Feedback (Attempt {retry_context['attempt']})\n\n"
-            prompt += f"**Error:** {retry_context['error']}\n"
-            prompt += f"**Files modified:** {', '.join(retry_context['files_modified'])}\n"
-            prompt += f"**JSONL excerpt:** {retry_context['jsonl_excerpt']}\n"
+            prompt += retry_context.prompt_block
 
         # Log the prompt for debugging
         log_prompt(epic_dir, story_id, attempt, prompt)
@@ -1122,11 +1106,12 @@ def _dispatch_and_validate_loop(
                 )
 
             # Build retry context for next attempt (simple dict)
-            retry_context = {
-                "attempt": attempt,
-                "error": _extract_key_error(error_text),
-                "files_modified": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
+            retry_context = StoryFailureContextArtifact(
+                story_id=story_id,
+                attempt=attempt,
+                last_error=_extract_key_error(error_text),
+                files_affected=tuple(plan_scope_paths),
+                jsonl_excerpt=json.dumps(
                     {
                         "event": "agent_failed",
                         "story_id": story_id,
@@ -1135,7 +1120,7 @@ def _dispatch_and_validate_loop(
                         "evidence": classification.evidence,
                     }
                 ),
-            }
+            )
 
             # Log story_started for the retry attempt
             event_logger.log_event(
@@ -1206,7 +1191,7 @@ def _dispatch_and_validate_loop(
                 f.get("issue", str(f)) if isinstance(f, dict) else str(f)
                 for f in findings
             )
-            classification = FailureClassification(
+            classification = FailureClassificationArtifact(
                 category="implementation",
                 evidence=critique_error[:500],
                 pattern="critique_failure",
@@ -1235,11 +1220,12 @@ def _dispatch_and_validate_loop(
                 )
 
             # Build retry context with critique failure details
-            retry_context = {
-                "attempt": attempt,
-                "error": _extract_key_error(critique_error),
-                "files_modified": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
+            retry_context = StoryFailureContextArtifact(
+                story_id=story_id,
+                attempt=attempt,
+                last_error=_extract_key_error(critique_error),
+                files_affected=tuple(plan_scope_paths),
+                jsonl_excerpt=json.dumps(
                     {
                         "event": "critique_fail",
                         "story_id": story_id,
@@ -1248,7 +1234,7 @@ def _dispatch_and_validate_loop(
                         "findings_count": len(findings),
                     }
                 ),
-            }
+            )
 
             # Log story_started for the retry attempt
             event_logger.log_event(
@@ -1275,7 +1261,7 @@ def _dispatch_and_validate_loop(
 
         # Override classification if validation already set a category
         if validation_result.failure_category:
-            classification = FailureClassification(
+            classification = FailureClassificationArtifact(
                 category=validation_result.failure_category,
                 evidence=classification.evidence,
                 pattern=classification.pattern,
@@ -1304,11 +1290,12 @@ def _dispatch_and_validate_loop(
             )
 
         # Build retry context with validation failure details (simple dict)
-        retry_context = {
-            "attempt": attempt,
-            "error": _extract_key_error(combined_error),
-            "files_modified": plan_scope_paths,
-            "jsonl_excerpt": json.dumps(
+        retry_context = StoryFailureContextArtifact(
+            story_id=story_id,
+            attempt=attempt,
+            last_error=_extract_key_error(combined_error),
+            files_affected=tuple(plan_scope_paths),
+            jsonl_excerpt=json.dumps(
                 {
                     "event": "validation_fail",
                     "story_id": story_id,
@@ -1319,7 +1306,7 @@ def _dispatch_and_validate_loop(
                     "evidence": classification.evidence,
                 }
             ),
-        }
+        )
 
         # Log story_started for the retry attempt
         event_logger.log_event(
@@ -1348,7 +1335,7 @@ def _dispatch_and_validate_loop(
 def _handle_terminal_failure(
     story_id: str,
     attempt: int,
-    classification: FailureClassification,
+    classification: FailureClassificationArtifact,
     error_text: str,
     event_logger: EventLogger,
     plan_scope_paths: list[str],
@@ -1369,10 +1356,20 @@ def _handle_terminal_failure(
     Returns:
         Always False (story failed).
     """
-    reason = (
-        f"Failure ({classification.category}): {classification.pattern} "
-        f"-- {classification.evidence[:200]}"
+    failure_context = StoryFailureContextArtifact(
+        story_id=story_id,
+        attempt=attempt,
+        last_error=_extract_key_error(error_text),
+        files_affected=tuple(plan_scope_paths),
+        jsonl_excerpt=json.dumps(
+            {
+                "failure_category": classification.category,
+                "evidence": classification.evidence,
+                "pattern": classification.pattern,
+            }
+        ),
     )
+    reason = classification.terminal_reason
 
     event_logger.log_event(
         "story_failed",
@@ -1389,19 +1386,7 @@ def _handle_terminal_failure(
             attempt=attempt,
             reason=reason,
             failure_category=classification.category,
-            context={
-                "story_id": story_id,
-                "attempt": attempt,
-                "last_error": _extract_key_error(error_text),
-                "files_affected": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
-                    {
-                        "failure_category": classification.category,
-                        "evidence": classification.evidence,
-                        "pattern": classification.pattern,
-                    }
-                ),
-            },
+            context=failure_context.event_context,
         )
 
     logger.error(
