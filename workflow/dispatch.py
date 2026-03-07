@@ -17,11 +17,12 @@ import shutil
 import subprocess
 import tempfile
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from rich.console import Console
+
+from workflow.artifacts import DispatchResultArtifact
 
 if TYPE_CHECKING:
     from workflow.epic_config import EpicConfig
@@ -37,20 +38,8 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# AgentResult dataclass
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class AgentResult:
-    """Result of an agent dispatch invocation."""
-
-    success: bool
-    output: str
-    structured_output: dict | None = None
-    exit_code: int = 0
-    turns: int | None = None
+# Compatibility alias while callers migrate to the typed artifact name.
+AgentResult = DispatchResultArtifact
 
 
 # ---------------------------------------------------------------------------

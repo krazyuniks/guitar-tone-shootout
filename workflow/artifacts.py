@@ -354,6 +354,118 @@ class DispatchArtifact:
 
 
 @dataclass(frozen=True)
+class DispatchResultArtifact:
+    """Typed result boundary returned by workflow.dispatch."""
+
+    success: bool
+    output: str
+    structured_output: dict[str, Any] | None = None
+    exit_code: int = 0
+    turns: int | None = None
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "DispatchResultArtifact":
+        structured_output = payload.get("structured_output")
+        if structured_output is not None and not isinstance(structured_output, dict):
+            raise TypeError("structured_output must be a dict when present")
+
+        return cls(
+            success=bool(payload["success"]),
+            output=str(payload["output"]),
+            structured_output=structured_output,
+            exit_code=int(payload.get("exit_code", 0)),
+            turns=int(payload["turns"]) if payload.get("turns") is not None else None,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "success": self.success,
+            "output": self.output,
+            "exit_code": self.exit_code,
+        }
+        if self.structured_output is not None:
+            payload["structured_output"] = self.structured_output
+        if self.turns is not None:
+            payload["turns"] = self.turns
+        return payload
+
+
+@dataclass(frozen=True)
+class TestReviewChecklistItemArtifact:
+    """One binary checklist item from a test reviewer response."""
+
+    __test__ = False
+
+    item: str
+    passed: bool
+    note: str | None = None
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "TestReviewChecklistItemArtifact":
+        return cls(
+            item=str(payload["item"]),
+            passed=bool(payload["passed"]),
+            note=str(payload["note"]) if payload.get("note") is not None else None,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "item": self.item,
+            "passed": self.passed,
+        }
+        if self.note is not None:
+            payload["note"] = self.note
+        return payload
+
+
+@dataclass(frozen=True)
+class TestReviewArtifact:
+    """Typed review output for workflow.test_generator."""
+
+    __test__ = False
+
+    verdict: Literal["pass", "fail"]
+    checklist: tuple[TestReviewChecklistItemArtifact, ...]
+    suggestions: tuple[str, ...] = ()
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "TestReviewArtifact":
+        verdict = str(payload["verdict"])
+        if verdict not in {"pass", "fail"}:
+            raise ValueError(f"Unsupported test review verdict: {verdict}")
+
+        checklist_payload = payload.get("checklist", [])
+        if not isinstance(checklist_payload, list):
+            raise TypeError("checklist must be a list")
+
+        suggestions_payload = payload.get("suggestions", [])
+        if not isinstance(suggestions_payload, list):
+            raise TypeError("suggestions must be a list")
+        if any(not isinstance(item, dict) for item in checklist_payload):
+            raise TypeError("checklist items must be dicts")
+
+        return cls(
+            verdict=verdict,
+            checklist=tuple(
+                TestReviewChecklistItemArtifact.from_dict(item)
+                for item in checklist_payload
+            ),
+            suggestions=tuple(str(item) for item in suggestions_payload),
+        )
+
+    @property
+    def passed(self) -> bool:
+        return self.verdict == "pass"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verdict": self.verdict,
+            "checklist": [item.to_dict() for item in self.checklist],
+            "suggestions": list(self.suggestions),
+        }
+
+
+@dataclass(frozen=True)
 class RunEventArtifact:
     """Typed JSONL event entry for epic and story logs."""
 
@@ -398,6 +510,97 @@ class RunEventArtifact:
         if key == "event":
             return self.event
         return self.data.get(key, default)
+
+
+@dataclass(frozen=True)
+class StoryRunArtifact:
+    """Derived per-story execution snapshot reconstructed from JSONL events."""
+
+    story_id: str
+    status: str
+    attempt: int
+    has_passing_test: bool
+    latest_test_file_path: str | None
+    review_failures: tuple[TestReviewArtifact, ...]
+    last_error: str | None
+    last_event: RunEventArtifact | None
+
+    @classmethod
+    def from_events(
+        cls,
+        events: list[dict[str, Any]] | list[RunEventArtifact],
+        story_id: str,
+    ) -> "StoryRunArtifact":
+        event_artifacts = [
+            event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+            for event in events
+        ]
+        story_events = [event for event in event_artifacts if event.get("story_id") == story_id]
+        if story_events:
+            story_events.sort(key=lambda event: event.ts)
+
+        last_event = story_events[-1] if story_events else None
+        attempt = max(
+            (
+                int(event.get("attempt"))
+                for event in story_events
+                if event.get("attempt") is not None
+            ),
+            default=0,
+        )
+
+        latest_test_file_path = next(
+            (
+                str(event.get("test_file_path"))
+                for event in reversed(story_events)
+                if event.get("test_file_path") is not None
+            ),
+            None,
+        )
+        has_passing_test = any(event.event == "test_review_pass" for event in story_events)
+        review_failures = tuple(
+            TestReviewArtifact.from_dict(feedback)
+            for event in story_events
+            if event.event == "test_review_fail"
+            for feedback in [event.get("reviewer_feedback")]
+            if isinstance(feedback, dict) and "verdict" in feedback
+        )
+        last_error = next(
+            (
+                str(event.get("error"))
+                for event in reversed(story_events)
+                if event.get("error") is not None
+            ),
+            None,
+        )
+
+        if last_event is None:
+            status = "pending"
+        elif last_event.event == "test_review_pass":
+            status = "tests_passed"
+        elif last_event.event in ("test_gen_started", "test_gen_attempt", "test_review_fail"):
+            status = "tests_running"
+        elif last_event.event == "story_complete":
+            status = "complete"
+        elif last_event.event == "exit_to_human":
+            status = "exit_to_human"
+        elif last_event.event in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
+            status = "failed"
+        elif last_event.event in ("story_started", "preflight_pass", "agent_dispatched"):
+            status = "running"
+        else:
+            status = last_event.event
+
+        return cls(
+            story_id=story_id,
+            status=status,
+            attempt=attempt,
+            has_passing_test=has_passing_test,
+            latest_test_file_path=latest_test_file_path,
+            review_failures=review_failures,
+            last_error=last_error,
+            last_event=last_event,
+        )
 
 
 @dataclass(frozen=True)

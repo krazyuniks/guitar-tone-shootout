@@ -4,11 +4,14 @@ import pytest
 
 from workflow.artifacts import (
     DispatchArtifact,
+    DispatchResultArtifact,
     EpicArtifact,
     PlanArtifact,
     RevisionRequestArtifact,
     RunArtifact,
     RunEventArtifact,
+    StoryRunArtifact,
+    TestReviewArtifact,
     VerifierFeedbackArtifact,
 )
 from workflow.plan_generator import make_phase_b_revision_prompt
@@ -150,6 +153,17 @@ class TestDispatchAndRunArtifacts:
 
         assert DispatchArtifact.from_dict(dispatch.to_dict()) == dispatch
 
+    def test_dispatch_result_artifact_round_trips_structured_output(self) -> None:
+        result = DispatchResultArtifact(
+            success=True,
+            output='{"status":"ok"}',
+            structured_output={"status": "ok"},
+            exit_code=0,
+            turns=4,
+        )
+
+        assert DispatchResultArtifact.from_dict(result.to_dict()) == result
+
     def test_run_event_artifact_round_trips_flat_jsonl_shape(self) -> None:
         event = RunEventArtifact(
             run_id="run-1",
@@ -197,6 +211,85 @@ class TestDispatchAndRunArtifacts:
 
         assert run.stage == "execution"
         assert run.dispatch_ids == ("dispatch-1",)
+
+    def test_story_run_artifact_reconstructs_test_generation_state(self) -> None:
+        review = TestReviewArtifact.from_dict(
+            {
+                "verdict": "fail",
+                "checklist": [
+                    {
+                        "item": "Every assertion from test_spec has a corresponding test assertion",
+                        "passed": False,
+                        "note": "Missing db assertion",
+                    }
+                ],
+                "suggestions": ["Add the missing database assertion"],
+            }
+        )
+        run = StoryRunArtifact.from_events(
+            [
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:00:00+00:00",
+                    event="test_gen_started",
+                    data={"story_id": "01-sample"},
+                ),
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:01:00+00:00",
+                    event="test_gen_attempt",
+                    data={
+                        "story_id": "01-sample",
+                        "attempt": 1,
+                        "test_file_path": "tests/epic/E146/test_01_sample.py",
+                    },
+                ),
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:02:00+00:00",
+                    event="test_review_fail",
+                    data={
+                        "story_id": "01-sample",
+                        "attempt": 1,
+                        "reviewer_feedback": review.to_dict(),
+                    },
+                ),
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:03:00+00:00",
+                    event="test_review_pass",
+                    data={
+                        "story_id": "01-sample",
+                        "test_file_path": "tests/epic/E146/test_01_sample.py",
+                    },
+                ),
+            ],
+            "01-sample",
+        )
+
+        assert run.status == "tests_passed"
+        assert run.attempt == 1
+        assert run.has_passing_test is True
+        assert run.latest_test_file_path == "tests/epic/E146/test_01_sample.py"
+        assert len(run.review_failures) == 1
+        assert run.review_failures[0].checklist[0].note == "Missing db assertion"
+
+
+class TestTestReviewArtifact:
+    def test_round_trips_checklist_and_suggestions(self) -> None:
+        review = TestReviewArtifact.from_dict(
+            {
+                "verdict": "fail",
+                "checklist": [
+                    {"item": "No mocks", "passed": True},
+                    {"item": "Data flow verified", "passed": False, "note": "Only checks status"},
+                ],
+                "suggestions": ["Assert on persisted state"],
+            }
+        )
+
+        assert TestReviewArtifact.from_dict(review.to_dict()) == review
+        assert review.passed is False
 
 
 class TestRevisionRequestArtifact:
