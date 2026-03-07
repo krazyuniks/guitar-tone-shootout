@@ -1,6 +1,7 @@
 """Tests for unified dispatch logging and streaming dispatch configuration."""
 
 import json
+import subprocess
 
 from workflow.dispatch import ClaudeAdapter
 from workflow.dispatch_log import DispatchLog, token_summary
@@ -22,6 +23,46 @@ class TestClaudeAdapterStreaming:
         output_idx = args.index("--output-format")
         assert args[output_idx + 1] == "stream-json"
         assert "--verbose" in args
+
+
+class TestClaudeAdapterStructuredOutputParsing:
+    """Claude adapter should prefer structured output over prose summaries."""
+
+    def test_json_schema_mode_prefers_structured_output_when_result_has_summary(self) -> None:
+        adapter = ClaudeAdapter()
+        completed = subprocess.CompletedProcess(
+            args=["claude"],
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "success",
+                    "num_turns": 61,
+                    "result": "Plan generated successfully. Here's a summary...",
+                    "structured_output": {
+                        "epic_number": 146,
+                        "schema_v": 1,
+                        "goal": "test",
+                    },
+                }
+            ),
+            stderr="",
+        )
+
+        result = adapter.parse_result(completed)
+
+        assert result.success is True
+        assert result.turns == 61
+        assert json.loads(result.output) == {
+            "epic_number": 146,
+            "schema_v": 1,
+            "goal": "test",
+        }
+        assert result.structured_output == {
+            "epic_number": 146,
+            "schema_v": 1,
+            "goal": "test",
+        }
 
 
 class TestDispatchLogLifecycle:

@@ -121,6 +121,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 - `just epic-status N` — check progress from JSONL logs (read-only).
 - `just epic-validate-plan N` — run Phase A deterministic validation only (read-only).
 - `just epic-report N` — generate the HTML run report (read-only).
+- `just epic-compile-prompts N` — compile planner/verifier/revision prompts without dispatching agents (read-only).
 - `just map-codebase` — regenerate .planning/codebase/ files.
 - `just index-wiki` — regenerate .planning/wiki-indexes/.
 - Live planning is issue-first and tool-equipped. Do not describe `CONTEXT.md`, gap detection, or `tests_approved` as active required stages unless the code path is reintroduced and the docs are updated first.

@@ -432,6 +432,10 @@ epic-validate-plan epic_num:
 epic-report epic_num:
     python -m workflow.report {{epic_num}}
 
+# Compile prompt artefacts for an epic without dispatching any agents
+epic-compile-prompts epic_num *ARGS='':
+    docker compose exec -T webapp python -m workflow.prompt_suite {{epic_num}} {{ARGS}}
+
 # Regenerate .planning/codebase/ files
 map-codebase:
     ./wf map codebase

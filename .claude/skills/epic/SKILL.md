@@ -1,7 +1,7 @@
 ---
 name: epic
 description: Epic lifecycle commands for the current orchestrated workflow.
-argument-hint: "<epic-number> [run|status|validate-plan|report]"
+argument-hint: "<epic-number> [run|status|validate-plan|report|compile-prompts]"
 context: fork
 ---
 
@@ -17,6 +17,7 @@ Run the matching command immediately. Do not invent alternate commands.
 | `status <N>`, `/epic status <N>` | `just epic-status <N>` |
 | `validate-plan <N>`, `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
 | `report <N>`, `/epic report <N>` | `just epic-report <N>` |
+| `compile-prompts <N>`, `/epic compile-prompts <N>` | `just epic-compile-prompts <N>` |
 | `brainstorm <N>`, `/epic brainstorm <N>` | Load `brainstorm.md` and follow it |
 | `deps <N>`, `/epic deps <N>` | Load `deps.md` and follow it |
 | `next`, `/epic next` | Load `next.md` and follow it |
@@ -41,6 +42,7 @@ If args are empty, ask for the epic number.
 | `just epic-status <N>` | Read current epic state |
 | `just epic-validate-plan <N>` | Run deterministic Phase A only |
 | `just epic-report <N>` | Generate HTML report |
+| `just epic-compile-prompts <N>` | Compile prompt artefacts without dispatching agents |
 
 ## Rules
 

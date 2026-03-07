@@ -146,11 +146,12 @@ class ClaudeAdapter:
 
         Without ``--json-schema``, the agent's text lives in ``result``.
 
-        With ``--json-schema``, ``result`` is an **empty string** and the
-        constrained JSON object is in ``structured_output``.  We detect
-        this case and serialise ``structured_output`` back to a JSON
-        string so callers can use ``extract_json_from_text(output)``
-        uniformly.
+        With ``--json-schema``, the constrained JSON object is in
+        ``structured_output``. Some Claude runs still populate ``result``
+        with a prose summary after successfully calling StructuredOutput,
+        so ``structured_output`` must take precedence whenever present.
+        We serialise it back to a JSON string so callers can use
+        ``extract_json_from_text(output)`` uniformly.
         """
         raw = completed.stdout or ""
         exit_code = completed.returncode
@@ -162,18 +163,18 @@ class ClaudeAdapter:
 
         parsed = _extract_json_payload(raw)
         if parsed is not None:
-            structured_output = parsed
+            schema_output = parsed.get("structured_output")
+            structured_output = schema_output if isinstance(schema_output, dict) else parsed
             turns = parsed.get("num_turns") or parsed.get("turns")
             result_text = parsed.get("result")
-            schema_output = parsed.get("structured_output")
 
-            if isinstance(result_text, str) and result_text:
+            if schema_output is not None:
+                # --json-schema mode: prefer structured_output even if the CLI
+                # also appends a prose summary in "result".
+                output = json.dumps(schema_output)
+            elif isinstance(result_text, str) and result_text:
                 # Normal mode: text response in "result"
                 output = result_text
-            elif schema_output is not None:
-                # --json-schema mode: "result" is empty,
-                # actual response in "structured_output"
-                output = json.dumps(schema_output)
         else:
             logger.warning("parse_result: raw stdout is empty or unparseable (exit_code=%d)", exit_code)
 

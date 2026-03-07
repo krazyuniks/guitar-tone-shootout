@@ -23,6 +23,12 @@ from workflow.dispatch import (
 )
 from workflow.epic_config import EpicConfig
 from workflow.models import Plan, render_plan_md
+from workflow.prompt_compiler import (
+    PromptSection,
+    compact_plan_for_review,
+    make_prompt_artifact,
+    render_json_block,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -493,51 +499,46 @@ def build_targeted_phase_b_revision_prompt(
         feedback_lines.append("")
 
     findings_text = "\n".join(feedback_lines) if feedback_lines else "(no specific findings)"
-
-    return f"""\
-# Task: Address Verifier Feedback (Targeted Revision)
-
-The current plan.json passed structural validation but failed Phase B
-cross-model verification. Treat the current plan as suspect wherever it
-conflicts with the epic contract or verifier findings.
-
-## Original Epic Contract
-
-<epic>
-{epic_md}
-</epic>
-
-## Rules
-
-1. The epic contract wins over the current plan.
+    compact_plan = compact_plan_for_review(json.loads(plan_json_str))
+    artifact = make_prompt_artifact(
+        role="planner_revision",
+        sections=[
+            PromptSection(
+                "# Task: Address Verifier Feedback (Targeted Revision)",
+                (
+                    "The current plan.json passed structural validation but failed Phase B "
+                    "cross-model verification. Treat the current plan as suspect wherever it "
+                    "conflicts with the epic contract or verifier findings."
+                ),
+            ),
+            PromptSection(
+                "## Original Epic Contract",
+                f"<epic>\n{epic_md}\n</epic>",
+            ),
+            PromptSection(
+                "## Rules",
+                """1. The epic contract wins over the current plan.
 2. You MAY rewrite any affected story, journey, checkpoint, or validation path.
 3. Preserve untouched sections only if they still fit the epic and findings.
 4. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
    Use the Glob and Read tools to verify file paths if unsure.
-5. If verifier feedback shows the current framing is wrong, fix the framing
-   instead of patching around it.
+5. If verifier feedback shows the current framing is wrong, fix the framing instead of patching around it.
 6. Output only the complete JSON object matching the provided schema.
-7. Use the StructuredOutput tool for the final answer.
-
----
-
-## Current Plan
-
-<current_plan>
-{plan_json_str}
-</current_plan>
-
----
-
-## Must-Fix Findings
-
-{findings_text}
-
----
-
-Address the findings above and emit the complete JSON object.
-Do NOT omit any existing fields unless you are replacing them with corrected
-content in the revised plan."""
+7. Use the StructuredOutput tool for the final answer.""",
+            ),
+            PromptSection(
+                "## Current Plan",
+                render_json_block("current_plan", compact_plan),
+            ),
+            PromptSection("## Must-Fix Findings", findings_text),
+            PromptSection(
+                "## Output",
+                """Address the findings above and emit the complete JSON object.
+Do NOT omit any existing fields unless you are replacing them with corrected content in the revised plan.""",
+            ),
+        ],
+    )
+    return artifact.text
 
 
 # ---------------------------------------------------------------------------
