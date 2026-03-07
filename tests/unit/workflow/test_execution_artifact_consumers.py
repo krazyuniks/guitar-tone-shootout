@@ -294,6 +294,30 @@ class TestTypedReportConsumers:
         )
         assert "Show raw response" in critique_html
 
+    def test_render_event_details_uses_typed_phase_b_feedback(self, tmp_path) -> None:
+        phase_b_event = _event(
+            "2026-03-07T12:03:00+00:00",
+            "phase_b_fail",
+            epic=155,
+            attempt=1,
+            scores={"intent_alignment": "fail"},
+            feedback={
+                "status": "fail",
+                "summary": "Intent alignment needs revision",
+                "dimensions": {
+                    "intent_alignment": {
+                        "status": "fail",
+                        "findings": [{"severity": "must_fix", "epic_requirement": "Use HTMX"}],
+                    }
+                },
+            },
+        )
+
+        phase_b_html = _render_event_details(phase_b_event, tmp_path)
+
+        assert "Show critique feedback" in phase_b_html
+        assert "Intent alignment needs revision" in phase_b_html
+
     def test_report_header_and_nav_use_final_typed_story_status(self) -> None:
         plan = {"stories": [{"story_id": "01-setup", "name": "Setup"}]}
         events = [

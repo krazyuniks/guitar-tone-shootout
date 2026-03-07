@@ -44,16 +44,16 @@
           "description": "Fields: epic, attempt"
         },
         "phase_a_fail": {
-          "description": "Fields: epic, attempt, checks_failed[]"
+          "description": "Fields: epic, attempt, failures[]"
         },
         "verifier_dispatched": {
           "description": "Fields: epic, attempt, tier, model, adapter, prompt_hash, prompt_tokens"
         },
         "phase_b_pass": {
-          "description": "Fields: epic, attempt, scores{}"
+          "description": "Fields: epic, attempt, scores{}, feedback{}"
         },
         "phase_b_fail": {
-          "description": "Fields: epic, attempt, scores{}, feedback"
+          "description": "Fields: epic, attempt, scores{}, feedback{}"
         },
         "phase_c_dispatched": {
           "description": "Fields: epic, attempt, model, adapter, prompt_hash, prompt_tokens. Phase C cross-model (Codex) plan verification."
@@ -71,7 +71,7 @@
           "description": "Fields: epic"
         },
         "plan_rejected": {
-          "description": "Fields: epic"
+          "description": "Fields: epic, reason, feedback{}"
         },
         "plan_committed": {
           "description": "Fields: epic, commit"

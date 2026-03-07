@@ -11,6 +11,7 @@ from workflow.artifacts import (
     EpicArtifact,
     FailureClassificationArtifact,
     PlanArtifact,
+    PlanVerificationResultArtifact,
     PreflightArtifact,
     RevisionRequestArtifact,
     RunArtifact,
@@ -139,6 +140,64 @@ class TestVerifierFeedbackArtifact:
 
         assert feedback.dimension("intent_alignment")["scope_creep"] == ["Unexpected route"]
         assert feedback.has_extractable_findings() is True
+
+    def test_dimension_statuses_compose_deterministic_score_map(self) -> None:
+        feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "journey_completeness": {"status": "pass"},
+                    "intent_alignment": {"status": "fail"},
+                },
+            }
+        )
+
+        assert feedback.dimension_statuses == {
+            "journey_completeness": "pass",
+            "transition_coverage": "unknown",
+            "intent_alignment": "fail",
+            "gap_detection": "unknown",
+            "validation_sufficiency": "unknown",
+            "gap_sufficiency": "unknown",
+        }
+
+
+class TestPlanVerificationResultArtifact:
+    def test_phase_b_result_wraps_typed_verifier_feedback(self) -> None:
+        feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "summary": "Intent alignment needs revision",
+                "dimensions": {
+                    "intent_alignment": {
+                        "status": "fail",
+                        "findings": [{"severity": "must_fix", "epic_requirement": "Use HTMX"}],
+                    }
+                },
+            }
+        )
+
+        result = PlanVerificationResultArtifact.from_verifier_feedback(feedback)
+
+        assert result.phase == "phase_b"
+        assert result.passed is False
+        assert result.summary == "Intent alignment needs revision"
+        assert result.phase_b_scores["intent_alignment"] == "fail"
+        assert result.feedback_payload == feedback.to_dict()
+        assert result.to_dict()["verifier_feedback"]["summary"] == "Intent alignment needs revision"
+
+    def test_phase_a_result_keeps_validation_errors_typed(self) -> None:
+        result = PlanVerificationResultArtifact.from_phase_a_errors(
+            ["Story 01 missing checkpoint", "Story 02 missing acceptance criteria"]
+        )
+
+        assert result.phase == "phase_a"
+        assert result.passed is False
+        assert result.phase_a_errors == (
+            "Story 01 missing checkpoint",
+            "Story 02 missing acceptance criteria",
+        )
+        assert result.feedback_payload is None
 
 
 class TestCritiqueArtifacts:

@@ -50,7 +50,7 @@ KNOWN_EVENTS: dict[str, list[str]] = {
     "phase_a_pass": ["epic", "attempt"],
     "phase_a_fail": ["epic", "attempt", "failures"],
     "phase_b_pass": ["epic", "attempt", "scores", "feedback"],
-    "phase_b_fail": ["epic", "attempt", "feedback"],
+    "phase_b_fail": ["epic", "attempt", "scores", "feedback"],
     "phase_c_pass": ["epic", "attempt"],
     "phase_c_fail": ["epic", "attempt"],
     "plan_approved": ["epic"],

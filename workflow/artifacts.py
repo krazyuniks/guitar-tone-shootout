@@ -216,6 +216,106 @@ class VerifierFeedbackArtifact:
     def json_text(self) -> str:
         return json.dumps(self.raw_payload, indent=2, ensure_ascii=False) + "\n"
 
+    @property
+    def dimension_statuses(self) -> dict[str, str]:
+        return {
+            name: str(self.dimension(name).get("status", "unknown"))
+            for name in VERIFIER_DIMENSIONS
+        }
+
+
+@dataclass(frozen=True)
+class PlanVerificationResultArtifact:
+    """Typed result of the Phase A/Phase B verification cycle."""
+
+    phase: Literal["phase_a", "phase_b"]
+    status: Literal["pass", "fail"]
+    verifier_feedback: VerifierFeedbackArtifact | None = None
+    phase_a_errors: tuple[str, ...] = ()
+    error: str = ""
+
+    def __post_init__(self) -> None:
+        if self.phase == "phase_a":
+            if not self.phase_a_errors:
+                raise ValueError("Phase A verification result requires validation errors")
+            if self.verifier_feedback is not None:
+                raise ValueError("Phase A verification result cannot include verifier feedback")
+            return
+
+        if self.phase_a_errors:
+            raise ValueError("Phase B verification result cannot include Phase A errors")
+        if self.verifier_feedback is None and not self.error:
+            raise ValueError("Phase B verification result requires feedback or an error")
+
+    @classmethod
+    def from_phase_a_errors(cls, errors: list[str]) -> "PlanVerificationResultArtifact":
+        return cls(
+            phase="phase_a",
+            status="fail",
+            phase_a_errors=tuple(errors),
+        )
+
+    @classmethod
+    def from_verifier_feedback(
+        cls,
+        feedback: VerifierFeedbackArtifact,
+    ) -> "PlanVerificationResultArtifact":
+        return cls(
+            phase="phase_b",
+            status="pass" if feedback.status == "pass" else "fail",
+            verifier_feedback=feedback,
+        )
+
+    @classmethod
+    def from_error(cls, error: str) -> "PlanVerificationResultArtifact":
+        return cls(
+            phase="phase_b",
+            status="fail",
+            error=error,
+        )
+
+    @property
+    def passed(self) -> bool:
+        return self.status == "pass"
+
+    @property
+    def summary(self) -> str:
+        if self.error:
+            return self.error
+        if self.phase_a_errors:
+            return "; ".join(self.phase_a_errors[:3])
+        if self.verifier_feedback is not None:
+            return self.verifier_feedback.summary
+        return ""
+
+    @property
+    def phase_b_scores(self) -> dict[str, str]:
+        if self.verifier_feedback is None:
+            return {}
+        return self.verifier_feedback.dimension_statuses
+
+    @property
+    def feedback_payload(self) -> dict[str, Any] | None:
+        if self.verifier_feedback is not None:
+            return self.verifier_feedback.to_dict()
+        if self.error:
+            return {"status": "fail", "error": self.error}
+        return None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "phase": self.phase,
+            "status": self.status,
+        }
+        if self.phase_a_errors:
+            payload["phase_a_errors"] = list(self.phase_a_errors)
+        if self.verifier_feedback is not None:
+            payload["verifier_feedback"] = self.verifier_feedback.to_dict()
+            payload["scores"] = self.phase_b_scores
+        if self.error:
+            payload["error"] = self.error
+        return payload
+
 
 @dataclass(frozen=True)
 class RevisionRequestArtifact:

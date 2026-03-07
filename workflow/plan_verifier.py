@@ -26,6 +26,7 @@ from pathlib import Path
 from workflow.artifacts import (
     EpicArtifact,
     PlanArtifact,
+    PlanVerificationResultArtifact,
     RevisionRequestArtifact,
     VerifierFeedbackArtifact,
 )
@@ -341,7 +342,7 @@ def _print_plan_summary(plan_md_path: Path) -> None:
 
 def present_decision_gate(
     plan_md_path: Path,
-    verifier_result: dict,
+    verifier_result: dict | VerifierFeedbackArtifact | PlanVerificationResultArtifact,
 ) -> DecisionGateResult:
     """Present the human with plan summary + verifier report and get a decision."""
     # Display plan location
@@ -352,23 +353,62 @@ def present_decision_gate(
     # Show plan summary
     _print_plan_summary(plan_md_path)
 
-    print(f"\nFull plan: {plan_md_path}")
-    print(f"Verifier status: {verifier_result.get('status', 'unknown')}")
+    typed_result = (
+        verifier_result
+        if isinstance(verifier_result, PlanVerificationResultArtifact)
+        else None
+    )
+    typed_feedback = (
+        verifier_result
+        if isinstance(verifier_result, VerifierFeedbackArtifact)
+        else typed_result.verifier_feedback if typed_result is not None else None
+    )
+    raw_result = verifier_result if isinstance(verifier_result, dict) else None
 
-    # Check for dispatch-level errors (e.g. model credits exhausted)
-    dispatch_error = verifier_result.get("error")
-    if dispatch_error:
+    status = (
+        typed_result.status
+        if typed_result is not None
+        else typed_feedback.status
+        if typed_feedback is not None
+        else raw_result.get("status", "unknown")
+        if raw_result is not None
+        else "unknown"
+    )
+    phase_a_errors = (
+        typed_result.phase_a_errors
+        if typed_result is not None
+        else tuple(raw_result.get("phase_a_errors", []))
+        if raw_result is not None
+        else ()
+    )
+    dispatch_error = (
+        typed_result.error
+        if typed_result is not None
+        else raw_result.get("error", "")
+        if raw_result is not None
+        else ""
+    )
+
+    print(f"\nFull plan: {plan_md_path}")
+    print(f"Verifier status: {status}")
+
+    if phase_a_errors:
+        print("\nPhase A errors:")
+        for err in phase_a_errors:
+            print(f"  - {err}")
+    elif dispatch_error:
         print(f"\nVerifier error: {dispatch_error}")
         print("(Dimension results unavailable — verifier did not complete)")
     else:
         # Show dimension statuses
-        dims = _get_dimensions(verifier_result)
+        dims = _get_dimensions(typed_feedback if typed_feedback is not None else raw_result or {})
         all_dimensions = [
             "journey_completeness",
             "transition_coverage",
             "intent_alignment",
             "gap_detection",
             "validation_sufficiency",
+            "gap_sufficiency",
         ]
         print("\nVerifier dimensions:")
         for dimension in all_dimensions:
@@ -383,7 +423,9 @@ def present_decision_gate(
             print(f"  [{icon}] {dimension}")
 
         # Show findings for failed dimensions
-        failed_dims = _extract_dimension_failures(verifier_result)
+        failed_dims = _extract_dimension_failures(
+            typed_feedback if typed_feedback is not None else raw_result or {}
+        )
         if failed_dims:
             print(f"\nFailed dimensions: {', '.join(failed_dims)}")
             for dim_name in failed_dims:
@@ -460,7 +502,7 @@ def present_decision_gate(
 def verify_plan(
     epic_dir: Path,
     config: EpicConfig | None = None,
-) -> dict:
+) -> VerifierFeedbackArtifact:
     """Run Phase B cross-model verification on the plan.
 
     Uses config.models.plan_critic if provided, otherwise falls back to codex.
@@ -472,7 +514,7 @@ def verify_plan(
         config.models.plan_critic if config else "opus",
         feedback.status,
     )
-    return feedback.to_dict()
+    return feedback
 
 
 def _verify_plan_artifact(
@@ -531,7 +573,7 @@ def _verify_plan_artifact(
 def verify_with_revision_cycle(
     epic_dir: Path,
     config: EpicConfig | None = None,
-) -> tuple[dict, bool]:
+) -> tuple[PlanVerificationResultArtifact, bool]:
     """Run the full two-phase verification with one revision cycle."""
 
     # Phase A: Deterministic validation (attempt 1)
@@ -550,7 +592,9 @@ def verify_with_revision_cycle(
         except PlanGenerationError as exc:
             logger.error("Plan regeneration failed: %s", exc)
             return (
-                {"status": "fail", "phase_a_errors": phase_a_result.error_messages()},
+                PlanVerificationResultArtifact.from_phase_a_errors(
+                    phase_a_result.error_messages()
+                ),
                 False,
             )
 
@@ -563,7 +607,9 @@ def verify_with_revision_cycle(
                 len(phase_a_result.errors),
             )
             return (
-                {"status": "fail", "phase_a_errors": phase_a_result.error_messages()},
+                PlanVerificationResultArtifact.from_phase_a_errors(
+                    phase_a_result.error_messages()
+                ),
                 False,
             )
 
@@ -574,11 +620,12 @@ def verify_with_revision_cycle(
         verifier_feedback = _verify_plan_artifact(epic_dir, config=config)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed: %s", exc)
-        return ({"status": "fail", "error": str(exc)}, False)
+        return (PlanVerificationResultArtifact.from_error(str(exc)), False)
 
     if _is_verifier_pass(verifier_feedback):
         logger.info("Phase B passed. Plan verified.")
-        return (verifier_feedback.to_dict(), True)
+        result = PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback)
+        return (result, result.passed)
 
     # Phase B failed — feed verifier output back to planner for revision
     failed_dims = _extract_dimension_failures(verifier_feedback)
@@ -607,7 +654,7 @@ def verify_with_revision_cycle(
         _regenerate_plan_with_verifier_feedback(epic_dir, verifier_feedback, config=config)
     except PlanGenerationError as exc:
         logger.error("Plan regeneration (verifier feedback) failed: %s", exc)
-        return (verifier_feedback.to_dict(), False)
+        return (PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback), False)
 
     # Re-run Phase A on revised plan (must still pass after revision)
     logger.info("Running Phase A validation (after verifier revision)...")
@@ -625,7 +672,7 @@ def verify_with_revision_cycle(
         if original_plan_md:
             plan_md_path.write_text(original_plan_md, encoding="utf-8")
         logger.info("Restored pre-revision plan.json and PLAN.md.")
-        return (verifier_result, False)
+        return (PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback), False)
 
     # Phase B: AI verification (attempt 2 — final)
     logger.info("Running Phase B verification (attempt 2, final)...")
@@ -633,11 +680,12 @@ def verify_with_revision_cycle(
         verifier_feedback = _verify_plan_artifact(epic_dir, config=config)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed on second attempt: %s", exc)
-        return ({"status": "fail", "error": str(exc)}, False)
+        return (PlanVerificationResultArtifact.from_error(str(exc)), False)
 
     if _is_verifier_pass(verifier_feedback):
         logger.info("Phase B passed on second attempt. Plan verified.")
-        return (verifier_feedback.to_dict(), True)
+        result = PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback)
+        return (result, result.passed)
 
     # Second attempt still has findings — present to human at Decision Gate
     failed_dims = _extract_dimension_failures(verifier_feedback)
@@ -645,7 +693,7 @@ def verify_with_revision_cycle(
         "Phase B has remaining findings (dimensions: %s). Presenting to human.",
         ", ".join(failed_dims),
     )
-    return (verifier_feedback.to_dict(), False)
+    return (PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback), False)
 
 
 # ---------------------------------------------------------------------------
@@ -795,12 +843,16 @@ def main() -> None:
             print("All 5 dimensions verified successfully.")
         else:
             print(f"\nPlan verification FAILED for epic #{epic_number}")
-            failed = _extract_dimension_failures(verifier_result)
+            failed = _extract_dimension_failures(
+                verifier_result.verifier_feedback
+                if verifier_result.verifier_feedback is not None
+                else {}
+            )
             if failed:
                 print(f"Failed dimensions: {', '.join(failed)}")
-            if "phase_a_errors" in verifier_result:
+            if verifier_result.phase_a_errors:
                 print("Phase A errors:")
-                for err in verifier_result["phase_a_errors"]:
+                for err in verifier_result.phase_a_errors:
                     print(f"  - {err}")
 
         sys.exit(0 if success else 1)
@@ -812,7 +864,7 @@ def main() -> None:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
-        status = verifier_result.get("status", "unknown")
+        status = verifier_result.status
         print(f"\nPhase B verification result: {status}")
 
         for dimension in [
@@ -821,12 +873,13 @@ def main() -> None:
             "intent_alignment",
             "gap_detection",
             "validation_sufficiency",
+            "gap_sufficiency",
         ]:
-            dim = verifier_result.get(dimension, {})
+            dim = verifier_result.dimension(dimension)
             dim_status = dim.get("status", "unknown") if isinstance(dim, dict) else "unknown"
             print(f"  [{dim_status.upper()}] {dimension}")
 
-        print(f"\nFull result:\n{json.dumps(verifier_result, indent=2)}")
+        print(f"\nFull result:\n{json.dumps(verifier_result.to_dict(), indent=2)}")
 
         sys.exit(0 if status == "pass" else 1)
 

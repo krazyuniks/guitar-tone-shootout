@@ -348,34 +348,31 @@ def _run_planning_steps(
     console.print("[bold]Step 3:[/bold] Verifying plan...")
 
     try:
-        verifier_result, success = verify_with_revision_cycle(epic_dir, config=config)
+        verification_result, success = verify_with_revision_cycle(epic_dir, config=config)
     except PlanVerificationError as exc:
         console.print(f"  [red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
 
     if success:
+        verifier_feedback = verification_result.verifier_feedback
+        assert verifier_feedback is not None
         epic_logger.log_event("phase_a_pass", epic=epic_number, attempt=1)
-        scores = {
-            dim: verifier_result.get(dim, {}).get("status", "unknown")
-            for dim in [
-                "journey_completeness",
-                "transition_coverage",
-                "intent_alignment",
-                "gap_detection",
-                "validation_sufficiency",
-                "gap_sufficiency",
-            ]
-        }
-        epic_logger.log_event("phase_b_pass", epic=epic_number, attempt=1, scores=scores)
+        epic_logger.log_event(
+            "phase_b_pass",
+            epic=epic_number,
+            attempt=1,
+            scores=verification_result.phase_b_scores,
+            feedback=verifier_feedback.to_dict(),
+        )
         console.print("  [green]Plan verified successfully.[/green]")
     else:
-        phase_a_errors = verifier_result.get("phase_a_errors", [])
+        phase_a_errors = list(verification_result.phase_a_errors)
         if phase_a_errors:
             epic_logger.log_event(
                 "phase_a_fail",
                 epic=epic_number,
                 attempt=1,
-                checks_failed=phase_a_errors,
+                failures=phase_a_errors,
             )
             console.print("  [red]Structural validation failed after revision.[/red]")
             for err in phase_a_errors[:5]:
@@ -385,7 +382,8 @@ def _run_planning_steps(
                 "phase_b_fail",
                 epic=epic_number,
                 attempt=1,
-                feedback=str(verifier_result),
+                scores=verification_result.phase_b_scores,
+                feedback=verification_result.feedback_payload,
             )
             console.print(
                 f"  [yellow]{critic_model.capitalize()} verifier raised findings"
@@ -408,7 +406,7 @@ def _run_planning_steps(
         )
         raise typer.Exit(1)
 
-    gate_result = present_decision_gate(plan_md_path, verifier_result)
+    gate_result = present_decision_gate(plan_md_path, verification_result)
 
     if gate_result.approved:
         epic_logger.log_event("plan_approved", epic=epic_number)
@@ -426,8 +424,15 @@ def _run_planning_steps(
         snapshot_md = plan_md_path.read_text(encoding="utf-8") if plan_md_path.exists() else ""
 
         console.print("\n[yellow]Revising plan with verifier findings...[/yellow]")
+        verifier_feedback = verification_result.verifier_feedback
+        if verifier_feedback is None:
+            console.print(
+                "  [yellow]No Phase B feedback is available for auto-revision.[/yellow]\n"
+                "  Fix the structural issues in plan.json/PLAN.md and re-run the verifier."
+            )
+            return
         try:
-            _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result, config=config)
+            _regenerate_plan_with_verifier_feedback(epic_dir, verifier_feedback, config=config)
         except PlanGenerationError as exc:
             console.print(f"  [red]Revision failed:[/red] {exc}")
             console.print("  Restoring pre-revision plan.")
@@ -458,18 +463,27 @@ def _run_planning_steps(
 
         console.print(f"  Running {critic_model} verifier on revised plan...")
         try:
-            verifier_result = verify_plan(epic_dir, config=config)
+            verifier_feedback = verify_plan(epic_dir, config=config)
         except PlanVerificationError as exc:
             console.print(f"  [yellow]Verifier failed:[/yellow] {exc}")
             console.print("  Presenting gate with previous findings.")
+            verifier_feedback = verification_result.verifier_feedback
+            if verifier_feedback is None:
+                console.print("  [red]No verifier feedback is available to present.[/red]")
+                return
 
         # Present the gate again with fresh verifier results
-        gate_result = present_decision_gate(plan_md_path, verifier_result)
+        gate_result = present_decision_gate(plan_md_path, verifier_feedback)
         if gate_result.approved:
             epic_logger.log_event("plan_approved", epic=epic_number)
             console.print("\n[green]Plan approved.[/green]")
         elif gate_result.rejected:
-            epic_logger.log_event("plan_rejected", epic=epic_number)
+            epic_logger.log_event(
+                "plan_rejected",
+                epic=epic_number,
+                reason=gate_result.reason,
+                feedback=verifier_feedback.to_dict(),
+            )
             console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
             return
         else:
@@ -482,7 +496,12 @@ def _run_planning_steps(
             )
             return
     elif gate_result.rejected:
-        epic_logger.log_event("plan_rejected", epic=epic_number)
+        epic_logger.log_event(
+            "plan_rejected",
+            epic=epic_number,
+            reason=gate_result.reason,
+            feedback=verification_result.feedback_payload,
+        )
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
         return
 
