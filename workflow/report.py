@@ -178,11 +178,15 @@ def collect_all_events(epic_dir: Path) -> list[dict]:
     return deduped
 
 
-def match_prompt_file(prompt_hash: str) -> str | None:
-    if not prompt_hash or not LOGS_DIR.is_dir():
+def match_prompt_file(epic_dir: Path, prompt_hash: str) -> str | None:
+    if not prompt_hash:
         return None
-    for p in LOGS_DIR.glob(f"dispatch-*-{prompt_hash}-*.txt"):
-        return p.read_text(encoding="utf-8")
+    prompt_path = epic_dir / "dispatches" / f"{prompt_hash}-prompt.txt"
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+    if LOGS_DIR.is_dir():
+        for legacy_path in LOGS_DIR.glob(f"dispatch-*-{prompt_hash}-*.txt"):
+            return legacy_path.read_text(encoding="utf-8")
     return None
 
 
@@ -411,7 +415,7 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
         if not prompt_text:
             prompt_hash = event.get("prompt_hash")
             if prompt_hash:
-                prompt_text = match_prompt_file(prompt_hash)
+                prompt_text = match_prompt_file(epic_dir, prompt_hash)
         if prompt_text:
             parts.append(_render_collapsible("Show prompt", prompt_text))
 
@@ -661,6 +665,7 @@ def _render_token_budget_table(epic_dir: Path) -> str:
     from workflow.dispatch_log import read_dispatch_log
 
     entries = read_dispatch_log(epic_dir)
+    entries = [e for e in entries if e.get("status", "completed") == "completed"]
     if not entries:
         return ""
 

@@ -12,11 +12,12 @@ import hashlib
 import json
 import logging
 import os
+import select
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -69,6 +70,7 @@ class AgentAdapter(Protocol):
         model: str,
         json_schema: dict | None,
         mcp_servers: list[str] | None = None,
+        streaming: bool = False,
     ) -> list[str]: ...
 
     def parse_result(
@@ -99,6 +101,7 @@ class ClaudeAdapter:
         model: str,
         json_schema: dict | None,
         mcp_servers: list[str] | None = None,
+        streaming: bool = False,
     ) -> list[str]:
         """Build CLI arguments. Prompt is piped via stdin by the caller."""
         from workflow.mcp import build_mcp_config
@@ -111,9 +114,12 @@ class ClaudeAdapter:
             model,
             "--no-session-persistence",
             "--output-format",
-            "json",
+            "stream-json" if streaming else "json",
             "--dangerously-skip-permissions",
         ]
+
+        if streaming:
+            args.append("--verbose")
 
         if json_schema:
             args.extend(["--json-schema", json.dumps(json_schema)])
@@ -154,28 +160,22 @@ class ClaudeAdapter:
         structured_output = None
         turns = None
 
-        if raw.strip():
-            try:
-                parsed = json.loads(raw)
-                structured_output = parsed
+        parsed = _extract_json_payload(raw)
+        if parsed is not None:
+            structured_output = parsed
+            turns = parsed.get("num_turns") or parsed.get("turns")
+            result_text = parsed.get("result")
+            schema_output = parsed.get("structured_output")
 
-                if isinstance(parsed, dict):
-                    turns = parsed.get("num_turns") or parsed.get("turns")
-                    result_text = parsed.get("result")
-                    schema_output = parsed.get("structured_output")
-
-                    if isinstance(result_text, str) and result_text:
-                        # Normal mode: text response in "result"
-                        output = result_text
-                    elif schema_output is not None:
-                        # --json-schema mode: "result" is empty,
-                        # actual response in "structured_output"
-                        output = json.dumps(schema_output)
-            except json.JSONDecodeError:
-                # Raw text output — not structured
-                pass
+            if isinstance(result_text, str) and result_text:
+                # Normal mode: text response in "result"
+                output = result_text
+            elif schema_output is not None:
+                # --json-schema mode: "result" is empty,
+                # actual response in "structured_output"
+                output = json.dumps(schema_output)
         else:
-            logger.warning("parse_result: raw stdout is empty (exit_code=%d)", exit_code)
+            logger.warning("parse_result: raw stdout is empty or unparseable (exit_code=%d)", exit_code)
 
         return AgentResult(
             success=success,
@@ -220,6 +220,7 @@ class CodexAdapter:
         model: str,  # noqa: ARG002
         json_schema: dict | None,  # noqa: ARG002
         mcp_servers: list[str] | None = None,  # noqa: ARG002
+        streaming: bool = False,  # noqa: ARG002
     ) -> list[str]:
         """Build Codex CLI arguments. Prompt is piped via stdin by the caller."""
         binary = self._find_binary()
@@ -285,19 +286,15 @@ class CodexAdapter:
         turns = None
 
         # Parse --json stdout for metadata
-        if raw.strip():
-            try:
-                parsed = json.loads(raw)
-                structured_output = parsed
-                if isinstance(parsed, dict):
-                    turns = parsed.get("num_turns") or parsed.get("turns")
-                    # If -o file was empty, try extracting from JSON
-                    if not output and "result" in parsed:
-                        output = str(parsed["result"])
-            except json.JSONDecodeError:
-                # Raw text — use as output if -o file was empty
-                if not output:
-                    output = raw
+        parsed = _extract_json_payload(raw)
+        if parsed is not None:
+            structured_output = parsed
+            turns = parsed.get("num_turns") or parsed.get("turns")
+            # If -o file was empty, try extracting from JSON
+            if not output and "result" in parsed:
+                output = str(parsed["result"])
+        elif not output:
+            output = raw
 
         return AgentResult(
             success=success,
@@ -348,25 +345,44 @@ def get_codex_adapter() -> CodexAdapter:
 
 
 # ---------------------------------------------------------------------------
-# Prompt metadata helpers
+# Output parsing helpers
 # ---------------------------------------------------------------------------
 
 
-def _log_dispatch_prompt(prompt: str, prompt_hash: str, model: str) -> None:
-    """Write the full prompt text to the logs directory for debugging.
+def _extract_json_payload(raw: str) -> dict | None:
+    """Parse JSON or newline-delimited JSON and return the terminal payload."""
+    if not raw.strip():
+        return None
 
-    Creates .planning/epics/logs/ if needed. Each dispatch writes a
-    timestamped file so failed agents can be debugged after the fact.
-    """
-    logs_dir = PROJECT_ROOT / ".planning" / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-    path = logs_dir / f"dispatch-{model}-{prompt_hash}-{ts}.txt"
     try:
-        path.write_text(prompt, encoding="utf-8")
-        logger.debug("Prompt logged to %s", path)
-    except OSError as exc:
-        logger.warning("Failed to write dispatch prompt log: %s", exc)
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, dict):
+        return parsed
+
+    payloads: list[dict] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed_line = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed_line, dict):
+            payloads.append(parsed_line)
+
+    if not payloads:
+        return None
+
+    for payload in reversed(payloads):
+        if payload.get("type") == "result":
+            return payload
+        if "structured_output" in payload or "result" in payload:
+            return payload
+
+    return payloads[-1]
 
 
 def extract_json_from_text(text: str) -> dict:
@@ -513,7 +529,7 @@ def dispatch_agent(
     Returns:
         AgentResult with success status, output, and turn count.
     """
-    from workflow.dispatch_log import DispatchTimer, get_active_dispatch_log
+    from workflow.dispatch_log import DispatchRecord, DispatchTimer, get_active_dispatch_log
 
     if adapter is None:
         adapter = get_adapter(model)
@@ -527,15 +543,23 @@ def dispatch_agent(
         f"  Dispatching [bold]{role_label}[/bold]: model={model}, prompt_tokens=~{prompt_tokens}"
     )
 
-    # Write prompt to logs dir (fallback when no dispatch log is active)
     dispatch_log = get_active_dispatch_log()
-    if dispatch_log is None:
-        _log_dispatch_prompt(prompt, prompt_hash, model)
+    dispatch_record: DispatchRecord | None = None
+    if dispatch_log is not None:
+        dispatch_record = dispatch_log.start_dispatch(
+            role=role,
+            model=model,
+            prompt=prompt,
+            conversation_log=conversation_log,
+            input_tokens=prompt_tokens,
+        )
+        conversation_log = dispatch_record.conversation_path
 
     args = adapter.build_args(
         model=model,
         json_schema=json_schema,
         mcp_servers=mcp_servers,
+        streaming=conversation_log is not None,
     )
 
     # Clear CLAUDECODE env var to allow nested dispatch from within a Claude session.
@@ -555,6 +579,7 @@ def dispatch_agent(
             env=env,
             cwd=cwd,
             conversation_log=conversation_log,
+            timeout=timeout,
         )
     else:
         # Simple mode: subprocess.run (no conversation logging)
@@ -572,6 +597,7 @@ def dispatch_agent(
     # Record to unified dispatch log if active
     if dispatch_log is not None:
         dispatch_log.record(
+            dispatch=dispatch_record,
             role=role,
             model=model,
             prompt=prompt,
@@ -634,6 +660,7 @@ def _dispatch_streaming(
     env: dict,
     cwd: Path,
     conversation_log: Path,
+    timeout: int = 0,
 ) -> AgentResult:
     """Run agent via Popen with line-by-line stdout reading + conversation logger.
 
@@ -673,11 +700,35 @@ def _dispatch_streaming(
             except OSError as exc:
                 logger.warning("Failed to write prompt to stdin: %s", exc)
 
-        # Read stdout line by line, feeding to conversation logger
+        timed_out = False
+        deadline = time.monotonic() + timeout if timeout > 0 else None
+
+        # Read stdout incrementally so transcript events are visible while the
+        # dispatch runs. This preserves timeouts for long-running planner and
+        # verifier calls that now use the streaming path.
         if process.stdout is not None:
-            for line in process.stdout:
-                stdout_lines.append(line)
-                conv_logger.process_line(line)
+            stdout_fd = process.stdout.fileno()
+            while True:
+                if deadline is not None and time.monotonic() >= deadline:
+                    timed_out = True
+                    with contextlib.suppress(OSError):
+                        process.kill()
+                    break
+
+                ready, _, _ = select.select([stdout_fd], [], [], 0.1)
+                if ready:
+                    line = process.stdout.readline()
+                    if line:
+                        stdout_lines.append(line)
+                        conv_logger.process_line(line)
+                        continue
+                if process.poll() is not None:
+                    remaining = process.stdout.read()
+                    if remaining:
+                        stdout_lines.append(remaining)
+                        for line in remaining.splitlines(keepends=True):
+                            conv_logger.process_line(line)
+                    break
 
         process.wait()
 
@@ -698,6 +749,14 @@ def _dispatch_streaming(
         stdout=stdout_output,
         stderr=stderr_output,
     )
+
+    if timed_out:
+        logger.warning("Agent dispatch timed out after %ds", timeout)
+        return AgentResult(
+            success=False,
+            output=stdout_output,
+            exit_code=-1,
+        )
 
     return adapter.parse_result(completed)
 

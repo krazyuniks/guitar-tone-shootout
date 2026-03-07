@@ -257,7 +257,6 @@ class TestPromptBuilderStoryContext:
             "acceptance_criteria": ["AC item one"],
             "architectural_context": ["Arch context item"],
             "navigation_hints": ["Nav hint item"],
-            "depends_on_summary": ["Dep summary item"],
         }
         prompt = build_story_prompt(
             story,
@@ -272,5 +271,3 @@ class TestPromptBuilderStoryContext:
         assert "- Arch context item" in prompt
         assert "### Navigation Guide" in prompt
         assert "- Nav hint item" in prompt
-        assert "### Dependencies from Prior Stories" in prompt
-        assert "- Dep summary item" in prompt

@@ -8,5 +8,5 @@ Do not use or recommend a `tests_approved` gate. The live workflow is:
 2. `just epic <N>` again for execution
 3. `just epic-report <N>` for reporting
 
-See `../wiki/Epic-Workflow.md` and `.claude/skills/epic/SKILL.md` for the
+See `../wiki/Epic-Workflow.md` and `.agents/skills/epic/SKILL.md` for the
 current contract.

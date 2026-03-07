@@ -5,7 +5,8 @@ with content-addressed prompt/response storage. Replaces the scattered
 ad-hoc file writing (_log_dispatch_prompt, codex-response-*, last-planner-output).
 
 Each dispatch_agent() call is automatically recorded when a DispatchLog
-is active via the dispatch_logging() context manager.
+is active via the dispatch_logging() context manager. A dispatch writes a
+`started` entry when it is launched and a `completed` entry when it exits.
 
 Reference: GitHub issue #153.
 """
@@ -16,6 +17,7 @@ import json
 import logging
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003 — used at runtime
 
@@ -31,6 +33,18 @@ _active_dispatch_log: DispatchLog | None = None
 def get_active_dispatch_log() -> DispatchLog | None:
     """Return the currently active dispatch log, or None."""
     return _active_dispatch_log
+
+
+@dataclass(frozen=True)
+class DispatchRecord:
+    """Paths and ids for one logged dispatch lifecycle."""
+
+    dispatch_id: str
+    prompt_hash: str
+    prompt_file: str
+    response_file: str
+    conversation_file: str
+    conversation_path: Path
 
 
 class DispatchLog:
@@ -52,9 +66,77 @@ class DispatchLog:
         self.dispatches_dir = epic_dir / "dispatches"
         self.dispatches_dir.mkdir(parents=True, exist_ok=True)
 
+    def _append_entry(self, entry: dict) -> None:
+        """Append one JSONL entry to dispatch.jsonl."""
+        try:
+            with self.log_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, default=str) + "\n")
+                f.flush()
+        except OSError as exc:
+            logger.warning("Failed to write dispatch log entry: %s", exc)
+
+    def _relpath(self, path: Path) -> str:
+        """Return a path relative to the epic dir when possible."""
+        try:
+            return str(path.relative_to(self.epic_dir))
+        except ValueError:
+            return str(path)
+
+    def start_dispatch(
+        self,
+        *,
+        role: str,
+        model: str,
+        prompt: str,
+        conversation_log: Path | None = None,
+        input_tokens: int | None = None,
+    ) -> DispatchRecord:
+        """Record dispatch start and return file paths for this invocation."""
+        prompt_hash = compute_prompt_hash(prompt)
+        dispatch_id = f"{prompt_hash}-{time.time_ns()}"
+        prompt_file = f"dispatches/{prompt_hash}-prompt.txt"
+        response_file = f"dispatches/{prompt_hash}-response.txt"
+
+        if conversation_log is None:
+            conversation_path = self.dispatches_dir / f"{dispatch_id}-conversation.jsonl"
+        else:
+            conversation_path = conversation_log
+        conversation_file = self._relpath(conversation_path)
+
+        try:
+            (self.epic_dir / prompt_file).write_text(prompt, encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Failed to write prompt file: %s", exc)
+
+        self._append_entry(
+            {
+                "ts": datetime.now(UTC).isoformat(),
+                "run_id": self.run_id,
+                "dispatch_id": dispatch_id,
+                "status": "started",
+                "role": role,
+                "model": model,
+                "prompt_hash": prompt_hash,
+                "prompt_tokens": input_tokens or estimate_tokens(prompt),
+                "prompt_file": prompt_file,
+                "response_file": response_file,
+                "conversation_file": conversation_file,
+            }
+        )
+
+        return DispatchRecord(
+            dispatch_id=dispatch_id,
+            prompt_hash=prompt_hash,
+            prompt_file=prompt_file,
+            response_file=response_file,
+            conversation_file=conversation_file,
+            conversation_path=conversation_path,
+        )
+
     def record(
         self,
         *,
+        dispatch: DispatchRecord,
         role: str,
         model: str,
         prompt: str,
@@ -68,8 +150,8 @@ class DispatchLog:
     ) -> None:
         """Record a completed dispatch to the unified log.
 
-        Writes the prompt and response to content-addressed files, then
-        appends a JSONL entry linking them together with metadata.
+        Writes the response to content-addressed storage, then appends a
+        completion entry linking the dispatch metadata together.
 
         Args:
             role: Dispatch role (e.g. "planner", "gap_detector", "implementation").
@@ -83,40 +165,31 @@ class DispatchLog:
             input_tokens: Actual input token count (from provider). Falls back to estimate.
             output_tokens: Actual output token count (from provider). Falls back to estimate.
         """
-        prompt_hash = compute_prompt_hash(prompt)
-
-        # Content-addressed prompt storage (idempotent — same hash = same file)
-        prompt_file = f"dispatches/{prompt_hash}-prompt.txt"
-        response_file = f"dispatches/{prompt_hash}-response.txt"
-
         try:
-            (self.epic_dir / prompt_file).write_text(prompt, encoding="utf-8")
-            (self.epic_dir / response_file).write_text(output, encoding="utf-8")
+            (self.epic_dir / dispatch.response_file).write_text(output, encoding="utf-8")
         except OSError as exc:
-            logger.warning("Failed to write dispatch files: %s", exc)
+            logger.warning("Failed to write dispatch response file: %s", exc)
 
         entry = {
             "ts": datetime.now(UTC).isoformat(),
             "run_id": self.run_id,
+            "dispatch_id": dispatch.dispatch_id,
+            "status": "completed",
             "role": role,
             "model": model,
-            "prompt_hash": prompt_hash,
+            "prompt_hash": dispatch.prompt_hash,
             "prompt_tokens": input_tokens or estimate_tokens(prompt),
             "response_tokens": output_tokens or estimate_tokens(output),
             "turns": turns,
             "success": success,
             "exit_code": exit_code,
             "duration_ms": duration_ms,
-            "prompt_file": prompt_file,
-            "response_file": response_file,
+            "prompt_file": dispatch.prompt_file,
+            "response_file": dispatch.response_file,
+            "conversation_file": dispatch.conversation_file,
         }
 
-        try:
-            with self.log_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, default=str) + "\n")
-                f.flush()
-        except OSError as exc:
-            logger.warning("Failed to write dispatch log entry: %s", exc)
+        self._append_entry(entry)
 
 
 @contextmanager
@@ -203,6 +276,7 @@ def token_summary(epic_dir: Path, run_id: str | None = None) -> str:
     entries = read_dispatch_log(epic_dir)
     if run_id:
         entries = [e for e in entries if e.get("run_id") == run_id]
+    entries = [e for e in entries if e.get("status", "completed") == "completed"]
 
     if not entries:
         return "No dispatch entries found."

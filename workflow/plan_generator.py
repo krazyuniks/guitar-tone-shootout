@@ -62,20 +62,6 @@ def _read_epic_number(epic_dir: Path) -> int:
 # Planner prompt construction
 # ---------------------------------------------------------------------------
 
-# Evidence fields — all types now produce command output (deterministic)
-EVIDENCE_FIELDS_TABLE = """\
-All check types produce the same evidence fields (command execution output):
-
-| Evidence Field | Description |
-|----------------|-------------|
-| `command` | The shell command that was executed |
-| `exit_code` | Process exit code (0 = pass) |
-| `output_tail` | Last 2000 chars of combined stdout + stderr |
-
-The default `evidence_fields` value is `["command", "exit_code", "output_tail"]`.
-You may omit `evidence_fields` from criteria — the default is applied automatically."""
-
-# Checkpoint placement guidance (Section 8.4 Decision 5)
 CHECKPOINT_PLACEMENT_GUIDANCE = """\
 Place validation checkpoints strategically based on story types:
 - After scaffolding: pages exist, routes respond, navigation works.
@@ -88,80 +74,9 @@ Not every story needs a checkpoint. Backend-only stories (entity + repo + servic
 may wait for the UI story that exposes them. The key is to catch wiring failures
 before building on top of broken scaffolding.
 
-**Command-based validation:** Every criterion SHOULD include a `command` field with the
-shell command to run. Commands should be `just` recipes or `just tdd <path> -k <test>`.
-Exit code 0 = pass. The implementation story's scope should include the test file so the
-agent writes the test as part of the story.
-
-Examples:
-- `"command": "just tdd tests/unit/webapp/test_gear_list.py -k test_gear_list_page"`
-- `"command": "just check-lint"`
-- `"command": "just test-golden-path"`
-- `"command": "just tdd tests/integration/webapp/test_gear_crud.py"`
-
-Criteria without a `command` field fall back to keyword matching (e.g. "quality gates
-pass" maps to `just check`), but explicit commands are preferred for precision."""
-
-# Test spec guidance (assertion types + fixture catalogue + example)
-TEST_SPEC_GUIDANCE = """\
-Every story SHOULD include a `test_spec` object that defines how the story's
-acceptance criteria will be verified by automated tests. Stories without a
-test_spec will produce a validation warning (not an error) for backwards
-compatibility.
-
-### Assertion Type Catalogue
-
-| Type | Purpose | Key Fields |
-|------|---------|------------|
-| `http_status` | Verify HTTP response code | `method`, `route`, `auth`, `expected_status` |
-| `dom_element` | Verify DOM element exists with text | `selector`, `expected_text` |
-| `dom_absent` | Verify DOM element does NOT exist | `selector`, `context` |
-| `db_state` | Verify database state via SQL | `query`, `params`, `expected` |
-| `api_response` | Verify JSON API response body | `method`, `route`, `auth`, `expected_json` |
-
-### Fixture Catalogue
-
-Available test fixtures (from tests/FIXTURES.md):
-
-**Factory fixtures** (return async callables):
-- `make_user(**overrides)` — create a User
-- `make_di_track(user, **overrides)` — create a DITrack
-- `make_shootout(user, di_track, *, chains=0, **overrides)` — create a Shootout with optional chains
-- `make_gear(gear_type, platform, *, models=1, **overrides)` — create Gear with source, tag, models
-- `make_signal_chain(user, *, blocks=[], **overrides)` — create a SignalChain with optional blocks
-- `make_user_gear(user_id, gear_model_id)` — create a UserGear junction record
-
-**Singleton fixtures** (one per test):
-- `test_user` — User with random suffix
-- `test_di_track` — DITrack owned by test_user
-- `test_gear` — Gear (AMP/NAM) with source, tag, 1 model
-- `test_shootout` — Shootout with 2 chains
-- `test_signal_chain` — SignalChain with 1 FULL_RIG block
-
-**Client fixtures:**
-- `authenticated_client` — HTTPX AsyncClient authenticated as test_user
-
-### Example test_spec
-
-```json
-{
-  "test_type": "integration",
-  "fixtures": ["make_user", "make_di_track", "make_shootout(chains=2)"],
-  "assertions": [
-    {"type": "http_status", "method": "GET", "route": "/shootout/{shootout.id}", "auth": "test_user", "expected_status": 200},
-    {"type": "dom_element", "selector": "[data-testid='shootout-name']", "expected_text": "{shootout.name}"},
-    {"type": "dom_absent", "selector": "[data-testid='edit-button']", "context": "other user viewing"},
-    {"type": "db_state", "query": "SELECT count(*) FROM core_shootout_chains WHERE shootout_id = :id", "params": {"id": "{shootout.id}"}, "expected": 2}
-  ]
-}
-```
-
-### Rules for test_spec
-
-- `test_type` must be "integration" or "e2e".
-- `fixtures` should reference fixture names from the catalogue above.
-- Each assertion's `type` must be one of: http_status, dom_element, dom_absent, db_state, api_response.
-- Use template placeholders like `{shootout.id}` for dynamic values from fixtures."""
+Use explicit `command` values whenever the check maps cleanly to a `just`
+recipe or `just tdd <path> -k <test>`. Weak checks like bare 200s, greps, or
+"button exists" checks are not enough when the epic requires a real journey."""
 
 
 def _build_planner_prompt(
@@ -176,25 +91,24 @@ def _build_planner_prompt(
 
     PLAN.md is rendered deterministically from the validated model.
     """
-    plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
-
     prompt = f"""\
 # Task: Generate Epic Plan
 
-You are the planner for the GTS (Guitar Tone Shootout) project. Your job is to
-produce a complete plan for epic #{epic_number} that will be executed by AI agents
-under an automated orchestrator.
-
-**You are a tool-equipped agent.** Use Read, Grep, and Glob to explore the
-codebase. Find actual files, services, models, routes, and patterns. Do NOT
-guess at file paths or architecture — look them up.
+Produce a complete `plan.json` for epic #{epic_number}. You are a tool-equipped
+planner: inspect the repo live, find the real files and routes, and build a
+plan that matches the epic contract exactly.
 
 Read AGENTS.md and DEVELOPMENT.md first for project conventions and structure.
 
-Think through the plan step by step first, then emit the final JSON inside a
-```json code fence. The orchestrator extracts JSON from your response
-automatically. A separate process renders PLAN.md from the JSON, so you do NOT
-produce PLAN.md.
+Output only a single JSON object matching the provided schema. Do not produce
+markdown, commentary, or `PLAN.md`. Use the StructuredOutput tool for the
+final answer.
+
+## Epic Contract
+
+<epic>
+{epic_md}
+</epic>
 
 Before emitting the JSON, verify your own work:
 - Count your observable truths and confirm every ID appears in at least one
@@ -202,25 +116,22 @@ Before emitting the JSON, verify your own work:
 - Confirm every checkpoint after_story references a real story_id.
 - Confirm every scope.modify path points to a file that actually exists (use
   Glob to verify).
-- List any gaps and fix them before writing the JSON.
-
----
-
-## JSON Schema
-
-Your output must conform to this schema:
-
-<json_schema>
-{plan_schema_json}
-</json_schema>
-
----
-
-## Epic
-
-<epic>
-{epic_md}
-</epic>
+- For every user journey, verify the entry point and source page/state either
+  exist today or are explicitly created/fixed in story scope.
+- For every critical transition, verify the plan proves all 3 parts:
+  source page/state renders, transition mechanism works, target page/state
+  renders after the transition.
+- Reconcile every route/path named in the epic against the actual repo. If the
+  current code or tests expect a 404/different path, plan the source-page fix
+  explicitly instead of assuming the journey already works.
+- For every UI -> API interaction, define one end-to-end transport contract.
+  If the UX uses HTMX/Alpine/fetch and the API contract is JSON, spell out the
+  exact bridge and add checkpoints that prove it.
+- For every redirect or HX-Redirect flow, verify the plan checks both the
+  redirect mechanism and the renderability of the destination page.
+- If the current codebase suggests a familiar local pattern but the epic
+  contract says something else, the epic contract wins.
+- List any gaps and fix them before writing the JSON object.
 
 ---
 
@@ -275,52 +186,39 @@ For EVERY story, populate these fields with specific, concrete information:
   Reference actual files so the agent knows where to look.
 - **navigation_hints**: File paths, symbol names, entry points. Assume the
   agent starts cold with no knowledge of where things live.
-- **depends_on_summary**: Outputs from prior stories that this story consumes.
-  Reference specific files and symbols, not story names.
 - **implementation_notes**: Domain-specific hints.
-
-### Step 3c: Add Test Specs
-
-{TEST_SPEC_GUIDANCE}
+- **test_spec**: Optional. If you include it, keep it focused on business
+  behaviour to verify after implementation, not on frozen test-first scaffolding.
 
 ### Step 4: Define User Journeys
 
 Create connected, end-to-end narratives that link observable truths into coherent
 flows. Every truth must appear in at least one journey.
 
+When you define a journey:
+- Do NOT invent entry points or source pages without tool evidence.
+- If the epic references a source page/link path that is currently missing or
+  broken, add scope to build or repair that source state.
+- Keep route/path names consistent across the epic, journeys, stories, and
+  checkpoints. Resolve ambiguities with repo evidence before emitting JSON.
+
 ### Step 5: Place Validation Checkpoints
 
 {CHECKPOINT_PLACEMENT_GUIDANCE}
 
----
+A transition is only covered when the checkpoint(s) prove:
+- the source page/state renders with the expected control,
+- the transition mechanism works (click, submit, PATCH, redirect),
+- the target page/state renders correctly afterward.
 
-## Validation Checkpoints: Command-Based
-
-Validation checkpoints run shell commands directly — no LLM agents. Each criterion
-should include a `command` field.
-
-{EVIDENCE_FIELDS_TABLE}
+If a story changes an API contract that the frontend consumes, checkpoints must
+also prove the transport/wiring end to end, not just the raw endpoint response.
 
 ---
 
 ## Output
 
-After your analysis, produce the plan JSON inside a ```json code fence.
-
-Key fields:
-- `schema_v`: always 1
-- `epic_number`: {epic_number}
-- `goal`: outcome-shaped goal statement
-- `observable_truths`: array of {{id, statement}}
-- `user_journeys`: array with journey_id ("J1", "J2", ...), persona,
-  narrative, truths_covered, entry_point, critical_transitions
-- `stories`: ordered array with story_id ("01-name"), name, purpose,
-  agent config, scope, acceptance_criteria (required non-empty), architectural_context,
-  navigation_hints, depends_on_summary, implementation_notes, truths_addressed,
-  test_spec (optional but recommended)
-- `validation_checkpoints`: array with after_story, check_type, checks
-
-The critical_transitions use {{source, to, mechanism}}.
+Return one complete JSON object for epic #{epic_number}.
 
 ---
 
@@ -341,7 +239,7 @@ The critical_transitions use {{source, to, mechanism}}.
 11. Every story MUST have non-empty acceptance_criteria.
 12. Every story SHOULD include a test_spec with test_type, fixtures, and assertions.
 
-Think step by step, then emit the JSON in a ```json code fence."""
+Think through the repo state carefully, then emit the JSON object."""
 
     return prompt
 
@@ -467,6 +365,13 @@ def build_verifier_revision_prompt(
             feedback_lines.append(f"- {_format_finding_item(wc)}")
         feedback_lines.append("")
 
+    gs = dims.get("gap_sufficiency", {})
+    if isinstance(gs, dict) and gs.get("status") == "fail":
+        feedback_lines.append("### Missed Gaps")
+        for mg in _extract_finding_items(gs, "missed_gaps"):
+            feedback_lines.append(f"- {_format_finding_item(mg)}")
+        feedback_lines.append("")
+
     feedback_lines.append(
         "Fix all issues above. Produce a single JSON object conforming to "
         "the schema. Output ONLY the raw JSON, no other text."
@@ -489,7 +394,6 @@ def build_targeted_phase_a_revision_prompt(
     Sends only the current plan.json + errors + JSON schema (~25K total)
     instead of rebuilding the entire planning prompt.
     """
-    plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
     error_list = "\n".join(f"- {err}" for err in errors)
 
     return f"""\
@@ -506,15 +410,8 @@ listed errors. Preserve all other fields exactly as they are.
 3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
    Use the Glob and Read tools to verify file paths if unsure.
 4. Do NOT add new stories or remove existing ones unless an error requires it.
-5. Output the complete plan JSON in a ```json code fence.
-
----
-
-## JSON Schema
-
-<json_schema>
-{plan_schema_json}
-</json_schema>
+5. Output only the complete JSON object matching the provided schema.
+6. Use the StructuredOutput tool for the final answer.
 
 ---
 
@@ -532,20 +429,19 @@ listed errors. Preserve all other fields exactly as they are.
 
 ---
 
-Fix the errors above and emit the complete plan JSON in a ```json code fence.
+Fix the errors above and emit the complete JSON object.
 Do NOT omit any existing fields — the output must be a complete, valid plan."""
 
 
 def build_targeted_phase_b_revision_prompt(
+    epic_md: str,
     plan_json_str: str,
     verifier_result: dict,
 ) -> str:
     """Build a targeted Phase B revision prompt.
 
-    Sends only the current plan.json + must_fix findings + JSON schema.
+    Sends the original epic contract + current plan.json + must_fix findings.
     """
-    plan_schema_json = json.dumps(Plan.model_json_schema(), indent=2)
-
     feedback_lines: list[str] = []
 
     dims = verifier_result.get("dimensions")
@@ -589,31 +485,39 @@ def build_targeted_phase_b_revision_prompt(
             feedback_lines.append(f"- {_format_finding_item(wc)}")
         feedback_lines.append("")
 
+    gs = dims.get("gap_sufficiency", {})
+    if isinstance(gs, dict) and gs.get("status") == "fail":
+        feedback_lines.append("### Missed Gaps")
+        for mg in _extract_finding_items(gs, "missed_gaps"):
+            feedback_lines.append(f"- {_format_finding_item(mg)}")
+        feedback_lines.append("")
+
     findings_text = "\n".join(feedback_lines) if feedback_lines else "(no specific findings)"
 
     return f"""\
 # Task: Address Verifier Feedback (Targeted Revision)
 
 The current plan.json passed structural validation but failed Phase B
-cross-model verification. Address ONLY the must_fix findings below.
+cross-model verification. Treat the current plan as suspect wherever it
+conflicts with the epic contract or verifier findings.
+
+## Original Epic Contract
+
+<epic>
+{epic_md}
+</epic>
 
 ## Rules
 
-1. Make the MINIMUM changes necessary to address each finding.
-2. Do NOT rewrite stories unless feedback specifically requires it.
-3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
+1. The epic contract wins over the current plan.
+2. You MAY rewrite any affected story, journey, checkpoint, or validation path.
+3. Preserve untouched sections only if they still fit the epic and findings.
+4. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
    Use the Glob and Read tools to verify file paths if unsure.
-4. Do NOT change the epic scope, story count, or overall architecture
-   unless a finding specifically requires it.
-5. Output the complete plan JSON in a ```json code fence.
-
----
-
-## JSON Schema
-
-<json_schema>
-{plan_schema_json}
-</json_schema>
+5. If verifier feedback shows the current framing is wrong, fix the framing
+   instead of patching around it.
+6. Output only the complete JSON object matching the provided schema.
+7. Use the StructuredOutput tool for the final answer.
 
 ---
 
@@ -631,9 +535,9 @@ cross-model verification. Address ONLY the must_fix findings below.
 
 ---
 
-Address the findings above and emit the complete plan JSON in a ```json code
-fence. Do NOT omit any existing fields — the output must be a complete, valid
-plan."""
+Address the findings above and emit the complete JSON object.
+Do NOT omit any existing fields unless you are replacing them with corrected
+content in the revised plan."""
 
 
 # ---------------------------------------------------------------------------
@@ -717,6 +621,7 @@ def generate_plan(
     result = dispatch_agent(
         prompt=prompt,
         model=planner_model,
+        json_schema=Plan.model_json_schema(),
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,

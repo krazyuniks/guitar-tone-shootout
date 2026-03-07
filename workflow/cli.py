@@ -399,35 +399,16 @@ def _run_planning_steps(
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
 
-    # Non-TTY: auto-approve if verification passed or verifier-only findings,
-    # auto-reject only if structural validation failed.
     import sys as _sys
 
-    phase_a_errors = verifier_result.get("phase_a_errors", []) if not success else []
-
     if not _sys.stdin.isatty():
-        if success:
-            gate_result = DecisionGateResult("approve", reason="Auto-approved (non-interactive)")
-            console.print("[green]Decision Gate: auto-approved (non-interactive).[/green]")
-        elif phase_a_errors:
-            gate_result = DecisionGateResult(
-                "reject", reason="Auto-rejected (non-interactive, structural validation failed)"
-            )
-            console.print(
-                "[red]Decision Gate: auto-rejected (non-interactive, structural validation failed).[/red]"
-            )
-        else:
-            # Verifier-only findings: reject in non-interactive mode (needs human review)
-            gate_result = DecisionGateResult(
-                "reject",
-                reason=f"Rejected (non-interactive, {critic_model} verifier findings — requires human review)",
-            )
-            console.print(
-                f"[red]Decision Gate: rejected (non-interactive, {critic_model} verifier findings "
-                "— requires human review).[/red]"
-            )
-    else:
-        gate_result = present_decision_gate(plan_md_path, verifier_result)
+        console.print(
+            f"[red]Decision Gate requires an interactive TTY.[/red]\n"
+            f"Re-run `just epic {epic_number}` in an interactive shell to approve, revise, or reject the plan."
+        )
+        raise typer.Exit(1)
+
+    gate_result = present_decision_gate(plan_md_path, verifier_result)
 
     if gate_result.approved:
         epic_logger.log_event("plan_approved", epic=epic_number)

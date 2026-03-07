@@ -53,7 +53,6 @@ def _make_story(
     acceptance_criteria: list[str] | None = None,
     architectural_context: list[str] | None = None,
     navigation_hints: list[str] | None = None,
-    depends_on_summary: list[str] | None = None,
     test_spec: TestSpec | None = None,
 ) -> Story:
     """Build a minimal Story with the given scope and enrichment fields."""
@@ -72,7 +71,6 @@ def _make_story(
         navigation_hints=navigation_hints
         if navigation_hints is not None
         else ["placeholder navigation hint"],
-        depends_on_summary=depends_on_summary if depends_on_summary is not None else [],
         truths_addressed=[1],
         test_spec=test_spec,
     )
@@ -221,7 +219,7 @@ class TestStoryEnrichment:
         plan = _make_plan(
             [
                 _make_story("s1"),
-                _make_story("s2", depends_on_summary=["s1 created foo.py"]),
+                _make_story("s2"),
             ]
         )
         errors = _check_story_enrichment(plan)
@@ -241,26 +239,6 @@ class TestStoryEnrichment:
         assert len(errors) == 1
         assert errors[0].check == "story_enrichment"
         assert "navigation_hints" in errors[0].message
-
-    def test_first_story_empty_depends_on_summary_passes(self) -> None:
-        """First story (index 0) is exempt from depends_on_summary."""
-        plan = _make_plan([_make_story("s1", depends_on_summary=[])])
-        errors = _check_story_enrichment(plan)
-        assert errors == []
-
-    def test_second_story_empty_depends_on_summary_fails(self) -> None:
-        """Stories at index > 0 must have non-empty depends_on_summary."""
-        plan = _make_plan(
-            [
-                _make_story("s1"),
-                _make_story("s2", depends_on_summary=[]),
-            ]
-        )
-        errors = _check_story_enrichment(plan)
-        assert len(errors) == 1
-        assert errors[0].check == "story_enrichment"
-        assert "depends_on_summary" in errors[0].message
-        assert "s2" in errors[0].message
 
     def test_multiple_enrichment_errors_reported(self) -> None:
         """All enrichment failures are reported, not just the first."""

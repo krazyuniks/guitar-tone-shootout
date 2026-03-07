@@ -161,10 +161,6 @@ class Story(BaseModel):
         default_factory=list,
         description="File paths, symbol names, and entry points to orient the agent in the codebase.",
     )
-    depends_on_summary: list[str] = Field(
-        default_factory=list,
-        description="Key outputs and contracts from prior stories that this story builds upon.",
-    )
     implementation_notes: list[str] = Field(
         default_factory=list, description="Domain-specific hints."
     )
@@ -289,11 +285,6 @@ def render_plan_md(plan: Plan) -> str:
         lines.append("")
         for hint in story.navigation_hints:
             lines.append(f"- {hint}")
-        lines.append("")
-        lines.append("### Dependencies from Prior Stories")
-        lines.append("")
-        for dep in story.depends_on_summary:
-            lines.append(f"- {dep}")
         lines.append("")
         if story.implementation_notes:
             lines.append("**Implementation Notes:**")

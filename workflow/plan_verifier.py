@@ -741,6 +741,7 @@ def _regenerate_plan_with_errors(
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
+        json_schema=Plan.model_json_schema(),
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,
@@ -769,9 +770,11 @@ def _regenerate_plan_with_verifier_feedback(
     prompt (~150K).
     """
     plan_json_path = epic_dir / "plan.json"
+    epic_md_path = epic_dir / "EPIC.md"
     plan_json_str = plan_json_path.read_text(encoding="utf-8")
+    epic_md = epic_md_path.read_text(encoding="utf-8")
 
-    revision_prompt = build_targeted_phase_b_revision_prompt(plan_json_str, verifier_result)
+    revision_prompt = build_targeted_phase_b_revision_prompt(epic_md, plan_json_str, verifier_result)
 
     planner_model = config.models.planner if config else "opus"
 
@@ -786,6 +789,7 @@ def _regenerate_plan_with_verifier_feedback(
     result = dispatch_agent(
         prompt=revision_prompt,
         model=planner_model,
+        json_schema=Plan.model_json_schema(),
         cwd=PROJECT_ROOT,
         mcp_servers=mcp_servers,
         timeout=timeout,

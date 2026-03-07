@@ -386,12 +386,10 @@ def _check_story_enrichment(plan: Plan) -> list[ValidationError]:
 
     - architectural_context: required non-empty on ALL stories.
     - navigation_hints: required non-empty on ALL stories.
-    - depends_on_summary: required non-empty on stories at index > 0
-      (first story has no predecessors).
     """
     errors: list[ValidationError] = []
 
-    for i, story in enumerate(plan.stories):
+    for story in plan.stories:
         if not story.architectural_context:
             errors.append(
                 ValidationError(
@@ -406,14 +404,6 @@ def _check_story_enrichment(plan: Plan) -> list[ValidationError]:
                     check="story_enrichment",
                     message=f"Story '{story.story_id}' has empty navigation_hints. "
                     f"Every story must have at least one navigation hint.",
-                )
-            )
-        if i > 0 and not story.depends_on_summary:
-            errors.append(
-                ValidationError(
-                    check="story_enrichment",
-                    message=f"Story '{story.story_id}' (index {i}) has empty depends_on_summary. "
-                    f"Stories after the first must summarise dependencies from prior stories.",
                 )
             )
 
