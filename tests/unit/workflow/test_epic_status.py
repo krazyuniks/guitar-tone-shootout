@@ -141,6 +141,51 @@ class TestGenerateStoryContext:
         assert "Advisory Notes" in content
         assert "Missing error handling in publisher" in content
 
+    def test_advisory_notes_only_use_story_critique_findings_for_current_run(self, epic_dir, plan):
+        events = [
+            {
+                "event": "critique_fail",
+                "run_id": "run-1",
+                "story_id": "01-create-tables",
+                "critique_type": "story",
+                "critique_model": "opus",
+                "findings_count": 1,
+                "findings": [
+                    {
+                        "severity": "major",
+                        "issue": "Story critique should appear in advisory notes",
+                    }
+                ],
+                "summary": "One story critique issue remains",
+            },
+            {
+                "event": "epic_critique_fail",
+                "run_id": "run-1",
+                "critique_type": "epic",
+                "critique_model": "opus",
+                "findings_count": 1,
+                "findings": [
+                    {"severity": "major", "issue": "Epic critique should not appear in story notes"}
+                ],
+            },
+            {
+                "event": "critique_fail",
+                "run_id": "old-run",
+                "story_id": "02-publisher",
+                "critique_type": "story",
+                "critique_model": "opus",
+                "findings_count": 1,
+                "findings": [{"severity": "major", "issue": "Old run finding should be ignored"}],
+            },
+        ]
+
+        generate_story_context(epic_dir, plan, events, "run-1")
+        content = (epic_dir / "STORY_CONTEXT.md").read_text()
+
+        assert "Story critique should appear in advisory notes" in content
+        assert "Epic critique should not appear in story notes" not in content
+        assert "Old run finding should be ignored" not in content
+
     def test_no_advisory_section_when_clean(self, epic_dir, plan):
         """No advisory section when there are no critique failures."""
         generate_story_context(epic_dir, plan, [], "run-1")

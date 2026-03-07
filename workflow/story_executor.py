@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from workflow.artifacts import (
+    CritiqueRunArtifact,
     FailureClassificationArtifact,
     PreflightArtifact,
     StoryFailureContextArtifact,
@@ -796,7 +797,7 @@ def _run_story_critique(
     model: str,
     config: EpicConfig | None = None,
     base_commit: str | None = None,
-) -> tuple[bool, list]:
+) -> CritiqueRunArtifact:
     """Run post-story critique on the implementation.
 
     Dispatches a read-only agent with the critique_story template
@@ -813,7 +814,7 @@ def _run_story_critique(
             produce the full story diff (not just HEAD~1).
 
     Returns:
-        Tuple of (passed, findings_list).
+        Typed critique result for the story attempt.
     """
     story_id = story.get("story_id", "unknown")
 
@@ -903,7 +904,14 @@ def _run_story_critique(
             reason=result.output[:500] if result.output else "Dispatch failed",
         )
         # Critique dispatch failure is non-fatal — validation is the correctness gate.
-        return (True, [])
+        return CritiqueRunArtifact.from_dict(
+            {"status": "pass", "findings": [], "summary": ""},
+            level="story",
+            critique_type="story",
+            critique_model=critique_model,
+            story_id=story_id,
+            attempt=attempt,
+        )
 
     # Parse JSON result — robust extraction handles text around JSON
     raw_output = result.output or ""
@@ -926,35 +934,27 @@ def _run_story_critique(
         )
         # Critique parse failure is non-fatal — validation is the correctness gate.
         # Log the skip and proceed as pass with no findings.
-        return (True, [])
-
-    status = critique.get("status", "pass")
-    findings = critique.get("findings", [])
-    passed = status == "pass"
-
-    if passed:
-        event_logger.log_event(
-            "critique_pass",
-            story_id=story_id,
-            attempt=attempt,
+        return CritiqueRunArtifact.from_dict(
+            {"status": "pass", "findings": [], "summary": ""},
+            level="story",
             critique_type="story",
             critique_model=critique_model,
-            turns=result.turns,
-            findings_count=0,
-        )
-    else:
-        event_logger.log_event(
-            "critique_fail",
             story_id=story_id,
             attempt=attempt,
-            critique_type="story",
-            critique_model=critique_model,
-            turns=result.turns,
-            findings_count=len(findings),
-            findings=findings,
         )
 
-    return (passed, findings)
+    critique_run = CritiqueRunArtifact.from_dict(
+        critique,
+        level="story",
+        critique_type="story",
+        critique_model=critique_model,
+        story_id=story_id,
+        attempt=attempt,
+        turns=result.turns,
+        raw_response=raw_output,
+    )
+    event_logger.log_event(critique_run.event_name, **critique_run.event_payload)
+    return critique_run
 
 
 def _dispatch_and_validate_loop(
@@ -1161,7 +1161,7 @@ def _dispatch_and_validate_loop(
                 {"check_type": validation_result.check_type, "status": "pass"},
                 indent=2,
             )
-            critique_passed, findings = _run_story_critique(
+            critique_run = _run_story_critique(
                 story=story,
                 validation_results=validation_summary,
                 event_logger=event_logger,
@@ -1171,7 +1171,7 @@ def _dispatch_and_validate_loop(
                 base_commit=base_commit,
             )
 
-            if critique_passed:
+            if critique_run.passed:
                 # Critique passed -- story is complete
                 event_logger.log_event(
                     "story_complete",
@@ -1188,9 +1188,8 @@ def _dispatch_and_validate_loop(
 
             # Critique failed -- hard gate: treat as implementation failure + retry
             critique_error = "; ".join(
-                f.get("issue", str(f)) if isinstance(f, dict) else str(f)
-                for f in findings
-            )
+                finding.summary_text for finding in critique_run.normalized_findings
+            ) or critique_run.concise_summary
             classification = FailureClassificationArtifact(
                 category="implementation",
                 evidence=critique_error[:500],
@@ -1202,7 +1201,7 @@ def _dispatch_and_validate_loop(
                 "treating as implementation failure",
                 story_id,
                 attempt,
-                len(findings),
+                critique_run.findings_count,
             )
 
             # Check retry budget
@@ -1227,11 +1226,9 @@ def _dispatch_and_validate_loop(
                 files_affected=tuple(plan_scope_paths),
                 jsonl_excerpt=json.dumps(
                     {
-                        "event": "critique_fail",
-                        "story_id": story_id,
-                        "attempt": attempt,
+                        "event": critique_run.event_name,
                         "failure_category": "implementation",
-                        "findings_count": len(findings),
+                        **critique_run.context_payload(limit=3),
                     }
                 ),
             )

@@ -466,6 +466,323 @@ class TestReviewArtifact:
 
 
 @dataclass(frozen=True)
+class CritiqueFindingArtifact:
+    """One normalized critique finding."""
+
+    raw_payload: dict[str, Any]
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "CritiqueFindingArtifact":
+        if not isinstance(payload, dict):
+            raise TypeError(f"Critique finding must be a dict, got {type(payload)!r}")
+        return cls(raw_payload=dict(payload))
+
+    @property
+    def severity(self) -> str:
+        severity = self.raw_payload.get("severity")
+        return "" if severity is None else str(severity)
+
+    @property
+    def issue(self) -> str:
+        issue = self.raw_payload.get("issue")
+        return "" if issue is None else str(issue)
+
+    @property
+    def file(self) -> str:
+        file_ref = self.raw_payload.get("file")
+        return "" if file_ref is None else str(file_ref)
+
+    @property
+    def line(self) -> int | None:
+        line = self.raw_payload.get("line")
+        if line is None or line == "":
+            return None
+        return int(line)
+
+    @property
+    def summary_text(self) -> str:
+        location = self.location
+        if location and self.issue:
+            return f"{location} - {self.issue}"
+        return self.issue or location or "Unspecified critique finding"
+
+    @property
+    def location(self) -> str:
+        if not self.file:
+            return ""
+        if self.line is None:
+            return self.file
+        return f"{self.file}:{self.line}"
+
+    @property
+    def advisory_text(self) -> str:
+        severity = self.severity or "?"
+        return f"[{severity}] {self.issue or self.summary_text}"
+
+    @property
+    def markdown_text(self) -> str:
+        severity = self.severity or "?"
+        location = self.location or "?"
+        return f"- **[{severity}]** `{location}` — {self.issue or self.summary_text}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.raw_payload)
+
+
+@dataclass(frozen=True)
+class CritiqueRunArtifact:
+    """Typed critique result reconstructed from model output or JSONL events."""
+
+    level: Literal["story", "epic"]
+    status: Literal["pass", "fail"]
+    critique_type: str
+    critique_model: str
+    findings: tuple[CritiqueFindingArtifact, ...] = ()
+    summary: str = ""
+    story_id: str | None = None
+    attempt: int | None = None
+    turns: int | None = None
+    raw_response: str = ""
+    error: str = ""
+    logged_findings_count: int | None = None
+    source_event: str | None = None
+
+    @classmethod
+    def from_dict(
+        cls,
+        payload: dict[str, Any],
+        *,
+        level: Literal["story", "epic"],
+        critique_type: str | None = None,
+        critique_model: str = "",
+        story_id: str | None = None,
+        attempt: int | None = None,
+        turns: int | None = None,
+        raw_response: str = "",
+    ) -> "CritiqueRunArtifact":
+        if not isinstance(payload, dict):
+            raise TypeError(f"Critique payload must be a dict, got {type(payload)!r}")
+
+        status = str(payload["status"])
+        if status not in {"pass", "fail"}:
+            raise ValueError(f"Unsupported critique status: {status}")
+
+        findings_payload = payload.get("findings", [])
+        if not isinstance(findings_payload, list):
+            raise TypeError("Critique findings must be a list")
+        if any(not isinstance(item, dict) for item in findings_payload):
+            raise TypeError("Critique findings must contain dict entries")
+
+        summary = payload.get("summary")
+        return cls(
+            level=level,
+            status=status,
+            critique_type=critique_type or level,
+            critique_model=critique_model,
+            findings=tuple(CritiqueFindingArtifact.from_dict(item) for item in findings_payload),
+            summary="" if summary is None else str(summary),
+            story_id=story_id,
+            attempt=attempt,
+            turns=turns,
+            raw_response=raw_response,
+        )
+
+    @classmethod
+    def for_error(
+        cls,
+        *,
+        level: Literal["story", "epic"],
+        critique_type: str | None = None,
+        critique_model: str,
+        error: str,
+        story_id: str | None = None,
+        attempt: int | None = None,
+        turns: int | None = None,
+        raw_response: str = "",
+    ) -> "CritiqueRunArtifact":
+        return cls(
+            level=level,
+            status="fail",
+            critique_type=critique_type or level,
+            critique_model=critique_model,
+            story_id=story_id,
+            attempt=attempt,
+            turns=turns,
+            raw_response=raw_response,
+            error=error,
+            logged_findings_count=0,
+            source_event="critique_failed" if level == "story" else "epic_critique_fail",
+        )
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "CritiqueRunArtifact":
+        if isinstance(event, RunEventArtifact):
+            event_artifact = event
+        else:
+            event_artifact = RunEventArtifact(
+                schema_v=int(event.get("schema_v", RUN_EVENT_SCHEMA_VERSION)),
+                run_id=str(event.get("run_id", "")),
+                ts=str(event.get("ts", "")),
+                event=str(event["event"]),
+                data={
+                    key: value
+                    for key, value in event.items()
+                    if key not in {"schema_v", "run_id", "ts", "event"}
+                },
+            )
+        event_name = event_artifact.event
+        valid_events = {
+            "critique_pass",
+            "critique_fail",
+            "critique_failed",
+            "epic_critique_pass",
+            "epic_critique_fail",
+        }
+        if event_name not in valid_events:
+            raise ValueError(f"Cannot build CritiqueRunArtifact from event {event_name}")
+
+        level: Literal["story", "epic"] = "epic" if event_name.startswith("epic_") else "story"
+        findings_payload = event_artifact.get("findings", [])
+        if not isinstance(findings_payload, list):
+            raise TypeError("Critique findings must be a list")
+        if any(not isinstance(item, dict) for item in findings_payload):
+            raise TypeError("Critique findings must contain dict entries")
+
+        logged_findings_count = event_artifact.get("findings_count")
+        return cls(
+            level=level,
+            status="pass" if event_name.endswith("_pass") else "fail",
+            critique_type=str(event_artifact.get("critique_type", level)),
+            critique_model=str(event_artifact.get("critique_model", "")),
+            findings=tuple(CritiqueFindingArtifact.from_dict(item) for item in findings_payload),
+            summary=str(event_artifact.get("summary", "")),
+            story_id=(
+                str(event_artifact.get("story_id"))
+                if event_artifact.get("story_id") is not None
+                else None
+            ),
+            attempt=(
+                int(event_artifact.get("attempt"))
+                if event_artifact.get("attempt") is not None
+                else None
+            ),
+            turns=(
+                int(event_artifact.get("turns"))
+                if event_artifact.get("turns") is not None
+                else None
+            ),
+            raw_response=str(event_artifact.get("raw_response", "")),
+            error=str(event_artifact.get("error", "")),
+            logged_findings_count=(
+                int(logged_findings_count) if logged_findings_count is not None else None
+            ),
+            source_event=event_name,
+        )
+
+    @property
+    def passed(self) -> bool:
+        return self.status == "pass"
+
+    @property
+    def failed(self) -> bool:
+        return not self.passed
+
+    @property
+    def findings_count(self) -> int:
+        return max(len(self.findings), self.logged_findings_count or 0)
+
+    @property
+    def normalized_findings(self) -> tuple[CritiqueFindingArtifact, ...]:
+        return self.findings
+
+    @property
+    def event_name(self) -> str:
+        if self.source_event is not None:
+            return self.source_event
+        if self.level == "epic":
+            return "epic_critique_pass" if self.passed else "epic_critique_fail"
+        return "critique_pass" if self.passed else "critique_fail"
+
+    @property
+    def concise_summary(self) -> str:
+        if self.summary:
+            return self.summary
+        if self.error:
+            return self.error
+        if self.findings:
+            issues = [finding.issue for finding in self.findings if finding.issue][:2]
+            if issues:
+                remaining = self.findings_count - len(issues)
+                suffix = f"; +{remaining} more" if remaining > 0 else ""
+                return "; ".join(issues) + suffix
+        if self.findings_count:
+            return f"{self.findings_count} findings"
+        return "No findings"
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "critique_type": self.critique_type,
+            "critique_model": self.critique_model,
+            "findings_count": self.findings_count,
+        }
+        if self.story_id is not None:
+            payload["story_id"] = self.story_id
+        if self.attempt is not None:
+            payload["attempt"] = self.attempt
+        if self.turns is not None:
+            payload["turns"] = self.turns
+        if self.summary:
+            payload["summary"] = self.summary
+        if self.findings:
+            payload["findings"] = [finding.to_dict() for finding in self.findings]
+        if self.raw_response:
+            payload["raw_response"] = self.raw_response
+        if self.error:
+            payload["error"] = self.error
+        return payload
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "level": self.level,
+            "status": self.status,
+            "critique_type": self.critique_type,
+            "critique_model": self.critique_model,
+            "findings": [finding.to_dict() for finding in self.findings],
+            "findings_count": self.findings_count,
+            "summary": self.summary,
+        }
+        optional_fields = {
+            "story_id": self.story_id,
+            "attempt": self.attempt,
+            "turns": self.turns,
+            "raw_response": self.raw_response,
+            "error": self.error,
+            "source_event": self.source_event,
+        }
+        payload.update({key: value for key, value in optional_fields.items() if value not in (None, "")})
+        return payload
+
+    def context_payload(self, *, limit: int | None = None) -> dict[str, Any]:
+        findings = [finding.to_dict() for finding in self.findings]
+        if limit is not None:
+            findings = findings[:limit]
+
+        payload: dict[str, Any] = {
+            "critique_summary": self.concise_summary,
+            "findings_count": self.findings_count,
+        }
+        if findings:
+            payload["critique_findings"] = findings
+        if self.error:
+            payload["critique_error"] = self.error
+        return payload
+
+
+@dataclass(frozen=True)
 class FailureClassificationArtifact:
     """Typed story failure classification used for retries and exit decisions."""
 
@@ -824,7 +1141,13 @@ class StoryRunArtifact:
             status = "complete"
         elif last_event.event == "exit_to_human":
             status = "exit_to_human"
-        elif last_event.event in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
+        elif last_event.event in (
+            "story_failed",
+            "agent_failed",
+            "validation_fail",
+            "critique_fail",
+            "critique_failed",
+        ):
             status = "failed"
         elif last_event.event in ("story_started", "preflight_pass", "agent_dispatched"):
             status = "running"
@@ -956,7 +1279,13 @@ class RunArtifact:
         elif last_event.event in ("exit_to_human", "epic_critique_fail"):
             next_action = "exit_to_human"
             failed_story_id = last_event.get("story_id")
-        elif last_event.event in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
+        elif last_event.event in (
+            "story_failed",
+            "agent_failed",
+            "validation_fail",
+            "critique_fail",
+            "critique_failed",
+        ):
             next_action = "retry_story"
             failed_story_id = last_event.get("story_id")
         elif last_event.event in ("test_gen_started", "test_gen_attempt", "test_review_fail", "tests_approved"):

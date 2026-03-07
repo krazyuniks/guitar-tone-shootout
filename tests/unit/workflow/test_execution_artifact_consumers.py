@@ -263,6 +263,37 @@ class TestTypedReportConsumers:
         assert "AssertionError: boom" in exit_html
         assert "apps/ui.py" in exit_html
 
+    def test_render_event_details_uses_typed_critique_reconstruction(self, tmp_path) -> None:
+        critique_event = _event(
+            "2026-03-07T12:02:00+00:00",
+            "critique_fail",
+            story_id="02-ui",
+            attempt=2,
+            critique_type="story",
+            critique_model="opus",
+            turns=4,
+            findings_count=1,
+            findings=[
+                {
+                    "file": "workflow/report.py",
+                    "line": 644,
+                    "issue": "Report renders critique details from raw dict access",
+                    "severity": "major",
+                }
+            ],
+            summary="One critique issue remains",
+            raw_response='{"status":"fail"}',
+        )
+
+        critique_html = _render_event_details(critique_event, tmp_path)
+
+        assert "model=opus, 1 findings" in critique_html
+        assert "One critique issue remains" in critique_html
+        assert "workflow/report.py:644 - Report renders critique details from raw dict access" in (
+            critique_html
+        )
+        assert "Show raw response" in critique_html
+
     def test_report_header_and_nav_use_final_typed_story_status(self) -> None:
         plan = {"stories": [{"story_id": "01-setup", "name": "Setup"}]}
         events = [

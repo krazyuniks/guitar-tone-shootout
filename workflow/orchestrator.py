@@ -27,7 +27,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from workflow.artifacts import StoryRunArtifact
+from workflow.artifacts import CritiqueRunArtifact, StoryRunArtifact
 from workflow.config_validator import validate_config
 from workflow.dispatch import (
     EPIC_CRITIQUE_SCHEMA,
@@ -589,6 +589,16 @@ def generate_story_context(
 
     # Queue topology
     queue_lines = _get_queue_topology()
+    critique_runs: list[CritiqueRunArtifact] = []
+    for event in events:
+        if event.get("run_id") != run_id:
+            continue
+        try:
+            critique_run = CritiqueRunArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if critique_run.level == "story" and critique_run.failed and critique_run.normalized_findings:
+            critique_runs.append(critique_run)
 
     # --- Header ---
     lines: list[str] = [
@@ -621,14 +631,9 @@ def generate_story_context(
             for note in story.get("implementation_notes", []):
                 key_decision_lines.append(f"- [{sid}] {note}")
 
-    # Collect critique_fail findings from this run
-    for e in events:
-        if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
-            e_sid = e.get("story_id", "?")
-            findings = e.get("findings", [])
-            for f in findings:
-                issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
-                key_decision_lines.append(f"- [critique] {issue}")
+    for critique_run in critique_runs:
+        for finding in critique_run.normalized_findings:
+            key_decision_lines.append(f"- [critique] {finding.issue or finding.summary_text}")
 
     if key_decision_lines:
         lines += ["", "## Key Decisions", "", *key_decision_lines]
@@ -706,14 +711,12 @@ def generate_story_context(
 
     # --- Advisory Notes ---
     advisory_lines: list[str] = []
-    for e in events:
-        if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
-            e_sid = e.get("story_id", "?")
-            findings = e.get("findings", [])
-            for f in findings:
-                issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
-                severity = f.get("severity", "?") if isinstance(f, dict) else "?"
-                advisory_lines.append(f"- [{severity}] {e_sid}: {issue}")
+    for critique_run in critique_runs:
+        story_label = critique_run.story_id or "?"
+        for finding in critique_run.normalized_findings:
+            severity = finding.severity or "?"
+            issue = finding.issue or finding.summary_text
+            advisory_lines.append(f"- [{severity}] {story_label}: {issue}")
 
     if advisory_lines:
         lines += ["## Advisory Notes", "", *advisory_lines, ""]
@@ -871,7 +874,7 @@ def _run_epic_critique(
     events: list[dict],
     epic_logger: EventLogger,
     config: EpicConfig | None = None,
-) -> tuple[bool, list]:
+) -> CritiqueRunArtifact:
     """Run post-epic critique on the full implementation.
 
     Dispatches a read-only agent with the critique_epic template
@@ -885,7 +888,7 @@ def _run_epic_critique(
         config: Epic configuration profile. If None, falls back to defaults.
 
     Returns:
-        Tuple of (passed, findings_list).
+        Typed critique result for the full epic.
     """
     # Read template
     template_path = Path(__file__).resolve().parent / "templates" / "critique_epic.md"
@@ -980,14 +983,22 @@ def _run_epic_critique(
             "Epic critique dispatch failed (exit_code=%d)",
             result.exit_code,
         )
-        epic_logger.log_event(
-            "epic_critique_fail",
+        critique_run = CritiqueRunArtifact.for_error(
+            level="epic",
             critique_type="epic",
             critique_model=critique_model,
             error=result.output[:500] if result.output else "Dispatch failed",
+            raw_response=result.output or "",
         )
+        epic_logger.log_event(critique_run.event_name, **critique_run.event_payload)
         # Dispatch failure is fail-closed (invariant E2)
-        return (False, [{"error": "Epic critique dispatch failed"}])
+        return CritiqueRunArtifact.for_error(
+            level="epic",
+            critique_type="epic",
+            critique_model=critique_model,
+            error="Epic critique dispatch failed",
+            raw_response=result.output or "",
+        )
 
     # Parse JSON result — robust extraction handles text around JSON
     try:
@@ -995,38 +1006,33 @@ def _run_epic_critique(
     except ValueError:
         output_preview = (result.output or "")[:200]
         logger.warning("Epic critique returned invalid JSON")
-        epic_logger.log_event(
-            "epic_critique_fail",
+        critique_run = CritiqueRunArtifact.for_error(
+            level="epic",
             critique_type="epic",
             critique_model=critique_model,
             error=f"Invalid JSON: {output_preview}",
+            raw_response=result.output or "",
         )
+        epic_logger.log_event(critique_run.event_name, **critique_run.event_payload)
         # Parse failure is fail-closed (invariant E2)
-        return (False, [{"error": "Epic critique returned invalid JSON"}])
-
-    status = critique.get("status", "pass")
-    findings = critique.get("findings", [])
-    passed = status == "pass"
-
-    if passed:
-        epic_logger.log_event(
-            "epic_critique_pass",
+        return CritiqueRunArtifact.for_error(
+            level="epic",
             critique_type="epic",
             critique_model=critique_model,
-            turns=result.turns,
-            findings_count=0,
-        )
-    else:
-        epic_logger.log_event(
-            "epic_critique_fail",
-            critique_type="epic",
-            critique_model=critique_model,
-            turns=result.turns,
-            findings_count=len(findings),
-            findings=findings,
+            error="Epic critique returned invalid JSON",
+            raw_response=result.output or "",
         )
 
-    return (passed, findings)
+    critique_run = CritiqueRunArtifact.from_dict(
+        critique,
+        level="epic",
+        critique_type="epic",
+        critique_model=critique_model,
+        turns=result.turns,
+        raw_response=result.output or "",
+    )
+    epic_logger.log_event(critique_run.event_name, **critique_run.event_payload)
+    return critique_run
 
 
 # ---------------------------------------------------------------------------
@@ -1293,7 +1299,7 @@ def _run_epic_loop(
 
             all_events = _collect_story_events(epic_dir, plan)
 
-            critique_passed, findings = _run_epic_critique(
+            critique_run = _run_epic_critique(
                 plan=plan,
                 epic_dir=epic_dir,
                 events=all_events,
@@ -1301,25 +1307,28 @@ def _run_epic_loop(
                 config=config,
             )
 
-            if not critique_passed:
+            if not critique_run.passed:
                 # Epic critique failed -- exit to human (no retries)
                 logger.error(
                     "Epic critique failed with %d findings. Exiting to human.",
-                    len(findings),
+                    critique_run.findings_count,
                 )
 
                 # Post critique findings as GitHub comment
-                finding_lines = []
-                for f in findings:
-                    file_ref = f.get("file", "?")
-                    line_ref = f.get("line", "?")
-                    issue = f.get("issue", "?")
-                    severity = f.get("severity", "?")
-                    finding_lines.append(f"- **[{severity}]** `{file_ref}:{line_ref}` — {issue}")
+                finding_lines = [
+                    finding.markdown_text for finding in critique_run.normalized_findings
+                ]
+                if not finding_lines:
+                    finding_lines.append(f"- {critique_run.concise_summary}")
 
+                critique_heading = (
+                    f"Opus review found {critique_run.findings_count} issue(s):"
+                    if critique_run.findings_count
+                    else "Opus review failed:"
+                )
                 critique_body = (
                     "## Epic Critique Failed\n\n"
-                    f"Opus review found {len(findings)} issue(s):\n\n"
+                    f"{critique_heading}\n\n"
                     + "\n".join(finding_lines)
                     + "\n\nManual intervention required."
                 )
@@ -1333,12 +1342,9 @@ def _run_epic_loop(
 
                 epic_logger.log_event(
                     "exit_to_human",
-                    reason=f"Epic critique failed with {len(findings)} findings",
+                    reason=f"Epic critique failed: {critique_run.concise_summary}",
                     failure_category="implementation",
-                    context={
-                        "critique_findings": findings[:5],
-                        "findings_count": len(findings),
-                    },
+                    context=critique_run.context_payload(limit=5),
                 )
 
                 generate_summary(epic_dir, plan, all_events)

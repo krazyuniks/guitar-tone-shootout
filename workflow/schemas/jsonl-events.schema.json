@@ -119,22 +119,22 @@
           "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, target_model, adapter, role, prompt_hash, prompt_tokens"
         },
         "critique_pass": {
-          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, turns, findings_count"
+          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, turns, findings_count, summary, raw_response"
         },
         "critique_fail": {
-          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, turns, findings_count, findings[]"
+          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, turns, findings_count, findings[], summary, raw_response"
         },
         "critique_failed": {
-          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, error. Logged when critique dispatch fails (infra issue)."
+          "description": "Level: story. Fields: story_id, attempt, critique_type, critique_model, findings_count, error, raw_response. Logged when critique dispatch fails (infra issue)."
         },
         "epic_critique_dispatched": {
           "description": "Level: epic. Fields: critique_type, critique_model, adapter, role, prompt_hash, prompt_tokens"
         },
         "epic_critique_pass": {
-          "description": "Level: epic. Fields: critique_type, critique_model, turns, findings_count"
+          "description": "Level: epic. Fields: critique_type, critique_model, turns, findings_count, summary, raw_response"
         },
         "epic_critique_fail": {
-          "description": "Level: epic. Fields: critique_type, critique_model, turns, findings_count, findings[]"
+          "description": "Level: epic. Fields: critique_type, critique_model, turns, findings_count, findings[], summary, raw_response, error"
         },
         "story_complete": {
           "description": "Level: story. Fields: story_id, attempt, commit"

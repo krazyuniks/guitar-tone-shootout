@@ -18,7 +18,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from workflow.artifacts import CheckpointRunArtifact, StoryFailureContextArtifact, StoryRunArtifact
+from workflow.artifacts import (
+    CheckpointRunArtifact,
+    CritiqueFindingArtifact,
+    CritiqueRunArtifact,
+    StoryFailureContextArtifact,
+    StoryRunArtifact,
+    VerifierFeedbackArtifact,
+)
 from workflow.jsonl_logger import read_log
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -97,6 +104,8 @@ KNOWN_EVENTS: dict[str, list[str]] = {
         "critique_model",
         "turns",
         "findings_count",
+        "summary",
+        "raw_response",
     ],
     "critique_fail": [
         "story_id",
@@ -106,6 +115,8 @@ KNOWN_EVENTS: dict[str, list[str]] = {
         "turns",
         "findings_count",
         "findings",
+        "summary",
+        "raw_response",
     ],
     "critique_failed": [
         "story_id",
@@ -115,6 +126,9 @@ KNOWN_EVENTS: dict[str, list[str]] = {
         "turns",
         "findings_count",
         "findings",
+        "summary",
+        "raw_response",
+        "error",
     ],
     "critique_skipped": ["story_id", "attempt", "critique_type", "critique_model", "reason"],
     "epic_critique_dispatched": [
@@ -125,13 +139,22 @@ KNOWN_EVENTS: dict[str, list[str]] = {
         "prompt_hash",
         "prompt_tokens",
     ],
-    "epic_critique_pass": ["critique_type", "critique_model", "turns", "findings_count"],
+    "epic_critique_pass": [
+        "critique_type",
+        "critique_model",
+        "turns",
+        "findings_count",
+        "summary",
+        "raw_response",
+    ],
     "epic_critique_fail": [
         "critique_type",
         "critique_model",
         "turns",
         "findings_count",
         "findings",
+        "summary",
+        "raw_response",
         "error",
     ],
     "story_complete": ["story_id", "attempt", "commit"],
@@ -355,29 +378,29 @@ def _render_collapsible(summary: str, content: str) -> str:
     )
 
 
-def _render_findings(findings: list) -> str:
+def _render_findings(findings: list[CritiqueFindingArtifact] | list) -> str:
     """Render critique findings as a simple list."""
     if not findings:
         return ""
     parts = []
     for f in findings:
-        if isinstance(f, dict):
-            severity = f.get("severity", "?")
-            issue = f.get("finding", "") or f.get("issue", "")
-            fix = f.get("fix", "") or f.get("recommendation", "")
-            file_ref = f.get("file", "")
-            line = f"[{severity.upper()}] {issue}"
-            if file_ref:
-                line = f"[{severity.upper()}] {file_ref} - {issue}"
-            if fix:
-                line += f" (fix: {fix})"
+        finding = f if isinstance(f, CritiqueFindingArtifact) else None
+        if finding is None and isinstance(f, dict):
+            try:
+                finding = CritiqueFindingArtifact.from_dict(f)
+            except (TypeError, ValueError):
+                finding = None
+
+        if finding is not None:
+            line = f"[{(finding.severity or '?').upper()}] {finding.summary_text}"
             parts.append(
                 f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(line)}</div>'
             )
-        else:
-            parts.append(
-                f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(str(f))}</div>'
-            )
+            continue
+
+        parts.append(
+            f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(str(f))}</div>'
+        )
     return "".join(parts)
 
 
@@ -557,7 +580,22 @@ def _render_event_details(
                     feedback = json.loads(feedback)
                 except (json.JSONDecodeError, ValueError):
                     pass
-            if isinstance(feedback, (dict, list)):
+            if isinstance(feedback, dict):
+                try:
+                    typed_feedback = VerifierFeedbackArtifact.from_dict(feedback)
+                except TypeError:
+                    typed_feedback = None
+                if typed_feedback is not None:
+                    parts.append(
+                        _render_collapsible("Show critique feedback", typed_feedback.json_text)
+                    )
+                else:
+                    parts.append(
+                        _render_collapsible(
+                            "Show critique feedback", json.dumps(feedback, indent=2, default=str)
+                        )
+                    )
+            elif isinstance(feedback, list):
                 parts.append(
                     _render_collapsible(
                         "Show critique feedback", json.dumps(feedback, indent=2, default=str)
@@ -640,18 +678,47 @@ def _render_event_details(
         "epic_critique_pass",
         "epic_critique_fail",
     ):
-        model = event.get("critique_model", "?")
-        count = event.get("findings_count", 0)
-        parts.append(f'<span style="color:#94a3b8;">model={_esc(model)}, {count} findings</span>')
-        findings = event.get("findings", [])
-        if findings:
-            parts.append(_render_findings(findings))
-        raw_response = event.get("raw_response", "")
-        if raw_response:
-            parts.append(_render_collapsible("Show raw response", str(raw_response)))
-        error = event.get("error", "")
-        if error:
-            parts.append(f'<span style="color:#94a3b8;">error: {_esc(error[:200])}</span>')
+        critique_run: CritiqueRunArtifact | None = None
+        try:
+            critique_run = CritiqueRunArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            critique_run = None
+
+        if critique_run is not None:
+            model = critique_run.critique_model or "?"
+            parts.append(
+                f'<span style="color:#94a3b8;">model={_esc(model)}, '
+                f'{critique_run.findings_count} findings</span>'
+            )
+            if critique_run.concise_summary and critique_run.concise_summary != "No findings":
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(critique_run.concise_summary[:300])}</span>'
+                )
+            if critique_run.normalized_findings:
+                parts.append(_render_findings(list(critique_run.normalized_findings)))
+            if critique_run.raw_response:
+                parts.append(
+                    _render_collapsible("Show raw response", critique_run.raw_response)
+                )
+            if critique_run.error:
+                parts.append(
+                    f'<span style="color:#94a3b8;">error: {_esc(critique_run.error[:200])}</span>'
+                )
+        else:
+            model = event.get("critique_model", "?")
+            count = event.get("findings_count", 0)
+            parts.append(
+                f'<span style="color:#94a3b8;">model={_esc(model)}, {count} findings</span>'
+            )
+            findings = event.get("findings", [])
+            if findings:
+                parts.append(_render_findings(findings))
+            raw_response = event.get("raw_response", "")
+            if raw_response:
+                parts.append(_render_collapsible("Show raw response", str(raw_response)))
+            error = event.get("error", "")
+            if error:
+                parts.append(f'<span style="color:#94a3b8;">error: {_esc(error[:200])}</span>')
 
     elif event_type == "critique_skipped":
         reason = event.get("reason", "")

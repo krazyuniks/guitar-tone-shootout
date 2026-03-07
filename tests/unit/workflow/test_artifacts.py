@@ -4,6 +4,8 @@ import pytest
 
 from workflow.artifacts import (
     CheckpointRunArtifact,
+    CritiqueFindingArtifact,
+    CritiqueRunArtifact,
     DispatchArtifact,
     DispatchResultArtifact,
     EpicArtifact,
@@ -137,6 +139,173 @@ class TestVerifierFeedbackArtifact:
 
         assert feedback.dimension("intent_alignment")["scope_creep"] == ["Unexpected route"]
         assert feedback.has_extractable_findings() is True
+
+
+class TestCritiqueArtifacts:
+    def test_critique_run_composes_findings_count_summary_and_event_payload(self) -> None:
+        critique = CritiqueRunArtifact.from_dict(
+            {
+                "status": "fail",
+                "findings": [
+                    {
+                        "file": "workflow/orchestrator.py",
+                        "line": 1311,
+                        "issue": "Epic exit payload drops critique summary",
+                        "severity": "major",
+                    },
+                    {
+                        "file": "workflow/report.py",
+                        "line": 644,
+                        "issue": "Report reads findings_count directly from raw event",
+                        "severity": "major",
+                    },
+                ],
+                "summary": "Two critique issues remain",
+            },
+            level="story",
+            critique_type="story",
+            critique_model="opus",
+            story_id="01-sample",
+            attempt=2,
+            turns=5,
+            raw_response='{"status":"fail"}',
+        )
+
+        assert critique.passed is False
+        assert critique.findings_count == 2
+        assert critique.concise_summary == "Two critique issues remain"
+        assert critique.normalized_findings[0].summary_text == (
+            "workflow/orchestrator.py:1311 - Epic exit payload drops critique summary"
+        )
+        assert critique.event_name == "critique_fail"
+        assert critique.event_payload["findings_count"] == 2
+        assert critique.event_payload["raw_response"] == '{"status":"fail"}'
+        assert critique.context_payload(limit=1) == {
+            "critique_summary": "Two critique issues remain",
+            "findings_count": 2,
+            "critique_findings": [
+                {
+                    "file": "workflow/orchestrator.py",
+                    "line": 1311,
+                    "issue": "Epic exit payload drops critique summary",
+                    "severity": "major",
+                }
+            ],
+        }
+
+    @pytest.mark.parametrize(
+        ("event_name", "data", "expected_level", "expected_status", "expected_count"),
+        [
+            (
+                "critique_pass",
+                {
+                    "story_id": "01-sample",
+                    "attempt": 1,
+                    "critique_type": "story",
+                    "critique_model": "opus",
+                    "turns": 3,
+                    "findings_count": 0,
+                    "summary": "Looks good",
+                    "raw_response": '{"status":"pass"}',
+                },
+                "story",
+                "pass",
+                0,
+            ),
+            (
+                "critique_fail",
+                {
+                    "story_id": "01-sample",
+                    "attempt": 1,
+                    "critique_type": "story",
+                    "critique_model": "opus",
+                    "turns": 3,
+                    "findings_count": 1,
+                    "findings": [
+                        {
+                            "file": "workflow/story_executor.py",
+                            "line": 1197,
+                            "issue": "Retry context drops critique details",
+                            "severity": "major",
+                        }
+                    ],
+                    "summary": "Needs one fix",
+                },
+                "story",
+                "fail",
+                1,
+            ),
+            (
+                "critique_failed",
+                {
+                    "story_id": "01-sample",
+                    "attempt": 1,
+                    "critique_type": "story",
+                    "critique_model": "opus",
+                    "error": "Dispatch failed",
+                    "findings_count": 0,
+                },
+                "story",
+                "fail",
+                0,
+            ),
+            (
+                "epic_critique_pass",
+                {
+                    "critique_type": "epic",
+                    "critique_model": "opus",
+                    "turns": 4,
+                    "findings_count": 0,
+                    "summary": "Epic passes critique",
+                },
+                "epic",
+                "pass",
+                0,
+            ),
+            (
+                "epic_critique_fail",
+                {
+                    "critique_type": "epic",
+                    "critique_model": "opus",
+                    "turns": 4,
+                    "findings_count": 1,
+                    "findings": [
+                        {
+                            "file": "workflow/report.py",
+                            "line": 644,
+                            "issue": "Epic critique report path is untyped",
+                            "severity": "major",
+                        }
+                    ],
+                    "summary": "Epic critique failed",
+                },
+                "epic",
+                "fail",
+                1,
+            ),
+        ],
+    )
+    def test_critique_run_reconstructs_supported_event_variants(
+        self,
+        event_name: str,
+        data: dict,
+        expected_level: str,
+        expected_status: str,
+        expected_count: int,
+    ) -> None:
+        critique = CritiqueRunArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:00:00+00:00",
+                event=event_name,
+                data=data,
+            )
+        )
+
+        assert critique.level == expected_level
+        assert critique.status == expected_status
+        assert critique.findings_count == expected_count
+        assert critique.event_name == event_name
 
 
 class TestDispatchAndRunArtifacts:
@@ -351,6 +520,22 @@ class TestExecutionArtifacts:
         assert StoryFailureContextArtifact.from_dict(context.to_dict()) == context
         assert "Failure Feedback (Attempt 2)" in context.prompt_block
         assert context.event_context["files_affected"] == ["apps/webapp/main.py"]
+
+    def test_critique_finding_round_trips_and_formats_views(self) -> None:
+        finding = CritiqueFindingArtifact.from_dict(
+            {
+                "file": "workflow/report.py",
+                "line": 644,
+                "issue": "Critique render path is untyped",
+                "severity": "major",
+            }
+        )
+
+        assert finding.to_dict()["file"] == "workflow/report.py"
+        assert finding.summary_text == "workflow/report.py:644 - Critique render path is untyped"
+        assert finding.markdown_text == (
+            "- **[major]** `workflow/report.py:644` — Critique render path is untyped"
+        )
 
     def test_checkpoint_run_artifact_round_trips_and_reconstructs_from_event(self) -> None:
         checkpoint = CheckpointRunArtifact.from_dict(
