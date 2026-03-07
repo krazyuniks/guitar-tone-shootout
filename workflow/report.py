@@ -24,6 +24,9 @@ from workflow.artifacts import (
     CritiqueRunArtifact,
     PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
+    PlannerCompleteArtifact,
+    PlannerDispatchedArtifact,
+    PlannerFailedArtifact,
     PlanDecisionArtifact,
     PreflightEventArtifact,
     StoryFailureContextArtifact,
@@ -48,9 +51,9 @@ KNOWN_EVENTS: dict[str, list[str]] = {
     "gap_critique_complete": ["locked_count", "escalated_count", "demoted_count"],
     "gap_questions_presented": ["question_count"],
     "gap_detection_complete": ["epic"],
-    "planner_dispatched": ["epic", "model", "adapter", "prompt_hash", "prompt_tokens"],
-    "planner_complete": ["epic", "attempt"],
-    "planner_failed": ["epic", "error"],
+    "planner_dispatched": ["epic", "attempt", "model", "adapter", "prompt_hash", "prompt_tokens"],
+    "planner_complete": ["epic", "attempt", "turns", "response_path"],
+    "planner_failed": ["epic", "attempt", "error", "turns", "response_path"],
     "phase_a_pass": ["epic", "attempt"],
     "phase_a_fail": ["epic", "attempt", "failures"],
     "phase_b_pass": ["epic", "attempt", "scores", "feedback"],
@@ -457,19 +460,45 @@ def _render_event_details(
         count = event.get("question_count", 0)
         parts.append(f'<span style="color:#94a3b8;">{count} questions</span>')
 
-    elif event_type in (
-        "planner_dispatched",
-        "agent_dispatched",
-        "critique_dispatched",
-        "epic_critique_dispatched",
-    ):
+    elif event_type == "planner_dispatched":
+        try:
+            planner_dispatch = PlannerDispatchedArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            planner_dispatch = None
+
+        model = (
+            planner_dispatch.model
+            if planner_dispatch is not None
+            else event.get("model") or event.get("planner_model", "?")
+        )
+        tokens = (
+            planner_dispatch.prompt_tokens
+            if planner_dispatch is not None and planner_dispatch.prompt_tokens is not None
+            else event.get("prompt_tokens", "?")
+        )
+        parts.append(
+            f'<span style="color:#94a3b8;">model={_esc(str(model))}, ~{tokens} tokens</span>'
+        )
+
+        prompt_text = None
+        if story_id and attempt:
+            prompt_text = find_story_prompt(epic_dir, story_id, attempt)
+        if not prompt_text:
+            prompt_hash = (
+                planner_dispatch.prompt_hash if planner_dispatch is not None else event.get("prompt_hash")
+            )
+            if prompt_hash:
+                prompt_text = match_prompt_file(epic_dir, prompt_hash)
+        if prompt_text:
+            parts.append(_render_collapsible("Show prompt", prompt_text))
+
+    elif event_type in ("agent_dispatched", "critique_dispatched", "epic_critique_dispatched"):
         model = event.get("model") or event.get("critique_model", "?")
         tokens = event.get("prompt_tokens", "?")
         parts.append(
             f'<span style="color:#94a3b8;">model={_esc(str(model))}, ~{tokens} tokens</span>'
         )
 
-        # Show the prompt if available
         prompt_text = None
         if story_id and attempt:
             prompt_text = find_story_prompt(epic_dir, story_id, attempt)
@@ -479,6 +508,38 @@ def _render_event_details(
                 prompt_text = match_prompt_file(epic_dir, prompt_hash)
         if prompt_text:
             parts.append(_render_collapsible("Show prompt", prompt_text))
+
+    elif event_type in ("planner_complete", "planner_failed"):
+        planner_result: PlannerCompleteArtifact | PlannerFailedArtifact | None = None
+        try:
+            if event_type == "planner_complete":
+                planner_result = PlannerCompleteArtifact.from_event(event)
+            else:
+                planner_result = PlannerFailedArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            planner_result = None
+
+        meta: list[str] = []
+        if planner_result is not None:
+            if planner_result.response_path:
+                meta.append(planner_result.response_path)
+            if planner_result.turns is not None:
+                meta.append(f"turns={planner_result.turns}")
+            if isinstance(planner_result, PlannerFailedArtifact) and planner_result.error:
+                meta.append(f"error: {planner_result.error[:200]}")
+        else:
+            response_path = event.get("response_path", "")
+            turns = event.get("turns")
+            if response_path:
+                meta.append(str(response_path))
+            if turns is not None:
+                meta.append(f"turns={turns}")
+            if event_type == "planner_failed":
+                error = event.get("error", "")
+                if error:
+                    meta.append(f"error: {error[:200]}")
+        if meta:
+            parts.append(f'<span style="color:#94a3b8;">{_esc(", ".join(meta))}</span>')
 
     elif event_type in ("agent_complete", "agent_failed"):
         commit = event.get("commit", "")

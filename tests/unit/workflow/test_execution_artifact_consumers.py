@@ -1,9 +1,14 @@
+import json
 from pathlib import Path
 
 from workflow.artifacts import (
     PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
     PlanDecisionArtifact,
+    PlannerCompleteArtifact,
+    PlannerDispatchedArtifact,
+    PlannerFailedArtifact,
+    PlanVerificationResultArtifact,
     PreflightArtifact,
     PreflightEventArtifact,
     RunEventArtifact,
@@ -11,7 +16,13 @@ from workflow.artifacts import (
     StoryRunArtifact,
     VerifierFeedbackArtifact,
 )
-from workflow.orchestrator import build_failure_comment, build_story_comment, generate_summary
+from workflow.jsonl_logger import EventLogger
+from workflow.orchestrator import (
+    build_failure_comment,
+    build_story_comment,
+    generate_summary,
+    show_status,
+)
 from workflow.report import (
     _build_story_runs,
     _render_event_details,
@@ -229,6 +240,53 @@ class TestTypedStoryConsumers:
 
 
 class TestTypedReportConsumers:
+    def test_render_event_details_uses_typed_planner_reconstruction(self, tmp_path) -> None:
+        planner_dispatch = PlannerDispatchedArtifact(
+            epic_number=155,
+            attempt=1,
+            model="sonnet",
+            prompt_tokens=512,
+        )
+        planner_complete = PlannerCompleteArtifact(
+            epic_number=155,
+            attempt=1,
+            response_path=".planning/epics/E155/plan.json",
+        )
+        planner_failed = PlannerFailedArtifact(
+            epic_number=155,
+            attempt=2,
+            error="Planner output was not valid JSON",
+        )
+
+        dispatch_html = _render_event_details(
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                planner_dispatch.event_name,
+                **planner_dispatch.event_payload,
+            ),
+            tmp_path,
+        )
+        complete_html = _render_event_details(
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                planner_complete.event_name,
+                **planner_complete.event_payload,
+            ),
+            tmp_path,
+        )
+        failed_html = _render_event_details(
+            _event(
+                "2026-03-07T12:02:00+00:00",
+                planner_failed.event_name,
+                **planner_failed.event_payload,
+            ),
+            tmp_path,
+        )
+
+        assert "model=sonnet, ~512 tokens" in dispatch_html
+        assert ".planning/epics/E155/plan.json" in complete_html
+        assert "Planner output was not valid JSON" in failed_html
+
     def test_render_event_details_uses_typed_validation_and_failure_context(self, tmp_path) -> None:
         failure_context = StoryFailureContextArtifact(
             story_id="02-ui",
@@ -423,3 +481,76 @@ class TestTypedReportConsumers:
         assert "1/1 complete, 0 failed" in header_html
         assert "DONE" in nav_html
         assert "FAIL" not in nav_html
+
+
+class TestPlanningStatusConsumers:
+    def test_show_status_uses_typed_planner_and_gate_reconstruction(
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
+    ) -> None:
+        epic_dir = tmp_path / "E155"
+        epic_dir.mkdir()
+        (epic_dir / "plan.json").write_text(
+            json.dumps(
+                {
+                    "stories": [
+                        {
+                            "story_id": "01-setup",
+                            "name": "Setup",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        log_path = epic_dir / "epic.jsonl"
+        logger = EventLogger(log_path, "run-1")
+
+        planner_dispatch = PlannerDispatchedArtifact(
+            epic_number=155,
+            attempt=1,
+            model="sonnet",
+        )
+        planner_complete = PlannerCompleteArtifact(
+            epic_number=155,
+            attempt=1,
+            response_path=".planning/epics/E155/plan.json",
+        )
+        phase_a_event = PhaseAValidationEventArtifact.passed_event(155, 1)
+        phase_b_event = PhaseBVerificationEventArtifact.from_result(
+            155,
+            1,
+            PlanVerificationResultArtifact.from_verifier_feedback(
+                VerifierFeedbackArtifact.from_dict(
+                    {
+                        "status": "pass",
+                        "summary": "Plan verified",
+                        "dimensions": {"journey_completeness": {"status": "pass"}},
+                    }
+                )
+            ),
+        )
+        approved = PlanDecisionArtifact(epic_number=155, decision="approved")
+
+        for event_name, payload in (
+            (planner_dispatch.event_name, planner_dispatch.event_payload),
+            (planner_complete.event_name, planner_complete.event_payload),
+            (phase_a_event.event_name, phase_a_event.event_payload),
+            (phase_b_event.event_name, phase_b_event.event_payload),
+            (approved.event_name, approved.event_payload),
+        ):
+            logger.log_event(event_name, **payload)
+
+        monkeypatch.setattr("workflow.orchestrator.PLANNING_DIR", tmp_path)
+
+        show_status(155)
+        output = capsys.readouterr().out
+
+        assert "Planner attempts: 1" in output
+        assert "Planner: COMPLETE" in output
+        assert "Phase A: PASS" in output
+        assert "Phase B: PASS" in output
+        assert "Decision gate: APPROVED" in output

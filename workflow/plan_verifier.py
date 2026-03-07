@@ -342,7 +342,7 @@ def _print_plan_summary(plan_md_path: Path) -> None:
 
 def present_decision_gate(
     plan_md_path: Path,
-    verifier_result: dict | VerifierFeedbackArtifact | PlanVerificationResultArtifact,
+    verifier_result: VerifierFeedbackArtifact | PlanVerificationResultArtifact,
 ) -> DecisionGateResult:
     """Present the human with plan summary + verifier report and get a decision."""
     # Display plan location
@@ -363,29 +363,22 @@ def present_decision_gate(
         if isinstance(verifier_result, VerifierFeedbackArtifact)
         else typed_result.verifier_feedback if typed_result is not None else None
     )
-    raw_result = verifier_result if isinstance(verifier_result, dict) else None
 
     status = (
         typed_result.status
         if typed_result is not None
         else typed_feedback.status
         if typed_feedback is not None
-        else raw_result.get("status", "unknown")
-        if raw_result is not None
         else "unknown"
     )
     phase_a_errors = (
         typed_result.phase_a_errors
         if typed_result is not None
-        else tuple(raw_result.get("phase_a_errors", []))
-        if raw_result is not None
         else ()
     )
     dispatch_error = (
         typed_result.error
         if typed_result is not None
-        else raw_result.get("error", "")
-        if raw_result is not None
         else ""
     )
 
@@ -400,8 +393,8 @@ def present_decision_gate(
         print(f"\nVerifier error: {dispatch_error}")
         print("(Dimension results unavailable — verifier did not complete)")
     else:
-        # Show dimension statuses
-        dims = _get_dimensions(typed_feedback if typed_feedback is not None else raw_result or {})
+        assert typed_feedback is not None
+        dims = _get_dimensions(typed_feedback)
         all_dimensions = [
             "journey_completeness",
             "transition_coverage",
@@ -422,10 +415,7 @@ def present_decision_gate(
                 icon = "SKIP"
             print(f"  [{icon}] {dimension}")
 
-        # Show findings for failed dimensions
-        failed_dims = _extract_dimension_failures(
-            typed_feedback if typed_feedback is not None else raw_result or {}
-        )
+        failed_dims = _extract_dimension_failures(typed_feedback)
         if failed_dims:
             print(f"\nFailed dimensions: {', '.join(failed_dims)}")
             for dim_name in failed_dims:

@@ -27,7 +27,15 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from workflow.artifacts import CritiqueRunArtifact, StoryRunArtifact
+from workflow.artifacts import (
+    CritiqueRunArtifact,
+    PhaseAValidationEventArtifact,
+    PhaseBVerificationEventArtifact,
+    PlannerCompleteArtifact,
+    PlannerDispatchedArtifact,
+    PlannerFailedArtifact,
+    StoryRunArtifact,
+)
 from workflow.config_validator import validate_config
 from workflow.dispatch import (
     EPIC_CRITIQUE_SCHEMA,
@@ -1596,25 +1604,55 @@ def show_status(epic_number: int) -> None:
         print(f"Failed story: {run_artifact.failed_story_id}")
 
     # Planning status
-    planner_events = [e for e in events if e.get("event", "").startswith("planner_")]
-    phase_a_events = [e for e in events if e.get("event", "").startswith("phase_a_")]
-    phase_b_events = [e for e in events if e.get("event", "").startswith("phase_b_")]
+    planner_dispatches: list[PlannerDispatchedArtifact] = []
+    planner_result: PlannerCompleteArtifact | PlannerFailedArtifact | None = None
+    phase_a_event: PhaseAValidationEventArtifact | None = None
+    phase_b_event: PhaseBVerificationEventArtifact | None = None
+
+    for event in events:
+        try:
+            planner_dispatches.append(PlannerDispatchedArtifact.from_event(event))
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            planner_result = PlannerCompleteArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            planner_result = PlannerFailedArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            phase_a_event = PhaseAValidationEventArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            phase_b_event = PhaseBVerificationEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            pass
     gate_events = [
         e for e in events if e.get("event") in ("plan_approved", "plan_revised", "plan_rejected")
     ]
 
-    if planner_events or phase_a_events or phase_b_events or gate_events:
+    if planner_dispatches or planner_result is not None or phase_a_event is not None or phase_b_event is not None or gate_events:
         print("\nPlanning:")
-        if planner_events:
-            print(
-                f"  Planner attempts: {len([e for e in planner_events if e.get('event') == 'planner_dispatched'])}"
-            )
-        if phase_a_events:
-            last_a = phase_a_events[-1]
-            print(f"  Phase A: {last_a.get('event', '?').replace('phase_a_', '').upper()}")
-        if phase_b_events:
-            last_b = phase_b_events[-1]
-            print(f"  Phase B: {last_b.get('event', '?').replace('phase_b_', '').upper()}")
+        if planner_dispatches:
+            print(f"  Planner attempts: {len(planner_dispatches)}")
+        if planner_result is not None:
+            planner_status = "COMPLETE" if isinstance(planner_result, PlannerCompleteArtifact) else "FAILED"
+            print(f"  Planner: {planner_status}")
+        if phase_a_event is not None:
+            print(f"  Phase A: {'PASS' if phase_a_event.passed else 'FAIL'}")
+        if phase_b_event is not None:
+            print(f"  Phase B: {'PASS' if phase_b_event.passed else 'FAIL'}")
         if run_artifact.decision_gate:
             print(f"  Decision gate: {run_artifact.decision_gate.upper()}")
 

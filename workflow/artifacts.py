@@ -326,6 +326,172 @@ class PlanVerificationResultArtifact:
 
 
 @dataclass(frozen=True)
+class PlannerDispatchedArtifact:
+    """Typed planner dispatch event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    model: str
+    adapter: str = ""
+    prompt_hash: str = ""
+    prompt_tokens: int | None = None
+    tier: str = ""
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PlannerDispatchedArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event != "planner_dispatched":
+            raise ValueError(
+                f"Cannot build PlannerDispatchedArtifact from event {event_artifact.event}"
+            )
+
+        model = event_artifact.get("model") or event_artifact.get("planner_model")
+        if not model:
+            raise ValueError("Planner dispatch events require a model")
+
+        prompt_tokens = event_artifact.get("prompt_tokens")
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            model=str(model),
+            adapter=str(event_artifact.get("adapter", "")),
+            prompt_hash=str(event_artifact.get("prompt_hash", "")),
+            prompt_tokens=int(prompt_tokens) if prompt_tokens is not None else None,
+            tier=str(event_artifact.get("tier", "")),
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "planner_dispatched"
+
+    @property
+    def summary_text(self) -> str:
+        summary = f"model={self.model}"
+        if self.prompt_tokens is not None:
+            summary += f", ~{self.prompt_tokens} tokens"
+        return summary
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+            "model": self.model,
+        }
+        if self.adapter:
+            payload["adapter"] = self.adapter
+        if self.prompt_hash:
+            payload["prompt_hash"] = self.prompt_hash
+        if self.prompt_tokens is not None:
+            payload["prompt_tokens"] = self.prompt_tokens
+        if self.tier:
+            payload["tier"] = self.tier
+        return payload
+
+
+@dataclass(frozen=True)
+class PlannerCompleteArtifact:
+    """Typed planner completion event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    response_path: str = ""
+    turns: int | None = None
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PlannerCompleteArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event != "planner_complete":
+            raise ValueError(f"Cannot build PlannerCompleteArtifact from event {event_artifact.event}")
+
+        turns = event_artifact.get("turns")
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            response_path=str(event_artifact.get("response_path", "")),
+            turns=int(turns) if turns is not None else None,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "planner_complete"
+
+    @property
+    def summary_text(self) -> str:
+        if self.response_path:
+            return self.response_path
+        return "Planner completed"
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+        }
+        if self.response_path:
+            payload["response_path"] = self.response_path
+        if self.turns is not None:
+            payload["turns"] = self.turns
+        return payload
+
+
+@dataclass(frozen=True)
+class PlannerFailedArtifact:
+    """Typed planner failure event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    error: str
+    response_path: str = ""
+    turns: int | None = None
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PlannerFailedArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event != "planner_failed":
+            raise ValueError(f"Cannot build PlannerFailedArtifact from event {event_artifact.event}")
+
+        turns = event_artifact.get("turns")
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            error=str(event_artifact.get("error", "")),
+            response_path=str(event_artifact.get("response_path", "")),
+            turns=int(turns) if turns is not None else None,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "planner_failed"
+
+    @property
+    def summary_text(self) -> str:
+        return self.error or self.response_path
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+            "error": self.error,
+        }
+        if self.response_path:
+            payload["response_path"] = self.response_path
+        if self.turns is not None:
+            payload["turns"] = self.turns
+        return payload
+
+
+@dataclass(frozen=True)
 class PhaseAValidationEventArtifact:
     """Typed Phase A validation event boundary for planning/report consumers."""
 

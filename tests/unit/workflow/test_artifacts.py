@@ -14,6 +14,9 @@ from workflow.artifacts import (
     PhaseBVerificationEventArtifact,
     PlanArtifact,
     PlanDecisionArtifact,
+    PlannerCompleteArtifact,
+    PlannerDispatchedArtifact,
+    PlannerFailedArtifact,
     PlanVerificationResultArtifact,
     PreflightArtifact,
     PreflightEventArtifact,
@@ -359,6 +362,77 @@ class TestPhaseAValidationEventArtifact:
                 data=failed_event.event_payload,
             )
         ).failures == ("Story 01 missing checkpoint", "Story 02 missing acceptance criteria")
+
+
+class TestPlannerEventArtifacts:
+    def test_planner_dispatched_round_trips_and_accepts_legacy_model_key(self) -> None:
+        dispatched = PlannerDispatchedArtifact(
+            epic_number=155,
+            attempt=1,
+            model="sonnet",
+            prompt_hash="abc123",
+            prompt_tokens=512,
+        )
+
+        round_tripped = PlannerDispatchedArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:03:00+00:00",
+                event=dispatched.event_name,
+                data=dispatched.event_payload,
+            )
+        )
+        from_legacy_payload = PlannerDispatchedArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:03:01+00:00",
+                event="planner_dispatched",
+                data={"epic": 155, "attempt": 1, "planner_model": "opus"},
+            )
+        )
+
+        assert round_tripped == dispatched
+        assert round_tripped.summary_text == "model=sonnet, ~512 tokens"
+        assert from_legacy_payload.model == "opus"
+
+    def test_planner_complete_round_trips_response_path(self) -> None:
+        completed = PlannerCompleteArtifact(
+            epic_number=155,
+            attempt=1,
+            response_path=".planning/epics/E155/plan.json",
+        )
+
+        round_tripped = PlannerCompleteArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:04:00+00:00",
+                event=completed.event_name,
+                data=completed.event_payload,
+            )
+        )
+
+        assert round_tripped == completed
+        assert round_tripped.summary_text == ".planning/epics/E155/plan.json"
+
+    def test_planner_failed_round_trips_error(self) -> None:
+        failed = PlannerFailedArtifact(
+            epic_number=155,
+            attempt=2,
+            error="Planner output was not valid JSON",
+            response_path=".planning/epics/E155/plan.json",
+        )
+
+        round_tripped = PlannerFailedArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:05:00+00:00",
+                event=failed.event_name,
+                data=failed.event_payload,
+            )
+        )
+
+        assert round_tripped == failed
+        assert round_tripped.summary_text == "Planner output was not valid JSON"
 
 
 class TestCritiqueArtifacts:

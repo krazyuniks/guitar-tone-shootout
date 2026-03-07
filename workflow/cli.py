@@ -283,6 +283,9 @@ def _run_planning_steps(
     from workflow.artifacts import (
         PhaseAValidationEventArtifact,
         PhaseBVerificationEventArtifact,
+        PlannerCompleteArtifact,
+        PlannerDispatchedArtifact,
+        PlannerFailedArtifact,
         PlanDecisionArtifact,
     )
     from workflow.epic_ingest import IngestionError, ingest_epic
@@ -315,12 +318,12 @@ def _run_planning_steps(
     else:
         console.print("[bold]Step 2:[/bold] Generating plan...")
 
-        epic_logger.log_event(
-            "planner_dispatched",
-            epic=epic_number,
+        planner_dispatch = PlannerDispatchedArtifact(
+            epic_number=epic_number,
             attempt=1,
-            planner_model=config.models.planner,
+            model=config.models.planner,
         )
+        epic_logger.log_event(planner_dispatch.event_name, **planner_dispatch.event_payload)
 
         try:
             plan_md_path, plan_json_path = generate_plan(epic_dir, config=config)
@@ -330,19 +333,19 @@ def _run_planning_steps(
                 f"({size:,d} bytes)"
             )
             console.print(f"  [green]Written:[/green] {plan_md_path.relative_to(PROJECT_ROOT)}")
-            epic_logger.log_event(
-                "planner_complete",
-                epic=epic_number,
+            planner_complete = PlannerCompleteArtifact(
+                epic_number=epic_number,
                 attempt=1,
                 response_path=str(plan_json_path.relative_to(PROJECT_ROOT)),
             )
+            epic_logger.log_event(planner_complete.event_name, **planner_complete.event_payload)
         except PlanGenerationError as exc:
-            epic_logger.log_event(
-                "planner_failed",
-                epic=epic_number,
+            planner_failed = PlannerFailedArtifact(
+                epic_number=epic_number,
                 attempt=1,
                 error=str(exc),
             )
+            epic_logger.log_event(planner_failed.event_name, **planner_failed.event_payload)
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
