@@ -1,0 +1,291 @@
+from pathlib import Path
+
+from workflow.artifacts import RunEventArtifact, StoryFailureContextArtifact, StoryRunArtifact
+from workflow.orchestrator import build_failure_comment, build_story_comment, generate_summary
+from workflow.report import (
+    _build_story_runs,
+    _render_event_details,
+    _render_metadata_header,
+    _render_story_nav,
+)
+
+
+def _event(ts: str, event: str, **data: object) -> dict:
+    return RunEventArtifact(run_id="run-1", ts=ts, event=event, data=data).to_dict()
+
+
+def _plan() -> dict:
+    return {
+        "stories": [
+            {
+                "story_id": "01-setup",
+                "name": "Setup",
+                "agent": {"model": "sonnet"},
+                "scope": {"create": ["apps/setup.py"], "modify": ["apps/shared.py"]},
+            },
+            {
+                "story_id": "02-ui",
+                "name": "UI",
+                "agent": {"model": "sonnet"},
+                "scope": {"create": [], "modify": ["apps/ui.py"]},
+            },
+        ]
+    }
+
+
+class TestTypedStoryConsumers:
+    def test_story_run_artifact_composes_failure_reason_category_and_context(self) -> None:
+        failure_context = StoryFailureContextArtifact(
+            story_id="02-ui",
+            attempt=2,
+            last_error="AssertionError: boom",
+            files_affected=("apps/ui.py",),
+            jsonl_excerpt='{"event":"validation_fail"}',
+        )
+        events = [
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                "validation_fail",
+                story_id="02-ui",
+                attempt=2,
+                check_type="http+dom",
+                results=[],
+                failure_reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+            ),
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                "exit_to_human",
+                story_id="02-ui",
+                attempt=2,
+                reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+                context=failure_context.to_dict(),
+            ),
+        ]
+
+        story_run = StoryRunArtifact.from_events(events, "02-ui")
+
+        assert story_run.failure_reason == "Golden path gate failed (just test-golden-path)"
+        assert story_run.failure_category == "implementation"
+        assert story_run.failure_context == failure_context
+
+    def test_story_run_artifact_composes_latest_checkpoint_summary_lines(self) -> None:
+        events = [
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                "validation_pass",
+                story_id="01-setup",
+                attempt=1,
+                check_type="http+dom",
+                results=[
+                    {"criterion": "Page renders", "status": "pass", "evidence": {"exit_code": 0}},
+                    {
+                        "criterion": "Golden path passes",
+                        "status": "pass",
+                        "evidence": {"exit_code": 0},
+                    },
+                ],
+            ),
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                "story_complete",
+                story_id="01-setup",
+                attempt=1,
+                commit="abc12345",
+            ),
+        ]
+
+        story_run = StoryRunArtifact.from_events(events, "01-setup")
+
+        assert story_run.checkpoint_summary_lines == (
+            "- [PASS] Page renders",
+            "- [PASS] Golden path passes",
+        )
+
+    def test_orchestrator_comments_use_typed_story_run_views(self) -> None:
+        failure_context = StoryFailureContextArtifact(
+            story_id="02-ui",
+            attempt=2,
+            last_error="AssertionError: boom",
+            files_affected=("apps/ui.py",),
+            jsonl_excerpt='{"event":"validation_fail"}',
+        )
+        success_events = [
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                "agent_complete",
+                story_id="01-setup",
+                attempt=1,
+                commit="abc12345",
+                turns=4,
+            ),
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                "validation_pass",
+                story_id="01-setup",
+                attempt=1,
+                check_type="http+dom",
+                results=[
+                    {"criterion": "Page renders", "status": "pass", "evidence": {"exit_code": 0}}
+                ],
+            ),
+        ]
+        failure_events = [
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                "validation_fail",
+                story_id="02-ui",
+                attempt=2,
+                check_type="http+dom",
+                results=[],
+                failure_reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+            ),
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                "exit_to_human",
+                story_id="02-ui",
+                attempt=2,
+                reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+                context=failure_context.to_dict(),
+            ),
+        ]
+
+        story_comment = build_story_comment(_plan()["stories"][0], success_events)
+        failure_comment = build_failure_comment(_plan()["stories"][1], failure_events)
+
+        assert "- [PASS] Page renders" in story_comment
+        assert "**Failure category:** implementation" in failure_comment
+        assert "**Reason:** Golden path gate failed (just test-golden-path)" in failure_comment
+
+    def test_generate_summary_uses_typed_checkpoint_and_failure_composition(self, tmp_path) -> None:
+        plan = _plan()
+        summary_events = [
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                "validation_pass",
+                story_id="01-setup",
+                attempt=1,
+                check_type="http+dom",
+                results=[
+                    {"criterion": "Page renders", "status": "pass", "evidence": {"exit_code": 0}}
+                ],
+            ),
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                "story_complete",
+                story_id="01-setup",
+                attempt=1,
+                commit="abc12345",
+            ),
+            _event(
+                "2026-03-07T12:02:00+00:00",
+                "validation_fail",
+                story_id="02-ui",
+                attempt=2,
+                check_type="http+dom",
+                results=[],
+                failure_reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+            ),
+            _event(
+                "2026-03-07T12:03:00+00:00",
+                "exit_to_human",
+                story_id="02-ui",
+                attempt=2,
+                reason="Golden path gate failed (just test-golden-path)",
+                failure_category="implementation",
+                context=StoryFailureContextArtifact(
+                    story_id="02-ui",
+                    attempt=2,
+                    last_error="AssertionError: boom",
+                    files_affected=("apps/ui.py",),
+                    jsonl_excerpt='{"event":"validation_fail"}',
+                ).to_dict(),
+            ),
+        ]
+
+        summary_path = generate_summary(tmp_path, plan, summary_events)
+        summary_text = summary_path.read_text(encoding="utf-8")
+
+        assert "| 01-setup | http+dom | PASS | 1 |" in summary_text
+        assert "| 02-ui | http+dom | FAIL | 0 |" in summary_text
+        assert (
+            "- **02-ui** [implementation]: Golden path gate failed (just test-golden-path)"
+            in summary_text
+        )
+
+
+class TestTypedReportConsumers:
+    def test_render_event_details_uses_typed_validation_and_failure_context(self, tmp_path) -> None:
+        failure_context = StoryFailureContextArtifact(
+            story_id="02-ui",
+            attempt=2,
+            last_error="AssertionError: boom",
+            files_affected=("apps/ui.py",),
+            jsonl_excerpt='{"event":"validation_fail"}',
+        )
+        validation_event = _event(
+            "2026-03-07T12:00:00+00:00",
+            "validation_fail",
+            story_id="02-ui",
+            attempt=2,
+            check_type="http+dom",
+            results=[],
+            failure_reason="Golden path gate failed (just test-golden-path)",
+            failure_category="implementation",
+        )
+        exit_event = _event(
+            "2026-03-07T12:01:00+00:00",
+            "exit_to_human",
+            story_id="02-ui",
+            attempt=2,
+            reason="Golden path gate failed (just test-golden-path)",
+            failure_category="implementation",
+            context=failure_context.to_dict(),
+        )
+        events = [validation_event, exit_event]
+
+        validation_html = _render_event_details(
+            validation_event,
+            tmp_path,
+            story_run=StoryRunArtifact.from_events(events[:1], "02-ui"),
+        )
+        exit_html = _render_event_details(
+            exit_event,
+            tmp_path,
+            story_run=StoryRunArtifact.from_events(events, "02-ui"),
+        )
+
+        assert "Golden path gate failed (just test-golden-path)" in validation_html
+        assert "AssertionError: boom" in exit_html
+        assert "apps/ui.py" in exit_html
+
+    def test_report_header_and_nav_use_final_typed_story_status(self) -> None:
+        plan = {"stories": [{"story_id": "01-setup", "name": "Setup"}]}
+        events = [
+            _event(
+                "2026-03-07T12:00:00+00:00",
+                "story_failed",
+                story_id="01-setup",
+                attempt=1,
+                reason="Initial failure",
+            ),
+            _event(
+                "2026-03-07T12:01:00+00:00",
+                "story_complete",
+                story_id="01-setup",
+                attempt=2,
+                commit="abc12345",
+            ),
+        ]
+
+        story_runs = _build_story_runs(events, plan)
+        header_html = _render_metadata_header(Path("E155"), events, plan, story_runs=story_runs)
+        nav_html = _render_story_nav(plan, events, story_runs=story_runs)
+
+        assert "1/1 complete, 0 failed" in header_html
+        assert "DONE" in nav_html
+        assert "FAIL" not in nav_html

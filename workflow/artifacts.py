@@ -843,6 +843,56 @@ class StoryRunArtifact:
             last_event=last_event,
         )
 
+    @property
+    def failure_reason(self) -> str | None:
+        if self.last_event is not None:
+            if self.last_event.event == "validation_fail" and self.last_checkpoint is not None:
+                if self.last_checkpoint.failure_reason:
+                    return self.last_checkpoint.failure_reason
+
+            for key in ("reason", "failure_reason", "error"):
+                value = self.last_event.get(key)
+                if value:
+                    return str(value)
+
+        if self.last_checkpoint is not None and self.last_checkpoint.failure_reason:
+            return self.last_checkpoint.failure_reason
+        return self.last_error
+
+    @property
+    def failure_category(self) -> str | None:
+        if self.last_event is not None:
+            category = self.last_event.get("failure_category")
+            if category:
+                return str(category)
+        if self.last_checkpoint is not None and self.last_checkpoint.failure_category:
+            return self.last_checkpoint.failure_category
+        return None
+
+    @property
+    def failure_context(self) -> StoryFailureContextArtifact | None:
+        if self.last_event is None:
+            return None
+
+        context = self.last_event.get("context")
+        if not isinstance(context, dict):
+            return None
+
+        try:
+            return StoryFailureContextArtifact.from_dict(context)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    @property
+    def checkpoint_summary_lines(self) -> tuple[str, ...]:
+        if self.last_checkpoint is None:
+            return ()
+
+        return tuple(
+            f"- [{'PASS' if result.status == 'pass' else 'FAIL'}] {result.criterion}"
+            for result in self.last_checkpoint.results
+        )
+
 
 @dataclass(frozen=True)
 class RunArtifact:
