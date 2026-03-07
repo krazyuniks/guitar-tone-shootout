@@ -23,23 +23,28 @@ import logging
 import sys
 from pathlib import Path
 
+from workflow.artifacts import (
+    EpicArtifact,
+    PlanArtifact,
+    RevisionRequestArtifact,
+    VerifierFeedbackArtifact,
+)
 from workflow.dispatch import (
     dispatch_agent,
     extract_json_from_text,
     get_dispatch_params,
 )
 from workflow.epic_config import EpicConfig
-from workflow.models import Plan, render_plan_md
+from workflow.models import Plan
 from workflow.plan_generator import (
     PlanGenerationError,
     _parse_structured_plan,
-    build_targeted_phase_a_revision_prompt,
-    build_targeted_phase_b_revision_prompt,
+    make_phase_a_revision_prompt,
+    make_phase_b_revision_prompt,
 )
 from workflow.plan_validator import validate_plan
 from workflow.prompt_compiler import (
     PromptSection,
-    compact_plan_for_review,
     make_prompt_artifact,
     render_json_block,
 )
@@ -59,18 +64,12 @@ class PlanVerificationError(Exception):
 # ---------------------------------------------------------------------------
 
 
-def _build_verifier_prompt(
-    plan_json: dict,
-    epic_md: str,
-) -> str:
-    """Construct the Codex verifier prompt with cross-model framing.
-
-    The verifier receives only the plan.json and the original epic body.
-    The plan already contains scope, acceptance criteria, and architectural
-    context — no need for the bloated CONTEXT.md.
-    """
-    compact_plan = compact_plan_for_review(plan_json)
-    artifact = make_prompt_artifact(
+def make_verifier_prompt(
+    plan: PlanArtifact,
+    epic: EpicArtifact,
+):
+    """Compile the verifier prompt from typed workflow artifacts."""
+    return make_prompt_artifact(
         role="plan_verifier",
         sections=[
             PromptSection(
@@ -85,11 +84,11 @@ def _build_verifier_prompt(
             ),
             PromptSection(
                 "## Input 1: Original Epic (from GitHub)",
-                f"<epic>\n{epic_md}\n</epic>",
+                epic.prompt_block,
             ),
             PromptSection(
                 "## Input 2: Generated Plan (review slice)",
-                render_json_block("plan", compact_plan),
+                render_json_block("plan", plan.review_payload),
             ),
             PromptSection(
                 "## Verification Dimensions",
@@ -152,7 +151,23 @@ Be rigorous but fair. Flag real issues, not stylistic preferences.""",
             ),
         ],
     )
-    return artifact.text
+
+
+def _build_verifier_prompt(
+    plan_json: dict,
+    epic_md: str,
+) -> str:
+    """Construct the Codex verifier prompt with cross-model framing.
+
+    The verifier receives only the plan.json and the original epic body.
+    The plan already contains scope, acceptance criteria, and architectural
+    context — no need for the bloated CONTEXT.md.
+    """
+    plan = PlanArtifact.from_dict(plan_json)
+    return make_verifier_prompt(
+        plan,
+        EpicArtifact(epic_number=plan.epic_number, body=epic_md),
+    ).text
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +175,7 @@ Be rigorous but fair. Flag real issues, not stylistic preferences.""",
 # ---------------------------------------------------------------------------
 
 
-def _parse_verifier_result(result_output: str) -> dict:
+def _parse_verifier_result(result_output: str) -> VerifierFeedbackArtifact:
     """Parse the verifier agent's output as JSON.
 
     The prompt instructs the agent to return ONLY a JSON object.
@@ -176,20 +191,24 @@ def _parse_verifier_result(result_output: str) -> dict:
         raise PlanVerificationError(
             f"Verifier JSON missing 'status' field. Keys: {list(data.keys()) if isinstance(data, dict) else type(data)}"
         )
-    return data
+    return VerifierFeedbackArtifact.from_dict(data)
 
 
-def _is_verifier_pass(result: dict) -> bool:
+def _is_verifier_pass(result: dict | VerifierFeedbackArtifact) -> bool:
     """Check if the verifier result indicates an overall pass."""
+    if isinstance(result, VerifierFeedbackArtifact):
+        return result.status == "pass"
     return result.get("status") == "pass"
 
 
-def _get_dimensions(result: dict) -> dict:
+def _get_dimensions(result: dict | VerifierFeedbackArtifact) -> dict:
     """Extract the dimensions dict, handling both nested and flat layouts.
 
     The verifier prompt asks for ``{"dimensions": {"journey_completeness": ...}}``,
     but earlier code assumed the dimensions lived at the top level.  Support both.
     """
+    if isinstance(result, VerifierFeedbackArtifact):
+        return result.dimensions
     dims = result.get("dimensions")
     if isinstance(dims, dict):
         return dims
@@ -197,8 +216,10 @@ def _get_dimensions(result: dict) -> dict:
     return result
 
 
-def _extract_dimension_failures(result: dict) -> list[str]:
+def _extract_dimension_failures(result: dict | VerifierFeedbackArtifact) -> list[str]:
     """Extract a summary of failed dimensions for logging."""
+    if isinstance(result, VerifierFeedbackArtifact):
+        return result.failed_dimensions()
     dims = _get_dimensions(result)
     failures = []
     for dimension in [
@@ -215,7 +236,7 @@ def _extract_dimension_failures(result: dict) -> list[str]:
     return failures
 
 
-def _has_extractable_findings(result: dict) -> bool:
+def _has_extractable_findings(result: dict | VerifierFeedbackArtifact) -> bool:
     """Check whether the verifier result contains any must_fix findings.
 
     Returns False when the verifier reported a fail status but the structured
@@ -223,6 +244,8 @@ def _has_extractable_findings(result: dict) -> bool:
     unexpected format). Used to skip planner revision when there is nothing
     actionable to feed back.
     """
+    if isinstance(result, VerifierFeedbackArtifact):
+        return result.has_extractable_findings()
     dims = _get_dimensions(result)
     for dimension in [
         "journey_completeness",
@@ -443,6 +466,20 @@ def verify_plan(
     Uses config.models.plan_critic if provided, otherwise falls back to codex.
     """
     # Read inputs
+    feedback = _verify_plan_artifact(epic_dir, config=config)
+    logger.info(
+        "Plan verifier result: model=%s, status=%s",
+        config.models.plan_critic if config else "opus",
+        feedback.status,
+    )
+    return feedback.to_dict()
+
+
+def _verify_plan_artifact(
+    epic_dir: Path,
+    config: EpicConfig | None = None,
+) -> VerifierFeedbackArtifact:
+    """Run Phase B verification and return a typed verifier feedback artifact."""
     plan_json_path = epic_dir / "plan.json"
     epic_md_path = epic_dir / "EPIC.md"
 
@@ -451,14 +488,10 @@ def verify_plan(
     if not epic_md_path.is_file():
         raise PlanVerificationError(f"EPIC.md not found at {epic_md_path}")
 
-    plan_json = json.loads(plan_json_path.read_text(encoding="utf-8"))
-    epic_md = epic_md_path.read_text(encoding="utf-8")
+    plan = PlanArtifact.from_path(plan_json_path)
+    epic = EpicArtifact.from_epic_dir(epic_dir)
 
-    # Build the verifier prompt
-    prompt = _build_verifier_prompt(
-        plan_json=plan_json,
-        epic_md=epic_md,
-    )
+    prompt = make_verifier_prompt(plan, epic).text
 
     critic_model = config.models.plan_critic if config else "opus"
 
@@ -487,15 +520,7 @@ def verify_plan(
         )
 
     # Parse structured output
-    verifier_result = _parse_verifier_result(result.output)
-
-    logger.info(
-        "Plan verifier result: model=%s, status=%s",
-        critic_model,
-        verifier_result.get("status", "unknown"),
-    )
-
-    return verifier_result
+    return _parse_verifier_result(result.output)
 
 
 # ---------------------------------------------------------------------------
@@ -546,17 +571,17 @@ def verify_with_revision_cycle(
 
     # Phase B: AI verification (attempt 1)
     try:
-        verifier_result = verify_plan(epic_dir, config=config)
+        verifier_feedback = _verify_plan_artifact(epic_dir, config=config)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed: %s", exc)
         return ({"status": "fail", "error": str(exc)}, False)
 
-    if _is_verifier_pass(verifier_result):
+    if _is_verifier_pass(verifier_feedback):
         logger.info("Phase B passed. Plan verified.")
-        return (verifier_result, True)
+        return (verifier_feedback.to_dict(), True)
 
     # Phase B failed — feed verifier output back to planner for revision
-    failed_dims = _extract_dimension_failures(verifier_result)
+    failed_dims = _extract_dimension_failures(verifier_feedback)
     logger.warning(
         "Phase B failed (dimensions: %s). Re-invoking planner with verifier feedback...",
         ", ".join(failed_dims),
@@ -565,11 +590,11 @@ def verify_with_revision_cycle(
     # Hard stop: if verifier reported fail but produced no extractable findings,
     # something went wrong with the invocation (instant return, auth failure,
     # malformed output, etc.). Don't waste money on a blind re-plan.
-    if not _has_extractable_findings(verifier_result):
+    if not _has_extractable_findings(verifier_feedback):
         raise PlanVerificationError(
             "Verifier reported fail but contains no extractable must_fix findings. "
             "The verifier may not have run properly. "
-            f"Raw result: {json.dumps(verifier_result)[:2000]}"
+            f"Raw result: {json.dumps(verifier_feedback.to_dict())[:2000]}"
         )
 
     # Snapshot the current (Phase A-passing) plan before revision
@@ -579,10 +604,10 @@ def verify_with_revision_cycle(
     original_plan_md = plan_md_path.read_text(encoding="utf-8") if plan_md_path.exists() else ""
 
     try:
-        _regenerate_plan_with_verifier_feedback(epic_dir, verifier_result, config=config)
+        _regenerate_plan_with_verifier_feedback(epic_dir, verifier_feedback, config=config)
     except PlanGenerationError as exc:
         logger.error("Plan regeneration (verifier feedback) failed: %s", exc)
-        return (verifier_result, False)
+        return (verifier_feedback.to_dict(), False)
 
     # Re-run Phase A on revised plan (must still pass after revision)
     logger.info("Running Phase A validation (after verifier revision)...")
@@ -605,22 +630,22 @@ def verify_with_revision_cycle(
     # Phase B: AI verification (attempt 2 — final)
     logger.info("Running Phase B verification (attempt 2, final)...")
     try:
-        verifier_result = verify_plan(epic_dir, config=config)
+        verifier_feedback = _verify_plan_artifact(epic_dir, config=config)
     except PlanVerificationError as exc:
         logger.error("Phase B dispatch failed on second attempt: %s", exc)
         return ({"status": "fail", "error": str(exc)}, False)
 
-    if _is_verifier_pass(verifier_result):
+    if _is_verifier_pass(verifier_feedback):
         logger.info("Phase B passed on second attempt. Plan verified.")
-        return (verifier_result, True)
+        return (verifier_feedback.to_dict(), True)
 
     # Second attempt still has findings — present to human at Decision Gate
-    failed_dims = _extract_dimension_failures(verifier_result)
+    failed_dims = _extract_dimension_failures(verifier_feedback)
     logger.info(
         "Phase B has remaining findings (dimensions: %s). Presenting to human.",
         ", ".join(failed_dims),
     )
-    return (verifier_result, False)
+    return (verifier_feedback.to_dict(), False)
 
 
 # ---------------------------------------------------------------------------
@@ -630,11 +655,7 @@ def verify_with_revision_cycle(
 
 def _write_plan_from_model(plan: Plan, epic_dir: Path) -> None:
     """Write plan.json and PLAN.md from a validated Plan model."""
-    (epic_dir / "plan.json").write_text(
-        json.dumps(plan.model_dump(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    (epic_dir / "PLAN.md").write_text(render_plan_md(plan), encoding="utf-8")
+    PlanArtifact.from_model(plan).write(epic_dir)
     logger.info("Wrote revised plan.json and PLAN.md")
 
 
@@ -648,10 +669,11 @@ def _regenerate_plan_with_errors(
     Uses a targeted prompt containing only the current plan.json + errors +
     JSON schema (~25K) instead of rebuilding the full planning prompt (~150K).
     """
-    plan_json_path = epic_dir / "plan.json"
-    plan_json_str = plan_json_path.read_text(encoding="utf-8")
-
-    revision_prompt = build_targeted_phase_a_revision_prompt(plan_json_str, validation_errors)
+    request = RevisionRequestArtifact.for_phase_a(
+        PlanArtifact.from_path(epic_dir / "plan.json"),
+        validation_errors,
+    )
+    revision_prompt = make_phase_a_revision_prompt(request).text
 
     planner_model = config.models.planner if config else "opus"
 
@@ -685,7 +707,7 @@ def _regenerate_plan_with_errors(
 
 def _regenerate_plan_with_verifier_feedback(
     epic_dir: Path,
-    verifier_result: dict,
+    verifier_result: dict | VerifierFeedbackArtifact,
     config: EpicConfig | None = None,
 ) -> None:
     """Re-invoke the planner with Phase B verifier feedback.
@@ -694,12 +716,17 @@ def _regenerate_plan_with_verifier_feedback(
     findings + JSON schema (~25K) instead of rebuilding the full planning
     prompt (~150K).
     """
-    plan_json_path = epic_dir / "plan.json"
-    epic_md_path = epic_dir / "EPIC.md"
-    plan_json_str = plan_json_path.read_text(encoding="utf-8")
-    epic_md = epic_md_path.read_text(encoding="utf-8")
-
-    revision_prompt = build_targeted_phase_b_revision_prompt(epic_md, plan_json_str, verifier_result)
+    feedback = (
+        verifier_result
+        if isinstance(verifier_result, VerifierFeedbackArtifact)
+        else VerifierFeedbackArtifact.from_dict(verifier_result)
+    )
+    request = RevisionRequestArtifact.for_phase_b(
+        EpicArtifact.from_epic_dir(epic_dir),
+        PlanArtifact.from_path(epic_dir / "plan.json"),
+        feedback,
+    )
+    revision_prompt = make_phase_b_revision_prompt(request).text
 
     planner_model = config.models.planner if config else "opus"
 

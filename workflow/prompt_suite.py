@@ -4,31 +4,21 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
-from workflow.plan_generator import (
-    _build_planner_prompt,
-    build_targeted_phase_a_revision_prompt,
-    build_targeted_phase_b_revision_prompt,
+from workflow.artifacts import (
+    EpicArtifact,
+    PlanArtifact,
+    RevisionRequestArtifact,
+    VerifierFeedbackArtifact,
 )
-from workflow.plan_verifier import _build_verifier_prompt
-
-
-@dataclass(frozen=True)
-class CompiledPromptInfo:
-    """One compile-only prompt artefact."""
-
-    role: str
-    text: str
-
-    @property
-    def chars(self) -> int:
-        return len(self.text)
-
-    @property
-    def approx_tokens(self) -> int:
-        return len(self.text) // 4
+from workflow.plan_generator import (
+    make_phase_a_revision_prompt,
+    make_phase_b_revision_prompt,
+    make_planner_prompt,
+)
+from workflow.plan_verifier import make_verifier_prompt
+from workflow.prompt_compiler import PromptArtifact
 
 
 def _read_text(path: Path) -> str:
@@ -37,43 +27,49 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _read_plan(path: Path) -> dict:
-    return json.loads(_read_text(path))
+def _read_plan(path: Path) -> PlanArtifact:
+    return PlanArtifact.from_json_text(_read_text(path))
 
 
-def compile_planner_prompt(epic_dir: Path) -> CompiledPromptInfo:
+def compile_planner_prompt(epic_dir: Path) -> PromptArtifact:
     """Compile the planner prompt for an epic directory."""
-    epic_md = _read_text(epic_dir / "EPIC.md")
-    epic_number = int(epic_dir.name.removeprefix("E"))
-    return CompiledPromptInfo("planner", _build_planner_prompt(epic_md, epic_number))
+    return make_planner_prompt(EpicArtifact.from_epic_dir(epic_dir))
 
 
-def compile_verifier_prompt(epic_dir: Path) -> CompiledPromptInfo:
+def compile_verifier_prompt(epic_dir: Path) -> PromptArtifact:
     """Compile the verifier prompt for an epic directory with plan.json."""
-    epic_md = _read_text(epic_dir / "EPIC.md")
-    plan = _read_plan(epic_dir / "plan.json")
-    return CompiledPromptInfo("plan_verifier", _build_verifier_prompt(plan, epic_md))
+    return make_verifier_prompt(
+        _read_plan(epic_dir / "plan.json"),
+        EpicArtifact.from_epic_dir(epic_dir),
+    )
 
 
-def compile_phase_a_revision_prompt(epic_dir: Path, errors: list[str]) -> CompiledPromptInfo:
+def compile_phase_a_revision_prompt(epic_dir: Path, errors: list[str]) -> PromptArtifact:
     """Compile the Phase A revision prompt from plan.json and validation errors."""
-    plan_json_str = _read_text(epic_dir / "plan.json")
-    return CompiledPromptInfo(
-        "planner_revision_phase_a",
-        build_targeted_phase_a_revision_prompt(plan_json_str, errors),
+    return make_phase_a_revision_prompt(
+        RevisionRequestArtifact.for_phase_a(
+            _read_plan(epic_dir / "plan.json"),
+            errors,
+        )
     )
 
 
 def compile_phase_b_revision_prompt(
     epic_dir: Path,
-    verifier_result: dict,
-) -> CompiledPromptInfo:
+    verifier_result: dict | VerifierFeedbackArtifact,
+) -> PromptArtifact:
     """Compile the Phase B revision prompt from epic, plan, and verifier result."""
-    epic_md = _read_text(epic_dir / "EPIC.md")
-    plan_json_str = _read_text(epic_dir / "plan.json")
-    return CompiledPromptInfo(
-        "planner_revision_phase_b",
-        build_targeted_phase_b_revision_prompt(epic_md, plan_json_str, verifier_result),
+    feedback = (
+        verifier_result
+        if isinstance(verifier_result, VerifierFeedbackArtifact)
+        else VerifierFeedbackArtifact.from_dict(verifier_result)
+    )
+    return make_phase_b_revision_prompt(
+        RevisionRequestArtifact.for_phase_b(
+            EpicArtifact.from_epic_dir(epic_dir),
+            _read_plan(epic_dir / "plan.json"),
+            feedback,
+        )
     )
 
 
@@ -81,10 +77,10 @@ def compile_prompt_suite(
     epic_dir: Path,
     *,
     phase_a_errors: list[str] | None = None,
-    verifier_result: dict | None = None,
-) -> dict[str, CompiledPromptInfo]:
+    verifier_result: dict | VerifierFeedbackArtifact | None = None,
+) -> dict[str, PromptArtifact]:
     """Compile the available prompt stages for an epic without dispatching."""
-    suite: dict[str, CompiledPromptInfo] = {
+    suite: dict[str, PromptArtifact] = {
         "planner": compile_planner_prompt(epic_dir),
     }
 
@@ -107,8 +103,8 @@ def write_prompt_suite(
     epic_dir: Path,
     *,
     phase_a_errors: list[str] | None = None,
-    verifier_result: dict | None = None,
-) -> dict[str, CompiledPromptInfo]:
+    verifier_result: dict | VerifierFeedbackArtifact | None = None,
+) -> dict[str, PromptArtifact]:
     """Compile prompts and write them to compiled-prompts/ under the epic dir."""
     suite = compile_prompt_suite(
         epic_dir,

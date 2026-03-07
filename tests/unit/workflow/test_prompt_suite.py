@@ -2,6 +2,7 @@
 
 import json
 
+from workflow.artifacts import VerifierFeedbackArtifact
 from workflow.prompt_suite import (
     compile_phase_a_revision_prompt,
     compile_phase_b_revision_prompt,
@@ -102,6 +103,7 @@ class TestPromptSuite:
         assert compile_phase_a_revision_prompt(epic_dir, ["bad checkpoint"]).role == (
             "planner_revision_phase_a"
         )
-        assert compile_phase_b_revision_prompt(epic_dir, verifier_result).role == (
-            "planner_revision_phase_b"
-        )
+        assert compile_phase_b_revision_prompt(
+            epic_dir,
+            VerifierFeedbackArtifact.from_dict(verifier_result),
+        ).role == ("planner_revision_phase_b")

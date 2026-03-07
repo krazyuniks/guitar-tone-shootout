@@ -1,9 +1,52 @@
 """Tests for plan-generator prompt construction."""
 
+import json
+
 from workflow.plan_generator import (
     _build_planner_prompt,
     build_targeted_phase_b_revision_prompt,
 )
+
+
+def _sample_plan_json() -> str:
+    return json.dumps(
+        {
+            "schema_v": 1,
+            "epic_number": 146,
+            "goal": "Test goal",
+            "observable_truths": [{"id": 1, "statement": "Thing works"}],
+            "user_journeys": [
+                {
+                    "journey_id": "J1",
+                    "persona": "User",
+                    "narrative": "User does thing",
+                    "truths_covered": [1],
+                    "entry_point": "/start",
+                    "critical_transitions": [
+                        {"source": "/start", "to": "/done", "mechanism": "Click"}
+                    ],
+                }
+            ],
+            "stories": [
+                {
+                    "story_id": "01-sample",
+                    "name": "Sample",
+                    "purpose": "Deliver thing",
+                    "agent": {"model": "sonnet"},
+                    "scope": {"modify": ["apps/webapp/src/webapp/api/pages/chains.py"]},
+                    "acceptance_criteria": ["Thing works"],
+                    "truths_addressed": [1],
+                }
+            ],
+            "validation_checkpoints": [
+                {
+                    "after_story": "01-sample",
+                    "check_type": "http+dom",
+                    "checks": [{"criterion": "Thing renders"}],
+                }
+            ],
+        }
+    )
 
 
 class TestPlannerPrompt:
@@ -56,7 +99,11 @@ class TestPhaseBRevisionPrompt:
             }
         }
 
-        prompt = build_targeted_phase_b_revision_prompt("## Summary\nEpic\n", "{}", verifier_result)
+        prompt = build_targeted_phase_b_revision_prompt(
+            "## Summary\nEpic\n",
+            _sample_plan_json(),
+            verifier_result,
+        )
 
         assert "### Missed Gaps" in prompt
         assert "Planner missed the broken source route" in prompt
@@ -78,7 +125,7 @@ class TestPhaseBRevisionPrompt:
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nUse HTMX\n",
-            "{}",
+            _sample_plan_json(),
             verifier_result,
         )
 

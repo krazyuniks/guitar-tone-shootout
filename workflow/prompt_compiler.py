@@ -10,6 +10,7 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from workflow.artifacts import PlanArtifact
 from workflow.dispatch import estimate_tokens
 
 
@@ -36,6 +37,10 @@ class PromptArtifact:
         return "\n\n---\n\n".join(section.render() for section in self.sections)
 
     @property
+    def chars(self) -> int:
+        return len(self.text)
+
+    @property
     def approx_tokens(self) -> int:
         return estimate_tokens(self.text)
 
@@ -51,32 +56,7 @@ def compact_plan_for_review(plan_json: dict[str, Any]) -> dict[str, Any]:
     Verifier and revision prompts do not need verbose agent guidance such as
     architectural_context or navigation_hints repeated verbatim.
     """
-
-    compact: dict[str, Any] = {
-        "schema_v": plan_json.get("schema_v"),
-        "epic_number": plan_json.get("epic_number"),
-        "goal": plan_json.get("goal"),
-        "observable_truths": plan_json.get("observable_truths", []),
-        "user_journeys": plan_json.get("user_journeys", []),
-        "validation_checkpoints": plan_json.get("validation_checkpoints", []),
-        "stories": [],
-    }
-
-    for story in plan_json.get("stories", []):
-        compact["stories"].append(
-            {
-                "story_id": story.get("story_id"),
-                "name": story.get("name"),
-                "purpose": story.get("purpose"),
-                "agent": story.get("agent"),
-                "scope": story.get("scope"),
-                "acceptance_criteria": story.get("acceptance_criteria", []),
-                "truths_addressed": story.get("truths_addressed", []),
-                "test_spec": story.get("test_spec"),
-            }
-        )
-
-    return compact
+    return PlanArtifact.from_dict(plan_json).review_payload
 
 
 def render_json_block(tag: str, payload: Any) -> str:

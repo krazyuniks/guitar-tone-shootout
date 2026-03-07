@@ -17,15 +17,20 @@ import re
 import sys
 from pathlib import Path
 
+from workflow.artifacts import (
+    EpicArtifact,
+    PlanArtifact,
+    RevisionRequestArtifact,
+    VerifierFeedbackArtifact,
+)
 from workflow.dispatch import (
     dispatch_agent,
     get_dispatch_params,
 )
 from workflow.epic_config import EpicConfig
-from workflow.models import Plan, render_plan_md
+from workflow.models import Plan
 from workflow.prompt_compiler import (
     PromptSection,
-    compact_plan_for_review,
     make_prompt_artifact,
     render_json_block,
 )
@@ -47,21 +52,29 @@ class PlanGenerationError(Exception):
 
 def _read_epic_md(epic_dir: Path) -> str:
     """Read EPIC.md from the epic directory."""
-    epic_path = epic_dir / "EPIC.md"
-    if not epic_path.is_file():
+    try:
+        return EpicArtifact.from_epic_dir(epic_dir).body
+    except FileNotFoundError:
+        epic_path = epic_dir / "EPIC.md"
         raise PlanGenerationError(
             f"EPIC.md not found at {epic_path}. "
             "Run ingestion first: ./wf epic run <number>"
         )
-    return epic_path.read_text(encoding="utf-8")
+    except ValueError as exc:
+        raise PlanGenerationError(str(exc)) from exc
 
 
 def _read_epic_number(epic_dir: Path) -> int:
     """Extract the epic number from the directory name (e.g. E95 -> 95)."""
-    match = re.match(r"^E(\d+)$", epic_dir.name)
-    if match:
-        return int(match.group(1))
-    raise PlanGenerationError(f"Cannot extract epic number from directory name: {epic_dir.name}")
+    try:
+        return EpicArtifact.from_epic_dir(epic_dir).epic_number
+    except FileNotFoundError:
+        match = re.match(r"^E(\d+)$", epic_dir.name)
+        if match:
+            return int(match.group(1))
+        raise PlanGenerationError(f"Cannot extract epic number from directory name: {epic_dir.name}")
+    except ValueError as exc:
+        raise PlanGenerationError(str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -85,39 +98,28 @@ recipe or `just tdd <path> -k <test>`. Weak checks like bare 200s, greps, or
 "button exists" checks are not enough when the epic requires a real journey."""
 
 
-def _build_planner_prompt(
-    epic_md: str,
-    epic_number: int,
-) -> str:
-    """Construct the planner prompt.
-
-    The planner is a tool-equipped agent. It receives only the epic body
-    and JSON schema, and explores the codebase using tools (Read, Grep,
-    Glob) to find actual files, services, models, and routes.
-
-    PLAN.md is rendered deterministically from the validated model.
-    """
-    prompt = f"""\
-# Task: Generate Epic Plan
-
-Produce a complete `plan.json` for epic #{epic_number}. You are a tool-equipped
-planner: inspect the repo live, find the real files and routes, and build a
-plan that matches the epic contract exactly.
-
-Read AGENTS.md and DEVELOPMENT.md first for project conventions and structure.
-
-Output only a single JSON object matching the provided schema. Do not produce
-markdown, commentary, or `PLAN.md`. Use the StructuredOutput tool for the
-final answer.
-
-## Epic Contract
-
-<epic>
-{epic_md}
-</epic>
-
-Before emitting the JSON, verify your own work:
-- Count your observable truths and confirm every ID appears in at least one
+def make_planner_prompt(epic: EpicArtifact):
+    """Compile the planner prompt from a typed epic artifact."""
+    return make_prompt_artifact(
+        role="planner",
+        sections=[
+            PromptSection(
+                "# Task: Generate Epic Plan",
+                (
+                    f"Produce a complete `plan.json` for epic #{epic.epic_number}. You are a "
+                    "tool-equipped planner: inspect the repo live, find the real files and "
+                    "routes, and build a plan that matches the epic contract exactly.\n\n"
+                    "Read AGENTS.md and DEVELOPMENT.md first for project conventions and "
+                    "structure.\n\n"
+                    "Output only a single JSON object matching the provided schema. Do not "
+                    "produce markdown, commentary, or `PLAN.md`. Use the StructuredOutput "
+                    "tool for the final answer."
+                ),
+            ),
+            PromptSection("## Epic Contract", epic.prompt_block),
+            PromptSection(
+                "## Self-Check Before Emitting JSON",
+                """- Count your observable truths and confirm every ID appears in at least one
   story's truths_addressed AND at least one journey's truths_covered.
 - Confirm every checkpoint after_story references a real story_id.
 - Confirm every scope.modify path points to a file that actually exists (use
@@ -137,13 +139,11 @@ Before emitting the JSON, verify your own work:
   redirect mechanism and the renderability of the destination page.
 - If the current codebase suggests a familiar local pattern but the epic
   contract says something else, the epic contract wins.
-- List any gaps and fix them before writing the JSON object.
-
----
-
-## Planning Methodology: Goal-Backward Analysis
-
-Follow this methodology strictly:
+- List any gaps and fix them before writing the JSON object.""",
+            ),
+            PromptSection(
+                "## Planning Methodology: Goal-Backward Analysis",
+                f"""Follow this methodology strictly:
 
 ### Step 1: Define Observable Truths
 
@@ -218,15 +218,11 @@ A transition is only covered when the checkpoint(s) prove:
 - the target page/state renders correctly afterward.
 
 If a story changes an API contract that the frontend consumes, checkpoints must
-also prove the transport/wiring end to end, not just the raw endpoint response.
-
----
-
-## Output
-
-Return one complete JSON object for epic #{epic_number}.
-
----
+also prove the transport/wiring end to end, not just the raw endpoint response.""",
+            ),
+            PromptSection(
+                "## Output",
+                f"""Return one complete JSON object for epic #{epic.epic_number}.
 
 ## Critical Rules
 
@@ -240,14 +236,30 @@ Return one complete JSON object for epic #{epic_number}.
 7. Stories that use files created by earlier stories must appear after them.
 8. state_assumption defaults to "cumulative". Only set "clean" when validation
    criteria depend on known data state.
-9. The plan.json epic_number must be {epic_number}.
+9. The plan.json epic_number must be {epic.epic_number}.
 10. Do NOT invent features not described in the epic. Stay within scope.
 11. Every story MUST have non-empty acceptance_criteria.
 12. Every story SHOULD include a test_spec with test_type, fixtures, and assertions.
 
-Think through the repo state carefully, then emit the JSON object."""
+Think through the repo state carefully, then emit the JSON object.""",
+            ),
+        ],
+    )
 
-    return prompt
+
+def _build_planner_prompt(
+    epic_md: str,
+    epic_number: int,
+) -> str:
+    """Construct the planner prompt.
+
+    The planner is a tool-equipped agent. It receives only the epic body
+    and JSON schema, and explores the codebase using tools (Read, Grep,
+    Glob) to find actual files, services, models, and routes.
+
+    PLAN.md is rendered deterministically from the validated model.
+    """
+    return make_planner_prompt(EpicArtifact(epic_number=epic_number, body=epic_md)).text
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +403,45 @@ def build_verifier_revision_prompt(
 # ---------------------------------------------------------------------------
 
 
+def make_phase_a_revision_prompt(request: RevisionRequestArtifact):
+    """Compile a targeted Phase A revision prompt from a typed request."""
+    error_list = "\n".join(f"- {err}" for err in request.errors)
+
+    return make_prompt_artifact(
+        role="planner_revision_phase_a",
+        sections=[
+            PromptSection(
+                "# Task: Fix Plan Validation Errors (Targeted Revision)",
+                (
+                    "The current plan.json failed Phase A structural validation. Fix ONLY the "
+                    "listed errors. Preserve all other fields exactly as they are."
+                ),
+            ),
+            PromptSection(
+                "## Rules",
+                """1. Make the MINIMUM changes necessary to fix each error.
+2. Do NOT rewrite stories, journeys, or scope unless an error specifically
+   requires it.
+3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
+   Use the Glob and Read tools to verify file paths if unsure.
+4. Do NOT add new stories or remove existing ones unless an error requires it.
+5. Output only the complete JSON object matching the provided schema.
+6. Use the StructuredOutput tool for the final answer.""",
+            ),
+            PromptSection(
+                "## Current Plan",
+                f"<current_plan>\n{request.plan.json_text.rstrip()}\n</current_plan>",
+            ),
+            PromptSection("## Validation Errors to Fix", error_list),
+            PromptSection(
+                "## Output",
+                """Fix the errors above and emit the complete JSON object.
+Do NOT omit any existing fields — the output must be a complete, valid plan.""",
+            ),
+        ],
+    )
+
+
 def build_targeted_phase_a_revision_prompt(
     plan_json_str: str,
     errors: list[str],
@@ -400,76 +451,36 @@ def build_targeted_phase_a_revision_prompt(
     Sends only the current plan.json + errors + JSON schema (~25K total)
     instead of rebuilding the entire planning prompt.
     """
-    error_list = "\n".join(f"- {err}" for err in errors)
-
-    return f"""\
-# Task: Fix Plan Validation Errors (Targeted Revision)
-
-The current plan.json failed Phase A structural validation. Fix ONLY the
-listed errors. Preserve all other fields exactly as they are.
-
-## Rules
-
-1. Make the MINIMUM changes necessary to fix each error.
-2. Do NOT rewrite stories, journeys, or scope unless an error specifically
-   requires it.
-3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
-   Use the Glob and Read tools to verify file paths if unsure.
-4. Do NOT add new stories or remove existing ones unless an error requires it.
-5. Output only the complete JSON object matching the provided schema.
-6. Use the StructuredOutput tool for the final answer.
-
----
-
-## Current Plan
-
-<current_plan>
-{plan_json_str}
-</current_plan>
-
----
-
-## Validation Errors to Fix
-
-{error_list}
-
----
-
-Fix the errors above and emit the complete JSON object.
-Do NOT omit any existing fields — the output must be a complete, valid plan."""
+    request = RevisionRequestArtifact.for_phase_a(
+        PlanArtifact.from_json_text(plan_json_str),
+        errors,
+    )
+    return make_phase_a_revision_prompt(request).text
 
 
-def build_targeted_phase_b_revision_prompt(
-    epic_md: str,
-    plan_json_str: str,
-    verifier_result: dict,
-) -> str:
-    """Build a targeted Phase B revision prompt.
+def make_phase_b_revision_prompt(request: RevisionRequestArtifact):
+    """Compile a targeted Phase B revision prompt from a typed request."""
+    verifier_feedback = request.verifier_feedback
+    assert verifier_feedback is not None
 
-    Sends the original epic contract + current plan.json + must_fix findings.
-    """
     feedback_lines: list[str] = []
 
-    dims = verifier_result.get("dimensions")
-    if not isinstance(dims, dict):
-        dims = verifier_result
-
-    jc = dims.get("journey_completeness", {})
-    if isinstance(jc, dict) and jc.get("status") == "fail":
+    jc = verifier_feedback.dimension("journey_completeness")
+    if jc.get("status") == "fail":
         feedback_lines.append("### Journey Completeness Gaps")
         for gap in _extract_finding_items(jc, "gaps"):
             feedback_lines.append(f"- {_format_finding_item(gap)}")
         feedback_lines.append("")
 
-    tc = dims.get("transition_coverage", {})
-    if isinstance(tc, dict) and tc.get("status") == "fail":
+    tc = verifier_feedback.dimension("transition_coverage")
+    if tc.get("status") == "fail":
         feedback_lines.append("### Uncovered Transitions")
         for uc in _extract_finding_items(tc, "uncovered"):
             feedback_lines.append(f"- {_format_finding_item(uc)}")
         feedback_lines.append("")
 
-    ia = dims.get("intent_alignment", {})
-    if isinstance(ia, dict) and ia.get("status") == "fail":
+    ia = verifier_feedback.dimension("intent_alignment")
+    if ia.get("status") == "fail":
         feedback_lines.append("### Intent Alignment Issues")
         for req in _extract_finding_items(ia, "unaddressed_requirements"):
             feedback_lines.append(f"- Unaddressed requirement: {_format_finding_item(req)}")
@@ -477,31 +488,31 @@ def build_targeted_phase_b_revision_prompt(
             feedback_lines.append(f"- Scope creep: {_format_finding_item(creep)}")
         feedback_lines.append("")
 
-    gd = dims.get("gap_detection", {})
-    if isinstance(gd, dict) and gd.get("status") == "fail":
+    gd = verifier_feedback.dimension("gap_detection")
+    if gd.get("status") == "fail":
         feedback_lines.append("### Logical Gaps Between Stories")
         for gap in _extract_finding_items(gd, "gaps"):
             feedback_lines.append(f"- {_format_finding_item(gap)}")
         feedback_lines.append("")
 
-    vs = dims.get("validation_sufficiency", {})
-    if isinstance(vs, dict) and vs.get("status") == "fail":
+    vs = verifier_feedback.dimension("validation_sufficiency")
+    if vs.get("status") == "fail":
         feedback_lines.append("### Weak Validation Checks")
         for wc in _extract_finding_items(vs, "weak_checks"):
             feedback_lines.append(f"- {_format_finding_item(wc)}")
         feedback_lines.append("")
 
-    gs = dims.get("gap_sufficiency", {})
-    if isinstance(gs, dict) and gs.get("status") == "fail":
+    gs = verifier_feedback.dimension("gap_sufficiency")
+    if gs.get("status") == "fail":
         feedback_lines.append("### Missed Gaps")
         for mg in _extract_finding_items(gs, "missed_gaps"):
             feedback_lines.append(f"- {_format_finding_item(mg)}")
         feedback_lines.append("")
 
     findings_text = "\n".join(feedback_lines) if feedback_lines else "(no specific findings)"
-    compact_plan = compact_plan_for_review(json.loads(plan_json_str))
-    artifact = make_prompt_artifact(
-        role="planner_revision",
+    assert request.epic is not None
+    return make_prompt_artifact(
+        role="planner_revision_phase_b",
         sections=[
             PromptSection(
                 "# Task: Address Verifier Feedback (Targeted Revision)",
@@ -511,10 +522,7 @@ def build_targeted_phase_b_revision_prompt(
                     "conflicts with the epic contract or verifier findings."
                 ),
             ),
-            PromptSection(
-                "## Original Epic Contract",
-                f"<epic>\n{epic_md}\n</epic>",
-            ),
+            PromptSection("## Original Epic Contract", request.epic.prompt_block),
             PromptSection(
                 "## Rules",
                 """1. The epic contract wins over the current plan.
@@ -528,7 +536,7 @@ def build_targeted_phase_b_revision_prompt(
             ),
             PromptSection(
                 "## Current Plan",
-                render_json_block("current_plan", compact_plan),
+                render_json_block("current_plan", request.plan.review_payload),
             ),
             PromptSection("## Must-Fix Findings", findings_text),
             PromptSection(
@@ -538,7 +546,24 @@ Do NOT omit any existing fields unless you are replacing them with corrected con
             ),
         ],
     )
-    return artifact.text
+
+
+def build_targeted_phase_b_revision_prompt(
+    epic_md: str,
+    plan_json_str: str,
+    verifier_result: dict,
+) -> str:
+    """Build a targeted Phase B revision prompt.
+
+    Sends the original epic contract + current plan.json + must_fix findings.
+    """
+    plan = PlanArtifact.from_json_text(plan_json_str)
+    request = RevisionRequestArtifact.for_phase_b(
+        EpicArtifact(epic_number=plan.epic_number, body=epic_md),
+        plan,
+        VerifierFeedbackArtifact.from_dict(verifier_result),
+    )
+    return make_phase_b_revision_prompt(request).text
 
 
 # ---------------------------------------------------------------------------
@@ -599,13 +624,18 @@ def generate_plan(
         PlanGenerationError: If EPIC.md is missing, dispatch fails, or
             output cannot be parsed.
     """
-    epic_md = _read_epic_md(epic_dir)
-    epic_number = _read_epic_number(epic_dir)
-
-    prompt = _build_planner_prompt(
-        epic_md=epic_md,
-        epic_number=epic_number,
-    )
+    try:
+        epic = EpicArtifact.from_epic_dir(epic_dir)
+    except FileNotFoundError:
+        epic_path = epic_dir / "EPIC.md"
+        raise PlanGenerationError(
+            f"EPIC.md not found at {epic_path}. "
+            "Run ingestion first: ./wf epic run <number>"
+        )
+    except ValueError as exc:
+        raise PlanGenerationError(str(exc)) from exc
+    prompt_artifact = make_planner_prompt(epic)
+    prompt = prompt_artifact.text
 
     prompt_tokens = len(prompt) // 4
     planner_model = config.models.planner if config else "sonnet"
@@ -613,7 +643,7 @@ def generate_plan(
     logger.info(
         "Dispatching %s planner for epic #%d (%d chars, ~%d tokens)",
         planner_model,
-        epic_number,
+        epic.epic_number,
         len(prompt),
         prompt_tokens,
     )
@@ -642,16 +672,8 @@ def generate_plan(
     )
 
     plan = _parse_structured_plan(result)
-
-    plan_json_path = epic_dir / "plan.json"
-    plan_json_path.write_text(
-        json.dumps(plan.model_dump(), indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    plan_md_path, plan_json_path = PlanArtifact.from_model(plan).write(epic_dir)
     logger.info("Wrote plan.json to %s", plan_json_path)
-
-    plan_md_path = epic_dir / "PLAN.md"
-    plan_md_path.write_text(render_plan_md(plan), encoding="utf-8")
     logger.info("Wrote PLAN.md to %s", plan_md_path)
 
     return plan_md_path, plan_json_path
