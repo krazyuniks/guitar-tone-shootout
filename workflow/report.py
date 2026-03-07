@@ -22,6 +22,8 @@ from workflow.artifacts import (
     CheckpointRunArtifact,
     CritiqueFindingArtifact,
     CritiqueRunArtifact,
+    PlanDecisionArtifact,
+    PreflightEventArtifact,
     StoryFailureContextArtifact,
     StoryRunArtifact,
     VerifierFeedbackArtifact,
@@ -65,7 +67,7 @@ KNOWN_EVENTS: dict[str, list[str]] = {
     "test_review_fail": ["story_id", "attempt", "reviewer_feedback"],
     "epic_started": ["epic", "run_id", "stories_total"],
     "story_started": ["story_id", "attempt", "index"],
-    "preflight_pass": ["story_id", "attempt", "note"],
+    "preflight_pass": ["story_id", "attempt", "note", "checks"],
     "preflight_fail": [
         "story_id",
         "attempt",
@@ -548,29 +550,58 @@ def _render_event_details(
             parts.append(f'<span style="color:#94a3b8;">commit {_esc(commit[:8])}</span>')
 
     elif event_type == "plan_rejected":
-        reason = event.get("reason", "")
-        if reason:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(reason[:300])}</span>')
-        details = event.get("details") or event.get("feedback")
-        if details:
-            parts.append(
-                _render_collapsible(
-                    "Show rejection details",
-                    json.dumps(details, indent=2, default=str)
-                    if not isinstance(details, str)
-                    else details,
+        try:
+            rejection = PlanDecisionArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            rejection = None
+
+        if rejection is not None:
+            if rejection.summary_text:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(rejection.summary_text[:300])}</span>')
+            if rejection.detail_payload is not None:
+                parts.append(_render_collapsible("Show rejection details", rejection.detail_json_text))
+        else:
+            reason = event.get("reason", "")
+            if reason:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(reason[:300])}</span>')
+            details = event.get("details") or event.get("feedback")
+            if details:
+                parts.append(
+                    _render_collapsible(
+                        "Show rejection details",
+                        json.dumps(details, indent=2, default=str)
+                        if not isinstance(details, str)
+                        else details,
+                    )
                 )
-            )
 
     elif event_type in ("preflight_pass", "preflight_fail"):
-        note = event.get("note") or event.get("description") or event.get("reason", "")
-        if note:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(str(note)[:300])}</span>')
-        checks = event.get("checks", [])
-        if checks:
-            parts.append(
-                _render_collapsible("Show checks", json.dumps(checks, indent=2, default=str))
-            )
+        try:
+            preflight_event = PreflightEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            preflight_event = None
+
+        if preflight_event is not None:
+            if preflight_event.summary_text:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(preflight_event.summary_text[:300])}</span>'
+                )
+            if preflight_event.checks:
+                parts.append(
+                    _render_collapsible(
+                        "Show checks",
+                        json.dumps(preflight_event.checks_payload, indent=2, default=str),
+                    )
+                )
+        else:
+            note = event.get("note") or event.get("description") or event.get("reason", "")
+            if note:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(str(note)[:300])}</span>')
+            checks = event.get("checks", [])
+            if checks:
+                parts.append(
+                    _render_collapsible("Show checks", json.dumps(checks, indent=2, default=str))
+                )
 
     elif event_type in ("phase_b_pass", "phase_b_fail"):
         feedback = event.get("feedback")

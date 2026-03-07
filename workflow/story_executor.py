@@ -24,6 +24,7 @@ from workflow.artifacts import (
     CritiqueRunArtifact,
     FailureClassificationArtifact,
     PreflightArtifact,
+    PreflightEventArtifact,
     StoryFailureContextArtifact,
 )
 from workflow.dispatch import (
@@ -677,13 +678,13 @@ def execute_story(
             files_affected=(),
             jsonl_excerpt="state_assumption=clean, db-reset failed",
         )
-        event_logger.log_event(
-            "preflight_fail",
+        preflight_event = PreflightEventArtifact.from_failure(
             story_id=story_id,
             attempt=1,
+            summary="Database reset failed (state_assumption='clean')",
             failure_category="env",
-            description="Database reset failed (state_assumption='clean')",
         )
+        event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
         event_logger.log_event(
             "exit_to_human",
             story_id=story_id,
@@ -705,12 +706,8 @@ def execute_story(
                 story_id,
                 "; ".join(preflight.issues),
             )
-            event_logger.log_event(
-                "preflight_pass",
-                story_id=story_id,
-                attempt=1,
-                note=f"Minor issues (agent self-fix): {preflight.description}",
-            )
+            preflight_event = PreflightEventArtifact.from_preflight(story_id, 1, preflight)
+            event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
         else:
             # Major issues -- cannot proceed
             logger.error(
@@ -718,13 +715,8 @@ def execute_story(
                 story_id,
                 "; ".join(preflight.issues),
             )
-            event_logger.log_event(
-                "preflight_fail",
-                story_id=story_id,
-                attempt=1,
-                failure_category="scope",
-                description=preflight.description,
-            )
+            preflight_event = PreflightEventArtifact.from_preflight(story_id, 1, preflight)
+            event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
 
             # Classify the preflight failure more precisely
             classification = classify_failure(
@@ -769,11 +761,8 @@ def execute_story(
             )
             return False
     else:
-        event_logger.log_event(
-            "preflight_pass",
-            story_id=story_id,
-            attempt=1,
-        )
+        preflight_event = PreflightEventArtifact.from_preflight(story_id, 1, preflight)
+        event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
 
     # Step 4-9: Dispatch loop with retries
     return _dispatch_and_validate_loop(

@@ -280,11 +280,11 @@ def _run_planning_steps(
       4. Decision Gate — human approval
       5. Commit + Push
     """
+    from workflow.artifacts import PlanDecisionArtifact
     from workflow.epic_ingest import IngestionError, ingest_epic
     from workflow.git_helpers import GitPushError, robust_commit
     from workflow.plan_generator import PlanGenerationError, generate_plan
     from workflow.plan_verifier import (
-        DecisionGateResult,
         PlanVerificationError,
         present_decision_gate,
         verify_with_revision_cycle,
@@ -478,12 +478,12 @@ def _run_planning_steps(
             epic_logger.log_event("plan_approved", epic=epic_number)
             console.print("\n[green]Plan approved.[/green]")
         elif gate_result.rejected:
-            epic_logger.log_event(
-                "plan_rejected",
-                epic=epic_number,
-                reason=gate_result.reason,
-                feedback=verifier_feedback.to_dict(),
+            rejection = PlanDecisionArtifact.for_rejection(
+                epic_number,
+                gate_result.reason,
+                verifier_feedback,
             )
+            epic_logger.log_event(rejection.event_name, **rejection.event_payload)
             console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
             return
         else:
@@ -496,12 +496,12 @@ def _run_planning_steps(
             )
             return
     elif gate_result.rejected:
-        epic_logger.log_event(
-            "plan_rejected",
-            epic=epic_number,
-            reason=gate_result.reason,
-            feedback=verification_result.feedback_payload,
+        rejection = PlanDecisionArtifact.for_rejection(
+            epic_number,
+            gate_result.reason,
+            verification_result,
         )
+        epic_logger.log_event(rejection.event_name, **rejection.event_payload)
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
         return
 

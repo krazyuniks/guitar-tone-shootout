@@ -318,6 +318,110 @@ class PlanVerificationResultArtifact:
 
 
 @dataclass(frozen=True)
+class PlanDecisionArtifact:
+    """Typed plan decision event boundary used by CLI/report consumers."""
+
+    epic_number: int
+    decision: Literal["approved", "revised", "rejected"]
+    reason: str = ""
+    verifier_feedback: VerifierFeedbackArtifact | None = None
+    details: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.decision != "rejected":
+            if self.reason:
+                raise ValueError("Only rejected plan decisions can include a reason")
+            if self.verifier_feedback is not None or self.details is not None:
+                raise ValueError("Only rejected plan decisions can include feedback or details")
+
+    @classmethod
+    def for_rejection(
+        cls,
+        epic_number: int,
+        reason: str = "",
+        verification_result: PlanVerificationResultArtifact | VerifierFeedbackArtifact | None = None,
+    ) -> "PlanDecisionArtifact":
+        if isinstance(verification_result, PlanVerificationResultArtifact):
+            return cls(
+                epic_number=epic_number,
+                decision="rejected",
+                reason=reason,
+                verifier_feedback=verification_result.verifier_feedback,
+                details=(
+                    None
+                    if verification_result.verifier_feedback is not None
+                    else verification_result.to_dict()
+                ),
+            )
+
+        return cls(
+            epic_number=epic_number,
+            decision="rejected",
+            reason=reason,
+            verifier_feedback=verification_result,
+        )
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PlanDecisionArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event not in {"plan_approved", "plan_revised", "plan_rejected"}:
+            raise ValueError(f"Cannot build PlanDecisionArtifact from event {event_artifact.event}")
+
+        feedback_payload = event_artifact.get("feedback")
+        verifier_feedback: VerifierFeedbackArtifact | None = None
+        details = event_artifact.get("details")
+        if isinstance(feedback_payload, dict):
+            try:
+                verifier_feedback = VerifierFeedbackArtifact.from_dict(feedback_payload)
+            except TypeError:
+                if details is None:
+                    details = feedback_payload
+
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            decision=event_artifact.event.removeprefix("plan_"),
+            reason=str(event_artifact.get("reason", "")),
+            verifier_feedback=verifier_feedback,
+            details=details if isinstance(details, dict) else None,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return f"plan_{self.decision}"
+
+    @property
+    def summary_text(self) -> str:
+        return self.reason
+
+    @property
+    def detail_payload(self) -> dict[str, Any] | None:
+        if self.verifier_feedback is not None:
+            return self.verifier_feedback.to_dict()
+        return dict(self.details) if self.details is not None else None
+
+    @property
+    def detail_json_text(self) -> str:
+        payload = self.detail_payload
+        if payload is None:
+            return ""
+        return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"epic": self.epic_number}
+        if self.decision == "rejected":
+            payload["reason"] = self.reason
+            if self.verifier_feedback is not None:
+                payload["feedback"] = self.verifier_feedback.to_dict()
+            elif self.details is not None:
+                payload["details"] = dict(self.details)
+        return payload
+
+
+@dataclass(frozen=True)
 class RevisionRequestArtifact:
     """Typed input for planner revision prompts."""
 
@@ -943,6 +1047,135 @@ class PreflightArtifact:
     @property
     def combined_issues(self) -> str:
         return "\n".join(self.issues)
+
+
+@dataclass(frozen=True)
+class PreflightEventArtifact:
+    """Typed preflight event boundary for story execution/report consumers."""
+
+    story_id: str
+    attempt: int
+    passed: bool
+    summary: str
+    checks: tuple[str, ...] = ()
+    failure_category: str | None = None
+
+    @classmethod
+    def from_preflight(
+        cls,
+        story_id: str,
+        attempt: int,
+        preflight: PreflightArtifact,
+        *,
+        failure_category: str = "scope",
+    ) -> "PreflightEventArtifact":
+        if preflight.passed or preflight.is_minor:
+            if preflight.issues:
+                return cls(
+                    story_id=story_id,
+                    attempt=attempt,
+                    passed=True,
+                    summary=f"Minor issues (agent self-fix): {preflight.description}",
+                    checks=preflight.issues,
+                )
+            return cls(
+                story_id=story_id,
+                attempt=attempt,
+                passed=True,
+                summary="All pre-flight checks passed",
+            )
+
+        return cls(
+            story_id=story_id,
+            attempt=attempt,
+            passed=False,
+            summary=preflight.description,
+            checks=preflight.issues,
+            failure_category=failure_category,
+        )
+
+    @classmethod
+    def from_failure(
+        cls,
+        *,
+        story_id: str,
+        attempt: int,
+        summary: str,
+        failure_category: str,
+        checks: tuple[str, ...] = (),
+    ) -> "PreflightEventArtifact":
+        return cls(
+            story_id=story_id,
+            attempt=attempt,
+            passed=False,
+            summary=summary,
+            checks=checks,
+            failure_category=failure_category,
+        )
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PreflightEventArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event not in {"preflight_pass", "preflight_fail"}:
+            raise ValueError(f"Cannot build PreflightEventArtifact from event {event_artifact.event}")
+
+        checks_payload = event_artifact.get("checks", [])
+        if not isinstance(checks_payload, list):
+            raise TypeError("Preflight event checks must be a list")
+
+        summary = (
+            event_artifact.get("note")
+            or event_artifact.get("description")
+            or event_artifact.get("reason")
+            or (
+                "All pre-flight checks passed"
+                if event_artifact.event == "preflight_pass"
+                else "Pre-flight checks failed"
+            )
+        )
+        return cls(
+            story_id=str(event_artifact.get("story_id")),
+            attempt=int(event_artifact.get("attempt")),
+            passed=event_artifact.event == "preflight_pass",
+            summary=str(summary),
+            checks=tuple(str(item) for item in checks_payload),
+            failure_category=(
+                str(event_artifact.get("failure_category"))
+                if event_artifact.get("failure_category") is not None
+                else None
+            ),
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "preflight_pass" if self.passed else "preflight_fail"
+
+    @property
+    def summary_text(self) -> str:
+        return self.summary
+
+    @property
+    def checks_payload(self) -> list[str]:
+        return list(self.checks)
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "story_id": self.story_id,
+            "attempt": self.attempt,
+        }
+        if self.passed:
+            payload["note"] = self.summary
+        else:
+            payload["description"] = self.summary
+            if self.failure_category is not None:
+                payload["failure_category"] = self.failure_category
+        if self.checks:
+            payload["checks"] = self.checks_payload
+        return payload
 
 
 @dataclass(frozen=True)

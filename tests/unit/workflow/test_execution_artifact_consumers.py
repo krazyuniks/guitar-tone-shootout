@@ -1,6 +1,14 @@
 from pathlib import Path
 
-from workflow.artifacts import RunEventArtifact, StoryFailureContextArtifact, StoryRunArtifact
+from workflow.artifacts import (
+    PlanDecisionArtifact,
+    PreflightArtifact,
+    PreflightEventArtifact,
+    RunEventArtifact,
+    StoryFailureContextArtifact,
+    StoryRunArtifact,
+    VerifierFeedbackArtifact,
+)
 from workflow.orchestrator import build_failure_comment, build_story_comment, generate_summary
 from workflow.report import (
     _build_story_runs,
@@ -317,6 +325,51 @@ class TestTypedReportConsumers:
 
         assert "Show critique feedback" in phase_b_html
         assert "Intent alignment needs revision" in phase_b_html
+
+    def test_render_event_details_uses_typed_plan_rejection_reconstruction(self, tmp_path) -> None:
+        rejection = PlanDecisionArtifact.for_rejection(
+            epic_number=155,
+            reason="Structural issues remain",
+            verification_result=VerifierFeedbackArtifact.from_dict(
+                {
+                    "status": "fail",
+                    "summary": "Intent alignment needs revision",
+                    "dimensions": {"intent_alignment": {"status": "fail"}},
+                }
+            ),
+        )
+        rejection_event = _event(
+            "2026-03-07T12:04:00+00:00",
+            rejection.event_name,
+            **rejection.event_payload,
+        )
+
+        rejection_html = _render_event_details(rejection_event, tmp_path)
+
+        assert "Structural issues remain" in rejection_html
+        assert "Show rejection details" in rejection_html
+        assert "Intent alignment needs revision" in rejection_html
+
+    def test_render_event_details_uses_typed_preflight_reconstruction(self, tmp_path) -> None:
+        preflight_event = PreflightEventArtifact.from_preflight(
+            "02-ui",
+            1,
+            PreflightArtifact(
+                passed=False,
+                issues=("Expected file from earlier story missing: apps/setup.py",),
+                is_minor=False,
+            ),
+        )
+        rendered_event = _event(
+            "2026-03-07T12:05:00+00:00",
+            preflight_event.event_name,
+            **preflight_event.event_payload,
+        )
+
+        preflight_html = _render_event_details(rendered_event, tmp_path)
+
+        assert "Expected file from earlier story missing: apps/setup.py" in preflight_html
+        assert "Show checks" in preflight_html
 
     def test_report_header_and_nav_use_final_typed_story_status(self) -> None:
         plan = {"stories": [{"story_id": "01-setup", "name": "Setup"}]}

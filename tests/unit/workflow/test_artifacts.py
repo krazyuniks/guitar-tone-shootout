@@ -11,8 +11,10 @@ from workflow.artifacts import (
     EpicArtifact,
     FailureClassificationArtifact,
     PlanArtifact,
+    PlanDecisionArtifact,
     PlanVerificationResultArtifact,
     PreflightArtifact,
+    PreflightEventArtifact,
     RevisionRequestArtifact,
     RunArtifact,
     RunEventArtifact,
@@ -198,6 +200,64 @@ class TestPlanVerificationResultArtifact:
             "Story 02 missing acceptance criteria",
         )
         assert result.feedback_payload is None
+
+
+class TestPlanDecisionArtifact:
+    def test_rejection_from_phase_a_result_serializes_structured_details(self) -> None:
+        verification = PlanVerificationResultArtifact.from_phase_a_errors(
+            ["Story 01 missing checkpoint", "Story 02 missing acceptance criteria"]
+        )
+
+        rejection = PlanDecisionArtifact.for_rejection(
+            epic_number=155,
+            reason="Structural issues remain",
+            verification_result=verification,
+        )
+
+        assert rejection.event_name == "plan_rejected"
+        assert rejection.event_payload["reason"] == "Structural issues remain"
+        assert rejection.event_payload["details"]["phase_a_errors"] == [
+            "Story 01 missing checkpoint",
+            "Story 02 missing acceptance criteria",
+        ]
+        assert PlanDecisionArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:00:00+00:00",
+                event=rejection.event_name,
+                data=rejection.event_payload,
+            )
+        ).detail_payload["phase_a_errors"] == [
+            "Story 01 missing checkpoint",
+            "Story 02 missing acceptance criteria",
+        ]
+
+    def test_rejection_from_verifier_feedback_round_trips_typed_feedback(self) -> None:
+        feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "summary": "Intent alignment needs revision",
+                "dimensions": {"intent_alignment": {"status": "fail"}},
+            }
+        )
+
+        rejection = PlanDecisionArtifact.for_rejection(
+            epic_number=155,
+            reason="Verifier findings remain",
+            verification_result=feedback,
+        )
+        round_tripped = PlanDecisionArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:01:00+00:00",
+                event=rejection.event_name,
+                data=rejection.event_payload,
+            )
+        )
+
+        assert round_tripped.verifier_feedback is not None
+        assert round_tripped.verifier_feedback.summary == "Intent alignment needs revision"
+        assert round_tripped.detail_payload == feedback.to_dict()
 
 
 class TestCritiqueArtifacts:
@@ -566,6 +626,39 @@ class TestExecutionArtifacts:
         assert PreflightArtifact.from_dict(preflight.to_dict()) == preflight
         assert preflight.description == "Missing file a.py; Missing file b.py"
         assert preflight.combined_issues == "Missing file a.py\nMissing file b.py"
+
+    def test_preflight_event_artifact_round_trips_pass_and_fail_event_payloads(self) -> None:
+        minor_preflight = PreflightArtifact(
+            passed=False,
+            issues=("File to modify does not exist: apps/ui.py",),
+            is_minor=True,
+        )
+        fail_preflight = PreflightArtifact(
+            passed=False,
+            issues=("Expected file from earlier story missing: apps/setup.py",),
+            is_minor=False,
+        )
+
+        minor_event = PreflightEventArtifact.from_preflight("02-ui", 1, minor_preflight)
+        fail_event = PreflightEventArtifact.from_preflight("02-ui", 1, fail_preflight)
+
+        assert minor_event.event_name == "preflight_pass"
+        assert minor_event.event_payload["note"].startswith("Minor issues (agent self-fix):")
+        assert minor_event.event_payload["checks"] == ["File to modify does not exist: apps/ui.py"]
+        assert PreflightEventArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:00:00+00:00",
+                event=minor_event.event_name,
+                data=minor_event.event_payload,
+            )
+        ).checks == ("File to modify does not exist: apps/ui.py",)
+
+        assert fail_event.event_name == "preflight_fail"
+        assert fail_event.event_payload["failure_category"] == "scope"
+        assert fail_event.event_payload["description"] == (
+            "Expected file from earlier story missing: apps/setup.py"
+        )
 
     def test_story_failure_context_round_trips_and_builds_prompt_block(self) -> None:
         context = StoryFailureContextArtifact(

@@ -71,7 +71,7 @@
           "description": "Fields: epic"
         },
         "plan_rejected": {
-          "description": "Fields: epic, reason, feedback{}"
+          "description": "Fields: epic, reason, feedback{} or details{}"
         },
         "plan_committed": {
           "description": "Fields: epic, commit"
@@ -95,10 +95,10 @@
           "description": "Level: story. Fields: story_id, attempt, index"
         },
         "preflight_pass": {
-          "description": "Level: story. Fields: story_id, attempt"
+          "description": "Level: story. Fields: story_id, attempt, note, optional checks[]"
         },
         "preflight_fail": {
-          "description": "Level: story. Fields: story_id, attempt, failure_category, description"
+          "description": "Level: story. Fields: story_id, attempt, failure_category, description, optional checks[]"
         },
         "agent_dispatched": {
           "description": "Level: story. Fields: story_id, attempt, tier, model, adapter, prompt_hash, prompt_tokens"
