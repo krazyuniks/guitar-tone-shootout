@@ -430,7 +430,7 @@ epic-validate-plan epic_num:
 
 # Generate HTML timeline report for an epic
 epic-report epic_num:
-    python -m workflow.report {{epic_num}}
+    docker compose exec -T webapp python -m workflow.report {{epic_num}}
 
 # Compile prompt artefacts for an epic without dispatching any agents
 epic-compile-prompts epic_num *ARGS='':
