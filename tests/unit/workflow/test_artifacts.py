@@ -3,9 +3,12 @@
 import pytest
 
 from workflow.artifacts import (
+    DispatchArtifact,
     EpicArtifact,
     PlanArtifact,
     RevisionRequestArtifact,
+    RunArtifact,
+    RunEventArtifact,
     VerifierFeedbackArtifact,
 )
 from workflow.plan_generator import make_phase_b_revision_prompt
@@ -127,6 +130,73 @@ class TestVerifierFeedbackArtifact:
 
         assert feedback.dimension("intent_alignment")["scope_creep"] == ["Unexpected route"]
         assert feedback.has_extractable_findings() is True
+
+
+class TestDispatchAndRunArtifacts:
+    def test_dispatch_artifact_round_trips_started_entry(self) -> None:
+        dispatch = DispatchArtifact(
+            ts="2026-03-07T12:00:00+00:00",
+            run_id="run-1",
+            dispatch_id="abc-123",
+            status="started",
+            role="planner",
+            model="sonnet",
+            prompt_hash="abc",
+            prompt_tokens=123,
+            prompt_file="dispatches/abc-prompt.txt",
+            response_file="dispatches/abc-response.txt",
+            conversation_file="dispatches/abc-conversation.jsonl",
+        )
+
+        assert DispatchArtifact.from_dict(dispatch.to_dict()) == dispatch
+
+    def test_run_event_artifact_round_trips_flat_jsonl_shape(self) -> None:
+        event = RunEventArtifact(
+            run_id="run-1",
+            ts="2026-03-07T12:00:00+00:00",
+            event="story_complete",
+            data={"story_id": "01-setup", "attempt": 1},
+        )
+
+        assert RunEventArtifact.from_dict(event.to_dict()) == event
+
+    def test_run_artifact_collects_dispatch_ids(self) -> None:
+        run = RunArtifact.from_logs(
+            [
+                {
+                    "schema_v": 2,
+                    "run_id": "run-1",
+                    "ts": "2026-03-07T12:00:00+00:00",
+                    "event": "plan_committed",
+                    "epic": 146,
+                }
+            ],
+            "run-1",
+            epic_number=146,
+            has_plan=True,
+            dispatches=[
+                {
+                    "ts": "2026-03-07T12:01:00+00:00",
+                    "run_id": "run-1",
+                    "dispatch_id": "dispatch-1",
+                    "status": "completed",
+                    "role": "planner",
+                    "model": "sonnet",
+                    "prompt_hash": "abc",
+                    "prompt_tokens": 123,
+                    "response_tokens": 45,
+                    "success": True,
+                    "exit_code": 0,
+                    "duration_ms": 1000,
+                    "prompt_file": "dispatches/abc-prompt.txt",
+                    "response_file": "dispatches/abc-response.txt",
+                    "conversation_file": "dispatches/abc-conversation.jsonl",
+                }
+            ],
+        )
+
+        assert run.stage == "execution"
+        assert run.dispatch_ids == ("dispatch-1",)
 
 
 class TestRevisionRequestArtifact:

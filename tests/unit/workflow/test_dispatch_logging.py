@@ -4,7 +4,7 @@ import json
 import subprocess
 
 from workflow.dispatch import ClaudeAdapter
-from workflow.dispatch_log import DispatchLog, token_summary
+from workflow.dispatch_log import DispatchLog, read_dispatch_artifacts, token_summary
 
 
 class TestClaudeAdapterStreaming:
@@ -126,3 +126,31 @@ class TestDispatchLogLifecycle:
 
         assert "planner" in summary
         assert "1" in summary
+
+    def test_read_dispatch_artifacts_returns_typed_entries(self, tmp_path) -> None:
+        epic_dir = tmp_path / "E999"
+        epic_dir.mkdir()
+        log = DispatchLog(epic_dir, "run-1")
+
+        dispatch = log.start_dispatch(
+            role="planner",
+            model="sonnet",
+            prompt="plan this",
+        )
+        log.record(
+            dispatch=dispatch,
+            role="planner",
+            model="sonnet",
+            prompt="plan this",
+            output="done",
+            success=True,
+            exit_code=0,
+            turns=2,
+            duration_ms=800,
+        )
+
+        entries = read_dispatch_artifacts(epic_dir)
+
+        assert [entry.status for entry in entries] == ["started", "completed"]
+        assert entries[0].dispatch_id == entries[1].dispatch_id
+        assert entries[1].response_tokens is not None

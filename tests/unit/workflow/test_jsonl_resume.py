@@ -6,6 +6,7 @@ is_test_generation_complete for pipeline-level resume decisions.
 
 from workflow.jsonl_logger import (
     EventLogger,
+    build_run_artifact,
     get_resumable_state,
     is_test_generation_complete,
 )
@@ -197,3 +198,31 @@ class TestIsTestGenerationComplete:
     def test_incomplete_with_empty_events(self):
         """Returns False when events are empty but specs exist."""
         assert is_test_generation_complete([], ["01-setup"]) is False
+
+
+class TestRunArtifact:
+    """Typed run snapshots should match resumable-state semantics."""
+
+    def test_build_run_artifact_derives_stage_gate_and_completed_stories(self, tmp_path):
+        log_path = tmp_path / "epic.jsonl"
+        el = EventLogger(log_path, "run-1")
+        el.log_event("plan_committed", epic=99)
+        el.log_event("plan_approved", epic=99)
+        el.log_event("story_complete", story_id="01-setup", attempt=1, commit="abc123")
+
+        from workflow.jsonl_logger import read_log
+
+        events = read_log(log_path)
+        run = build_run_artifact(events, "run-1", epic_number=99, has_plan=True)
+
+        assert run.epic_number == 99
+        assert run.stage == "execution"
+        assert run.decision_gate == "approved"
+        assert list(run.completed_stories) == ["01-setup"]
+        assert run.next_action == "continue"
+
+    def test_build_run_artifact_returns_planned_when_plan_exists_without_commit(self):
+        run = build_run_artifact([], "run-1", epic_number=99, has_plan=True)
+
+        assert run.stage == "planned"
+        assert run.next_action == "start"

@@ -48,6 +48,7 @@ from workflow.git_helpers import (
     git_sync,
 )
 from workflow.jsonl_logger import (
+    build_run_artifact,
     EventLogger,
     generate_run_id,
     get_resumable_state,
@@ -1577,37 +1578,26 @@ def show_status(epic_number: int) -> None:
 
     # Find run_id
     run_id = events[-1].get("run_id", "?")
-    state = get_resumable_state(events, run_id)
-
-    # Determine pipeline stage from events
-    has_plan_committed = any(e.get("event") == "plan_committed" for e in events)
-    has_epic_complete = any(
-        e.get("event") == "epic_complete" and e.get("run_id") == run_id for e in events
+    run_artifact = build_run_artifact(
+        events,
+        run_id,
+        epic_number=epic_number,
+        has_plan=True,
     )
-    has_epic_failed = any(
-        e.get("event") == "epic_failed" and e.get("run_id") == run_id for e in events
-    )
-
-    if has_epic_complete:
-        stage = "COMPLETE"
-    elif has_epic_failed:
-        stage = "FAILED"
-    elif has_plan_committed:
-        stage = "EXECUTION"
-    else:
-        stage = "PLANNING"
+    state = run_artifact.to_resume_state()
+    stage = run_artifact.stage.upper()
 
     print(f"\nPipeline stage: {stage}")
     print(f"Run ID: {run_id}")
-    print(f"Status: {state['next_action']}")
-    print(f"Completed: {len(state['completed_stories'])}/{len(stories)}")
+    print(f"Status: {run_artifact.next_action}")
+    print(f"Completed: {len(run_artifact.completed_stories)}/{len(stories)}")
 
     # Show gate status
     print("\nGates:")
-    print(f"  plan_committed:  {'YES' if has_plan_committed else 'no'}")
+    print(f"  plan_committed:  {'YES' if run_artifact.stage in ('execution', 'complete', 'failed') else 'no'}")
 
-    if state.get("failed_story_id"):
-        print(f"Failed story: {state['failed_story_id']}")
+    if run_artifact.failed_story_id:
+        print(f"Failed story: {run_artifact.failed_story_id}")
 
     # Planning status
     planner_events = [e for e in events if e.get("event", "").startswith("planner_")]
@@ -1629,20 +1619,19 @@ def show_status(epic_number: int) -> None:
         if phase_b_events:
             last_b = phase_b_events[-1]
             print(f"  Phase B: {last_b.get('event', '?').replace('phase_b_', '').upper()}")
-        if gate_events:
-            last_gate = gate_events[-1]
-            print(f"  Decision gate: {last_gate.get('event', '?').replace('plan_', '').upper()}")
+        if run_artifact.decision_gate:
+            print(f"  Decision gate: {run_artifact.decision_gate.upper()}")
 
     # Show per-story status
     print("\nStories:")
-    completed_set = set(state["completed_stories"])
+    completed_set = set(run_artifact.completed_stories)
     for i, story in enumerate(stories, 1):
         sid = story.get("story_id", "?")
         name = story.get("name", "?")
 
         if sid in completed_set:
             status = "DONE"
-        elif sid == state.get("failed_story_id"):
+        elif sid == run_artifact.failed_story_id:
             status = "FAIL"
         elif i <= len(completed_set) + 1:
             status = "NEXT"

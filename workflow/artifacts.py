@@ -1,4 +1,4 @@
-"""Typed workflow artifacts for epic planning and verification."""
+"""Typed workflow artifacts for epic planning, verification, and orchestration."""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ VERIFIER_DIMENSIONS: tuple[str, ...] = (
     "validation_sufficiency",
     "gap_sufficiency",
 )
+
+RUN_EVENT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -276,3 +278,259 @@ class RevisionRequestArtifact:
         if self.verifier_feedback is not None:
             data["verifier_feedback"] = self.verifier_feedback.to_dict()
         return data
+
+
+@dataclass(frozen=True)
+class DispatchArtifact:
+    """Serialized lifecycle entry for one dispatch invocation."""
+
+    ts: str
+    run_id: str
+    dispatch_id: str
+    status: Literal["started", "completed"]
+    role: str
+    model: str
+    prompt_hash: str
+    prompt_tokens: int
+    prompt_file: str
+    response_file: str
+    conversation_file: str
+    response_tokens: int | None = None
+    turns: int | None = None
+    success: bool | None = None
+    exit_code: int | None = None
+    duration_ms: int | None = None
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "DispatchArtifact":
+        return cls(
+            ts=str(payload["ts"]),
+            run_id=str(payload["run_id"]),
+            dispatch_id=str(payload["dispatch_id"]),
+            status=str(payload["status"]),
+            role=str(payload["role"]),
+            model=str(payload["model"]),
+            prompt_hash=str(payload["prompt_hash"]),
+            prompt_tokens=int(payload["prompt_tokens"]),
+            prompt_file=str(payload["prompt_file"]),
+            response_file=str(payload["response_file"]),
+            conversation_file=str(payload["conversation_file"]),
+            response_tokens=(
+                int(payload["response_tokens"])
+                if payload.get("response_tokens") is not None
+                else None
+            ),
+            turns=int(payload["turns"]) if payload.get("turns") is not None else None,
+            success=payload.get("success"),
+            exit_code=int(payload["exit_code"]) if payload.get("exit_code") is not None else None,
+            duration_ms=(
+                int(payload["duration_ms"]) if payload.get("duration_ms") is not None else None
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "ts": self.ts,
+            "run_id": self.run_id,
+            "dispatch_id": self.dispatch_id,
+            "status": self.status,
+            "role": self.role,
+            "model": self.model,
+            "prompt_hash": self.prompt_hash,
+            "prompt_tokens": self.prompt_tokens,
+            "prompt_file": self.prompt_file,
+            "response_file": self.response_file,
+            "conversation_file": self.conversation_file,
+        }
+        optional_fields = {
+            "response_tokens": self.response_tokens,
+            "turns": self.turns,
+            "success": self.success,
+            "exit_code": self.exit_code,
+            "duration_ms": self.duration_ms,
+        }
+        payload.update({key: value for key, value in optional_fields.items() if value is not None})
+        return payload
+
+
+@dataclass(frozen=True)
+class RunEventArtifact:
+    """Typed JSONL event entry for epic and story logs."""
+
+    run_id: str
+    ts: str
+    event: str
+    data: dict[str, Any]
+    schema_v: int = RUN_EVENT_SCHEMA_VERSION
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "RunEventArtifact":
+        data = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"schema_v", "run_id", "ts", "event"}
+        }
+        schema_v = int(payload.get("schema_v", RUN_EVENT_SCHEMA_VERSION))
+        return cls(
+            schema_v=schema_v,
+            run_id=str(payload["run_id"]),
+            ts=str(payload["ts"]),
+            event=str(payload["event"]),
+            data=data,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_v": self.schema_v,
+            "run_id": self.run_id,
+            "ts": self.ts,
+            "event": self.event,
+            **self.data,
+        }
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if key == "schema_v":
+            return self.schema_v
+        if key == "run_id":
+            return self.run_id
+        if key == "ts":
+            return self.ts
+        if key == "event":
+            return self.event
+        return self.data.get(key, default)
+
+
+@dataclass(frozen=True)
+class RunArtifact:
+    """Derived orchestration snapshot for one epic run."""
+
+    run_id: str
+    epic_number: int | None
+    stage: str
+    next_action: str
+    completed_stories: tuple[str, ...]
+    failed_story_id: str | None
+    stories_with_passing_tests: tuple[str, ...]
+    last_event: RunEventArtifact | None
+    decision_gate: str | None = None
+    dispatch_ids: tuple[str, ...] = ()
+
+    @classmethod
+    def from_logs(
+        cls,
+        events: list[dict[str, Any]] | list[RunEventArtifact],
+        run_id: str,
+        *,
+        epic_number: int | None = None,
+        has_plan: bool = False,
+        dispatches: list[dict[str, Any]] | list[DispatchArtifact] | None = None,
+    ) -> "RunArtifact":
+        event_artifacts = [
+            event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+            for event in events
+        ]
+        run_events = [event for event in event_artifacts if event.run_id == run_id]
+        if run_events:
+            run_events.sort(key=lambda event: event.ts)
+
+        completed_stories = tuple(
+            sorted(
+                {
+                    str(event.get("story_id"))
+                    for event in run_events
+                    if event.event == "story_complete" and event.get("story_id") is not None
+                }
+            )
+        )
+        stories_with_passing_tests = tuple(
+            sorted(
+                {
+                    str(event.get("story_id"))
+                    for event in event_artifacts
+                    if event.event == "test_review_pass" and event.get("story_id") is not None
+                }
+            )
+        )
+        last_event = run_events[-1] if run_events else None
+
+        if last_event is None:
+            next_action = "start"
+            failed_story_id = None
+        elif last_event.event == "epic_complete":
+            next_action = "epic_complete"
+            failed_story_id = None
+        elif last_event.event in ("exit_to_human", "epic_critique_fail"):
+            next_action = "exit_to_human"
+            failed_story_id = last_event.get("story_id")
+        elif last_event.event in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
+            next_action = "retry_story"
+            failed_story_id = last_event.get("story_id")
+        elif last_event.event in ("test_gen_started", "test_gen_attempt", "test_review_fail", "tests_approved"):
+            next_action = "test_generation"
+            failed_story_id = None
+        else:
+            next_action = "continue"
+            failed_story_id = None
+
+        has_plan_committed = any(event.event == "plan_committed" for event in event_artifacts)
+        has_epic_complete = any(
+            event.event == "epic_complete" and event.run_id == run_id for event in event_artifacts
+        )
+        has_epic_failed = any(
+            event.event == "epic_failed" and event.run_id == run_id for event in event_artifacts
+        )
+
+        if has_epic_complete:
+            stage = "complete"
+        elif has_epic_failed:
+            stage = "failed"
+        elif has_plan_committed:
+            stage = "execution"
+        elif has_plan:
+            stage = "planned"
+        else:
+            stage = "planning"
+
+        gate_event = next(
+            (
+                event
+                for event in reversed(run_events)
+                if event.event in ("plan_approved", "plan_revised", "plan_rejected")
+            ),
+            None,
+        )
+        decision_gate = gate_event.event.removeprefix("plan_") if gate_event is not None else None
+
+        dispatch_ids: tuple[str, ...] = ()
+        if dispatches:
+            dispatch_artifacts = [
+                dispatch if isinstance(dispatch, DispatchArtifact) else DispatchArtifact.from_dict(dispatch)
+                for dispatch in dispatches
+            ]
+            dispatch_ids = tuple(
+                dispatch.dispatch_id
+                for dispatch in dispatch_artifacts
+                if dispatch.run_id == run_id
+            )
+
+        return cls(
+            run_id=run_id,
+            epic_number=epic_number,
+            stage=stage,
+            next_action=next_action,
+            completed_stories=completed_stories,
+            failed_story_id=failed_story_id if failed_story_id is None else str(failed_story_id),
+            stories_with_passing_tests=stories_with_passing_tests,
+            last_event=last_event,
+            decision_gate=decision_gate,
+            dispatch_ids=dispatch_ids,
+        )
+
+    def to_resume_state(self) -> dict[str, Any]:
+        return {
+            "completed_stories": list(self.completed_stories),
+            "last_event": self.last_event.to_dict() if self.last_event is not None else None,
+            "next_action": self.next_action,
+            "failed_story_id": self.failed_story_id,
+            "stories_with_passing_tests": list(self.stories_with_passing_tests),
+        }

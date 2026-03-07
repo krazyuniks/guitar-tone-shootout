@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003 — used at runtime
 
+from workflow.artifacts import DispatchArtifact
 from workflow.dispatch import compute_prompt_hash, estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -108,21 +109,20 @@ class DispatchLog:
         except OSError as exc:
             logger.warning("Failed to write prompt file: %s", exc)
 
-        self._append_entry(
-            {
-                "ts": datetime.now(UTC).isoformat(),
-                "run_id": self.run_id,
-                "dispatch_id": dispatch_id,
-                "status": "started",
-                "role": role,
-                "model": model,
-                "prompt_hash": prompt_hash,
-                "prompt_tokens": input_tokens or estimate_tokens(prompt),
-                "prompt_file": prompt_file,
-                "response_file": response_file,
-                "conversation_file": conversation_file,
-            }
+        started = DispatchArtifact(
+            ts=datetime.now(UTC).isoformat(),
+            run_id=self.run_id,
+            dispatch_id=dispatch_id,
+            status="started",
+            role=role,
+            model=model,
+            prompt_hash=prompt_hash,
+            prompt_tokens=input_tokens or estimate_tokens(prompt),
+            prompt_file=prompt_file,
+            response_file=response_file,
+            conversation_file=conversation_file,
         )
+        self._append_entry(started.to_dict())
 
         return DispatchRecord(
             dispatch_id=dispatch_id,
@@ -170,26 +170,26 @@ class DispatchLog:
         except OSError as exc:
             logger.warning("Failed to write dispatch response file: %s", exc)
 
-        entry = {
-            "ts": datetime.now(UTC).isoformat(),
-            "run_id": self.run_id,
-            "dispatch_id": dispatch.dispatch_id,
-            "status": "completed",
-            "role": role,
-            "model": model,
-            "prompt_hash": dispatch.prompt_hash,
-            "prompt_tokens": input_tokens or estimate_tokens(prompt),
-            "response_tokens": output_tokens or estimate_tokens(output),
-            "turns": turns,
-            "success": success,
-            "exit_code": exit_code,
-            "duration_ms": duration_ms,
-            "prompt_file": dispatch.prompt_file,
-            "response_file": dispatch.response_file,
-            "conversation_file": dispatch.conversation_file,
-        }
+        completed = DispatchArtifact(
+            ts=datetime.now(UTC).isoformat(),
+            run_id=self.run_id,
+            dispatch_id=dispatch.dispatch_id,
+            status="completed",
+            role=role,
+            model=model,
+            prompt_hash=dispatch.prompt_hash,
+            prompt_tokens=input_tokens or estimate_tokens(prompt),
+            response_tokens=output_tokens or estimate_tokens(output),
+            turns=turns,
+            success=success,
+            exit_code=exit_code,
+            duration_ms=duration_ms,
+            prompt_file=dispatch.prompt_file,
+            response_file=dispatch.response_file,
+            conversation_file=dispatch.conversation_file,
+        )
 
-        self._append_entry(entry)
+        self._append_entry(completed.to_dict())
 
 
 @contextmanager
@@ -248,14 +248,23 @@ def read_dispatch_log(epic_dir: Path) -> list[dict]:
     if not log_path.exists():
         return []
 
-    entries: list[dict] = []
+    return [entry.to_dict() for entry in read_dispatch_artifacts(epic_dir)]
+
+
+def read_dispatch_artifacts(epic_dir: Path) -> list[DispatchArtifact]:
+    """Read typed dispatch entries from an epic's dispatch.jsonl."""
+    log_path = epic_dir / "dispatch.jsonl"
+    if not log_path.exists():
+        return []
+
+    entries: list[DispatchArtifact] = []
     for line in log_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            entries.append(json.loads(line))
-        except json.JSONDecodeError:
+            entries.append(DispatchArtifact.from_dict(json.loads(line)))
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             continue
 
     return entries
@@ -273,10 +282,10 @@ def token_summary(epic_dir: Path, run_id: str | None = None) -> str:
     Returns:
         Formatted text table suitable for console output.
     """
-    entries = read_dispatch_log(epic_dir)
+    entries = read_dispatch_artifacts(epic_dir)
     if run_id:
-        entries = [e for e in entries if e.get("run_id") == run_id]
-    entries = [e for e in entries if e.get("status", "completed") == "completed"]
+        entries = [entry for entry in entries if entry.run_id == run_id]
+    entries = [entry for entry in entries if entry.status == "completed"]
 
     if not entries:
         return "No dispatch entries found."
@@ -284,7 +293,7 @@ def token_summary(epic_dir: Path, run_id: str | None = None) -> str:
     # Aggregate by role
     roles: dict[str, dict] = {}
     for entry in entries:
-        role = entry.get("role", "unknown")
+        role = entry.role
         if role not in roles:
             roles[role] = {
                 "dispatches": 0,
@@ -294,9 +303,9 @@ def token_summary(epic_dir: Path, run_id: str | None = None) -> str:
             }
         agg = roles[role]
         agg["dispatches"] += 1
-        agg["input_tokens"] += entry.get("prompt_tokens", 0)
-        agg["output_tokens"] += entry.get("response_tokens", 0)
-        agg["duration_ms"] += entry.get("duration_ms", 0)
+        agg["input_tokens"] += entry.prompt_tokens
+        agg["output_tokens"] += entry.response_tokens or 0
+        agg["duration_ms"] += entry.duration_ms or 0
 
     # Format table
     lines = [
