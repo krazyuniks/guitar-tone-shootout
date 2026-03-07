@@ -10,6 +10,7 @@ from workflow.artifacts import (
     DispatchResultArtifact,
     EpicArtifact,
     FailureClassificationArtifact,
+    PhaseBVerificationEventArtifact,
     PlanArtifact,
     PlanDecisionArtifact,
     PlanVerificationResultArtifact,
@@ -258,6 +259,53 @@ class TestPlanDecisionArtifact:
         assert round_tripped.verifier_feedback is not None
         assert round_tripped.verifier_feedback.summary == "Intent alignment needs revision"
         assert round_tripped.detail_payload == feedback.to_dict()
+
+
+class TestPhaseBVerificationEventArtifact:
+    def test_from_result_round_trips_typed_feedback_and_scores(self) -> None:
+        result = PlanVerificationResultArtifact.from_verifier_feedback(
+            VerifierFeedbackArtifact.from_dict(
+                {
+                    "status": "fail",
+                    "summary": "Intent alignment needs revision",
+                    "dimensions": {"intent_alignment": {"status": "fail"}},
+                }
+            )
+        )
+
+        event = PhaseBVerificationEventArtifact.from_result(155, 1, result)
+        round_tripped = PhaseBVerificationEventArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:00:00+00:00",
+                event=event.event_name,
+                data=event.event_payload,
+            )
+        )
+
+        assert event.event_name == "phase_b_fail"
+        assert event.event_payload["scores"]["intent_alignment"] == "fail"
+        assert round_tripped.verifier_feedback is not None
+        assert round_tripped.verifier_feedback.summary == "Intent alignment needs revision"
+        assert round_tripped.summary_text == "Intent alignment needs revision"
+
+    def test_from_result_round_trips_error_details_without_typed_feedback(self) -> None:
+        result = PlanVerificationResultArtifact.from_error("Verifier dispatch failed")
+
+        event = PhaseBVerificationEventArtifact.from_result(155, 1, result)
+        round_tripped = PhaseBVerificationEventArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:01:00+00:00",
+                event=event.event_name,
+                data=event.event_payload,
+            )
+        )
+
+        assert event.event_name == "phase_b_fail"
+        assert round_tripped.verifier_feedback is None
+        assert round_tripped.detail_payload["error"] == "Verifier dispatch failed"
+        assert round_tripped.summary_text == "Verifier dispatch failed"
 
 
 class TestCritiqueArtifacts:

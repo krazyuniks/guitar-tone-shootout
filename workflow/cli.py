@@ -280,7 +280,7 @@ def _run_planning_steps(
       4. Decision Gate — human approval
       5. Commit + Push
     """
-    from workflow.artifacts import PlanDecisionArtifact
+    from workflow.artifacts import PhaseBVerificationEventArtifact, PlanDecisionArtifact
     from workflow.epic_ingest import IngestionError, ingest_epic
     from workflow.git_helpers import GitPushError, robust_commit
     from workflow.plan_generator import PlanGenerationError, generate_plan
@@ -357,13 +357,12 @@ def _run_planning_steps(
         verifier_feedback = verification_result.verifier_feedback
         assert verifier_feedback is not None
         epic_logger.log_event("phase_a_pass", epic=epic_number, attempt=1)
-        epic_logger.log_event(
-            "phase_b_pass",
-            epic=epic_number,
-            attempt=1,
-            scores=verification_result.phase_b_scores,
-            feedback=verifier_feedback.to_dict(),
+        phase_b_event = PhaseBVerificationEventArtifact.from_result(
+            epic_number,
+            1,
+            verification_result,
         )
+        epic_logger.log_event(phase_b_event.event_name, **phase_b_event.event_payload)
         console.print("  [green]Plan verified successfully.[/green]")
     else:
         phase_a_errors = list(verification_result.phase_a_errors)
@@ -378,13 +377,12 @@ def _run_planning_steps(
             for err in phase_a_errors[:5]:
                 console.print(f"    - {err}")
         else:
-            epic_logger.log_event(
-                "phase_b_fail",
-                epic=epic_number,
-                attempt=1,
-                scores=verification_result.phase_b_scores,
-                feedback=verification_result.feedback_payload,
+            phase_b_event = PhaseBVerificationEventArtifact.from_result(
+                epic_number,
+                1,
+                verification_result,
             )
+            epic_logger.log_event(phase_b_event.event_name, **phase_b_event.event_payload)
             console.print(
                 f"  [yellow]{critic_model.capitalize()} verifier raised findings"
                 " after revision.[/yellow]"

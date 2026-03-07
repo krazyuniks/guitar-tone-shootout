@@ -224,6 +224,14 @@ class VerifierFeedbackArtifact:
         }
 
 
+def _is_verifier_feedback_payload(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if "dimensions" in payload or "summary" in payload:
+        return True
+    return any(name in payload for name in VERIFIER_DIMENSIONS)
+
+
 @dataclass(frozen=True)
 class PlanVerificationResultArtifact:
     """Typed result of the Phase A/Phase B verification cycle."""
@@ -318,6 +326,114 @@ class PlanVerificationResultArtifact:
 
 
 @dataclass(frozen=True)
+class PhaseBVerificationEventArtifact:
+    """Typed Phase B verification event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    passed: bool
+    verifier_feedback: VerifierFeedbackArtifact | None = None
+    details: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.verifier_feedback is None and self.details is None:
+            raise ValueError("Phase B verification event requires feedback or details")
+        if self.passed and self.verifier_feedback is None:
+            raise ValueError("Phase B pass events require typed verifier feedback")
+
+    @classmethod
+    def from_result(
+        cls,
+        epic_number: int,
+        attempt: int,
+        result: PlanVerificationResultArtifact,
+    ) -> "PhaseBVerificationEventArtifact":
+        if result.phase != "phase_b":
+            raise ValueError("Phase B verification event requires a phase_b verification result")
+
+        return cls(
+            epic_number=epic_number,
+            attempt=attempt,
+            passed=result.passed,
+            verifier_feedback=result.verifier_feedback,
+            details=None if result.verifier_feedback is not None else result.to_dict(),
+        )
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "PhaseBVerificationEventArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event not in {"phase_b_pass", "phase_b_fail"}:
+            raise ValueError(
+                f"Cannot build PhaseBVerificationEventArtifact from event {event_artifact.event}"
+            )
+
+        feedback_payload = event_artifact.get("feedback")
+        verifier_feedback: VerifierFeedbackArtifact | None = None
+        details: dict[str, Any] | None = None
+        if _is_verifier_feedback_payload(feedback_payload):
+            try:
+                verifier_feedback = VerifierFeedbackArtifact.from_dict(feedback_payload)
+            except TypeError:
+                details = feedback_payload
+        elif isinstance(feedback_payload, dict):
+            details = feedback_payload
+
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            passed=event_artifact.event == "phase_b_pass",
+            verifier_feedback=verifier_feedback,
+            details=details,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "phase_b_pass" if self.passed else "phase_b_fail"
+
+    @property
+    def scores(self) -> dict[str, str]:
+        if self.verifier_feedback is not None:
+            return self.verifier_feedback.dimension_statuses
+
+        raw_scores = self.details.get("scores", {}) if self.details is not None else {}
+        if isinstance(raw_scores, dict):
+            return {str(key): str(value) for key, value in raw_scores.items()}
+        return {}
+
+    @property
+    def summary_text(self) -> str:
+        if self.verifier_feedback is not None:
+            return self.verifier_feedback.summary
+        if self.details is None:
+            return ""
+        summary = self.details.get("error") or self.details.get("summary") or ""
+        return str(summary)
+
+    @property
+    def detail_payload(self) -> dict[str, Any]:
+        if self.verifier_feedback is not None:
+            return self.verifier_feedback.to_dict()
+        return dict(self.details) if self.details is not None else {}
+
+    @property
+    def detail_json_text(self) -> str:
+        return json.dumps(self.detail_payload, indent=2, ensure_ascii=False) + "\n"
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+            "scores": self.scores,
+            "feedback": self.detail_payload,
+        }
+        return payload
+
+
+@dataclass(frozen=True)
 class PlanDecisionArtifact:
     """Typed plan decision event boundary used by CLI/report consumers."""
 
@@ -373,12 +489,14 @@ class PlanDecisionArtifact:
         feedback_payload = event_artifact.get("feedback")
         verifier_feedback: VerifierFeedbackArtifact | None = None
         details = event_artifact.get("details")
-        if isinstance(feedback_payload, dict):
+        if _is_verifier_feedback_payload(feedback_payload):
             try:
                 verifier_feedback = VerifierFeedbackArtifact.from_dict(feedback_payload)
             except TypeError:
                 if details is None:
                     details = feedback_payload
+        elif isinstance(feedback_payload, dict) and details is None:
+            details = feedback_payload
 
         return cls(
             epic_number=int(event_artifact.get("epic")),
@@ -1655,7 +1773,13 @@ class RunArtifact:
             ),
             None,
         )
-        decision_gate = gate_event.event.removeprefix("plan_") if gate_event is not None else None
+        gate_decision = None
+        if gate_event is not None:
+            try:
+                gate_decision = PlanDecisionArtifact.from_event(gate_event)
+            except (KeyError, TypeError, ValueError):
+                gate_decision = None
+        decision_gate = gate_decision.decision if gate_decision is not None else None
 
         dispatch_ids: tuple[str, ...] = ()
         if dispatches:

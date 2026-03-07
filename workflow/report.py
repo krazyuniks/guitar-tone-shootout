@@ -22,6 +22,7 @@ from workflow.artifacts import (
     CheckpointRunArtifact,
     CritiqueFindingArtifact,
     CritiqueRunArtifact,
+    PhaseBVerificationEventArtifact,
     PlanDecisionArtifact,
     PreflightEventArtifact,
     StoryFailureContextArtifact,
@@ -604,36 +605,50 @@ def _render_event_details(
                 )
 
     elif event_type in ("phase_b_pass", "phase_b_fail"):
-        feedback = event.get("feedback")
-        if feedback:
-            if isinstance(feedback, str):
-                try:
-                    feedback = json.loads(feedback)
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            if isinstance(feedback, dict):
-                try:
-                    typed_feedback = VerifierFeedbackArtifact.from_dict(feedback)
-                except TypeError:
-                    typed_feedback = None
-                if typed_feedback is not None:
-                    parts.append(
-                        _render_collapsible("Show critique feedback", typed_feedback.json_text)
-                    )
-                else:
+        try:
+            phase_b_event = PhaseBVerificationEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            phase_b_event = None
+
+        if phase_b_event is not None:
+            if phase_b_event.summary_text:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(phase_b_event.summary_text[:300])}</span>'
+                )
+            parts.append(
+                _render_collapsible("Show critique feedback", phase_b_event.detail_json_text)
+            )
+        else:
+            feedback = event.get("feedback")
+            if feedback:
+                if isinstance(feedback, str):
+                    try:
+                        feedback = json.loads(feedback)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                if isinstance(feedback, dict):
+                    try:
+                        typed_feedback = VerifierFeedbackArtifact.from_dict(feedback)
+                    except TypeError:
+                        typed_feedback = None
+                    if typed_feedback is not None:
+                        parts.append(
+                            _render_collapsible("Show critique feedback", typed_feedback.json_text)
+                        )
+                    else:
+                        parts.append(
+                            _render_collapsible(
+                                "Show critique feedback", json.dumps(feedback, indent=2, default=str)
+                            )
+                        )
+                elif isinstance(feedback, list):
                     parts.append(
                         _render_collapsible(
                             "Show critique feedback", json.dumps(feedback, indent=2, default=str)
                         )
                     )
-            elif isinstance(feedback, list):
-                parts.append(
-                    _render_collapsible(
-                        "Show critique feedback", json.dumps(feedback, indent=2, default=str)
-                    )
-                )
-            elif isinstance(feedback, str) and feedback.strip():
-                parts.append(_render_collapsible("Show critique feedback", feedback))
+                elif isinstance(feedback, str) and feedback.strip():
+                    parts.append(_render_collapsible("Show critique feedback", feedback))
 
     elif event_type in ("phase_a_fail",):
         failures = event.get("failures", [])

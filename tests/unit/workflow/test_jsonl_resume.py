@@ -221,6 +221,20 @@ class TestRunArtifact:
         assert list(run.completed_stories) == ["01-setup"]
         assert run.next_action == "continue"
 
+    def test_build_run_artifact_reconstructs_rejected_gate_from_typed_event_shape(self, tmp_path):
+        log_path = tmp_path / "epic.jsonl"
+        el = EventLogger(log_path, "run-1")
+        el.log_event("plan_rejected", epic=99, reason="Verifier findings remain", feedback={})
+
+        from workflow.jsonl_logger import read_log
+
+        events = read_log(log_path)
+        run = build_run_artifact(events, "run-1", epic_number=99, has_plan=True)
+
+        assert run.stage == "planned"
+        assert run.decision_gate == "rejected"
+        assert run.next_action == "continue"
+
     def test_build_run_artifact_returns_planned_when_plan_exists_without_commit(self):
         run = build_run_artifact([], "run-1", epic_number=99, has_plan=True)
 
