@@ -2,6 +2,7 @@
 
 import json
 
+from workflow.artifacts import VerifierFeedbackArtifact
 from workflow.plan_generator import build_targeted_phase_b_revision_prompt
 from workflow.plan_verifier import _build_verifier_prompt
 from workflow.prompt_compiler import (
@@ -105,24 +106,27 @@ class TestCompiledVerifierPrompt:
 
 class TestCompiledRevisionPrompt:
     def test_phase_b_revision_prompt_uses_compact_plan_slice(self) -> None:
-        verifier_result = {
-            "dimensions": {
-                "intent_alignment": {
-                    "status": "fail",
-                    "findings": [
-                        {
-                            "severity": "must_fix",
-                            "epic_requirement": "Use HTMX",
-                        }
-                    ],
-                }
+        verifier_feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "intent_alignment": {
+                        "status": "fail",
+                        "findings": [
+                            {
+                                "severity": "must_fix",
+                                "epic_requirement": "Use HTMX",
+                            }
+                        ],
+                    }
+                },
             }
-        }
+        )
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nEpic\n",
             json.dumps(_sample_plan()),
-            verifier_result,
+            verifier_feedback,
         )
 
         assert "## Current Plan" in prompt

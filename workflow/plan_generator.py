@@ -551,7 +551,7 @@ Do NOT omit any existing fields unless you are replacing them with corrected con
 def build_targeted_phase_b_revision_prompt(
     epic_md: str,
     plan_json_str: str,
-    verifier_result: dict,
+    verifier_feedback: VerifierFeedbackArtifact,
 ) -> str:
     """Build a targeted Phase B revision prompt.
 
@@ -561,7 +561,7 @@ def build_targeted_phase_b_revision_prompt(
     request = RevisionRequestArtifact.for_phase_b(
         EpicArtifact(epic_number=plan.epic_number, body=epic_md),
         plan,
-        VerifierFeedbackArtifact.from_dict(verifier_result),
+        verifier_feedback,
     )
     return make_phase_b_revision_prompt(request).text
 

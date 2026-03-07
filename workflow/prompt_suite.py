@@ -56,19 +56,14 @@ def compile_phase_a_revision_prompt(epic_dir: Path, errors: list[str]) -> Prompt
 
 def compile_phase_b_revision_prompt(
     epic_dir: Path,
-    verifier_result: dict | VerifierFeedbackArtifact,
+    verifier_feedback: VerifierFeedbackArtifact,
 ) -> PromptArtifact:
     """Compile the Phase B revision prompt from epic, plan, and verifier result."""
-    feedback = (
-        verifier_result
-        if isinstance(verifier_result, VerifierFeedbackArtifact)
-        else VerifierFeedbackArtifact.from_dict(verifier_result)
-    )
     return make_phase_b_revision_prompt(
         RevisionRequestArtifact.for_phase_b(
             EpicArtifact.from_epic_dir(epic_dir),
             _read_plan(epic_dir / "plan.json"),
-            feedback,
+            verifier_feedback,
         )
     )
 
@@ -77,7 +72,7 @@ def compile_prompt_suite(
     epic_dir: Path,
     *,
     phase_a_errors: list[str] | None = None,
-    verifier_result: dict | VerifierFeedbackArtifact | None = None,
+    verifier_feedback: VerifierFeedbackArtifact | None = None,
 ) -> dict[str, PromptArtifact]:
     """Compile the available prompt stages for an epic without dispatching."""
     suite: dict[str, PromptArtifact] = {
@@ -90,10 +85,10 @@ def compile_prompt_suite(
     if phase_a_errors:
         suite["planner_revision_phase_a"] = compile_phase_a_revision_prompt(epic_dir, phase_a_errors)
 
-    if verifier_result:
+    if verifier_feedback is not None:
         suite["planner_revision_phase_b"] = compile_phase_b_revision_prompt(
             epic_dir,
-            verifier_result,
+            verifier_feedback,
         )
 
     return suite
@@ -103,13 +98,13 @@ def write_prompt_suite(
     epic_dir: Path,
     *,
     phase_a_errors: list[str] | None = None,
-    verifier_result: dict | VerifierFeedbackArtifact | None = None,
+    verifier_feedback: VerifierFeedbackArtifact | None = None,
 ) -> dict[str, PromptArtifact]:
     """Compile prompts and write them to compiled-prompts/ under the epic dir."""
     suite = compile_prompt_suite(
         epic_dir,
         phase_a_errors=phase_a_errors,
-        verifier_result=verifier_result,
+        verifier_feedback=verifier_feedback,
     )
     out_dir = epic_dir / "compiled-prompts"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -138,14 +133,16 @@ def main() -> None:
     args = parser.parse_args()
 
     epic_dir = Path(__file__).resolve().parent.parent / ".planning" / "epics" / f"E{args.epic_number}"
-    verifier_result = None
+    verifier_feedback = None
     if args.verifier_response:
-        verifier_result = json.loads(args.verifier_response.read_text(encoding="utf-8"))
+        verifier_feedback = VerifierFeedbackArtifact.from_dict(
+            json.loads(args.verifier_response.read_text(encoding="utf-8"))
+        )
 
     suite = write_prompt_suite(
         epic_dir,
         phase_a_errors=args.phase_a_error or None,
-        verifier_result=verifier_result,
+        verifier_feedback=verifier_feedback,
     )
 
     for name, prompt in suite.items():

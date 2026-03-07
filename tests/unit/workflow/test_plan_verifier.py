@@ -5,7 +5,13 @@ from workflow.artifacts import (
     PlanVerificationResultArtifact,
     VerifierFeedbackArtifact,
 )
-from workflow.plan_verifier import present_decision_gate
+from workflow.plan_verifier import (
+    _extract_dimension_failures,
+    _get_dimensions,
+    _has_extractable_findings,
+    _is_verifier_pass,
+    present_decision_gate,
+)
 
 
 def _write_plan_files(tmp_path: Path) -> Path:
@@ -84,3 +90,49 @@ class TestPresentDecisionGate:
         assert result.reason == "Structural issues remain"
         assert "Phase A errors:" in output
         assert "Story 01 missing checkpoint" in output
+
+
+class TestVerifierFeedbackHelpers:
+    def test_helpers_use_typed_feedback_dimensions(self) -> None:
+        feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "intent_alignment": {
+                        "status": "fail",
+                        "findings": [
+                            {
+                                "severity": "must_fix",
+                                "unaddressed_requirement": "Type the prompt helpers",
+                            }
+                        ],
+                    },
+                    "gap_detection": {
+                        "status": "pass",
+                        "findings": [],
+                    },
+                },
+            }
+        )
+
+        assert _is_verifier_pass(feedback) is False
+        assert _get_dimensions(feedback)["intent_alignment"]["status"] == "fail"
+        assert _extract_dimension_failures(feedback) == ["intent_alignment"]
+        assert _has_extractable_findings(feedback) is True
+
+    def test_helpers_report_no_extractable_findings_without_must_fix_items(self) -> None:
+        feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "validation_sufficiency": {
+                        "status": "fail",
+                        "findings": [{"severity": "note", "weak_check": "just grep"}],
+                    }
+                },
+            }
+        )
+
+        assert _is_verifier_pass(feedback) is False
+        assert _extract_dimension_failures(feedback) == ["validation_sufficiency"]
+        assert _has_extractable_findings(feedback) is False

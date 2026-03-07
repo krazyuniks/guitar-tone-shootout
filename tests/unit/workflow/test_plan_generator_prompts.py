@@ -2,6 +2,7 @@
 
 import json
 
+from workflow.artifacts import VerifierFeedbackArtifact
 from workflow.plan_generator import (
     _build_planner_prompt,
     build_targeted_phase_b_revision_prompt,
@@ -85,48 +86,54 @@ class TestPhaseBRevisionPrompt:
     """Verifier feedback prompt should include all must-fix dimensions."""
 
     def test_gap_sufficiency_findings_are_included(self):
-        verifier_result = {
-            "dimensions": {
-                "gap_sufficiency": {
-                    "status": "fail",
-                    "findings": [
-                        {
-                            "severity": "must_fix",
-                            "missed_gap": "Planner missed the broken source route",
-                        }
-                    ],
-                }
+        verifier_feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "gap_sufficiency": {
+                        "status": "fail",
+                        "findings": [
+                            {
+                                "severity": "must_fix",
+                                "missed_gap": "Planner missed the broken source route",
+                            }
+                        ],
+                    }
+                },
             }
-        }
+        )
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nEpic\n",
             _sample_plan_json(),
-            verifier_result,
+            verifier_feedback,
         )
 
         assert "### Missed Gaps" in prompt
         assert "Planner missed the broken source route" in prompt
 
     def test_revision_prompt_reanchors_to_epic_and_allows_rewrites(self):
-        verifier_result = {
-            "dimensions": {
-                "intent_alignment": {
-                    "status": "fail",
-                    "findings": [
-                        {
-                            "severity": "must_fix",
-                            "unaddressed_requirement": "Use HTMX inline update",
-                        }
-                    ],
-                }
+        verifier_feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "intent_alignment": {
+                        "status": "fail",
+                        "findings": [
+                            {
+                                "severity": "must_fix",
+                                "unaddressed_requirement": "Use HTMX inline update",
+                            }
+                        ],
+                    }
+                },
             }
-        }
+        )
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nUse HTMX\n",
             _sample_plan_json(),
-            verifier_result,
+            verifier_feedback,
         )
 
         assert "## Original Epic Contract" in prompt

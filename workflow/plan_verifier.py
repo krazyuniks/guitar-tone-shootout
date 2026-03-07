@@ -22,6 +22,7 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 from workflow.artifacts import (
     EpicArtifact,
@@ -195,49 +196,22 @@ def _parse_verifier_result(result_output: str) -> VerifierFeedbackArtifact:
     return VerifierFeedbackArtifact.from_dict(data)
 
 
-def _is_verifier_pass(result: dict | VerifierFeedbackArtifact) -> bool:
+def _is_verifier_pass(result: VerifierFeedbackArtifact) -> bool:
     """Check if the verifier result indicates an overall pass."""
-    if isinstance(result, VerifierFeedbackArtifact):
-        return result.status == "pass"
-    return result.get("status") == "pass"
+    return result.status == "pass"
 
 
-def _get_dimensions(result: dict | VerifierFeedbackArtifact) -> dict:
-    """Extract the dimensions dict, handling both nested and flat layouts.
-
-    The verifier prompt asks for ``{"dimensions": {"journey_completeness": ...}}``,
-    but earlier code assumed the dimensions lived at the top level.  Support both.
-    """
-    if isinstance(result, VerifierFeedbackArtifact):
-        return result.dimensions
-    dims = result.get("dimensions")
-    if isinstance(dims, dict):
-        return dims
-    # Fallback: dimensions at top level (legacy)
-    return result
+def _get_dimensions(result: VerifierFeedbackArtifact) -> dict[str, Any]:
+    """Extract the verifier dimensions from a typed feedback artifact."""
+    return result.dimensions
 
 
-def _extract_dimension_failures(result: dict | VerifierFeedbackArtifact) -> list[str]:
+def _extract_dimension_failures(result: VerifierFeedbackArtifact) -> list[str]:
     """Extract a summary of failed dimensions for logging."""
-    if isinstance(result, VerifierFeedbackArtifact):
-        return result.failed_dimensions()
-    dims = _get_dimensions(result)
-    failures = []
-    for dimension in [
-        "journey_completeness",
-        "transition_coverage",
-        "intent_alignment",
-        "gap_detection",
-        "validation_sufficiency",
-        "gap_sufficiency",
-    ]:
-        dim = dims.get(dimension, {})
-        if isinstance(dim, dict) and dim.get("status") == "fail":
-            failures.append(dimension)
-    return failures
+    return result.failed_dimensions()
 
 
-def _has_extractable_findings(result: dict | VerifierFeedbackArtifact) -> bool:
+def _has_extractable_findings(result: VerifierFeedbackArtifact) -> bool:
     """Check whether the verifier result contains any must_fix findings.
 
     Returns False when the verifier reported a fail status but the structured
@@ -245,32 +219,7 @@ def _has_extractable_findings(result: dict | VerifierFeedbackArtifact) -> bool:
     unexpected format). Used to skip planner revision when there is nothing
     actionable to feed back.
     """
-    if isinstance(result, VerifierFeedbackArtifact):
-        return result.has_extractable_findings()
-    dims = _get_dimensions(result)
-    for dimension in [
-        "journey_completeness",
-        "transition_coverage",
-        "intent_alignment",
-        "gap_detection",
-        "validation_sufficiency",
-        "gap_sufficiency",
-    ]:
-        dim = dims.get(dimension, {})
-        if not isinstance(dim, dict) or dim.get("status") != "fail":
-            continue
-        findings = dim.get("findings")
-        if isinstance(findings, list) and any(
-            f.get("severity") == "must_fix" for f in findings if isinstance(f, dict)
-        ):
-            return True
-        if isinstance(findings, dict) and any(findings.values()):
-            return True
-        # Check flat keys (legacy format)
-        for key in ("gaps", "uncovered", "unaddressed_requirements", "scope_creep", "weak_checks"):
-            if dim.get(key):
-                return True
-    return False
+    return result.has_extractable_findings()
 
 
 # ---------------------------------------------------------------------------
@@ -745,7 +694,7 @@ def _regenerate_plan_with_errors(
 
 def _regenerate_plan_with_verifier_feedback(
     epic_dir: Path,
-    verifier_result: dict | VerifierFeedbackArtifact,
+    verifier_feedback: VerifierFeedbackArtifact,
     config: EpicConfig | None = None,
 ) -> None:
     """Re-invoke the planner with Phase B verifier feedback.
@@ -754,15 +703,10 @@ def _regenerate_plan_with_verifier_feedback(
     findings + JSON schema (~25K) instead of rebuilding the full planning
     prompt (~150K).
     """
-    feedback = (
-        verifier_result
-        if isinstance(verifier_result, VerifierFeedbackArtifact)
-        else VerifierFeedbackArtifact.from_dict(verifier_result)
-    )
     request = RevisionRequestArtifact.for_phase_b(
         EpicArtifact.from_epic_dir(epic_dir),
         PlanArtifact.from_path(epic_dir / "plan.json"),
-        feedback,
+        verifier_feedback,
     )
     revision_prompt = make_phase_b_revision_prompt(request).text
 
@@ -833,10 +777,10 @@ def main() -> None:
             print("All 5 dimensions verified successfully.")
         else:
             print(f"\nPlan verification FAILED for epic #{epic_number}")
-            failed = _extract_dimension_failures(
-                verifier_result.verifier_feedback
+            failed = (
+                _extract_dimension_failures(verifier_result.verifier_feedback)
                 if verifier_result.verifier_feedback is not None
-                else {}
+                else []
             )
             if failed:
                 print(f"Failed dimensions: {', '.join(failed)}")
