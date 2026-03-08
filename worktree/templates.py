@@ -486,9 +486,10 @@ def _update_env_encryption_key(env_path: Path) -> None:
     for i, line in enumerate(lines):
         stripped = line.strip()
         if stripped == "OAUTH_ENCRYPTION_KEY=":
-            from cryptography.fernet import Fernet
+            import base64
+            import os
 
-            key = Fernet.generate_key().decode()
+            key = base64.urlsafe_b64encode(os.urandom(32)).decode()
             lines[i] = f"OAUTH_ENCRYPTION_KEY={key}"
             env_path.write_text("\n".join(lines) + "\n")
             return
