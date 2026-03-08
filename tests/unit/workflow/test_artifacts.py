@@ -20,6 +20,9 @@ from workflow.artifacts import (
     PlanVerificationResultArtifact,
     PreflightArtifact,
     PreflightEventArtifact,
+    RepoFactArtifact,
+    RepoFactEvidenceArtifact,
+    RepoFactsArtifact,
     RevisionRequestArtifact,
     RunArtifact,
     RunEventArtifact,
@@ -88,6 +91,34 @@ class TestEpicArtifact:
         assert artifact.epic_number == 146
         assert artifact.body == "## Summary\nTest epic\n"
         assert artifact.prompt_block == "<epic>\n## Summary\nTest epic\n\n</epic>"
+
+
+class TestRepoFactsArtifact:
+    def test_json_round_trip_and_prompt_block_are_deterministic(self, tmp_path) -> None:
+        artifact = RepoFactsArtifact(
+            epic_number=146,
+            current_entry_points=(
+                RepoFactArtifact(
+                    statement="Workflow entry point `just epic 146` is already surfaced in the repo.",
+                    evidence=(
+                        RepoFactEvidenceArtifact(
+                            path="workflow/cli.py",
+                            line=1,
+                            detail="CLI entry point",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        epic_dir = tmp_path / "E146"
+        epic_dir.mkdir()
+
+        path = artifact.write(epic_dir)
+        round_tripped = RepoFactsArtifact.from_epic_dir(epic_dir)
+
+        assert path.read_text(encoding="utf-8") == artifact.json_text
+        assert round_tripped.to_dict() == artifact.to_dict()
+        assert "<repo_facts>" in artifact.prompt_block
 
 
 class TestPlanArtifact:
@@ -907,6 +938,21 @@ class TestRevisionRequestArtifact:
     def test_phase_b_request_serializes_nested_artifacts(self) -> None:
         plan = PlanArtifact.from_dict(_sample_plan())
         epic = EpicArtifact(epic_number=146, body="## Summary\nTest epic\n")
+        repo_facts = RepoFactsArtifact(
+            epic_number=146,
+            likely_edit_targets=(
+                RepoFactArtifact(
+                    statement="`workflow/plan_generator.py` is a likely edit target for this epic.",
+                    evidence=(
+                        RepoFactEvidenceArtifact(
+                            path="workflow/plan_generator.py",
+                            line=1,
+                            detail="Likely edit",
+                        ),
+                    ),
+                ),
+            ),
+        )
         feedback = VerifierFeedbackArtifact.from_dict(
             {
                 "status": "fail",
@@ -919,14 +965,30 @@ class TestRevisionRequestArtifact:
             }
         )
 
-        request = RevisionRequestArtifact.for_phase_b(epic, plan, feedback)
+        request = RevisionRequestArtifact.for_phase_b(epic, repo_facts, plan, feedback)
 
         assert request.to_dict()["epic"]["epic_number"] == 146
+        assert request.to_dict()["repo_facts"]["epic_number"] == 146
         assert request.to_dict()["verifier_feedback"]["status"] == "fail"
 
     def test_phase_b_request_composes_a_prompt_from_typed_artifacts(self) -> None:
         request = RevisionRequestArtifact.for_phase_b(
             EpicArtifact(epic_number=146, body="## Summary\nUse HTMX\n"),
+            RepoFactsArtifact(
+                epic_number=146,
+                current_entry_points=(
+                    RepoFactArtifact(
+                        statement="Workflow entry point `just epic 146` is already surfaced in the repo.",
+                        evidence=(
+                            RepoFactEvidenceArtifact(
+                                path="workflow/cli.py",
+                                line=1,
+                                detail="CLI entry point",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
             PlanArtifact.from_dict(_sample_plan()),
             VerifierFeedbackArtifact.from_dict(
                 {
@@ -950,5 +1012,6 @@ class TestRevisionRequestArtifact:
 
         assert prompt.role == "planner_revision_phase_b"
         assert '"acceptance_criteria": [' in prompt.text
+        assert "## Repo Facts" in prompt.text
         assert "Use HTMX inline update" in prompt.text
         assert "architectural_context" not in prompt.text

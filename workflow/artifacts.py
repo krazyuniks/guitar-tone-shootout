@@ -22,6 +22,13 @@ VERIFIER_DIMENSIONS: tuple[str, ...] = (
 RUN_EVENT_SCHEMA_VERSION = 2
 
 
+def _epic_number_from_dir(epic_dir: Path) -> int:
+    match = re.match(r"^E(\d+)$", epic_dir.name)
+    if not match:
+        raise ValueError(f"Cannot extract epic number from directory name: {epic_dir.name}")
+    return int(match.group(1))
+
+
 @dataclass(frozen=True)
 class EpicArtifact:
     """Epic contract loaded from an epic directory."""
@@ -35,12 +42,8 @@ class EpicArtifact:
         if not epic_path.is_file():
             raise FileNotFoundError(epic_path)
 
-        match = re.match(r"^E(\d+)$", epic_dir.name)
-        if not match:
-            raise ValueError(f"Cannot extract epic number from directory name: {epic_dir.name}")
-
         return cls(
-            epic_number=int(match.group(1)),
+            epic_number=_epic_number_from_dir(epic_dir),
             body=epic_path.read_text(encoding="utf-8"),
         )
 
@@ -53,6 +56,150 @@ class EpicArtifact:
     @property
     def prompt_block(self) -> str:
         return f"<epic>\n{self.body}\n</epic>"
+
+
+@dataclass(frozen=True)
+class RepoFactEvidenceArtifact:
+    """Concrete live-repo evidence backing one repo fact."""
+
+    path: str
+    line: int | None = None
+    detail: str = ""
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "RepoFactEvidenceArtifact":
+        line = payload.get("line")
+        return cls(
+            path=str(payload["path"]),
+            line=int(line) if line is not None else None,
+            detail=str(payload.get("detail", "")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"path": self.path}
+        if self.line is not None:
+            payload["line"] = self.line
+        if self.detail:
+            payload["detail"] = self.detail
+        return payload
+
+
+@dataclass(frozen=True)
+class RepoFactArtifact:
+    """One compact, evidence-backed repo fact relevant to planning."""
+
+    statement: str
+    evidence: tuple[RepoFactEvidenceArtifact, ...]
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "RepoFactArtifact":
+        evidence_payload = payload.get("evidence", [])
+        return cls(
+            statement=str(payload["statement"]),
+            evidence=tuple(
+                RepoFactEvidenceArtifact.from_dict(item)
+                for item in evidence_payload
+                if isinstance(item, dict)
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "statement": self.statement,
+            "evidence": [item.to_dict() for item in self.evidence],
+        }
+
+
+@dataclass(frozen=True)
+class RepoFactsArtifact:
+    """Epic-specific repo facts assembled before planning."""
+
+    epic_number: int
+    current_entry_points: tuple[RepoFactArtifact, ...] = ()
+    relevant_existing_surfaces: tuple[RepoFactArtifact, ...] = ()
+    overlapping_implementations: tuple[RepoFactArtifact, ...] = ()
+    contradicted_assumptions: tuple[RepoFactArtifact, ...] = ()
+    likely_edit_targets: tuple[RepoFactArtifact, ...] = ()
+    schema_v: int = 1
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "RepoFactsArtifact":
+        return cls(
+            schema_v=int(payload.get("schema_v", 1)),
+            epic_number=int(payload["epic_number"]),
+            current_entry_points=tuple(
+                RepoFactArtifact.from_dict(item)
+                for item in payload.get("current_entry_points", [])
+                if isinstance(item, dict)
+            ),
+            relevant_existing_surfaces=tuple(
+                RepoFactArtifact.from_dict(item)
+                for item in payload.get("relevant_existing_surfaces", [])
+                if isinstance(item, dict)
+            ),
+            overlapping_implementations=tuple(
+                RepoFactArtifact.from_dict(item)
+                for item in payload.get("overlapping_implementations", [])
+                if isinstance(item, dict)
+            ),
+            contradicted_assumptions=tuple(
+                RepoFactArtifact.from_dict(item)
+                for item in payload.get("contradicted_assumptions", [])
+                if isinstance(item, dict)
+            ),
+            likely_edit_targets=tuple(
+                RepoFactArtifact.from_dict(item)
+                for item in payload.get("likely_edit_targets", [])
+                if isinstance(item, dict)
+            ),
+        )
+
+    @classmethod
+    def from_path(cls, path: Path) -> "RepoFactsArtifact":
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    @classmethod
+    def from_epic_dir(cls, epic_dir: Path) -> "RepoFactsArtifact":
+        repo_facts_path = epic_dir / "repo_facts.json"
+        if not repo_facts_path.is_file():
+            raise FileNotFoundError(repo_facts_path)
+        artifact = cls.from_path(repo_facts_path)
+        if artifact.epic_number != _epic_number_from_dir(epic_dir):
+            raise ValueError(
+                "repo_facts.json epic_number does not match epic directory "
+                f"{epic_dir.name}: {artifact.epic_number}"
+            )
+        return artifact
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_v": self.schema_v,
+            "epic_number": self.epic_number,
+            "current_entry_points": [item.to_dict() for item in self.current_entry_points],
+            "relevant_existing_surfaces": [
+                item.to_dict() for item in self.relevant_existing_surfaces
+            ],
+            "overlapping_implementations": [
+                item.to_dict() for item in self.overlapping_implementations
+            ],
+            "contradicted_assumptions": [item.to_dict() for item in self.contradicted_assumptions],
+            "likely_edit_targets": [item.to_dict() for item in self.likely_edit_targets],
+        }
+
+    @property
+    def json_text(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False) + "\n"
+
+    @property
+    def prompt_block(self) -> str:
+        return f"<repo_facts>\n{self.json_text.rstrip()}\n</repo_facts>"
+
+    def write(self, epic_dir: Path) -> Path:
+        repo_facts_path = epic_dir / "repo_facts.json"
+        repo_facts_path.write_text(self.json_text, encoding="utf-8")
+        return repo_facts_path
 
 
 def _compact_plan_payload(plan_json: dict[str, Any]) -> dict[str, Any]:
@@ -793,18 +940,21 @@ class RevisionRequestArtifact:
     plan: PlanArtifact
     errors: tuple[str, ...] = ()
     epic: EpicArtifact | None = None
+    repo_facts: RepoFactsArtifact | None = None
     verifier_feedback: VerifierFeedbackArtifact | None = None
 
     def __post_init__(self) -> None:
         if self.phase == "phase_a":
             if not self.errors:
                 raise ValueError("Phase A revision request requires validation errors")
-            if self.epic is not None or self.verifier_feedback is not None:
+            if self.epic is not None or self.repo_facts is not None or self.verifier_feedback is not None:
                 raise ValueError("Phase A revision request only accepts plan + errors")
             return
 
-        if self.epic is None or self.verifier_feedback is None:
-            raise ValueError("Phase B revision request requires epic, plan, and verifier feedback")
+        if self.epic is None or self.repo_facts is None or self.verifier_feedback is None:
+            raise ValueError(
+                "Phase B revision request requires epic, repo_facts, plan, and verifier feedback"
+            )
         if self.errors:
             raise ValueError("Phase B revision request does not accept validation errors")
 
@@ -824,12 +974,14 @@ class RevisionRequestArtifact:
     def for_phase_b(
         cls,
         epic: EpicArtifact,
+        repo_facts: RepoFactsArtifact,
         plan: PlanArtifact,
         verifier_feedback: VerifierFeedbackArtifact,
     ) -> "RevisionRequestArtifact":
         return cls(
             phase="phase_b",
             epic=epic,
+            repo_facts=repo_facts,
             plan=plan,
             verifier_feedback=verifier_feedback,
         )
@@ -843,6 +995,8 @@ class RevisionRequestArtifact:
             data["errors"] = list(self.errors)
         if self.epic is not None:
             data["epic"] = self.epic.to_dict()
+        if self.repo_facts is not None:
+            data["repo_facts"] = self.repo_facts.to_dict()
         if self.verifier_feedback is not None:
             data["verifier_feedback"] = self.verifier_feedback.to_dict()
         return data

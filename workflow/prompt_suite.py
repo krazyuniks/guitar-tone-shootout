@@ -9,6 +9,7 @@ from pathlib import Path
 from workflow.artifacts import (
     EpicArtifact,
     PlanArtifact,
+    RepoFactsArtifact,
     RevisionRequestArtifact,
     VerifierFeedbackArtifact,
 )
@@ -33,7 +34,10 @@ def _read_plan(path: Path) -> PlanArtifact:
 
 def compile_planner_prompt(epic_dir: Path) -> PromptArtifact:
     """Compile the planner prompt for an epic directory."""
-    return make_planner_prompt(EpicArtifact.from_epic_dir(epic_dir))
+    return make_planner_prompt(
+        EpicArtifact.from_epic_dir(epic_dir),
+        RepoFactsArtifact.from_epic_dir(epic_dir),
+    )
 
 
 def compile_verifier_prompt(epic_dir: Path) -> PromptArtifact:
@@ -41,6 +45,7 @@ def compile_verifier_prompt(epic_dir: Path) -> PromptArtifact:
     return make_verifier_prompt(
         _read_plan(epic_dir / "plan.json"),
         EpicArtifact.from_epic_dir(epic_dir),
+        RepoFactsArtifact.from_epic_dir(epic_dir),
     )
 
 
@@ -62,6 +67,7 @@ def compile_phase_b_revision_prompt(
     return make_phase_b_revision_prompt(
         RevisionRequestArtifact.for_phase_b(
             EpicArtifact.from_epic_dir(epic_dir),
+            RepoFactsArtifact.from_epic_dir(epic_dir),
             _read_plan(epic_dir / "plan.json"),
             verifier_feedback,
         )

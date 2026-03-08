@@ -92,18 +92,7 @@ def dispatch_and_parse():
     from workflow.dispatch import dispatch_agent
     from workflow.plan_generator import _build_planner_prompt
 
-    context = """\
-# Epic Context
-**Assembled:** 2026-01-01T00:00:00Z
-**Detected Areas:** data_model, api_contract
-
-## Epic Description
----
-github_issue: 999
-title: "Add Gear Tags"
-state: OPEN
-labels: ["epic"]
----
+    epic_md = """\
 ## Epic: Add Gear Tags
 Add tagging to gear items so users can organise and filter their collection.
 ### Scope
@@ -113,19 +102,31 @@ Add tagging to gear items so users can organise and filter their collection.
 - Gear list page can filter by tag
 ### Pre-requisites
 Gear CRUD complete.
----
-## Codebase Structure
-apps/webapp/src/webapp/main.py — FastAPI app
-apps/webapp/src/webapp/routes/ — route modules
-libs/core/src/gts_core/gear/ — gear domain
-apps/webapp/src/webapp/templates/ — Jinja2 templates
----
-## Wiki Indexes Available
-- GTS-Technical-Architecture.index
-- Frontend-Architecture.index
 """
+    repo_facts = {
+        "schema_v": 1,
+        "epic_number": 999,
+        "current_entry_points": [
+            {
+                "statement": "Workflow entry point `just epic 999` is already surfaced in the repo.",
+                "evidence": [{"path": "workflow/cli.py", "line": 1, "detail": "CLI entry point"}],
+            }
+        ],
+        "relevant_existing_surfaces": [
+            {
+                "statement": "`apps/webapp/src/webapp/routes/` already exists as a live repo surface.",
+                "evidence": [
+                    {
+                        "path": "apps/webapp/src/webapp/routes/__init__.py",
+                        "line": 1,
+                        "detail": "File exists",
+                    }
+                ],
+            }
+        ],
+    }
 
-    prompt = _build_planner_prompt(context=context, epic_number=999)
+    prompt = _build_planner_prompt(epic_md=epic_md, repo_facts=repo_facts, epic_number=999)
 
     if "--dry-run" in sys.argv:
         print(prompt)

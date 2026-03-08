@@ -3,7 +3,7 @@
 The main entry point for the V3 behavioural-validation epic workflow.
 Provides two primary functions:
 
-    run_pipeline(epic_number) — full pipeline: ingest -> plan -> execute
+    run_pipeline(epic_number) — full pipeline: ingest -> repo-facts -> plan -> execute
     show_status(epic_number) — read-only JSONL inspection
 
 The orchestrator is stateless: it reads JSONL logs, determines the
@@ -1480,7 +1480,7 @@ def _run_epic_loop(
 
 
 # ---------------------------------------------------------------------------
-# Full pipeline: run_pipeline (unified entry point for ./wf epic N)
+# Full pipeline: run_pipeline (unified entry point for `just epic N`)
 # ---------------------------------------------------------------------------
 
 
@@ -1540,7 +1540,7 @@ def show_status(epic_number: int) -> None:
 
     artefacts = {
         "EPIC.md": epic_dir / "EPIC.md",
-        "CONTEXT.md": epic_dir / "CONTEXT.md",
+        "repo_facts.json": epic_dir / "repo_facts.json",
         "PLAN.md": epic_dir / "PLAN.md",
         "plan.json": epic_dir / "plan.json",
         "epic.jsonl": epic_dir / "epic.jsonl",
@@ -1558,7 +1558,7 @@ def show_status(epic_number: int) -> None:
 
     if not has_plan:
         print("\nPipeline stage: PLANNING (no plan.json)")
-        print(f"Run: ./wf epic {epic_number}")
+        print(f"Run: just epic {epic_number}")
         return
 
     plan = json.loads((epic_dir / "plan.json").read_text(encoding="utf-8"))
@@ -1567,7 +1567,7 @@ def show_status(epic_number: int) -> None:
     if not has_epic_log:
         print("\nPipeline stage: PLANNED (plan exists, no execution log)")
         print(f"Plan has {len(stories)} stories.")
-        print(f"Run: ./wf epic {epic_number}")
+        print(f"Run: just epic {epic_number}")
         return
 
     # Read JSONL logs

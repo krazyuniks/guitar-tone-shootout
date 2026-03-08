@@ -20,6 +20,7 @@ from pathlib import Path
 from workflow.artifacts import (
     EpicArtifact,
     PlanArtifact,
+    RepoFactsArtifact,
     RevisionRequestArtifact,
     VerifierFeedbackArtifact,
 )
@@ -58,7 +59,7 @@ def _read_epic_md(epic_dir: Path) -> str:
         epic_path = epic_dir / "EPIC.md"
         raise PlanGenerationError(
             f"EPIC.md not found at {epic_path}. "
-            "Run ingestion first: ./wf epic run <number>"
+            "Run ingestion first with `just epic <number>`."
         )
     except ValueError as exc:
         raise PlanGenerationError(str(exc)) from exc
@@ -73,6 +74,20 @@ def _read_epic_number(epic_dir: Path) -> int:
         if match:
             return int(match.group(1))
         raise PlanGenerationError(f"Cannot extract epic number from directory name: {epic_dir.name}")
+    except ValueError as exc:
+        raise PlanGenerationError(str(exc)) from exc
+
+
+def _read_repo_facts(epic_dir: Path) -> RepoFactsArtifact:
+    """Read repo_facts.json from the epic directory."""
+    try:
+        return RepoFactsArtifact.from_epic_dir(epic_dir)
+    except FileNotFoundError:
+        repo_facts_path = epic_dir / "repo_facts.json"
+        raise PlanGenerationError(
+            f"repo_facts.json not found at {repo_facts_path}. "
+            "Run repo-facts generation after ingestion before planning."
+        )
     except ValueError as exc:
         raise PlanGenerationError(str(exc)) from exc
 
@@ -98,8 +113,8 @@ recipe or `just tdd <path> -k <test>`. Weak checks like bare 200s, greps, or
 "button exists" checks are not enough when the epic requires a real journey."""
 
 
-def make_planner_prompt(epic: EpicArtifact):
-    """Compile the planner prompt from a typed epic artifact."""
+def make_planner_prompt(epic: EpicArtifact, repo_facts: RepoFactsArtifact):
+    """Compile the planner prompt from typed epic workflow artifacts."""
     return make_prompt_artifact(
         role="planner",
         sections=[
@@ -117,6 +132,7 @@ def make_planner_prompt(epic: EpicArtifact):
                 ),
             ),
             PromptSection("## Epic Contract", epic.prompt_block),
+            PromptSection("## Repo Facts", repo_facts.prompt_block),
             PromptSection(
                 "## Self-Check Before Emitting JSON",
                 """- Count your observable truths and confirm every ID appears in at least one
@@ -249,17 +265,21 @@ Think through the repo state carefully, then emit the JSON object.""",
 
 def _build_planner_prompt(
     epic_md: str,
+    repo_facts: dict[str, object],
     epic_number: int,
 ) -> str:
     """Construct the planner prompt.
 
-    The planner is a tool-equipped agent. It receives only the epic body
-    and JSON schema, and explores the codebase using tools (Read, Grep,
-    Glob) to find actual files, services, models, and routes.
+    The planner is a tool-equipped agent. It receives the epic body,
+    repo-facts, and the JSON schema, then explores the codebase using tools
+    to verify and extend those grounded inputs.
 
     PLAN.md is rendered deterministically from the validated model.
     """
-    return make_planner_prompt(EpicArtifact(epic_number=epic_number, body=epic_md)).text
+    return make_planner_prompt(
+        EpicArtifact(epic_number=epic_number, body=epic_md),
+        RepoFactsArtifact.from_dict({"epic_number": epic_number, **repo_facts}),
+    ).text
 
 
 # ---------------------------------------------------------------------------
@@ -511,6 +531,7 @@ def make_phase_b_revision_prompt(request: RevisionRequestArtifact):
 
     findings_text = "\n".join(feedback_lines) if feedback_lines else "(no specific findings)"
     assert request.epic is not None
+    assert request.repo_facts is not None
     return make_prompt_artifact(
         role="planner_revision_phase_b",
         sections=[
@@ -523,6 +544,7 @@ def make_phase_b_revision_prompt(request: RevisionRequestArtifact):
                 ),
             ),
             PromptSection("## Original Epic Contract", request.epic.prompt_block),
+            PromptSection("## Repo Facts", request.repo_facts.prompt_block),
             PromptSection(
                 "## Rules",
                 """1. The epic contract wins over the current plan.
@@ -550,16 +572,18 @@ Do NOT omit any existing fields unless you are replacing them with corrected con
 
 def build_targeted_phase_b_revision_prompt(
     epic_md: str,
+    repo_facts_json_str: str,
     plan_json_str: str,
     verifier_feedback: VerifierFeedbackArtifact,
 ) -> str:
     """Build a targeted Phase B revision prompt.
 
-    Sends the original epic contract + current plan.json + must_fix findings.
+    Sends the original epic contract + repo_facts.json + current plan.json + must_fix findings.
     """
     plan = PlanArtifact.from_json_text(plan_json_str)
     request = RevisionRequestArtifact.for_phase_b(
         EpicArtifact(epic_number=plan.epic_number, body=epic_md),
+        RepoFactsArtifact.from_dict(json.loads(repo_facts_json_str)),
         plan,
         verifier_feedback,
     )
@@ -610,7 +634,7 @@ def generate_plan(
     """Generate PLAN.md and plan.json from the epic body.
 
     The planner is dispatched as a tool-equipped agent that explores the
-    codebase itself. It receives only the epic body and JSON schema.
+    codebase itself. It receives the epic body, repo_facts, and JSON schema.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -626,15 +650,16 @@ def generate_plan(
     """
     try:
         epic = EpicArtifact.from_epic_dir(epic_dir)
+        repo_facts = _read_repo_facts(epic_dir)
     except FileNotFoundError:
         epic_path = epic_dir / "EPIC.md"
         raise PlanGenerationError(
             f"EPIC.md not found at {epic_path}. "
-            "Run ingestion first: ./wf epic run <number>"
+            "Run ingestion first with `just epic <number>`."
         )
     except ValueError as exc:
         raise PlanGenerationError(str(exc)) from exc
-    prompt_artifact = make_planner_prompt(epic)
+    prompt_artifact = make_planner_prompt(epic, repo_facts)
     prompt = prompt_artifact.text
 
     prompt_tokens = len(prompt) // 4

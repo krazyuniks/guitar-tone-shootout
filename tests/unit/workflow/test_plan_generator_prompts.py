@@ -50,19 +50,49 @@ def _sample_plan_json() -> str:
     )
 
 
+def _sample_repo_facts_json() -> str:
+    return json.dumps(
+        {
+            "schema_v": 1,
+            "epic_number": 146,
+            "current_entry_points": [
+                {
+                    "statement": "Workflow entry point `just epic 146` is already surfaced in the repo.",
+                    "evidence": [
+                        {"path": "workflow/cli.py", "line": 1, "detail": "CLI entry point"}
+                    ],
+                }
+            ],
+            "likely_edit_targets": [
+                {
+                    "statement": "`workflow/prompt_suite.py` is a likely edit target for this epic.",
+                    "evidence": [
+                        {"path": "workflow/prompt_suite.py", "line": 1, "detail": "Likely edit"}
+                    ],
+                }
+            ],
+        }
+    )
+
+
 class TestPlannerPrompt:
     """Planner prompt should push the model toward verifier-grade plans."""
 
     def test_epic_contract_is_present_and_schema_dump_is_not(self):
-        prompt = _build_planner_prompt("## Summary\nTest epic\n", 146)
+        prompt = _build_planner_prompt(
+            "## Summary\nTest epic\n", json.loads(_sample_repo_facts_json()), 146
+        )
 
         assert "## Epic Contract" in prompt
+        assert "## Repo Facts" in prompt
         assert "<json_schema>" not in prompt
         assert "Output only a single JSON object matching the provided schema." in prompt
         assert "Use the StructuredOutput tool for the" in prompt
 
     def test_self_check_requires_route_transition_and_transport_validation(self):
-        prompt = _build_planner_prompt("## Summary\nTest epic\n", 146)
+        prompt = _build_planner_prompt(
+            "## Summary\nTest epic\n", json.loads(_sample_repo_facts_json()), 146
+        )
 
         assert "entry point and source page/state" in prompt
         assert "source page/state renders, transition mechanism works" in prompt
@@ -70,14 +100,18 @@ class TestPlannerPrompt:
         assert "redirect mechanism and the renderability of the destination page" in prompt
 
     def test_journey_and_checkpoint_guidance_mentions_source_to_target_coverage(self):
-        prompt = _build_planner_prompt("## Summary\nTest epic\n", 146)
+        prompt = _build_planner_prompt(
+            "## Summary\nTest epic\n", json.loads(_sample_repo_facts_json()), 146
+        )
 
         assert "Do NOT invent entry points or source pages without tool evidence" in prompt
         assert "the source page/state renders with the expected control" in prompt
         assert "the target page/state renders correctly afterward" in prompt
 
     def test_dead_dependency_summary_metadata_is_not_requested(self):
-        prompt = _build_planner_prompt("## Summary\nTest epic\n", 146)
+        prompt = _build_planner_prompt(
+            "## Summary\nTest epic\n", json.loads(_sample_repo_facts_json()), 146
+        )
 
         assert "depends_on_summary" not in prompt
 
@@ -105,6 +139,7 @@ class TestPhaseBRevisionPrompt:
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nEpic\n",
+            _sample_repo_facts_json(),
             _sample_plan_json(),
             verifier_feedback,
         )
@@ -132,11 +167,13 @@ class TestPhaseBRevisionPrompt:
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nUse HTMX\n",
+            _sample_repo_facts_json(),
             _sample_plan_json(),
             verifier_feedback,
         )
 
         assert "## Original Epic Contract" in prompt
+        assert "## Repo Facts" in prompt
         assert "The epic contract wins over the current plan." in prompt
         assert (
             "You MAY rewrite any affected story, journey, checkpoint, or validation path." in prompt

@@ -1,12 +1,11 @@
 """Typer CLI for the epic workflow pipeline.
 
 Provides subcommand routing for:
-  ./wf epic run N           — Full pipeline: ingest -> context -> plan -> verify -> gate -> execute
-  ./wf epic status N        — Show progress from JSONL logs
-  ./wf epic validate-plan N — Run Phase A deterministic validation only (read-only)
-  ./wf map codebase         — Regenerate .planning/codebase/ files
-  ./wf map wiki             — Regenerate .planning/wiki-indexes/
-  ./wf map all              — Both of the above
+  just epic N               — Full pipeline: ingest -> repo-facts -> plan -> verify -> gate -> execute
+  just epic-status N        — Show progress from JSONL logs
+  just epic-validate-plan N — Run Phase A deterministic validation only (read-only)
+  just map-codebase         — Regenerate .planning/codebase/ files
+  just index-wiki           — Regenerate .planning/wiki-indexes/
 """
 
 from __future__ import annotations
@@ -226,7 +225,7 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
 
 
 def _run_planning_pipeline(epic_number: int) -> None:
-    """Run Steps 1-6 of the planning pipeline: ingest -> commit+push.
+    """Run the planning pipeline from ingest through commit+push.
 
     This is the Stage 3 planning pipeline. Called by the orchestrator's
     run_pipeline() which then continues to Stage 4 execution.
@@ -271,14 +270,15 @@ def _run_planning_steps(
     config,
     epic_logger,
 ) -> None:
-    """Execute Steps 1-4 of the planning pipeline (wrapped in dispatch_logging).
+    """Execute the planning pipeline until commit (wrapped in dispatch_logging).
 
-    Pipeline (2 agent dispatches):
+    Pipeline:
       1. Ingest — fetch epic from GitHub
-      2. Plan — agent explores codebase, breaks epic into stories
-      3. Verify — Phase A (deterministic) + Phase B (cross-model critique)
-      4. Decision Gate — human approval
-      5. Commit + Push
+      2. Repo Facts — deterministically inspect the repo for epic-specific grounding
+      3. Plan — agent explores codebase, breaks epic into stories
+      4. Verify — Phase A (deterministic) + Phase B (cross-model critique)
+      5. Decision Gate — human approval
+      6. Commit + Push
     """
     from workflow.artifacts import (
         PhaseAValidationEventArtifact,
@@ -296,6 +296,7 @@ def _run_planning_steps(
         present_decision_gate,
         verify_with_revision_cycle,
     )
+    from workflow.repo_facts import build_repo_facts
 
     # Step 1: Ingestion
     epic_md_path = epic_dir / "EPIC.md"
@@ -310,13 +311,26 @@ def _run_planning_steps(
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 2: Plan Generation
+    # Step 2: Repo Facts
+    repo_facts_path = epic_dir / "repo_facts.json"
+    if _should_skip(repo_facts_path, "repo_facts.json"):
+        console.print("[dim]Step 2: Repo Facts — skipped[/dim]")
+    else:
+        console.print("[bold]Step 2:[/bold] Building repo facts...")
+        try:
+            path = build_repo_facts(epic_dir)
+            console.print(f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)}")
+        except (FileNotFoundError, ValueError) as exc:
+            console.print(f"  [red]Error:[/red] {exc}")
+            raise typer.Exit(1) from exc
+
+    # Step 3: Plan Generation
     plan_json_path = epic_dir / "plan.json"
     plan_md_path = epic_dir / "PLAN.md"
     if _should_skip(plan_json_path, "plan.json"):
-        console.print("[dim]Step 2: Plan Generation — skipped[/dim]")
+        console.print("[dim]Step 3: Plan Generation — skipped[/dim]")
     else:
-        console.print("[bold]Step 2:[/bold] Generating plan...")
+        console.print("[bold]Step 3:[/bold] Generating plan...")
 
         planner_dispatch = PlannerDispatchedArtifact(
             epic_number=epic_number,
@@ -349,10 +363,10 @@ def _run_planning_steps(
             console.print(f"  [red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
 
-    # Step 3: Verification (structural validation + cross-model review)
+    # Step 4: Verification (structural validation + cross-model review)
     critic_model = config.models.plan_critic if config else "codex"
     console.print()
-    console.print("[bold]Step 3:[/bold] Verifying plan...")
+    console.print("[bold]Step 4:[/bold] Verifying plan...")
 
     try:
         verification_result, success = verify_with_revision_cycle(epic_dir, config=config)
@@ -399,7 +413,7 @@ def _run_planning_steps(
         console.print("\n  Review findings at the Decision Gate below.")
         # Fall through to Decision Gate — human can still approve
 
-    # Step 4: Decision Gate
+    # Step 5: Decision Gate
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
 
@@ -421,89 +435,14 @@ def _run_planning_steps(
     elif gate_result.needs_revision:
         decision = PlanDecisionArtifact(epic_number=epic_number, decision="revised")
         epic_logger.log_event(decision.event_name, **decision.event_payload)
-
-        # Feed remaining verifier findings back to planner for another revision
-        from workflow.plan_validator import validate_plan
-        from workflow.plan_verifier import _regenerate_plan_with_verifier_feedback
-
-        # Snapshot before revision so we can restore if it breaks
-        plan_json_path = epic_dir / "plan.json"
-        snapshot_json = plan_json_path.read_text(encoding="utf-8")
-        snapshot_md = plan_md_path.read_text(encoding="utf-8") if plan_md_path.exists() else ""
-
-        console.print("\n[yellow]Revising plan with verifier findings...[/yellow]")
-        verifier_feedback = verification_result.verifier_feedback
-        if verifier_feedback is None:
-            console.print(
-                "  [yellow]No Phase B feedback is available for auto-revision.[/yellow]\n"
-                "  Fix the structural issues in plan.json/PLAN.md and re-run the verifier."
-            )
-            return
-        try:
-            _regenerate_plan_with_verifier_feedback(epic_dir, verifier_feedback, config=config)
-        except PlanGenerationError as exc:
-            console.print(f"  [red]Revision failed:[/red] {exc}")
-            console.print("  Restoring pre-revision plan.")
-            plan_json_path.write_text(snapshot_json, encoding="utf-8")
-            if snapshot_md:
-                plan_md_path.write_text(snapshot_md, encoding="utf-8")
-            return
-
-        # Re-validate structural checks (must still pass)
-        console.print("  Running structural validation on revised plan...")
-        phase_a_result = validate_plan(epic_dir)
-        if not phase_a_result.valid:
-            console.print(
-                f"  [red]Structural validation failed after revision"
-                f" ({len(phase_a_result.errors)} errors). Restoring pre-revision plan.[/red]"
-            )
-            for err in phase_a_result.errors:
-                console.print(f"    • [red]{err.check}:[/red] {err.message}")
-            plan_json_path.write_text(snapshot_json, encoding="utf-8")
-            if snapshot_md:
-                plan_md_path.write_text(snapshot_md, encoding="utf-8")
-            return
-
-        console.print("  [green]Structural validation passed.[/green]")
-
-        # Re-run verifier on the revised plan
-        from workflow.plan_verifier import verify_plan
-
-        console.print(f"  Running {critic_model} verifier on revised plan...")
-        try:
-            verifier_feedback = verify_plan(epic_dir, config=config)
-        except PlanVerificationError as exc:
-            console.print(f"  [yellow]Verifier failed:[/yellow] {exc}")
-            console.print("  Presenting gate with previous findings.")
-            verifier_feedback = verification_result.verifier_feedback
-            if verifier_feedback is None:
-                console.print("  [red]No verifier feedback is available to present.[/red]")
-                return
-
-        # Present the gate again with fresh verifier results
-        gate_result = present_decision_gate(plan_md_path, verifier_feedback)
-        if gate_result.approved:
-            decision = PlanDecisionArtifact(epic_number=epic_number, decision="approved")
-            epic_logger.log_event(decision.event_name, **decision.event_payload)
-            console.print("\n[green]Plan approved.[/green]")
-        elif gate_result.rejected:
-            rejection = PlanDecisionArtifact.for_rejection(
-                epic_number,
-                gate_result.reason,
-                verifier_feedback,
-            )
-            epic_logger.log_event(rejection.event_name, **rejection.event_payload)
-            console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
-            return
-        else:
-            # Second revise — fall back to manual
-            console.print(
-                "\n[yellow]Plan marked for manual revision.[/yellow]\n"
-                "  Edit plan.json and PLAN.md, then re-run:\n"
-                f"    ./wf epic validate-plan {epic_number}\n"
-                f"    ./wf epic {epic_number}"
-            )
-            return
+        console.print(
+            "\n[yellow]Plan marked for manual revision.[/yellow]\n"
+            "  The automatic planner revision budget is already exhausted before the human gate.\n"
+            "  Review repo_facts.json, plan.json, and PLAN.md, then re-run:\n"
+            f"    just epic-validate-plan {epic_number}\n"
+            f"    just epic {epic_number}"
+        )
+        return
     elif gate_result.rejected:
         rejection = PlanDecisionArtifact.for_rejection(
             epic_number,
@@ -514,9 +453,9 @@ def _run_planning_steps(
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
         return
 
-    # Step 5: Commit + Push
+    # Step 6: Commit + Push
     console.print()
-    console.print("[bold]Step 5:[/bold] Committing planning artefacts...")
+    console.print("[bold]Step 6:[/bold] Committing planning artefacts...")
 
     planning_paths = [
         str(epic_dir.relative_to(PROJECT_ROOT)),
@@ -562,7 +501,7 @@ def _run_planning_steps(
 def epic_run(
     epic_number: int = typer.Argument(..., help="Epic number to run the full pipeline for."),
 ) -> None:
-    """Run the full epic pipeline: ingest -> plan -> verify -> gate -> execute."""
+    """Run the full epic pipeline: ingest -> repo-facts -> plan -> verify -> gate -> execute."""
     import logging
 
     from workflow.orchestrator import run_pipeline

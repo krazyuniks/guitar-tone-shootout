@@ -17,6 +17,35 @@ def _write_epic_dir(tmp_path):
     epic_dir = tmp_path / "E146"
     epic_dir.mkdir()
     (epic_dir / "EPIC.md").write_text("## Summary\nTest epic\n", encoding="utf-8")
+    (epic_dir / "repo_facts.json").write_text(
+        json.dumps(
+            {
+                "schema_v": 1,
+                "epic_number": 146,
+                "current_entry_points": [
+                    {
+                        "statement": "Workflow entry point `just epic 146` is already surfaced in the repo.",
+                        "evidence": [
+                            {"path": "workflow/cli.py", "line": 1, "detail": "CLI entry point"}
+                        ],
+                    }
+                ],
+                "likely_edit_targets": [
+                    {
+                        "statement": "`workflow/plan_generator.py` is a likely edit target for this epic.",
+                        "evidence": [
+                            {
+                                "path": "workflow/plan_generator.py",
+                                "line": 1,
+                                "detail": "Likely edit",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     (epic_dir / "plan.json").write_text(
         json.dumps(
             {
@@ -129,3 +158,4 @@ class TestPromptSuite:
         )
         assert "planner_revision_phase_b" in suite
         assert "Route never reaches page" in written_prompt
+        assert "## Repo Facts" in written_prompt

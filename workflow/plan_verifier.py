@@ -28,6 +28,7 @@ from workflow.artifacts import (
     EpicArtifact,
     PlanArtifact,
     PlanVerificationResultArtifact,
+    RepoFactsArtifact,
     RevisionRequestArtifact,
     VerifierFeedbackArtifact,
 )
@@ -69,6 +70,7 @@ class PlanVerificationError(Exception):
 def make_verifier_prompt(
     plan: PlanArtifact,
     epic: EpicArtifact,
+    repo_facts: RepoFactsArtifact,
 ):
     """Compile the verifier prompt from typed workflow artifacts."""
     return make_prompt_artifact(
@@ -92,6 +94,7 @@ def make_verifier_prompt(
                 "## Input 2: Generated Plan (review slice)",
                 render_json_block("plan", plan.review_payload),
             ),
+            PromptSection("## Input 3: Repo Facts", repo_facts.prompt_block),
             PromptSection(
                 "## Verification Dimensions",
                 """### Severity Classification
@@ -158,17 +161,18 @@ Be rigorous but fair. Flag real issues, not stylistic preferences.""",
 def _build_verifier_prompt(
     plan_json: dict,
     epic_md: str,
+    repo_facts_json: dict[str, Any],
 ) -> str:
     """Construct the Codex verifier prompt with cross-model framing.
 
-    The verifier receives only the plan.json and the original epic body.
-    The plan already contains scope, acceptance criteria, and architectural
-    context — no need for the bloated CONTEXT.md.
+    The verifier receives the plan.json, original epic body, and repo-facts.
+    These grounded inputs replace the old planning-context dependency.
     """
     plan = PlanArtifact.from_dict(plan_json)
     return make_verifier_prompt(
         plan,
         EpicArtifact(epic_number=plan.epic_number, body=epic_md),
+        RepoFactsArtifact.from_dict(repo_facts_json),
     ).text
 
 
@@ -463,16 +467,20 @@ def _verify_plan_artifact(
     """Run Phase B verification and return a typed verifier feedback artifact."""
     plan_json_path = epic_dir / "plan.json"
     epic_md_path = epic_dir / "EPIC.md"
+    repo_facts_path = epic_dir / "repo_facts.json"
 
     if not plan_json_path.is_file():
         raise PlanVerificationError(f"plan.json not found at {plan_json_path}")
     if not epic_md_path.is_file():
         raise PlanVerificationError(f"EPIC.md not found at {epic_md_path}")
+    if not repo_facts_path.is_file():
+        raise PlanVerificationError(f"repo_facts.json not found at {repo_facts_path}")
 
     plan = PlanArtifact.from_path(plan_json_path)
     epic = EpicArtifact.from_epic_dir(epic_dir)
+    repo_facts = RepoFactsArtifact.from_path(repo_facts_path)
 
-    prompt = make_verifier_prompt(plan, epic).text
+    prompt = make_verifier_prompt(plan, epic, repo_facts).text
 
     critic_model = config.models.plan_critic if config else "opus"
 
@@ -705,6 +713,7 @@ def _regenerate_plan_with_verifier_feedback(
     """
     request = RevisionRequestArtifact.for_phase_b(
         EpicArtifact.from_epic_dir(epic_dir),
+        RepoFactsArtifact.from_epic_dir(epic_dir),
         PlanArtifact.from_path(epic_dir / "plan.json"),
         verifier_feedback,
     )

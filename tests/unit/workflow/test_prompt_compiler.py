@@ -58,6 +58,27 @@ def _sample_plan() -> dict:
     }
 
 
+def _sample_repo_facts() -> dict:
+    return {
+        "schema_v": 1,
+        "epic_number": 146,
+        "current_entry_points": [
+            {
+                "statement": "Workflow entry point `just epic 146` is already surfaced in the repo.",
+                "evidence": [{"path": "workflow/cli.py", "line": 1, "detail": "CLI entry point"}],
+            }
+        ],
+        "likely_edit_targets": [
+            {
+                "statement": "`workflow/plan_verifier.py` is a likely edit target for this epic.",
+                "evidence": [
+                    {"path": "workflow/plan_verifier.py", "line": 1, "detail": "Likely edit"}
+                ],
+            }
+        ],
+    }
+
+
 class TestPromptArtifact:
     def test_prompt_artifact_exposes_sections_and_text(self) -> None:
         artifact = make_prompt_artifact(
@@ -95,9 +116,10 @@ class TestCompactPlanForReview:
 
 class TestCompiledVerifierPrompt:
     def test_verifier_prompt_uses_compact_plan_slice(self) -> None:
-        prompt = _build_verifier_prompt(_sample_plan(), "## Summary\nEpic\n")
+        prompt = _build_verifier_prompt(_sample_plan(), "## Summary\nEpic\n", _sample_repo_facts())
 
         assert "## Input 2: Generated Plan (review slice)" in prompt
+        assert "## Input 3: Repo Facts" in prompt
         assert '"acceptance_criteria": [' in prompt
         assert '"validation_checkpoints": [' in prompt
         assert "architectural_context" not in prompt
@@ -125,11 +147,13 @@ class TestCompiledRevisionPrompt:
 
         prompt = build_targeted_phase_b_revision_prompt(
             "## Summary\nEpic\n",
+            json.dumps(_sample_repo_facts()),
             json.dumps(_sample_plan()),
             verifier_feedback,
         )
 
         assert "## Current Plan" in prompt
+        assert "## Repo Facts" in prompt
         assert "architectural_context" not in prompt
         assert "implementation_notes" not in prompt
         assert "Use the StructuredOutput tool for the final answer." in prompt
