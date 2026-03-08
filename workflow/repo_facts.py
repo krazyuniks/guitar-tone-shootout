@@ -29,7 +29,6 @@ SEARCHABLE_SUFFIXES = {
     ".js",
     ".json",
     ".jsonl",
-    ".md",
     ".py",
     ".sql",
     ".toml",
@@ -39,12 +38,15 @@ SEARCHABLE_SUFFIXES = {
     ".yml",
 }
 SEARCHABLE_FILENAMES = {
-    "AGENTS.md",
-    "DEVELOPMENT.md",
     "Dockerfile",
     "Justfile",
     "justfile",
     "pyproject.toml",
+}
+SKIP_TOP_LEVEL_DIR_NAMES = {
+    ".agents",
+    ".claude",
+    ".serena",
 }
 SKIP_DIR_NAMES = {
     ".git",
@@ -169,9 +171,7 @@ def _build_search_index(project_root: Path) -> list[SearchableFile]:
     for path in sorted(project_root.rglob("*")):
         if path.is_dir():
             continue
-        if any(part in SKIP_DIR_NAMES for part in path.parts):
-            continue
-        if ".planning" in path.parts and "dispatches" in path.parts:
+        if _should_skip_search_path(path):
             continue
         if path.suffix not in SEARCHABLE_SUFFIXES and path.name not in SEARCHABLE_FILENAMES:
             continue
@@ -188,6 +188,19 @@ def _build_search_index(project_root: Path) -> list[SearchableFile]:
             )
         )
     return files
+
+
+def _should_skip_search_path(path: Path) -> bool:
+    if any(part in SKIP_DIR_NAMES for part in path.parts):
+        return True
+    if any(part in SKIP_TOP_LEVEL_DIR_NAMES for part in path.parts):
+        return True
+    if ".planning" not in path.parts:
+        return False
+
+    planning_index = path.parts.index(".planning")
+    planning_tail = path.parts[planning_index + 1 :]
+    return not planning_tail or planning_tail[0] != "codebase"
 
 
 def _extract_terms(
@@ -235,7 +248,11 @@ def _is_keyword_candidate(value: str) -> bool:
     token = value.strip().strip(".,:;()[]{}").lower()
     if not token or "/" in token or token in STOPWORDS:
         return False
-    return len(token) >= 5
+    if len(token) < 5:
+        return False
+    if "_" in token or "." in token:
+        return True
+    return any(ch.isupper() for ch in value[1:]) or any(ch.isdigit() for ch in value)
 
 
 def _unique_sorted(values: list[str], predicate) -> list[str]:
@@ -362,9 +379,11 @@ def _build_contradiction_facts(
         if (project_root / candidate).exists():
             continue
         basename = Path(candidate).name
-        alt_hits = [SearchHit(path=path.relative_to(project_root).as_posix(), line=1, detail="Nearby path exists")
-                    for path in sorted(project_root.rglob(basename))
-                    if path.is_file() and ".git" not in path.parts][:3]
+        alt_hits = [
+            SearchHit(path=search_file.path, line=1, detail="Nearby path exists")
+            for search_file in search_files
+            if Path(search_file.path).name == basename
+        ][:3]
         if alt_hits:
             facts.append(
                 _fact(

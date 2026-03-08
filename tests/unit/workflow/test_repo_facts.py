@@ -51,3 +51,60 @@ def test_build_repo_facts_writes_compact_evidence_backed_artifact(tmp_path) -> N
     assert any(
         "workflow/plan_verifier.py" in fact["statement"] for fact in payload["likely_edit_targets"]
     )
+
+
+def test_build_repo_facts_ignores_prompt_and_virtualenv_noise(tmp_path) -> None:
+    project_root = tmp_path
+    epic_dir = project_root / ".planning" / "epics" / "E155"
+    epic_dir.mkdir(parents=True)
+    (epic_dir / "EPIC.md").write_text(
+        "\n".join(
+            [
+                "## Summary",
+                "Investigate `legacy/context.py` and update `workflow/plan_generator.py`.",
+                "Keep `/gear` working.",
+                "Limit `Cleanup` to live code surfaces.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    workflow_dir = project_root / "workflow"
+    workflow_dir.mkdir()
+    (workflow_dir / "cli.py").write_text('print("just epic 155")\n', encoding="utf-8")
+    (workflow_dir / "plan_generator.py").write_text('ROUTE = "/gear"\n', encoding="utf-8")
+    apps_dir = project_root / "apps" / "webapp" / "src" / "webapp"
+    apps_dir.mkdir(parents=True)
+    (apps_dir / "context.py").write_text("CONTEXT = True\n", encoding="utf-8")
+
+    codebase_dir = project_root / ".planning" / "codebase"
+    codebase_dir.mkdir(parents=True)
+    (codebase_dir / "STRUCTURE.md").write_text("- workflow/plan_generator.py\n", encoding="utf-8")
+    (codebase_dir / "ENDPOINTS.md").write_text("GET /gear\n", encoding="utf-8")
+
+    compiled_dir = epic_dir / "compiled-prompts"
+    compiled_dir.mkdir()
+    (compiled_dir / "planner.txt").write_text("legacy/context.py\n", encoding="utf-8")
+    claude_dir = project_root / ".claude" / "prompts"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "note.md").write_text("legacy/context.py\nCleanup\n", encoding="utf-8")
+    venv_dir = project_root / ".venv" / "lib"
+    venv_dir.mkdir(parents=True)
+    (venv_dir / "context.py").write_text("legacy context\n", encoding="utf-8")
+
+    path = build_repo_facts(epic_dir, project_root=project_root)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    evidence_paths = [
+        evidence["path"]
+        for section in payload.values()
+        if isinstance(section, list)
+        for fact in section
+        for evidence in fact.get("evidence", [])
+    ]
+
+    assert "apps/webapp/src/webapp/context.py" in evidence_paths
+    assert not any(path.startswith(".claude/") for path in evidence_paths)
+    assert not any(path.startswith(".venv/") for path in evidence_paths)
+    assert not any("compiled-prompts" in path for path in evidence_paths)
