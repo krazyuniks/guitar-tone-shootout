@@ -134,7 +134,7 @@ class TestWriteConfigOverrides:
         config = load_config(DEFAULT_CONFIG_PATH, config_path)
         assert config.models.implementor == "haiku"
         # Other models unchanged
-        assert config.models.planner == "sonnet"
+        assert config.models.planner == "opus"
         assert config.models.story_critic == "opus"
 
     def test_writes_budget_overrides(self, tmp_path):

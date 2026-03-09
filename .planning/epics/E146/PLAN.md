@@ -2,74 +2,136 @@
 
 ## Goal
 
-Users can view group detail pages, edit their own comments inline, and are prevented from creating shootouts with chains they don't own; dead is_system_track code is removed.
+Address high-priority security gap (shootout chain ownership validation), wire the missing group detail page endpoint, add comment editing, and remove dead is_system_track references.
 
 ## Observable Truths
 
 1. GET /library/chains/group?id=<uuid> returns the group detail page showing group name, description, and list of chains in the group
 2. Clicking a group item link on the group list page navigates to the group detail page (no 404)
-3. Creating a shootout with a signal chain not owned by the current user returns 404
+3. Creating a shootout with a signal chain not owned by the current user returns 404 (not 403, not success)
 4. Creating a shootout with a chain owned by the current user succeeds as before
-5. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": "updated text"} updates the comment body and returns the updated comment. EPIC CONTRACT OVERRIDE: the epic originally specified PATCH /api/v1/comments/<id> with {"body": str}, but locked user decisions decision-api-1 (nested routes under shootout resource) and decision-api-3 (field named 'content' matching DB column and existing CommentCreateRequest) mandate this shape instead. This is the authoritative contract.
+5. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": "updated text"} updates the comment; returns updated comment
 6. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} by a non-author returns 404
 7. Comment on shootout detail page shows an edit button for the author only
 8. Clicking edit shows an inline form; submitting updates the comment text in place via HTMX
 9. Hardcoded is_system_track: False removed from pages/context.py
-10. Frontend is_system_track badge and delete-button suppression references removed
+10. Frontend is_system_track badge and delete-button suppression references removed from track_item.html, di-track detail, DITrackSelectModal, and api.ts
 
 ## User Journeys
 
 ### Journey J1: Authenticated user with signal chain groups
 
-User navigates to their chain library, sees a list of groups, clicks on one, and lands on the group detail page showing the group name, description, slot configuration, and action buttons.
+User visits their library and sees groups listed. They click a group item link which navigates to /library/chains/group?id=<uuid>. The group detail page renders showing the group name, description, and the chains belonging to that group.
 
 **Truths covered:** 1, 2
 **Entry point:** /library/chains
 **Critical transitions:**
-- /library/chains -> /library/chains/group?id=<uuid> (Click group item link)
-- /library/chains/group?id=<uuid> -> Group detail content rendered (SSR page loads with group context)
+- Group list page (group_item.html fragment on library page) -> Group detail page at /library/chains/group?id=<uuid> (Standard <a href> link click from group_item.html template)
 
 ### Journey J2: Authenticated user creating a shootout
 
-User goes through the shootout creation wizard, selects chains and a DI track, and submits. If all chains are owned by the user, the shootout is created and user is redirected to the detail page. If a chain is not owned (e.g. manipulated form data), the server returns 404.
+User navigates to the shootout creation wizard, selects chains and a DI track, and submits. If any selected chain or DI track is not owned by the user, the creation returns 404. If all are owned, the shootout is created and the user is redirected to the shootout detail page.
 
 **Truths covered:** 3, 4
 **Entry point:** /shootout/create
 **Critical transitions:**
-- /shootout/create -> POST /shootout/create (Form submission with chain_ids — form action and hidden inputs wired on the create page)
-- POST /shootout/create -> /shootout/<id> (HX-Redirect on success (owned chains))
-- POST /shootout/create -> 404 response (Server rejects unowned chain_ids)
+- Shootout creation wizard form -> 404 error (non-owned chain) or shootout detail page (owned chains) (POST /shootout/create form submission with HX-Redirect on success)
 
-### Journey J3: Authenticated user editing and managing comments
+### Journey J3: Authenticated user editing their comment on a shootout
 
-User views a shootout detail page with comments. The page contains an HTMX hx-get that loads the comments fragment. They see an edit button next to their own comments but not others'. Clicking edit (Alpine.js toggle) swaps the comment text for an inline form. They change the text and submit, and the comment updates in place via HTMX hx-patch. The updated_at timestamp is reflected. Attempting to edit another user's comment via the API returns 404. NOTE: the API endpoint is PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": str} per locked user decisions decision-api-1 and decision-api-3, overriding the epic's original /api/v1/comments/<id> + body contract.
+User visits a shootout detail page and sees comments. On their own comment, an edit button is visible. Clicking edit replaces the comment text with an inline form pre-filled with the current text. Submitting the form sends a PATCH to the API, and the updated comment replaces the form via HTMX swap. A non-author attempting to PATCH receives 404.
 
 **Truths covered:** 5, 6, 7, 8
-**Entry point:** /shootout/{id}
+**Entry point:** /shootout/{shootout_id}
 **Critical transitions:**
-- Shootout detail page -> Comments section loaded (HTMX hx-get targeting comments fragment endpoint on the shootout detail page)
-- Comment display -> Inline edit form (Click edit button triggers Alpine.js x-on:click toggle showing edit form (x-show); integration tests verify markup+attributes, E2E tests verify interaction)
-- Inline edit form -> Updated comment display (HTMX hx-patch on edit form submits to /shootout/{shootout_id}/comments/{comment_id} page handler which returns HTML fragment; hx-target and hx-swap control in-place replacement)
+- Comment display with edit button (author only) -> Inline edit form with current comment text (Alpine.js toggle to show edit form)
+- Inline edit form -> Updated comment displayed in place (HTMX PATCH to /api/shootouts/{id}/comments/{cid} with hx-swap)
 
-### Journey J4: User viewing DI tracks after cleanup
+### Journey J4: User viewing DI track pages
 
-User browses their DI track library and views a track detail page. The is_system_track badge and delete suppression logic are gone — all tracks render cleanly without the dead field. Track list items contain links to detail pages that navigate correctly.
+User views DI track library items and DI track detail pages. The is_system_track badge no longer appears. Delete buttons on library track items are no longer conditionally suppressed by is_system_track. Pages render correctly without errors.
 
 **Truths covered:** 9, 10
-**Entry point:** /library/di-tracks
+**Entry point:** /library/tracks
 **Critical transitions:**
-- /library/di-tracks -> Track list rendered (Page loads without is_system_track badges)
-- Track list -> Track detail page (Click track item link (a[href] in track list item navigates to /library/di-tracks/<id>))
+- DI track library page with track_item.html fragments -> Track items render without is_system_track badge or conditional logic (SSR page render with cleaned template)
 
 ## Stories
 
-### Story: Wire group detail page endpoint (`01-group-detail-page`)
+### Story: Shootout chain ownership validation (`01-shootout-ownership`)
 
-**Purpose:** Add the SSR page handler and context mapper so the existing group_detail.html template is served at GET /library/chains/group?id=<uuid>
+**Purpose:** Add user_id ownership checks for chain_ids and di_track_id in both shootout creation handlers (page form POST and REST API POST), returning 404 for non-owned resources.
 
 **Agent:**
-- model: codex
-- skills: [gts-frontend-dev, gts-architecture]
+- model: sonnet
+- skills: [gts-architecture, gts-testing, gts-auth]
+- tools: []
+
+**Scope:**
+- Modify: `apps/webapp/src/webapp/api/pages/shootouts.py`
+- Modify: `apps/webapp/src/webapp/api/v1/shootouts.py`
+
+### Acceptance Criteria
+
+- POST /shootout/create with a chain_id not owned by current_user returns 404
+- POST /shootout/create with a di_track_id not owned by current_user returns 404
+- POST /api/shootouts/ (REST API) with a di_track_id not owned by current_user returns 404
+- POST /shootout/create with all owned chains and DI track succeeds as before (HX-Redirect to shootout detail)
+- Ownership check queries SignalChain.user_id and DITrack.user_id against current_user.id
+- 404 is returned (not 403) to avoid leaking resource existence, per AGENTS.md security rules
+
+### Architectural Context
+
+- apps/webapp/src/webapp/api/pages/shootouts.py: shootout_create_submit (line 335) — page form handler, uses get_current_user_required
+- apps/webapp/src/webapp/api/v1/shootouts.py: create_shootout (line 121) — REST API handler, uses get_current_user (alias for required)
+- Ownership check pattern already used in chain_detail_page (chains.py:119): `if not chain or chain.user_id != current_user.id: raise HTTPException(404)`
+- SignalChain model has user_id field. DITrack model (webapp/adapters/persistence/models/di_track.py) has user_id field.
+- The page handler extracts chain_ids from form.getlist and di_track_id from form.get — need to query DB for ownership of each
+
+### Navigation Guide
+
+- apps/webapp/src/webapp/api/pages/shootouts.py — shootout_create_submit at line 335
+- apps/webapp/src/webapp/api/v1/shootouts.py — create_shootout at line 121
+- apps/webapp/src/webapp/api/pages/chains.py:119 — ownership check pattern to follow
+- apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py — SignalChain.user_id
+- apps/webapp/src/webapp/adapters/persistence/models/di_track.py — DITrack.user_id
+
+**Implementation Notes:**
+- In page handler: after extracting chain_ids and di_track_id from form, query SignalChain and DITrack models to verify user_id == current_user.id for each
+- In REST API: the create_shootout handler receives ShootoutCreateRequest with di_track_id — add ownership check before creating the Shootout entity
+- REST API handler does not currently receive chain_ids in its request schema — only di_track_id needs ownership check there
+- Use select() queries with .where(Model.id == id, Model.user_id == current_user.id) for efficient ownership checks
+- Return 404 not 403 per security rules (don't leak existence)
+
+**Truths Addressed:** 3, 4
+
+### Test Spec
+
+**Type:** integration
+**Fixtures:** make_user, make_signal_chain, make_di_track
+**Assertions:**
+- [http_status] route=POST /shootout/create, scenario=chain_id owned by different user, expected_status=404
+- [http_status] route=POST /shootout/create, scenario=di_track_id owned by different user, expected_status=404
+- [http_status] route=POST /shootout/create, scenario=all resources owned by current user, expected_status=200
+
+---
+
+### Validation Checkpoint: After Shootout chain ownership validation
+
+**Type:** http
+**Checks:**
+- POST /shootout/create with a chain_id owned by a different user returns HTTP 404 (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootouts_pages.py -k ownership`]
+- POST /shootout/create with all owned chains succeeds (returns 200 with HX-Redirect header) (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootouts_pages.py -k create`]
+
+---
+
+### Story: Group detail page endpoint (`02-group-detail-page`)
+
+**Purpose:** Add SSR page handler for GET /library/chains/group that loads a signal chain group by ID with user ownership check and renders the existing group_detail.html Jinja2 template.
+
+**Agent:**
+- model: sonnet
+- skills: [gts-architecture, gts-testing, gts-frontend-dev]
 - tools: []
 
 **Scope:**
@@ -78,416 +140,274 @@ User browses their DI track library and views a track detail page. The is_system
 
 ### Acceptance Criteria
 
-- GET /library/chains/group?id=<valid-group-uuid> returns 200 with HTML containing the group name and description
-- GET /library/chains/group?id=<other-users-group-uuid> returns 404
-- GET /library/chains/group?id=<nonexistent-uuid> returns 404
-- GET /library/chains/group without id param returns 422 or 404
-- The rendered page contains data-testid='group-detail-page'
-- The rendered page shows slot configuration with gear options
-- GET /library/chains for a user with groups renders group items with working links to /library/chains/group?id=<uuid>
+- GET /library/chains/group?id=<uuid> returns 200 with the group detail page for an owned group
+- GET /library/chains/group?id=<uuid> returns 404 for a group not owned by the current user
+- GET /library/chains/group?id=<non-existent-uuid> returns 404
+- The rendered page shows group name, description, and chain list
+- The page renders using the existing fragments/library/group_detail.html Jinja2 template
+- Clicking a group item link on the group list page navigates to this page without 404
 
 ### Architectural Context
 
-- Page handlers live in apps/webapp/src/webapp/api/pages/chains.py — follow the pattern of chain_detail_page() at line 108
-- Context mappers live in apps/webapp/src/webapp/api/pages/context.py — follow the pattern of shootout_detail_context() at line 161
-- The group detail template is at dist/fragments/library/group_detail.html — it expects context vars: group.id, group.name, group.description, group.base_chain, group.permutation_count, and a slots list
-- SignalChainGroup ORM model at apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py:160 has user_id, name, description, base_chain_id, slot_positions, gear_options, include_null
-- Ownership check pattern: if not group or group.user_id != current_user.id → raise HTTPException(404)
+- chains.py already has routes for /library/chains and /chain/{chain_id} — add /library/chains/group here following the same pattern
+- Group data comes from SignalChainGroupService.get_by_id() which returns a SignalChainGroup domain entity
+- The group_detail.html template expects: group (id, name, description, base_chain, permutation_count) and slots (position, gear_count, gear_options, include_null)
+- Existing group API (apps/webapp/src/webapp/api/v1/signal_chain_groups.py) shows the ownership pattern: `if not group or group.user_id != current_user.id: raise HTTPException(404)`
+- Group item links already point to /library/chains/group?id={{ group.id }} (in group_item.html.ts:31)
 
 ### Navigation Guide
 
-- Page handler file: apps/webapp/src/webapp/api/pages/chains.py — add new route after line 169 (after chain_detail_page)
-- Context mapper file: apps/webapp/src/webapp/api/pages/context.py — add group_to_detail_context after chain_to_library_context (line 134)
-- Group ORM model: apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py:160 (SignalChainGroup class)
-- Group repository: apps/webapp/src/webapp/adapters/persistence/repositories/signal_chain_group_repository.py — get_by_id() at line 35
-- Template expects: group dict (id, name, description, base_chain, permutation_count) + slots list (position, gear_count, gear_options[{name}], include_null)
-- Group item links to: /library/chains/group?id={{ group.id }} (see frontend/astro/src/pages/fragments/library/group_item.html.ts:31)
-- Group list page: apps/webapp/src/webapp/api/pages/chains.py — library_chains_page already renders group items with links
-
-### Dependencies from Prior Stories
-
-
-**Wiki Sections:** GTS-Technical-Architecture :: frontend, GTS-Technical-Architecture :: design-patterns, Frontend-Architecture
+- apps/webapp/src/webapp/api/pages/chains.py — add new route handler here
+- apps/webapp/src/webapp/services/signal_chain_group_service.py — SignalChainGroupService.get_by_id()
+- frontend/astro/src/pages/fragments/library/group_detail.html.ts — template expects group and slots context
+- frontend/astro/src/pages/fragments/library/group_item.html.ts:31 — link href pattern
+- apps/webapp/src/webapp/api/v1/signal_chain_groups.py:116-160 — ownership check pattern
+- apps/webapp/src/webapp/templates.py — templates.TemplateResponse usage
 
 **Implementation Notes:**
-- The group detail page needs a query param ?id=<uuid>, not a path param. Use request.query_params.get('id')
-- The group_to_detail_context mapper needs to resolve gear names from gear_options UUIDs — query Gear table for names
-- The template renders slots from group.slot_positions and group.gear_options. The context mapper needs to join these into a slots list
-- base_chain needs to be resolved to a name via the base_chain_id FK relationship or a separate query
-- permutation_count can be computed from len(gear_options) product, or use the domain entity's method if available
-- Use the ORM model directly (not the domain entity) for the context mapper, following the same pattern as other context mappers
+- Add a group_to_detail_context() helper in context.py to map SignalChainGroup entity to template context dict
+- Template expects group.base_chain (name string), group.permutation_count, and slots array with gear_options
+- The base_chain needs to be resolved from base_chain_id to get the chain name — query SignalChain by base_chain_id
+- Slots are derived from group.slot_positions and group.gear_options
+- Use get_current_user_page dependency (redirects to login if not authenticated)
+- Query parameter is `id` (not `group_id`) to match the existing links in group_item.html
 
 **Truths Addressed:** 1, 2
 
 ### Test Spec
 
 **Type:** integration
-**Fixtures:** make_user, make_signal_chain, authenticated_client
+**Fixtures:** make_user, make_signal_chain
 **Assertions:**
-- [http_status] method=GET, route=/library/chains/group?id={group.id}, auth=test_user, expected_status=200
-- [dom_element] selector=[data-testid='group-detail-page'], expected_text=
-- [http_status] method=GET, route=/library/chains/group?id=00000000-0000-0000-0000-000000000000, auth=test_user, expected_status=404
-- [http_status] method=GET, route=/library/chains/group, auth=test_user, expected_status=422
-- [dom_element] method=GET, route=/library/chains, auth=test_user, selector=a[href*='/library/chains/group?id='], context=group list page contains link to group detail
+- [http_status] route=GET /library/chains/group?id=<owned_group_id>, expected_status=200
+- [dom_element] selector=[data-testid='group-detail'], description=Group detail container is present in response HTML
+- [http_status] route=GET /library/chains/group?id=<other_user_group_id>, expected_status=404
 
 ---
 
-### Validation Checkpoint: After Wire group detail page endpoint
+### Validation Checkpoint: After Group detail page endpoint
 
 **Type:** http+dom
 **Checks:**
-- Group detail page renders for an owned group (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_group_detail_page.py -k test_group_detail_renders`]
-- Group list page renders group items with links to group detail (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_group_detail_page.py -k test_group_list_contains_detail_link`]
-- Group detail page returns 404 for non-owned group (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_group_detail_page.py -k test_group_detail_other_user_404`]
+- GET /library/chains/group?id=<owned_group_id> returns 200 with group name and description in the HTML (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/ -k group_detail`]
+- GET /library/chains/group?id=<other_user_id> returns 404 (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/ -k group_detail`]
 
 ---
 
-### Story: Validate chain ownership on shootout creation (`02-shootout-chain-ownership`)
+### Story: Comment edit API endpoint (`03-comment-edit-api`)
 
-**Purpose:** Prevent users from creating shootouts with signal chains they don't own by adding ownership validation to the shootout creation handler
+**Purpose:** Add PATCH endpoint for updating comment content with author ownership check, plus service and repository update methods.
 
 **Agent:**
-- model: codex
-- skills: [gts-architecture, gts-security]
+- model: sonnet
+- skills: [gts-architecture, gts-testing]
 - tools: []
 
 **Scope:**
-- Modify: `apps/webapp/src/webapp/api/pages/shootouts.py`
-
-### Acceptance Criteria
-
-- GET /shootout/create renders the form page with chain selection fields (form wiring is present)
-- POST /shootout/create with chain_ids owned by the current user creates the shootout and returns HX-Redirect to /shootout/<id>
-- POST /shootout/create with any chain_id NOT owned by the current user returns 404
-- POST /shootout/create with a nonexistent chain_id returns 404
-- Following the HX-Redirect after successful creation renders the shootout detail page (200)
-
-### Architectural Context
-
-- Shootout creation handler: apps/webapp/src/webapp/api/pages/shootouts.py:335 (shootout_create_submit)
-- SignalChain ORM model has user_id field: apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py:24
-- Security rule: resource.user_id != current_user.id → return 404 (never 403)
-- The handler already has the db session and current_user available
-- chain_ids come from form data (line 350). Each must be validated against SignalChain.user_id
-
-### Navigation Guide
-
-- Handler: apps/webapp/src/webapp/api/pages/shootouts.py:335-400 (shootout_create_submit)
-- SignalChain model import: from webapp.adapters.persistence.models.signal_chain import SignalChain
-- Validation should go after the chain_ids length checks (after line 368) and before building ShootoutChainVO objects (line 370)
-- Use: select(SignalChain).where(SignalChain.id.in_([UUID(cid) for cid in chain_ids]), SignalChain.user_id == current_user.id)
-- Create page handler: apps/webapp/src/webapp/api/pages/shootouts.py — GET handler renders form with chain selection
-
-### Dependencies from Prior Stories
-
-- Story 01 added a group_detail_page route to chains.py and a group_to_detail_context mapper to context.py — no direct dependency but context.py has new code
-
-**Wiki Sections:** GTS-Technical-Architecture :: auth, GTS-Technical-Architecture :: api-design
-
-**Implementation Notes:**
-- Query all submitted chain_ids in one query, filtering by user_id. If count of results != count of submitted chain_ids, at least one chain is unowned or missing → return 404
-- Use sqlalchemy select with .where(SignalChain.id.in_(uuids), SignalChain.user_id == current_user.id)
-- Return 404 with detail 'Chain not found' — generic message to avoid information leakage
-
-**Truths Addressed:** 3, 4
-
-### Test Spec
-
-**Type:** integration
-**Fixtures:** make_user, make_signal_chain, make_di_track, authenticated_client
-**Assertions:**
-- [http_status] method=GET, route=/shootout/create, auth=test_user, expected_status=200, context=Create page renders with form
-- [dom_element] method=GET, route=/shootout/create, auth=test_user, selector=form[action*='/shootout/create'], [hx-post*='/shootout/create'], context=Create page contains form wiring that submits to POST /shootout/create
-- [http_status] method=POST, route=/shootout/create, auth=test_user, body={'name': 'Test', 'di_track_id': '{di_track.id}', 'chain_ids[]': ['{owned_chain.id}', '{owned_chain2.id}']}, expected_status=200, expected_header=HX-Redirect
-- [http_status] method=GET, route={redirect_url_from_HX-Redirect}, auth=test_user, expected_status=200, context=Follow HX-Redirect to verify shootout detail page renders
-- [dom_element] method=GET, route={redirect_url_from_HX-Redirect}, auth=test_user, selector=[data-testid='shootout-detail-page'], context=Redirect target is a valid shootout detail page
-- [http_status] method=POST, route=/shootout/create, auth=test_user, body={'name': 'Test', 'di_track_id': '{di_track.id}', 'chain_ids[]': ['{owned_chain.id}', '{other_user_chain.id}']}, expected_status=404
-
----
-
-### Validation Checkpoint: After Validate chain ownership on shootout creation
-
-**Type:** http+dom
-**Checks:**
-- Shootout create page renders form with chain selection wiring (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_chain_ownership.py -k test_create_page_renders_form`]
-- Shootout creation with unowned chain returns 404 (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_chain_ownership.py -k test_unowned_chain_returns_404`]
-- Shootout creation with owned chains succeeds and returns HX-Redirect (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_chain_ownership.py -k test_owned_chains_success_with_redirect`]
-- Redirect target page renders successfully after shootout creation (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_chain_ownership.py -k test_redirect_target_renders`]
-
----
-
-### Story: Add comment edit API endpoint (`03-comment-edit-backend`)
-
-**Purpose:** Add PATCH endpoint for editing comments, update service and repository with update method, add updated_at to response schema, and fix delete to return 404 instead of 403 for non-authors
-
-**Agent:**
-- model: codex
-- skills: [gts-architecture]
-- tools: []
-
-**Scope:**
-- Modify: `apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py`
-- Modify: `apps/webapp/src/webapp/services/shootout_comment_service.py`
 - Modify: `apps/webapp/src/webapp/api/v1/shootouts.py`
 - Modify: `apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py`
+- Modify: `apps/webapp/src/webapp/services/shootout_comment_service.py`
+- Modify: `apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py`
 
 ### Acceptance Criteria
 
-- PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": "updated"} by the author returns 200 with updated CommentResponse including updated_at
-- PATCH /api/shootouts/{shootout_id}/comments/{comment_id} by a non-author returns 404
-- PATCH /api/shootouts/{shootout_id}/comments/{comment_id} for nonexistent comment returns 404
-- DELETE /api/shootouts/{shootout_id}/comments/{comment_id} by a non-author now returns 404 (was 403)
-- CommentResponse schema includes updated_at field
-- EPIC DEVIATION (authorized by locked user decisions): The epic originally specified PATCH /api/v1/comments/<id> with {"body": str}. Locked user decisions decision-api-1 (nested routes under shootout resource) and decision-api-3 (field named 'content' matching DB column and existing CommentCreateRequest) mandate PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": str} instead. The flat /api/v1/comments/<id> endpoint is intentionally NOT implemented. This deviation applies to both the edit endpoint and the non-author 404 behaviour, which are validated exclusively on the nested route.
+- PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": "updated text"} updates the comment and returns CommentResponse with updated content
+- PATCH by a non-author returns 404 (not 403), per AGENTS.md security rules
+- PATCH with empty or whitespace-only content returns 422
+- PATCH with content exceeding 2000 chars returns 422
+- Existing comment create, list, and delete endpoints continue to work unchanged
+- Contract decision: epic says PATCH /api/v1/comments/<id> with {"body": ...} but repo convention uses nested route /api/shootouts/{shootout_id}/comments/{comment_id} with field name 'content'. This story follows the repo convention (nested route, 'content' field) since all existing comment endpoints are nested and the model field is 'content'.
 
 ### Architectural Context
 
-- EPIC CONTRACT OVERRIDE: The epic originally specified PATCH /api/v1/comments/<id> with {"body": str}. Per locked user decisions decision-api-1 (nested routes under shootout resource) and decision-api-3 (field named 'content' matching DB column and existing CommentCreateRequest), this story implements PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": str} instead. This is intentional — the user decisions take precedence over the epic's original API shape. The verifier should treat this endpoint as the authoritative contract for comment editing.
-- Repository pattern: apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py — add update() method following delete() pattern
-- Service pattern: apps/webapp/src/webapp/services/shootout_comment_service.py — add update() following delete() pattern (lookup, ownership check, update)
-- API route pattern: apps/webapp/src/webapp/api/v1/shootouts.py:519 (delete_comment) — add PATCH route following same structure
-- Schema file: apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py — add CommentUpdateRequest and updated_at to CommentResponse
-- Ownership rule: non-author gets 404, not 403. Fix existing delete_comment to use 404 instead of 403 (line 562-565)
+- Existing comment endpoints in apps/webapp/src/webapp/api/v1/shootouts.py are nested under /{shootout_id}/comments/
+- ShootoutComment model field is 'content' (not 'body') — apps/webapp/src/webapp/adapters/persistence/models/shootout_comment.py
+- Existing CommentCreateRequest uses 'content' field with min_length=1, max_length=2000
+- Delete endpoint returns 404 for non-existent comments but 403 for non-authors — this story should return 404 for both (per AGENTS.md: return 404 not 403)
+- Service layer pattern: ShootoutCommentService handles validation, repository handles persistence
+- Repository get_by_id does NOT eagerly load user relationship — need to add joinedload for the update response
 
 ### Navigation Guide
 
-- Repository: apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py — add update() after delete() (line 109)
-- Service: apps/webapp/src/webapp/services/shootout_comment_service.py — add update() after delete() (line 126). Raise ValueError for not-found AND non-author (both map to 404)
-- API routes: apps/webapp/src/webapp/api/v1/shootouts.py — add PATCH route after delete_comment (line 567). Fix delete_comment PermissionError handler to return 404 (lines 562-565)
-- Schemas: apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py — add CommentUpdateRequest (same content validator as create), add updated_at: datetime | None to CommentResponse
-- ORM model: apps/webapp/src/webapp/adapters/persistence/models/shootout_comment.py — already has updated_at via TimestampMixin
-
-### Dependencies from Prior Stories
-
-- Story 01 added group_to_detail_context to context.py — no direct dependency on comment work
-- Story 02 added chain ownership validation to shootouts.py page handler — no overlap with v1/shootouts.py API routes
-
-**Wiki Sections:** GTS-Technical-Architecture :: api-design, GTS-Technical-Architecture :: design-patterns
+- apps/webapp/src/webapp/api/v1/shootouts.py:519-567 — existing delete_comment endpoint pattern to follow
+- apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py — CommentCreateRequest and CommentResponse schemas
+- apps/webapp/src/webapp/services/shootout_comment_service.py — add update() method
+- apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py — add update() method, fix get_by_id to optionally joinedload user
 
 **Implementation Notes:**
-- EPIC CONTRACT OVERRIDE: endpoint is PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": str}, NOT /api/v1/comments/<id> with {"body": str}. This follows locked user decisions decision-api-1 (nested routes) and decision-api-3 (content field). Do NOT change this to match the epic's original wording.
-- The epic's original PATCH /api/v1/comments/<id> endpoint is intentionally NOT implemented. The nested route under the shootout resource is the sole implementation, per locked user decisions. Non-author 404 behaviour is validated on this nested route only.
-- Service.update() should: get_by_id, check not None (ValueError), check user_id match (ValueError, NOT PermissionError — caller maps both to 404), strip+validate content, call repo.update(), return updated comment
-- Repository.update() should: get_by_id, set content, flush, re-fetch with joinedload to return hydrated comment
-- PATCH endpoint: verify shootout exists, call service.update(), catch ValueError → 404, return CommentResponse
-- Delete endpoint fix: change PermissionError handler from 403 to 404, or better — change service.delete() to raise ValueError instead of PermissionError for ownership mismatch, making the API handler simpler
-- CommentUpdateRequest: same as CommentCreateRequest (content field with strip+validate). Could even reuse CommentCreateRequest.
+- Add CommentUpdateRequest schema with content field (same validation as CommentCreateRequest)
+- Add update() to ShootoutCommentRepository that sets content and flushes, then reloads with user relationship
+- Add update() to ShootoutCommentService that checks ownership (comment.user_id == user_id) and delegates to repo
+- Service update should raise ValueError if comment not found, and return 404 in the API handler
+- Service update should raise PermissionError if not author, but API handler should catch and return 404 (not 403) per security rules
+- PATCH handler follows same structure as delete_comment: verify shootout, then update comment
 
 **Truths Addressed:** 5, 6
 
 ### Test Spec
 
 **Type:** integration
-**Fixtures:** make_user, make_shootout(chains=2), authenticated_client
+**Fixtures:** make_user, make_shootout
 **Assertions:**
-- [api_response] method=PATCH, route=/api/shootouts/{shootout.id}/comments/{comment.id}, auth=author_user, body={'content': 'updated text'}, expected_json={'content': 'updated text', 'updated_at': 'non-null'}
-- [http_status] method=PATCH, route=/api/shootouts/{shootout.id}/comments/{comment.id}, auth=other_user, body={'content': 'hacked'}, expected_status=404
-- [http_status] method=DELETE, route=/api/shootouts/{shootout.id}/comments/{comment.id}, auth=other_user, expected_status=404
+- [api_response] method=PATCH, route=/api/shootouts/{shootout_id}/comments/{comment_id}, body={'content': 'updated text'}, expected_status=200, expected_field=content, expected_value=updated text
+- [http_status] method=PATCH, route=/api/shootouts/{shootout_id}/comments/{comment_id}, scenario=non-author, expected_status=404
+- [http_status] method=PATCH, route=/api/shootouts/{shootout_id}/comments/{comment_id}, body={'content': ''}, expected_status=422
 
 ---
 
-### Validation Checkpoint: After Add comment edit API endpoint
+### Validation Checkpoint: After Comment edit API endpoint
 
 **Type:** api+response
 **Checks:**
-- Comment edit PATCH by author returns updated comment with updated_at (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_api.py -k test_edit_comment_by_author`]
-- Comment edit PATCH by non-author returns 404 (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_api.py -k test_edit_comment_non_author_returns_404`]
-- Comment delete by non-author returns 404 (not 403) (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_api.py -k test_delete_non_author_returns_404`]
+- PATCH /api/shootouts/{sid}/comments/{cid} by author returns 200 with updated content field (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_api.py -k edit`]
+- PATCH /api/shootouts/{sid}/comments/{cid} by non-author returns 404 (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_api.py -k edit`]
 
 ---
 
-### Story: Add inline comment editing UI (`04-comment-edit-frontend`)
+### Story: Comment edit frontend (HTMX inline edit) (`04-comment-edit-frontend`)
 
-**Purpose:** Add edit button to comment template (visible for author only) and inline HTMX edit form that PATCHes the comment via a page handler (HTML fragment) and swaps the updated text in place
+**Purpose:** Add edit button (author-only) and inline edit form to the comments template, wired to the PATCH endpoint via HTMX.
 
 **Agent:**
-- model: codex
-- skills: [gts-frontend-dev]
+- model: sonnet
+- skills: [gts-frontend-dev, gts-architecture, gts-testing]
 - tools: []
 
 **Scope:**
-- Create: `frontend/astro/src/pages/fragments/shootouts/comment_edit_form.html.ts`
 - Modify: `frontend/astro/src/pages/fragments/shootouts/comments.html.ts`
+- Modify: `frontend/astro/dist/fragments/shootouts/comments.html`
 - Modify: `apps/webapp/src/webapp/api/pages/shootouts.py`
-- Modify: `apps/webapp/src/webapp/api/pages/context.py`
 
 ### Acceptance Criteria
 
-- Each comment by the current user shows an edit button (data-testid='comment-edit') alongside the delete button
-- Comments by other users do not show the edit button
-- Clicking edit replaces the comment text with a textarea pre-filled with the current text and save/cancel buttons
-- Submitting the edit form PATCHes /shootout/{shootout_id}/comments/{comment_id} (page handler) via HTMX and swaps the updated comment HTML fragment in place
-- Cancelling the edit restores the original comment display
-- Edited comments show '(edited)' indicator if updated_at differs from created_at
-- The rendered comment HTML contains Alpine.js x-data for edit toggle state and a hidden edit form with textarea pre-filled with comment content
-- The edit form has hx-patch attribute targeting the page handler endpoint for HTMX submission
-- The shootout detail page contains an HTMX hx-get attribute that loads the comments fragment
-- GET on the comments fragment endpoint returns 200 with rendered HTML containing comment content for a shootout with comments
+- Comment items show an edit button (pencil icon) only when comment.is_own is true
+- Edit button is adjacent to the existing delete button
+- Clicking edit toggles an inline form (Alpine.js) with a textarea pre-filled with the comment text
+- Submitting the inline form sends HTMX PATCH to /api/shootouts/{shootout_id}/comments/{comment_id} with content field
+- On success, the updated comment replaces the form via HTMX swap
+- Edit button and form have data-testid attributes: comment-edit, comment-edit-form, comment-edit-textarea, comment-edit-submit
+- Astro dist is rebuilt and committed
 
 ### Architectural Context
 
-- HTMX fragment pattern: comment template at frontend/astro/src/pages/fragments/shootouts/comments.html.ts
-- Comment context mapper: apps/webapp/src/webapp/api/pages/context.py:229 (comment_to_context) — add updated_at field
-- Two-endpoint chain: Story 03 created the JSON API PATCH at /api/shootouts/{id}/comments/{cid} in v1/shootouts.py. This story adds a page handler PATCH at /shootout/{id}/comments/{cid} in pages/shootouts.py that calls the same service.update() and returns an HTML fragment for HTMX swap.
-- Alpine.js can handle the toggle between view/edit mode client-side without a server round-trip for the form display
-- The page handler PATCH returns an HTML fragment (rendered Jinja2 template), NOT JSON. This is what HTMX swaps into the DOM.
-- The shootout detail page must contain hx-get to load comments — verify this wiring exists (it should already be present; if not, add it)
-- The comments fragment endpoint (hx-get target) must return rendered HTML with comment content — this is the J3 transition from 'Shootout detail page' to 'Comments section loaded'
+- Comments template: frontend/astro/src/pages/fragments/shootouts/comments.html.ts
+- Template already uses is_own flag to show delete button (line 45-58)
+- Comments are loaded via HTMX: hx-get=/shootout/{id}/comments from the shootout detail page
+- The shootout_comments_fragment handler in pages/shootouts.py (line 403) renders the comments template
+- HTMX PATCH needs to target the comment item and swap the updated content
+- The PATCH endpoint returns JSON (CommentResponse) — the frontend needs an HTMX fragment endpoint or use hx-swap with an Alpine.js approach
+- Pattern: use Alpine.js for toggle state (edit mode on/off), HTMX for the actual PATCH + swap
 
 ### Navigation Guide
 
-- Comment template: frontend/astro/src/pages/fragments/shootouts/comments.html.ts — edit button goes at line 45 alongside delete button
-- Comment context mapper: apps/webapp/src/webapp/api/pages/context.py:229 — add updated_at to the dict
-- Page handler: apps/webapp/src/webapp/api/pages/shootouts.py — add PATCH handler that calls service.update() and returns HTML fragment
-- Build output must be committed: frontend/astro/dist/fragments/shootouts/ will need updating via just build-astro
-- The page handler reuses ShootoutCommentService.update() from story 03 — same service, different response format (HTML vs JSON)
-- Shootout detail template: frontend/astro/src/pages/pages/shootouts/detail.html.ts — verify hx-get for comments loading exists
-- Comments fragment page handler: apps/webapp/src/webapp/api/pages/shootouts.py — the existing GET handler for comments fragment (verify it exists and returns rendered comment HTML)
-
-### Dependencies from Prior Stories
-
-- Story 03 created ShootoutCommentService.update() and ShootoutCommentRepository.update() — the page handler calls service.update()
-- Story 03 added updated_at to CommentResponse schema — the page handler uses the same ORM field
-- Story 03 added the JSON API PATCH at /api/shootouts/{shootout_id}/comments/{comment_id} — this story adds a parallel page handler PATCH at /shootout/{shootout_id}/comments/{comment_id} for HTML fragment response
-
-**Wiki Sections:** Frontend-Architecture, GTS-Technical-Architecture :: frontend
+- frontend/astro/src/pages/fragments/shootouts/comments.html.ts — full template file
+- frontend/astro/dist/fragments/shootouts/comments.html — compiled dist to update
+- apps/webapp/src/webapp/api/pages/shootouts.py:403 — shootout_comments_fragment handler
+- The comment form currently uses hx-post and hx-target='[data-testid=comments-list]' — follow similar patterns
+- just build-astro to rebuild dist after template changes
 
 **Implementation Notes:**
-- Use Alpine.js x-data for edit state toggle rather than a server round-trip to show the form
-- The edit form should use hx-patch targeting the page handler (/shootout/{id}/comments/{cid}), NOT the JSON API (/api/shootouts/{id}/comments/{cid}), so it returns an HTML fragment for HTMX swap
-- Add a page handler: PATCH /shootout/{shootout_id}/comments/{comment_id} that calls service.update() and renders the updated comment as an HTML fragment using the comment template
-- The comment_edit_form.html.ts template is a separate fragment for the edit form state of a single comment
-- Add updated_at to comment_to_context() and show '(edited)' when updated_at > created_at + small delta
-- The Astro dist/ files need to be rebuilt (just build-astro) and committed
-- The comment HTML must include the edit form markup (textarea, save/cancel) controlled by Alpine.js x-show, so integration tests can verify the form structure exists in the rendered HTML even though JS toggle behaviour requires E2E testing
-- Edit form must have hx-patch='/shootout/{id}/comments/{cid}' attribute, hx-target for the comment container, and hx-swap='outerHTML' for in-place replacement
-- Alpine.js edit toggle: x-data='{editing: false}' on comment container, x-on:click='editing = true' on edit button, x-show='editing' on form, x-show='!editing' on display
-- Verify the comments fragment GET endpoint works end-to-end: the hx-get URL on the shootout detail page must resolve to a handler that returns rendered HTML with comment content. This covers the J3 'Shootout detail page → Comments section loaded' transition.
+- Add an HTMX fragment endpoint for comment edit that returns the single updated comment HTML (not JSON), following the same pattern as the comments list fragment
+- The PATCH should target the individual comment-item div and replace it with the updated comment
+- Use Alpine.js x-data for edit mode toggle: x-data="{editing: false}" on the comment item
+- When editing=true, show textarea + save/cancel buttons; when false, show comment text + edit/delete buttons
+- The HTMX PATCH target should be closest [data-testid='comment-item'] with hx-swap='outerHTML'
+- After build-astro, commit both src and dist changes
 
 **Truths Addressed:** 7, 8
 
 ### Test Spec
 
 **Type:** integration
-**Fixtures:** make_user, make_shootout(chains=2), authenticated_client
+**Fixtures:** make_user, make_shootout
 **Assertions:**
-- [dom_element] selector=[data-testid='comment-edit'], context=own comment visible
-- [dom_absent] selector=[data-testid='comment-edit'], context=other user's comment
-- [dom_element] selector=textarea[name='content'], context=edit form textarea exists in rendered comment HTML for own comment (Alpine.js controls visibility)
-- [dom_element] selector=[data-testid='comment-edit-cancel'], context=cancel button exists in rendered comment HTML for own comment
-- [dom_element] selector=[x-data], context=comment container has Alpine.js x-data for edit state toggle
-- [dom_element] selector=[x-on\:click], [@click], context=edit button has Alpine.js click handler to toggle edit state
-- [dom_element] selector=[hx-patch], context=edit form has hx-patch attribute targeting page handler for HTMX submission
-- [dom_element] selector=[hx-target], context=edit form has hx-target attribute for in-place swap targeting
-- [dom_element] method=GET, route=/shootout/{shootout.id}, auth=test_user, selector=[hx-get*='comments'], context=shootout detail page contains HTMX hx-get that loads comments fragment
-- [http_status] method=GET, route=/shootout/{shootout.id}/comments, auth=test_user, expected_status=200, expected_content_type=text/html, context=Comments fragment endpoint returns 200 with HTML content (proves J3 hx-get load path works)
-- [dom_element] method=GET, route=/shootout/{shootout.id}/comments, auth=test_user, selector=.comment-content, context=Comments fragment endpoint returns rendered HTML containing comment content (end-to-end load path verification)
-- [http_status] method=PATCH, route=/shootout/{shootout.id}/comments/{comment.id}, auth=author_user, body=content=updated+text, expected_status=200, expected_content_type=text/html
-- [dom_element] method=PATCH, route=/shootout/{shootout.id}/comments/{comment.id}, auth=author_user, selector=.comment-content, expected_text=updated text, context=HTML fragment response contains updated comment text for HTMX swap
+- [dom_element] selector=[data-testid='comment-edit'], description=Edit button present on own comments
+- [dom_absent] selector=[data-testid='comment-edit'], description=Edit button absent on other users' comments
 
 ---
 
-### Validation Checkpoint: After Add inline comment editing UI
+### Validation Checkpoint: After Comment edit frontend (HTMX inline edit)
 
 **Type:** http+dom
 **Checks:**
-- Shootout detail page contains HTMX hx-get that loads comments fragment (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_detail_page_has_htmx_comments_load`]
-- Comments fragment endpoint returns 200 with rendered comment HTML content (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_comments_fragment_loads_with_content`]
-- Comment edit button visible for author only (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_comment_edit_button_visible_for_author`]
-- Comment edit button absent for non-author (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_comment_edit_button_absent_for_non_author`]
-- Rendered comment HTML contains edit form with pre-filled textarea and cancel button (Alpine.js controlled) (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_comment_edit_form_markup_present`]
-- Edit form has correct HTMX attributes (hx-patch, hx-target, hx-swap) for in-place submission (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_edit_form_htmx_attributes`]
-- Edit button has Alpine.js click handler for toggling edit state (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_edit_button_alpine_toggle`]
-- Page handler PATCH returns HTML fragment with updated comment text (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_comment_edit_patch_returns_html_fragment`]
-- Edited comment shows (edited) indicator in HTML fragment (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k test_edited_comment_shows_indicator`]
+- Comment HTML fragment for own comments contains edit button with data-testid='comment-edit' (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k edit`]
+- Comment HTML fragment for other users' comments does not contain edit button (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/test_shootout_comments_html_fragment.py -k edit`]
 
 ---
 
-### Story: Remove dead is_system_track references (`05-remove-is-system-track`)
+### Story: Remove is_system_track dead code (`05-remove-is-system-track`)
 
-**Purpose:** Remove the hardcoded is_system_track: False from the backend context mapper and all frontend references (badges, delete suppression, type definitions)
+**Purpose:** Remove all is_system_track references from backend context mapper, frontend templates, TypeScript types, and React components. Rebuild Astro dist.
 
 **Agent:**
-- model: codex
-- skills: [gts-frontend-dev]
+- model: sonnet
+- skills: [gts-frontend-dev, gts-architecture]
 - tools: []
 
 **Scope:**
 - Modify: `apps/webapp/src/webapp/api/pages/context.py`
 - Modify: `frontend/astro/src/pages/fragments/library/track_item.html.ts`
+- Modify: `frontend/astro/dist/fragments/library/track_item.html`
 - Modify: `frontend/astro/src/pages/pages/di-tracks/detail.html.ts`
-- Modify: `frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx`
+- Modify: `frontend/astro/dist/pages/di-tracks/detail.html`
 - Modify: `frontend/astro/src/lib/api.ts`
+- Modify: `frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx`
 
 ### Acceptance Criteria
 
-- pages/context.py di_track_to_context() no longer returns is_system_track key
-- track_item.html.ts no longer contains is_system_track badge or delete button suppression
-- di-tracks/detail.html.ts no longer contains is_system_track badge
-- DITrackSelectModal.tsx no longer references is_system_track
-- api.ts type definitions no longer include is_system_track
-- DI track list page renders without errors (200)
-- DI track detail page renders without errors (200)
-- DI track list items contain links to detail pages that navigate correctly
-- Astro dist/ files are rebuilt and committed
-- grep -r is_system_track in src/ and frontend/astro/src/ returns zero matches
+- Hardcoded 'is_system_track': False removed from di_track_to_library_context() in context.py
+- is_system_track badge conditional removed from track_item.html.ts (line 86-88)
+- is_system_track conditional on delete button suppression removed from track_item.html.ts (line 95) — the delete/toggle buttons should always show in library view
+- is_system_track badge conditional removed from di-tracks/detail.html.ts
+- is_system_track field removed from TypeScript interfaces in api.ts
+- is_system_track badge rendering removed from DITrackSelectModal.tsx
+- Astro dist is rebuilt and committed
+- DI track library pages and detail pages render without errors after removal
 
 ### Architectural Context
 
-- is_system_track is hardcoded to False in context.py:108 — never comes from DB or domain model
-- Frontend references are purely cosmetic: badges and delete suppression
-- After removal, all DI track templates should render identically (the field was always False, so badges never showed and delete was never suppressed)
-- The Astro dist/ directory must be rebuilt after template changes
-- Track list items link to detail pages via a[href] — verify this navigation works post-cleanup
+- context.py line 108: 'is_system_track': False — hardcoded, never True
+- track_item.html.ts lines 86-88: {% if track.is_system_track %} badge
+- track_item.html.ts line 95: {% if is_library_view and not track.is_system_track %} — gate on action buttons
+- di-tracks/detail.html.ts line 66: {% if track.is_system_track %} badge
+- api.ts lines 489, 505: is_system_track: boolean in TypeScript interfaces
+- DITrackSelectModal.tsx line 229: {track.is_system_track && (...)} badge rendering
+- Since is_system_track is always False, removing it changes no visible behaviour
 
 ### Navigation Guide
 
-- Backend: apps/webapp/src/webapp/api/pages/context.py:108 — remove the 'is_system_track': False line
-- Template: frontend/astro/src/pages/fragments/library/track_item.html.ts:86 (badge) and :95 (delete suppression)
-- Template: frontend/astro/src/pages/pages/di-tracks/detail.html.ts:66 (badge)
-- React: frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx:229 (badge render)
-- Types: frontend/astro/src/lib/api.ts:489,505 (DITrackDetail.is_system_track and DITrackListItem.is_system_track)
-- Dist files auto-rebuild via just build-astro
-
-### Dependencies from Prior Stories
-
-- Story 01 added group_to_detail_context to context.py — same file modified here for di_track_to_context cleanup
-- Story 04 added updated_at to comment_to_context in context.py — same file, different function
-
-**Wiki Sections:** Frontend-Architecture
+- apps/webapp/src/webapp/api/pages/context.py:108 — hardcoded False
+- frontend/astro/src/pages/fragments/library/track_item.html.ts:86-95 — two conditionals to remove
+- frontend/astro/src/pages/pages/di-tracks/detail.html.ts:66 — badge conditional
+- frontend/astro/src/lib/api.ts:489,505 — TypeScript interface fields
+- frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx:229 — React badge rendering
+- just build-astro to rebuild dist
 
 **Implementation Notes:**
-- This is pure deletion — no new code needed
-- In track_item.html.ts, remove the {% if track.is_system_track %} badge block AND the {% if not track.is_system_track %} delete suppression condition (keep the delete button, just remove the conditional wrapper)
-- In detail.html.ts, remove the {% if track.is_system_track %} badge block
-- In DITrackSelectModal.tsx, remove the {track.is_system_track && (...)} JSX expression
-- In api.ts, remove is_system_track from both type definitions
-- Run just build-astro after changes, then commit both src/ and dist/
+- In context.py: simply remove the 'is_system_track': False line from di_track_to_library_context()
+- In track_item.html.ts: remove the {% if track.is_system_track %} badge block (3 lines). For the action buttons, change {% if is_library_view and not track.is_system_track %} to just {% if is_library_view %}
+- In detail.html.ts: remove the {% if track.is_system_track %} badge block
+- In api.ts: remove is_system_track field from both interfaces
+- In DITrackSelectModal.tsx: remove the {track.is_system_track && (...)} JSX block and its comment
+- Run just build-astro after all template changes, then commit both src and dist
 
 **Truths Addressed:** 9, 10
 
 ### Test Spec
 
 **Type:** integration
-**Fixtures:** make_user, make_di_track, authenticated_client
 **Assertions:**
-- [http_status] method=GET, route=/library/di-tracks, auth=test_user, expected_status=200
-- [dom_element] method=GET, route=/library/di-tracks, auth=test_user, selector=a[href*='/library/di-tracks/'], context=Track list items contain links to detail pages
-- [http_status] method=GET, route=/library/di-tracks/{di_track.id}, auth=test_user, expected_status=200, context=Detail page renders without errors after is_system_track removal
-- [dom_absent] selector=.is-system-track-badge, context=badge should not exist on list page
-- [dom_absent] method=GET, route=/library/di-tracks/{di_track.id}, selector=.is-system-track-badge, context=badge should not exist on detail page
+- [dom_absent] description=No is_system_track references in rendered DI track pages
 
 ---
 
-### Validation Checkpoint: After Remove dead is_system_track references
+### Validation Checkpoint: After Remove is_system_track dead code
 
-**Type:** quality
+**Type:** process
 **Checks:**
-- No is_system_track references remain in source files (excluding test files and dist/) (evidence: command, exit_code, output_tail) [cmd: `bash -c '! grep -r is_system_track apps/webapp/src/ frontend/astro/src/'`]
-- DI track list page renders without errors and contains links to detail pages (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/ -k di_track_list`]
-- DI track detail page renders without errors after is_system_track removal (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/ -k di_track_detail`]
-- Track list to detail navigation works (link href resolves to 200) (evidence: command, exit_code, output_tail) [cmd: `just tdd tests/integration/webapp/ -k test_track_list_to_detail_navigation`]
-- Lint, type checks, and existing tests pass (evidence: command, exit_code, output_tail) [cmd: `just check`]
+- No is_system_track references remain in backend context.py (evidence: command, exit_code, output_tail) [cmd: `grep -r 'is_system_track' apps/webapp/src/webapp/api/pages/context.py; test $? -eq 1`]
+- No is_system_track conditionals remain in Astro src templates (evidence: command, exit_code, output_tail) [cmd: `grep -r 'is_system_track' frontend/astro/src/pages/fragments/library/track_item.html.ts frontend/astro/src/pages/pages/di-tracks/detail.html.ts; test $? -eq 1`]
+- Golden path tests pass after all changes (evidence: command, exit_code, output_tail) [cmd: `just test-golden-path`]
 
 ---
 
@@ -495,13 +415,13 @@ User browses their DI track library and views a track detail page. The is_system
 
 | Truth | Key Artefacts | Story |
 |-------|---------------|-------|
-| 1. GET /library/chains/group?id=<uuid> returns the group detail page showing group name, description, and list of chains in the group | `apps/webapp/src/webapp/api/pages/chains.py`, `apps/webapp/src/webapp/api/pages/context.py` | Wire group detail page endpoint |
-| 2. Clicking a group item link on the group list page navigates to the group detail page (no 404) | `apps/webapp/src/webapp/api/pages/chains.py`, `apps/webapp/src/webapp/api/pages/context.py` | Wire group detail page endpoint |
-| 3. Creating a shootout with a signal chain not owned by the current user returns 404 | `apps/webapp/src/webapp/api/pages/shootouts.py` | Validate chain ownership on shootout creation |
-| 4. Creating a shootout with a chain owned by the current user succeeds as before | `apps/webapp/src/webapp/api/pages/shootouts.py` | Validate chain ownership on shootout creation |
-| 5. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": "updated text"} updates the comment body and returns the updated comment. EPIC CONTRACT OVERRIDE: the epic originally specified PATCH /api/v1/comments/<id> with {"body": str}, but locked user decisions decision-api-1 (nested routes under shootout resource) and decision-api-3 (field named 'content' matching DB column and existing CommentCreateRequest) mandate this shape instead. This is the authoritative contract. | `apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py`, `apps/webapp/src/webapp/services/shootout_comment_service.py`, `apps/webapp/src/webapp/api/v1/shootouts.py` (+1 more) | Add comment edit API endpoint |
-| 6. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} by a non-author returns 404 | `apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py`, `apps/webapp/src/webapp/services/shootout_comment_service.py`, `apps/webapp/src/webapp/api/v1/shootouts.py` (+1 more) | Add comment edit API endpoint |
-| 7. Comment on shootout detail page shows an edit button for the author only | `frontend/astro/src/pages/fragments/shootouts/comment_edit_form.html.ts`, `frontend/astro/src/pages/fragments/shootouts/comments.html.ts`, `apps/webapp/src/webapp/api/pages/shootouts.py` (+1 more) | Add inline comment editing UI |
-| 8. Clicking edit shows an inline form; submitting updates the comment text in place via HTMX | `frontend/astro/src/pages/fragments/shootouts/comment_edit_form.html.ts`, `frontend/astro/src/pages/fragments/shootouts/comments.html.ts`, `apps/webapp/src/webapp/api/pages/shootouts.py` (+1 more) | Add inline comment editing UI |
-| 9. Hardcoded is_system_track: False removed from pages/context.py | `apps/webapp/src/webapp/api/pages/context.py`, `frontend/astro/src/pages/fragments/library/track_item.html.ts`, `frontend/astro/src/pages/pages/di-tracks/detail.html.ts` (+2 more) | Remove dead is_system_track references |
-| 10. Frontend is_system_track badge and delete-button suppression references removed | `apps/webapp/src/webapp/api/pages/context.py`, `frontend/astro/src/pages/fragments/library/track_item.html.ts`, `frontend/astro/src/pages/pages/di-tracks/detail.html.ts` (+2 more) | Remove dead is_system_track references |
+| 1. GET /library/chains/group?id=<uuid> returns the group detail page showing group name, description, and list of chains in the group | `apps/webapp/src/webapp/api/pages/chains.py`, `apps/webapp/src/webapp/api/pages/context.py` | Group detail page endpoint |
+| 2. Clicking a group item link on the group list page navigates to the group detail page (no 404) | `apps/webapp/src/webapp/api/pages/chains.py`, `apps/webapp/src/webapp/api/pages/context.py` | Group detail page endpoint |
+| 3. Creating a shootout with a signal chain not owned by the current user returns 404 (not 403, not success) | `apps/webapp/src/webapp/api/pages/shootouts.py`, `apps/webapp/src/webapp/api/v1/shootouts.py` | Shootout chain ownership validation |
+| 4. Creating a shootout with a chain owned by the current user succeeds as before | `apps/webapp/src/webapp/api/pages/shootouts.py`, `apps/webapp/src/webapp/api/v1/shootouts.py` | Shootout chain ownership validation |
+| 5. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} with {"content": "updated text"} updates the comment; returns updated comment | `apps/webapp/src/webapp/api/v1/shootouts.py`, `apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py`, `apps/webapp/src/webapp/services/shootout_comment_service.py` (+1 more) | Comment edit API endpoint |
+| 6. PATCH /api/shootouts/{shootout_id}/comments/{comment_id} by a non-author returns 404 | `apps/webapp/src/webapp/api/v1/shootouts.py`, `apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py`, `apps/webapp/src/webapp/services/shootout_comment_service.py` (+1 more) | Comment edit API endpoint |
+| 7. Comment on shootout detail page shows an edit button for the author only | `frontend/astro/src/pages/fragments/shootouts/comments.html.ts`, `frontend/astro/dist/fragments/shootouts/comments.html`, `apps/webapp/src/webapp/api/pages/shootouts.py` | Comment edit frontend (HTMX inline edit) |
+| 8. Clicking edit shows an inline form; submitting updates the comment text in place via HTMX | `frontend/astro/src/pages/fragments/shootouts/comments.html.ts`, `frontend/astro/dist/fragments/shootouts/comments.html`, `apps/webapp/src/webapp/api/pages/shootouts.py` | Comment edit frontend (HTMX inline edit) |
+| 9. Hardcoded is_system_track: False removed from pages/context.py | `apps/webapp/src/webapp/api/pages/context.py`, `frontend/astro/src/pages/fragments/library/track_item.html.ts`, `frontend/astro/dist/fragments/library/track_item.html` (+4 more) | Remove is_system_track dead code |
+| 10. Frontend is_system_track badge and delete-button suppression references removed from track_item.html, di-track detail, DITrackSelectModal, and api.ts | `apps/webapp/src/webapp/api/pages/context.py`, `frontend/astro/src/pages/fragments/library/track_item.html.ts`, `frontend/astro/dist/fragments/library/track_item.html` (+4 more) | Remove is_system_track dead code |

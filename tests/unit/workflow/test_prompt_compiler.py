@@ -79,6 +79,50 @@ def _sample_repo_facts() -> dict:
     }
 
 
+def _sample_curation() -> dict:
+    return {
+        "schema_v": 1,
+        "epic_number": 146,
+        "candidate_journeys": [
+            {
+                "journey_id": "CJ1",
+                "title": "Journey candidate",
+                "entry_point": "/start",
+                "desired_outcome": "Reach /done",
+                "key_steps": ["Load source", "Trigger transition"],
+            }
+        ],
+        "story_slices": [
+            {
+                "slice_id": "SL1",
+                "title": "Slice one",
+                "objective": "Build the first vertical slice",
+                "likely_surfaces": ["workflow/plan_generator.py"],
+                "dependencies": [],
+            }
+        ],
+        "missing_assumptions": [
+            {
+                "assumption": "Source route is broken",
+                "why_it_matters": "Planner must repair it",
+                "planner_action": "Plan the source-state fix explicitly",
+            }
+        ],
+        "scope_tensions": [
+            {
+                "tension": "Small slices vs real behaviour",
+                "tradeoff": "Avoid fake-green checkpoints",
+                "planner_guidance": "Keep vertical slices end to end",
+            }
+        ],
+        "planner_handoff": {
+            "priority_order": ["Fix source route", "Then wire transition"],
+            "watchouts": ["Do not invent alternate routes"],
+            "recommended_story_shape": "Two focused slices",
+        },
+    }
+
+
 class TestPromptArtifact:
     def test_prompt_artifact_exposes_sections_and_text(self) -> None:
         artifact = make_prompt_artifact(
@@ -125,6 +169,17 @@ class TestCompiledVerifierPrompt:
         assert "architectural_context" not in prompt
         assert "implementation_notes" not in prompt
 
+    def test_verifier_prompt_includes_curation_when_present(self) -> None:
+        prompt = _build_verifier_prompt(
+            _sample_plan(),
+            "## Summary\nEpic\n",
+            _sample_repo_facts(),
+            _sample_curation(),
+        )
+
+        assert "## Input 4: Curated Planning Handoff" in prompt
+        assert "Two focused slices" in prompt
+
 
 class TestCompiledRevisionPrompt:
     def test_phase_b_revision_prompt_uses_compact_plan_slice(self) -> None:
@@ -156,4 +211,37 @@ class TestCompiledRevisionPrompt:
         assert "## Repo Facts" in prompt
         assert "architectural_context" not in prompt
         assert "implementation_notes" not in prompt
+        assert "chosen canonical contract" in prompt
+        assert "Never silently replace an epic route, field, or transport" in prompt
         assert "Use the StructuredOutput tool for the final answer." in prompt
+        assert "Do NOT wrap it" in prompt
+        assert "`result`, `plan`, `output`" in prompt
+
+    def test_phase_b_revision_prompt_includes_curation_when_present(self) -> None:
+        verifier_feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "gap_detection": {
+                        "status": "fail",
+                        "findings": [
+                            {
+                                "severity": "must_fix",
+                                "missing_link": "Transition never reaches target",
+                            }
+                        ],
+                    }
+                },
+            }
+        )
+
+        prompt = build_targeted_phase_b_revision_prompt(
+            "## Summary\nEpic\n",
+            json.dumps(_sample_repo_facts()),
+            json.dumps(_sample_plan()),
+            verifier_feedback,
+            json.dumps(_sample_curation()),
+        )
+
+        assert "## Curated Planning Handoff" in prompt
+        assert "Two focused slices" in prompt

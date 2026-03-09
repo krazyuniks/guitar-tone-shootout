@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from workflow.artifacts import (
+    CurationArtifact,
     EpicArtifact,
     PlanArtifact,
     PlanVerificationResultArtifact,
@@ -71,6 +72,7 @@ def make_verifier_prompt(
     plan: PlanArtifact,
     epic: EpicArtifact,
     repo_facts: RepoFactsArtifact,
+    curation: CurationArtifact | None = None,
 ):
     """Compile the verifier prompt from typed workflow artifacts."""
     return make_prompt_artifact(
@@ -83,7 +85,8 @@ def make_verifier_prompt(
                     "adversarial: find flaws, not confirm correctness.\n\n"
                     "**You are a tool-equipped agent.** Use Read, Grep, and Glob to explore the "
                     "codebase and verify the plan's claims.\n\n"
-                    "You must check 6 dimensions and return structured JSON output."
+                    "You must check 6 dimensions, explicitly review `contract_decisions`, "
+                    "and return structured JSON output."
                 ),
             ),
             PromptSection(
@@ -95,6 +98,37 @@ def make_verifier_prompt(
                 render_json_block("plan", plan.review_payload),
             ),
             PromptSection("## Input 3: Repo Facts", repo_facts.prompt_block),
+            *(
+                [
+                    PromptSection(
+                        "## Input 4: Curated Planning Handoff",
+                        (
+                            "Use this pre-plan curation when judging whether the plan kept the "
+                            "intended journey framing, story split, missing assumptions, and "
+                            "scope tensions in view.\n\n"
+                            f"{curation.prompt_block}"
+                        ),
+                    )
+                ]
+                if curation is not None
+                else []
+            ),
+            PromptSection(
+                "## Contract Decisions Review",
+                """Review `plan.contract_decisions` explicitly.
+
+- If the epic and repo differ on a route, field, transport, or entry point,
+  the plan must record a contract decision.
+- `contract_decisions[].canonical` may only be `epic` or `bridge`.
+- `epic_contract` must preserve the issue contract exactly enough for a human
+  reviewer to see the intended surface.
+- If canonical is `epic`, stories and checkpoints must still implement the epic
+  surface as the user-facing contract.
+- If canonical is `bridge`, the bridge must be concrete and checkpoints must
+  prove both the epic-facing contract and the compatibility surface.
+- If the plan silently substitutes a repo convention or a mismatch exists with
+  no recorded contract decision, that is a must_fix failure.""",
+            ),
             PromptSection(
                 "## Verification Dimensions",
                 """### Severity Classification
@@ -120,6 +154,7 @@ Every finding MUST have a severity level:
 
 - Flag epic requirements with no corresponding story.
 - Flag scope creep beyond the epic.
+- Flag repo-only substitutions or missing contract decisions.
 
 ### 4. Gap Detection
 
@@ -130,6 +165,7 @@ Every finding MUST have a severity level:
 
 - Flag checkpoints that could false-green.
 - Direct 200 checks, grep-only checks, and presence-only checks are weak when the epic requires real behaviour.
+- If a bridge is declared, flag missing checkpoints that prove both surfaces.
 
 ### 6. Gap Sufficiency
 
@@ -158,10 +194,22 @@ Be rigorous but fair. Flag real issues, not stylistic preferences.""",
     )
 
 
+def _read_optional_curation(epic_dir: Path) -> CurationArtifact | None:
+    """Read curation.json from the epic directory when present."""
+    curation_path = epic_dir / "curation.json"
+    if not curation_path.is_file():
+        return None
+    try:
+        return CurationArtifact.from_epic_dir(epic_dir)
+    except ValueError as exc:
+        raise PlanVerificationError(str(exc)) from exc
+
+
 def _build_verifier_prompt(
     plan_json: dict,
     epic_md: str,
     repo_facts_json: dict[str, Any],
+    curation_json: dict[str, Any] | None = None,
 ) -> str:
     """Construct the Codex verifier prompt with cross-model framing.
 
@@ -173,6 +221,7 @@ def _build_verifier_prompt(
         plan,
         EpicArtifact(epic_number=plan.epic_number, body=epic_md),
         RepoFactsArtifact.from_dict(repo_facts_json),
+        None if curation_json is None else CurationArtifact.from_dict(curation_json),
     ).text
 
 
@@ -479,8 +528,9 @@ def _verify_plan_artifact(
     plan = PlanArtifact.from_path(plan_json_path)
     epic = EpicArtifact.from_epic_dir(epic_dir)
     repo_facts = RepoFactsArtifact.from_path(repo_facts_path)
+    curation = _read_optional_curation(epic_dir)
 
-    prompt = make_verifier_prompt(plan, epic, repo_facts).text
+    prompt = make_verifier_prompt(plan, epic, repo_facts, curation).text
 
     critic_model = config.models.plan_critic if config else "opus"
 
@@ -716,6 +766,7 @@ def _regenerate_plan_with_verifier_feedback(
         RepoFactsArtifact.from_epic_dir(epic_dir),
         PlanArtifact.from_path(epic_dir / "plan.json"),
         verifier_feedback,
+        _read_optional_curation(epic_dir),
     )
     revision_prompt = make_phase_b_revision_prompt(request).text
 

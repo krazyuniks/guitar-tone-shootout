@@ -113,10 +113,10 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 - **Principle: "No model marks its own homework."** Opus plans, Codex critiques the plan, agents implement, Opus critiques the implementation.
 - Epics run via the stateless orchestrator (`workflow/orchestrator.py`). JSONL log is the only state — enables crash-resume.
 - **Idempotent 2-command flow:**
-  1. `just epic N` — plans (planner explores codebase with tools), stops after approval (logs `plan_committed`)
-  2. `just epic N` — executes committed stories
+  1. `just epic N` — plans, verifies, human-gates, commits, then continues directly into execution in the same run
+  2. `just epic N` — resume path after interruption; picks up from `plan_committed` or in-flight execution state
 - **JSONL state gates:** `plan_committed` → story execution.
-- **Verification gates:** epic structure (ingest), Phase A (deterministic, 11 checks), Phase B (adversarial critique, 6 dimensions incl. gap sufficiency), decision gate (human), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model, hard gate), epic critique (cross-model).
+- **Verification gates:** epic structure (ingest), Phase A (deterministic, 12 checks), Phase B (adversarial critique, 6 dimensions incl. gap sufficiency), decision gate (human), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model, hard gate), epic critique (cross-model).
 - `just epic N` — idempotent: reads JSONL state, does the next thing.
 - `just epic-status N` — check progress from JSONL logs (read-only).
 - `just epic-validate-plan N` — run Phase A deterministic validation only (read-only).

@@ -29,6 +29,9 @@ from rich.console import Console
 
 from workflow.artifacts import (
     CritiqueRunArtifact,
+    CurationCompleteArtifact,
+    CurationDispatchedArtifact,
+    CurationFailedArtifact,
     PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
     PlannerCompleteArtifact,
@@ -1487,25 +1490,26 @@ def _run_epic_loop(
 def run_pipeline(epic_number: int) -> None:
     """Idempotent epic pipeline entry point.
 
-    Reads JSONL state and does the next thing. Two user interactions:
+    Reads JSONL state and does the next thing. The happy path is one run:
 
-    1. ``just epic N`` — plans, stops after approval (logs plan_committed)
-    2. ``just epic N`` — executes stories (test generation is per-story)
+    1. ``just epic N`` — plan, verify, approve, commit, and continue into execution
+    2. rerun ``just epic N`` only if recovery/resume is needed after interruption
 
     Args:
         epic_number: The GitHub issue number of the epic.
     """
-    from workflow.cli import _check_plan_committed, _run_planning_pipeline
+    from workflow.cli import PlanningPipelineOutcome, _check_plan_committed, _run_planning_pipeline
 
     epic_dir = PLANNING_DIR / f"E{epic_number}"
 
     # Gate 1: plan_committed
     if not _check_plan_committed(epic_dir):
-        # Run planning pipeline, which STOPs after commit+push
-        _run_planning_pipeline(epic_number)
-        return
-
-    logger.info("Plan already committed for epic #%d.", epic_number)
+        planning_outcome = _run_planning_pipeline(epic_number)
+        if planning_outcome != PlanningPipelineOutcome.COMMITTED:
+            return
+        logger.info("Planning committed for epic #%d. Continuing into execution.", epic_number)
+    else:
+        logger.info("Plan already committed for epic #%d.", epic_number)
 
     # Stage 4: Execution (test generation happens per-story, after implementation)
     logger.info("Starting story execution for epic #%d.", epic_number)
@@ -1541,6 +1545,8 @@ def show_status(epic_number: int) -> None:
     artefacts = {
         "EPIC.md": epic_dir / "EPIC.md",
         "repo_facts.json": epic_dir / "repo_facts.json",
+        "CURATION.md": epic_dir / "CURATION.md",
+        "curation.json": epic_dir / "curation.json",
         "PLAN.md": epic_dir / "PLAN.md",
         "plan.json": epic_dir / "plan.json",
         "epic.jsonl": epic_dir / "epic.jsonl",
@@ -1604,12 +1610,32 @@ def show_status(epic_number: int) -> None:
         print(f"Failed story: {run_artifact.failed_story_id}")
 
     # Planning status
+    curation_dispatches: list[CurationDispatchedArtifact] = []
+    curation_result: CurationCompleteArtifact | CurationFailedArtifact | None = None
     planner_dispatches: list[PlannerDispatchedArtifact] = []
     planner_result: PlannerCompleteArtifact | PlannerFailedArtifact | None = None
     phase_a_event: PhaseAValidationEventArtifact | None = None
     phase_b_event: PhaseBVerificationEventArtifact | None = None
 
     for event in events:
+        try:
+            curation_dispatches.append(CurationDispatchedArtifact.from_event(event))
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            curation_result = CurationCompleteArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            curation_result = CurationFailedArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
         try:
             planner_dispatches.append(PlannerDispatchedArtifact.from_event(event))
             continue
@@ -1642,8 +1668,23 @@ def show_status(epic_number: int) -> None:
         e for e in events if e.get("event") in ("plan_approved", "plan_revised", "plan_rejected")
     ]
 
-    if planner_dispatches or planner_result is not None or phase_a_event is not None or phase_b_event is not None or gate_events:
+    if (
+        curation_dispatches
+        or curation_result is not None
+        or planner_dispatches
+        or planner_result is not None
+        or phase_a_event is not None
+        or phase_b_event is not None
+        or gate_events
+    ):
         print("\nPlanning:")
+        if curation_dispatches:
+            print(f"  Curation attempts: {len(curation_dispatches)}")
+        if curation_result is not None:
+            curation_status = (
+                "COMPLETE" if isinstance(curation_result, CurationCompleteArtifact) else "FAILED"
+            )
+            print(f"  Curation: {curation_status}")
         if planner_dispatches:
             print(f"  Planner attempts: {len(planner_dispatches)}")
         if planner_result is not None:

@@ -75,6 +75,52 @@ def _sample_repo_facts_json() -> str:
     )
 
 
+def _sample_curation_json() -> str:
+    return json.dumps(
+        {
+            "schema_v": 1,
+            "epic_number": 146,
+            "candidate_journeys": [
+                {
+                    "journey_id": "CJ1",
+                    "title": "Journey candidate",
+                    "entry_point": "/start",
+                    "desired_outcome": "Reach /done",
+                    "key_steps": ["Load source", "Trigger transition"],
+                }
+            ],
+            "story_slices": [
+                {
+                    "slice_id": "SL1",
+                    "title": "Slice one",
+                    "objective": "Build the first vertical slice",
+                    "likely_surfaces": ["workflow/plan_generator.py"],
+                    "dependencies": [],
+                }
+            ],
+            "missing_assumptions": [
+                {
+                    "assumption": "Source page exists",
+                    "why_it_matters": "Planner must create it if missing",
+                    "planner_action": "Verify source-state coverage explicitly",
+                }
+            ],
+            "scope_tensions": [
+                {
+                    "tension": "Small slices vs real journeys",
+                    "tradeoff": "Avoid fake-green checkpoints",
+                    "planner_guidance": "Keep slices thin but end to end",
+                }
+            ],
+            "planner_handoff": {
+                "priority_order": ["Fix source route", "Then validate transition"],
+                "watchouts": ["Do not invent new routes"],
+                "recommended_story_shape": "Two focused vertical slices",
+            },
+        }
+    )
+
+
 class TestPlannerPrompt:
     """Planner prompt should push the model toward verifier-grade plans."""
 
@@ -88,6 +134,7 @@ class TestPlannerPrompt:
         assert "<json_schema>" not in prompt
         assert "Output only a single JSON object matching the provided schema." in prompt
         assert "Use the StructuredOutput tool for the" in prompt
+        assert "Do NOT wrap it in `result`, `plan`, `output`, or any outer key." in prompt
 
     def test_self_check_requires_route_transition_and_transport_validation(self):
         prompt = _build_planner_prompt(
@@ -98,6 +145,9 @@ class TestPlannerPrompt:
         assert "source page/state renders, transition mechanism works" in prompt
         assert "If the UX uses HTMX/Alpine/fetch and the API contract is JSON" in prompt
         assert "redirect mechanism and the renderability of the destination page" in prompt
+        assert "preserve the epic contract or plan an explicit" in prompt
+        assert "record an explicit contract" in prompt
+        assert "epic contract, the repo convention, the chosen canonical contract" in prompt
 
     def test_journey_and_checkpoint_guidance_mentions_source_to_target_coverage(self):
         prompt = _build_planner_prompt(
@@ -107,6 +157,7 @@ class TestPlannerPrompt:
         assert "Do NOT invent entry points or source pages without tool evidence" in prompt
         assert "the source page/state renders with the expected control" in prompt
         assert "the target page/state renders correctly afterward" in prompt
+        assert "make the\n  resolution explicit in the story" in prompt
 
     def test_dead_dependency_summary_metadata_is_not_requested(self):
         prompt = _build_planner_prompt(
@@ -114,6 +165,17 @@ class TestPlannerPrompt:
         )
 
         assert "depends_on_summary" not in prompt
+
+    def test_curation_section_is_included_when_present(self):
+        prompt = _build_planner_prompt(
+            "## Summary\nTest epic\n",
+            json.loads(_sample_repo_facts_json()),
+            146,
+            json.loads(_sample_curation_json()),
+        )
+
+        assert "## Curated Planning Handoff" in prompt
+        assert "<curation>" in prompt
 
 
 class TestPhaseBRevisionPrompt:
@@ -178,4 +240,32 @@ class TestPhaseBRevisionPrompt:
         assert (
             "You MAY rewrite any affected story, journey, checkpoint, or validation path." in prompt
         )
+        assert "you MUST make the\n   contract resolution explicit" in prompt
+        assert "Never silently replace an epic route, field, or transport" in prompt
         assert "Use the StructuredOutput tool for the final answer." in prompt
+
+    def test_revision_prompt_includes_curation_when_present(self):
+        verifier_feedback = VerifierFeedbackArtifact.from_dict(
+            {
+                "status": "fail",
+                "dimensions": {
+                    "gap_detection": {
+                        "status": "fail",
+                        "findings": [
+                            {"severity": "must_fix", "missing_link": "Transition uncovered"}
+                        ],
+                    }
+                },
+            }
+        )
+
+        prompt = build_targeted_phase_b_revision_prompt(
+            "## Summary\nEpic\n",
+            _sample_repo_facts_json(),
+            _sample_plan_json(),
+            verifier_feedback,
+            _sample_curation_json(),
+        )
+
+        assert "## Curated Planning Handoff" in prompt
+        assert "Two focused vertical slices" in prompt

@@ -1,0 +1,211 @@
+{
+  "status": "fail",
+  "dimensions": {
+    "journey_completeness": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "finding": "Journey J1 starts at `/library/groups`, but the plan does not cover rendering or validating that source page.",
+          "detail": "Story 01 and its checkpoints only test direct GETs to `/library/chains/group?id=...`. There is no story/checkpoint for the source page and group-card list render.",
+          "evidence": [
+            "Plan J1 entry_point: `/library/groups`",
+            "Plan Story 01 checkpoints only target `/library/chains/group?...`",
+            "No `@router.get(\"/library/groups\")` in `apps/webapp/src/webapp/api/pages/*.py`",
+            "No `frontend/astro/src/pages/pages/library/groups.html.ts` (library pages present: chains, chains_build, di-tracks, my_gear, shootouts)"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Journey J4 uses route names not aligned with the actual app routes.",
+          "detail": "J4 uses `/library/tracks` and Story 05 checks `/library/tracks/list`, but the existing library DI route is `/library/di-tracks`.",
+          "evidence": [
+            "Plan J4 entry_point: `/library/tracks`",
+            "Plan Story 05 criterion: `GET /library/tracks/list ...`",
+            "`apps/webapp/src/webapp/api/pages/di_tracks.py:70` defines `@router.get(\"/library/di-tracks\")`"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Journey J3 includes edit-submit-update behavior, but checkpoints only cover button presence.",
+          "detail": "There is no checkpoint asserting prefilled edit state, PATCH call execution, or in-place text replacement.",
+          "evidence": [
+            "Plan J3 includes edit toggle, submit, and updated text render",
+            "Plan Story 04 checkpoints: edit button visibility + generic `-k comment` regression only"
+          ]
+        }
+      ]
+    },
+    "transition_coverage": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "finding": "J1 source-render -> click -> target-render is not validated end to end.",
+          "detail": "The plan validates target URL responses directly, but not the actual click transition from the source group list page.",
+          "evidence": [
+            "J1 transition mechanism: clicking group item anchor",
+            "No checkpoint loads `/library/groups` and asserts link navigation to `/library/chains/group?id=...`"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "J3 edit transition is not validated end to end.",
+          "detail": "No checkpoint verifies the inline edit state transition, PATCH request firing, and DOM replacement after success.",
+          "evidence": [
+            "J3 transitions define: detail page -> edit mode -> PATCH -> updated comment displayed",
+            "Story 04 test spec only has DOM presence/absence assertions for edit button"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "J4 transitions are unvalidated and target incorrect source route names.",
+          "detail": "The transition chain references `/library/tracks` but app routes are `/library/di-tracks`; this prevents reliable end-to-end validation.",
+          "evidence": [
+            "Plan J4 transition source: `/library/tracks`",
+            "`apps/webapp/src/webapp/api/pages/di_tracks.py:70` route is `/library/di-tracks`"
+          ]
+        }
+      ]
+    },
+    "intent_alignment": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "finding": "Comment edit UI mechanism conflicts with epic decision.",
+          "detail": "Epic decision requires HTMX inline swap. Plan enforces Alpine fetch/state for edit flow.",
+          "evidence": [
+            "Epic decision: \"Comment editing uses HTMX inline swap\"",
+            "Plan Story 04 acceptance: \"inline edit mechanism uses Alpine.js x-data state (not HTMX)\""
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Group detail required content is not fully aligned with epic outcomes.",
+          "detail": "Epic requires group detail page to show list of chains in the group. Plan focuses on slot configuration/base chain/permutation and omits explicit chain-list requirement.",
+          "evidence": [
+            "Epic observable outcome: group detail shows name, description, and list of chains in group",
+            "Plan Truth 2 + Story 01 acceptance emphasize base_chain/permutation/slots; no explicit chain-list acceptance"
+          ]
+        },
+        {
+          "severity": "note",
+          "finding": "Story 04 adds extra UX requirements not in epic.",
+          "detail": "Loading state and cancel-flow are useful but are scope additions.",
+          "evidence": [
+            "Plan Story 04 acceptance includes loading-state and cancel behavior not listed in epic outcomes"
+          ]
+        }
+      ]
+    },
+    "gap_detection": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "finding": "Group navigation chain is incomplete: source page is missing from scope.",
+          "detail": "Feature chain should include source page render (`/library/groups`) -> card link -> detail route. Plan only scopes detail route/template.",
+          "evidence": [
+            "Plan J1 starts from `/library/groups`",
+            "Story 01 scope modifies `apps/webapp/src/webapp/api/pages/chains.py` + new detail page template only",
+            "No page route for `/library/groups` in `apps/webapp/src/webapp/api/pages/*.py`"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Group detail data chain for 'list of chains in group' is missing.",
+          "detail": "There is no planned repository/service/API/template requirement to fetch and render chains by `group_id`.",
+          "evidence": [
+            "Epic requires list of chains in group",
+            "Story 01 acceptance does not require rendering chain list",
+            "`apps/webapp/src/webapp/adapters/persistence/models/signal_chain.py` has `SignalChain.group_id`, but plan does not include this retrieval path"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Comment edit API/UI chain is contract-inconsistent with existing HTMX comment architecture.",
+          "detail": "Current comments fragment and tests are HTMX-oriented; plan switches edit path to Alpine fetch without defining a compatible swap contract.",
+          "evidence": [
+            "`frontend/astro/src/pages/fragments/shootouts/comments.html.ts` uses `hx-post` and `hx-delete`",
+            "`tests/integration/webapp/test_shootout_comments_html_fragment.py` asserts HTMX behavior",
+            "Plan Story 04 mandates non-HTMX edit mechanism"
+          ]
+        }
+      ]
+    },
+    "validation_sufficiency": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "finding": "Story 01 checkpoints can false-green while click navigation remains broken.",
+          "detail": "Direct status/DOM checks on target route do not prove that group cards on source page navigate correctly.",
+          "evidence": [
+            "Story 01 checkpoint criteria only call GET `/library/chains/group?...`",
+            "No checkpoint for source page render + clickable link transition"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Comment PATCH request contract is under-validated.",
+          "detail": "Epic requires payload `{\"body\": \"updated text\"}`, but checkpoints do not explicitly validate request-field contract and could pass with a different payload schema.",
+          "evidence": [
+            "Epic observable outcome specifies `PATCH /api/v1/comments/<id>` with JSON `body`",
+            "Plan Story 03 checkpoints verify status/content update, not explicit request-key contract"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Story 04 validation is presence-only and misses real behavior.",
+          "detail": "No checkpoint validates inline prefill, submit action, response handling, and in-place update.",
+          "evidence": [
+            "Story 04 checkpoints: render edit button for own comments + generic comment regression run",
+            "No explicit DOM state-change or PATCH-wire assertion"
+          ]
+        },
+        {
+          "severity": "note",
+          "finding": "Story 05 relies heavily on grep for behavioral outcomes.",
+          "detail": "Grep is useful for dead-code cleanup but does not validate route rendering behavior by itself.",
+          "evidence": [
+            "Story 05 checkpoint uses grep + `just check` + `just test-golden-path`"
+          ]
+        }
+      ]
+    },
+    "gap_sufficiency": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "finding": "Missed epic gap: required chain list on group detail page.",
+          "detail": "Plan does not ensure the page renders chains belonging to the group.",
+          "evidence": [
+            "Epic outcome explicitly requires list of chains in group",
+            "Story 01 acceptance criteria do not include chain-list rendering"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "API/frontend mismatch gap on comment editing mechanism.",
+          "detail": "Plan's UI mechanism (Alpine fetch) conflicts with epic-required HTMX inline swap, creating a contract mismatch risk.",
+          "evidence": [
+            "Epic decision mandates HTMX inline swap",
+            "Story 04 mandates Alpine (not HTMX)"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "finding": "Route mismatch gap in DI-track cleanup validation.",
+          "detail": "Plan validates `/library/tracks/list`, but app uses `/library/di-tracks`; this misses real-path verification.",
+          "evidence": [
+            "Plan Story 05 criterion targets `/library/tracks/list`",
+            "`apps/webapp/src/webapp/api/pages/di_tracks.py:70` defines `/library/di-tracks`"
+          ]
+        }
+      ]
+    }
+  },
+  "summary": "The plan is not sufficient to reliably satisfy Epic #146. Major blockers are: missing end-to-end coverage for group-list-to-detail navigation, omission of the required group chain list on the detail page, comment edit mechanism misaligned with the epic’s HTMX decision, and DI-track cleanup validation targeting incorrect routes."
+}

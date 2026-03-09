@@ -1,0 +1,385 @@
+# Task: Curate Planning Inputs
+
+Produce a bounded `curation.json` for epic #146. This stage shapes planning; it does not produce final stories, final checkpoints, or a final execution schema.
+
+Read AGENTS.md and DEVELOPMENT.md first for project conventions.
+
+Output only a single JSON object matching the provided schema. Do not emit markdown or analysis text.
+
+---
+
+## Epic Contract
+
+<epic>
+---
+github_issue: 146
+title: "Phase 4 — Security fixes, group detail page, comment editing"
+state: OPEN
+labels: []
+fetched: 2026-03-06T23:54:30Z
+---
+
+## Summary
+
+Address the high-priority security gap (shootout chain ownership validation), wire the missing group detail page endpoint, add comment editing, and clean up dead `is_system_track` references. These are small, well-scoped fixes spanning 4B, 4C, and cleanup.
+
+## Observable Outcomes
+
+- [ ] `GET /library/chains/group?id=<uuid>` returns the group detail page showing group name, description, and list of chains in the group
+- [ ] Clicking a group item link on the group list page navigates to the group detail page (no 404)
+- [ ] Creating a shootout with a signal chain not owned by the current user returns 404 (not 403, not success)
+- [ ] Creating a shootout with a chain owned by the current user succeeds as before
+- [ ] `PATCH /api/v1/comments/<id>` with `{"body": "updated text"}` updates the comment body; returns updated comment
+- [ ] `PATCH /api/v1/comments/<id>` by a non-author returns 404
+- [ ] Comment on shootout detail page shows an edit button for the author only
+- [ ] Clicking edit shows an inline form; submitting updates the comment text in place via HTMX
+- [ ] Hardcoded `is_system_track: False` removed from `pages/context.py`
+- [ ] Frontend `is_system_track` badge and delete-button suppression references removed
+
+## Decisions
+
+- **BC ownership:** Group detail page is webapp (pages BC). Comment editing is webapp API + frontend. Shootout ownership is webapp API validation.
+- **Auth:** Shootout creation validates `chain.user_id == current_user.id` for all selected chains. Comment edit validates `comment.user_id == current_user.id`. Both return 404 on mismatch.
+- **Frontend pattern:** Group detail page is SSR (Jinja2 template, already built as `fragments/library/group_detail.html.ts`). Comment editing uses HTMX inline swap.
+- **API contract:** `PATCH /api/v1/comments/<id>` accepts `{"body": str}`, returns full comment schema. No new endpoints for group detail (SSR page route only).
+- **Cleanup:** `is_system_track` references are dead code — remove without replacement.
+
+## Regression Boundaries
+
+- Existing shootout creation with valid owned chains must continue to work
+- Existing comment display (create, delete) must not change
+- Group list page must continue to work
+- DI track pages must render correctly after `is_system_track` removal
+
+</epic>
+
+---
+
+## Repo Facts
+
+<repo_facts>
+{
+  "schema_v": 1,
+  "epic_number": 146,
+  "current_entry_points": [
+    {
+      "statement": "Route or path `/library/chains/group` already appears in live repo surfaces.",
+      "evidence": [
+        {
+          "path": "frontend/astro/dist/fragments/library/group_item.html",
+          "line": 17,
+          "detail": "href=\"/library/chains/group?id={{ group.id }}\""
+        },
+        {
+          "path": "frontend/astro/dist/fragments/library/group_item.html",
+          "line": 32,
+          "detail": "href=\"/library/chains/group?id={{ group.id }}\""
+        },
+        {
+          "path": "frontend/astro/src/pages/fragments/library/group_item.html.ts",
+          "line": 31,
+          "detail": "href=\"/library/chains/group?id={{ group.id }}\""
+        }
+      ]
+    }
+  ],
+  "relevant_existing_surfaces": [
+    {
+      "statement": "`chain.user_id == current_user.id` already has live repo surfaces that overlap this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/chains.py",
+          "line": 45,
+          "detail": "query = select(SignalChain).where(SignalChain.user_id == current_user.id)"
+        },
+        {
+          "path": "apps/webapp/src/webapp/api/pages/chains.py",
+          "line": 57,
+          "detail": "select(func.count()).select_from(SignalChain).where(SignalChain.user_id == current_user.id)"
+        }
+      ]
+    },
+    {
+      "statement": "`comment.user_id == current_user.id` already has live repo surfaces that overlap this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/context.py",
+          "line": 236,
+          "detail": "\"is_own\": current_user is not None and comment.user_id == current_user.id,"
+        }
+      ]
+    },
+    {
+      "statement": "`current_user` already has live repo surfaces that overlap this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/__init__.py",
+          "line": 12,
+          "detail": "get_current_user_optional,"
+        },
+        {
+          "path": "apps/webapp/src/webapp/api/pages/__init__.py",
+          "line": 13,
+          "detail": "get_current_user_page,"
+        },
+        {
+          "path": "apps/webapp/src/webapp/api/pages/__init__.py",
+          "line": 38,
+          "detail": "\"get_current_user_optional\","
+        }
+      ]
+    },
+    {
+      "statement": "`github_issue` already has live repo surfaces that overlap this epic.",
+      "evidence": [
+        {
+          "path": "scripts/epic_ingest.py",
+          "line": 74,
+          "detail": "f\"github_issue: {epic_number}\\n\""
+        },
+        {
+          "path": "workflow/epic_ingest.py",
+          "line": 155,
+          "detail": "f\"github_issue: {epic_number}\\n\""
+        },
+        {
+          "path": "worktree/issue_ops.py",
+          "line": 137,
+          "detail": "def fetch_github_issues("
+        }
+      ]
+    },
+    {
+      "statement": "`group_detail` already has live repo surfaces that overlap this epic.",
+      "evidence": [
+        {
+          "path": "frontend/astro/src/pages/fragments/library/group_detail.html.ts",
+          "line": 2,
+          "detail": "* fragments/library/group_detail.html.ts - Outputs dist/fragments/library/group_detail.html"
+        }
+      ]
+    },
+    {
+      "statement": "`is_system_track` already has live repo surfaces that overlap this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/context.py",
+          "line": 108,
+          "detail": "\"is_system_track\": False,"
+        },
+        {
+          "path": "frontend/astro/dist/fragments/library/track_item.html",
+          "line": 70,
+          "detail": "{% if track.is_system_track %}"
+        },
+        {
+          "path": "frontend/astro/dist/fragments/library/track_item.html",
+          "line": 79,
+          "detail": "{% if is_library_view and not track.is_system_track %}"
+        }
+      ]
+    }
+  ],
+  "overlapping_implementations": [
+    {
+      "statement": "`github_issue` already spans multiple live repo surfaces and may require coordinated edits.",
+      "evidence": [
+        {
+          "path": "scripts/epic_ingest.py",
+          "line": 74,
+          "detail": "f\"github_issue: {epic_number}\\n\""
+        },
+        {
+          "path": "workflow/epic_ingest.py",
+          "line": 155,
+          "detail": "f\"github_issue: {epic_number}\\n\""
+        },
+        {
+          "path": "worktree/issue_ops.py",
+          "line": 137,
+          "detail": "def fetch_github_issues("
+        }
+      ]
+    },
+    {
+      "statement": "`is_system_track` already spans multiple live repo surfaces and may require coordinated edits.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/context.py",
+          "line": 108,
+          "detail": "\"is_system_track\": False,"
+        },
+        {
+          "path": "frontend/astro/dist/fragments/library/track_item.html",
+          "line": 70,
+          "detail": "{% if track.is_system_track %}"
+        },
+        {
+          "path": "frontend/astro/dist/fragments/library/track_item.html",
+          "line": 79,
+          "detail": "{% if is_library_view and not track.is_system_track %}"
+        }
+      ]
+    },
+    {
+      "statement": "`Jinja2` already spans multiple live repo surfaces and may require coordinated edits.",
+      "evidence": [
+        {
+          "path": ".gemini/commands/arch-review.toml",
+          "line": 88,
+          "detail": "### Frontend (Astro + Jinja2 + HTMX)"
+        },
+        {
+          "path": ".gemini/commands/arch-review.toml",
+          "line": 91,
+          "detail": "- [ ] Jinja2 templates (SSR) extend Astro-built base layout"
+        },
+        {
+          "path": ".gemini/commands/workflow-check.toml",
+          "line": 97,
+          "detail": "### 5. Jinja2 Templates"
+        }
+      ]
+    }
+  ],
+  "contradicted_assumptions": [
+    {
+      "statement": "Epic cites `fragments/library/group_detail.html.ts`, but the live repo currently places that surface elsewhere.",
+      "evidence": [
+        {
+          "path": "frontend/astro/src/pages/fragments/library/group_detail.html.ts",
+          "line": 1,
+          "detail": "Nearby path exists"
+        }
+      ]
+    },
+    {
+      "statement": "Epic cites `pages/context.py`, but the live repo currently places that surface elsewhere.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/context.py",
+          "line": 1,
+          "detail": "Nearby path exists"
+        }
+      ]
+    },
+    {
+      "statement": "Epic cites route `/api/v1/comments/`, but only related live repo surfaces for `comments` were found.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/adapters/persistence/models/shootout.py",
+          "line": 169,
+          "detail": "comments: Mapped[list[ShootoutComment]] = relationship("
+        },
+        {
+          "path": "apps/webapp/src/webapp/adapters/persistence/models/shootout_comment.py",
+          "line": 19,
+          "detail": "\"\"\"ShootoutComment model for user comments on shootouts."
+        },
+        {
+          "path": "apps/webapp/src/webapp/adapters/persistence/models/shootout_comment.py",
+          "line": 34,
+          "detail": "__tablename__ = \"core_shootout_comments\""
+        }
+      ]
+    }
+  ],
+  "likely_edit_targets": [
+    {
+      "statement": "`.gemini/commands/arch-review.toml` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": ".gemini/commands/arch-review.toml",
+          "line": 88,
+          "detail": "### Frontend (Astro + Jinja2 + HTMX)"
+        }
+      ]
+    },
+    {
+      "statement": "`.gemini/commands/workflow-check.toml` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": ".gemini/commands/workflow-check.toml",
+          "line": 97,
+          "detail": "### 5. Jinja2 Templates"
+        }
+      ]
+    },
+    {
+      "statement": "`apps/webapp/src/webapp/api/pages/__init__.py` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/__init__.py",
+          "line": 12,
+          "detail": "get_current_user_optional,"
+        }
+      ]
+    },
+    {
+      "statement": "`apps/webapp/src/webapp/api/pages/chains.py` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/chains.py",
+          "line": 45,
+          "detail": "query = select(SignalChain).where(SignalChain.user_id == current_user.id)"
+        }
+      ]
+    },
+    {
+      "statement": "`apps/webapp/src/webapp/api/pages/context.py` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": "apps/webapp/src/webapp/api/pages/context.py",
+          "line": 236,
+          "detail": "\"is_own\": current_user is not None and comment.user_id == current_user.id,"
+        }
+      ]
+    },
+    {
+      "statement": "`scripts/epic_ingest.py` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": "scripts/epic_ingest.py",
+          "line": 74,
+          "detail": "f\"github_issue: {epic_number}\\n\""
+        }
+      ]
+    }
+  ]
+}
+</repo_facts>
+
+---
+
+## Optional Codebase Hints
+
+These files may exist if maintainers already generated repo maps. They are optional acceleration only, never more authoritative than live repo inspection.
+
+No prebuilt codebase hint files are present for this epic.
+
+---
+
+## Curation Boundaries
+
+You are curating inputs for the planner, not replacing the planner.
+
+Stay strictly bounded to:
+- `candidate_journeys`
+- `story_slices`
+- `missing_assumptions`
+- `scope_tensions`
+- `planner_handoff`
+
+Rules:
+1. Do NOT emit final story IDs, final checkpoints, or full plan.json structure.
+2. Use repo evidence to avoid invented routes, pages, or components.
+3. Keep every item concise and specific.
+4. Prefer a small number of high-signal items over exhaustive brainstorming.
+5. If something is ambiguous, capture it under `missing_assumptions` or `scope_tensions` instead of guessing.
+
+---
+
+## Output
+
+Return one complete JSON object matching the curation schema.
+The object must be directly useful as planner input for this epic.

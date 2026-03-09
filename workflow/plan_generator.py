@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 from workflow.artifacts import (
+    CurationArtifact,
     EpicArtifact,
     PlanArtifact,
     RepoFactsArtifact,
@@ -92,6 +93,17 @@ def _read_repo_facts(epic_dir: Path) -> RepoFactsArtifact:
         raise PlanGenerationError(str(exc)) from exc
 
 
+def _read_optional_curation(epic_dir: Path) -> CurationArtifact | None:
+    """Read curation.json from the epic directory when present."""
+    curation_path = epic_dir / "curation.json"
+    if not curation_path.is_file():
+        return None
+    try:
+        return CurationArtifact.from_epic_dir(epic_dir)
+    except ValueError as exc:
+        raise PlanGenerationError(str(exc)) from exc
+
+
 # ---------------------------------------------------------------------------
 # Planner prompt construction
 # ---------------------------------------------------------------------------
@@ -113,7 +125,11 @@ recipe or `just tdd <path> -k <test>`. Weak checks like bare 200s, greps, or
 "button exists" checks are not enough when the epic requires a real journey."""
 
 
-def make_planner_prompt(epic: EpicArtifact, repo_facts: RepoFactsArtifact):
+def make_planner_prompt(
+    epic: EpicArtifact,
+    repo_facts: RepoFactsArtifact,
+    curation: CurationArtifact | None = None,
+):
     """Compile the planner prompt from typed epic workflow artifacts."""
     return make_prompt_artifact(
         role="planner",
@@ -123,16 +139,35 @@ def make_planner_prompt(epic: EpicArtifact, repo_facts: RepoFactsArtifact):
                 (
                     f"Produce a complete `plan.json` for epic #{epic.epic_number}. You are a "
                     "tool-equipped planner: inspect the repo live, find the real files and "
-                    "routes, and build a plan that matches the epic contract exactly.\n\n"
+                    "routes, and build a plan that matches the epic contract exactly. "
+                    "If repo conventions differ, the only valid canonical outcomes are "
+                    "`epic` or `bridge`; repo-only substitution is forbidden.\n\n"
                     "Read AGENTS.md and DEVELOPMENT.md first for project conventions and "
                     "structure.\n\n"
                     "Output only a single JSON object matching the provided schema. Do not "
                     "produce markdown, commentary, or `PLAN.md`. Use the StructuredOutput "
-                    "tool for the final answer."
+                    "tool for the final answer, and pass the plan object itself as the tool "
+                    "input. Do NOT wrap it in `result`, `plan`, `output`, or any outer key."
                 ),
             ),
             PromptSection("## Epic Contract", epic.prompt_block),
             PromptSection("## Repo Facts", repo_facts.prompt_block),
+            *(
+                [
+                    PromptSection(
+                        "## Curated Planning Handoff",
+                        (
+                            "Use this bounded curation as a shaping input for story "
+                            "boundaries, journey framing, missing assumptions, and scope "
+                            "tensions. It is advisory and pre-plan, not the final execution "
+                            "schema.\n\n"
+                            f"{curation.prompt_block}"
+                        ),
+                    )
+                ]
+                if curation is not None
+                else []
+            ),
             PromptSection(
                 "## Self-Check Before Emitting JSON",
                 """- Count your observable truths and confirm every ID appears in at least one
@@ -155,6 +190,21 @@ def make_planner_prompt(epic: EpicArtifact, repo_facts: RepoFactsArtifact):
   redirect mechanism and the renderability of the destination page.
 - If the current codebase suggests a familiar local pattern but the epic
   contract says something else, the epic contract wins.
+- If repo conventions differ from the epic contract (route shape, field names,
+  transport, or entry point), preserve the epic contract or plan an explicit
+  compatibility bridge. Do NOT silently substitute a repo-preferred contract.
+- For every epic-vs-repo contract mismatch, record an explicit top-level
+  `contract_decisions` entry with: decision_id, epic_contract, repo_convention,
+  canonical, bridge, and affected_stories.
+- In other words, record an explicit contract decision instead of leaving the
+  resolution buried in prose.
+- Each contract decision must name the epic contract, the repo convention, the chosen canonical contract, and any compatibility bridge needed.
+- `contract_decisions[].canonical` may only be `epic` or `bridge`. There is no
+  `repo` option.
+- If you choose a compatibility bridge, add checkpoints that prove the canonical
+  user-facing/API contract and the bridge behavior end to end.
+- Never present a repo-preferred route, field name, or transport as if it were
+  the epic contract unless you explicitly mark it as a compatibility decision.
 - List any gaps and fix them before writing the JSON object.""",
             ),
             PromptSection(
@@ -223,6 +273,9 @@ When you define a journey:
   broken, add scope to build or repair that source state.
 - Keep route/path names consistent across the epic, journeys, stories, and
   checkpoints. Resolve ambiguities with repo evidence before emitting JSON.
+- If a route, field name, or transport contract is disputed, make the
+  resolution explicit in the story and in top-level `contract_decisions`
+  instead of silently drifting to repo convention.
 
 ### Step 5: Place Validation Checkpoints
 
@@ -256,6 +309,13 @@ also prove the transport/wiring end to end, not just the raw endpoint response."
 10. Do NOT invent features not described in the epic. Stay within scope.
 11. Every story MUST have non-empty acceptance_criteria.
 12. Every story SHOULD include a test_spec with test_type, fixtures, and assertions.
+13. Every epic-vs-repo contract mismatch MUST be recorded in top-level
+    contract_decisions.
+14. Every contract decision MUST use canonical = "epic" or "bridge". There is
+    no "repo" option.
+15. If canonical == "bridge", bridge must be non-empty and checkpoints must
+    prove both the epic contract and the bridge behavior.
+16. Never drop the epic contract in favor of the repo convention.
 
 Think through the repo state carefully, then emit the JSON object.""",
             ),
@@ -267,6 +327,7 @@ def _build_planner_prompt(
     epic_md: str,
     repo_facts: dict[str, object],
     epic_number: int,
+    curation: dict[str, object] | None = None,
 ) -> str:
     """Construct the planner prompt.
 
@@ -279,6 +340,11 @@ def _build_planner_prompt(
     return make_planner_prompt(
         EpicArtifact(epic_number=epic_number, body=epic_md),
         RepoFactsArtifact.from_dict({"epic_number": epic_number, **repo_facts}),
+        (
+            None
+            if curation is None
+            else CurationArtifact.from_dict({"epic_number": epic_number, **curation})
+        ),
     ).text
 
 
@@ -445,8 +511,14 @@ def make_phase_a_revision_prompt(request: RevisionRequestArtifact):
 3. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
    Use the Glob and Read tools to verify file paths if unsure.
 4. Do NOT add new stories or remove existing ones unless an error requires it.
-5. Output only the complete JSON object matching the provided schema.
-6. Use the StructuredOutput tool for the final answer.""",
+5. If an error mentions contract_fidelity, preserve the epic surface in the
+   plan or add/update an explicit top-level `contract_decisions` entry.
+6. `contract_decisions[].canonical` may only be `epic` or `bridge`. There is
+   no `repo` option.
+7. Output only the complete JSON object matching the provided schema.
+8. Use the StructuredOutput tool for the final answer.
+9. Pass the plan object itself as the StructuredOutput input. Do NOT wrap it
+   in `result`, `plan`, `output`, or any outer key.""",
             ),
             PromptSection(
                 "## Current Plan",
@@ -532,6 +604,20 @@ def make_phase_b_revision_prompt(request: RevisionRequestArtifact):
     findings_text = "\n".join(feedback_lines) if feedback_lines else "(no specific findings)"
     assert request.epic is not None
     assert request.repo_facts is not None
+    curation_sections = (
+        [
+            PromptSection(
+                "## Curated Planning Handoff",
+                (
+                    "Use this prior curation as a shaping input while you revise the plan. "
+                    "It is advisory, not the final story/checkpoint schema.\n\n"
+                    f"{request.curation.prompt_block}"
+                ),
+            )
+        ]
+        if request.curation is not None
+        else []
+    )
     return make_prompt_artifact(
         role="planner_revision_phase_b",
         sections=[
@@ -545,6 +631,7 @@ def make_phase_b_revision_prompt(request: RevisionRequestArtifact):
             ),
             PromptSection("## Original Epic Contract", request.epic.prompt_block),
             PromptSection("## Repo Facts", request.repo_facts.prompt_block),
+            *curation_sections,
             PromptSection(
                 "## Rules",
                 """1. The epic contract wins over the current plan.
@@ -553,8 +640,20 @@ def make_phase_b_revision_prompt(request: RevisionRequestArtifact):
 4. Keep `scope.modify` paths pointing to files that exist on disk RIGHT NOW.
    Use the Glob and Read tools to verify file paths if unsure.
 5. If verifier feedback shows the current framing is wrong, fix the framing instead of patching around it.
-6. Output only the complete JSON object matching the provided schema.
-7. Use the StructuredOutput tool for the final answer.""",
+6. If the verifier flags epic-vs-repo contract drift, you MUST make the
+   contract resolution explicit in top-level `contract_decisions`. Each
+   decision must include decision_id, epic_contract, repo_convention, the
+   chosen canonical contract, bridge, and affected_stories.
+7. `contract_decisions[].canonical` may only be `epic` or `bridge`. There is
+   no `repo` option.
+8. If you keep a repo-shaped bridge for implementation ergonomics, add
+   acceptance criteria and checkpoints proving the epic-facing contract too.
+9. Never silently replace an epic route, field, or transport with a
+   repo-preferred one.
+10. Output only the complete JSON object matching the provided schema.
+11. Use the StructuredOutput tool for the final answer.
+12. Pass the plan object itself as the StructuredOutput input. Do NOT wrap it
+   in `result`, `plan`, `output`, or any outer key.""",
             ),
             PromptSection(
                 "## Current Plan",
@@ -575,6 +674,7 @@ def build_targeted_phase_b_revision_prompt(
     repo_facts_json_str: str,
     plan_json_str: str,
     verifier_feedback: VerifierFeedbackArtifact,
+    curation_json_str: str | None = None,
 ) -> str:
     """Build a targeted Phase B revision prompt.
 
@@ -586,6 +686,7 @@ def build_targeted_phase_b_revision_prompt(
         RepoFactsArtifact.from_dict(json.loads(repo_facts_json_str)),
         plan,
         verifier_feedback,
+        None if curation_json_str is None else CurationArtifact.from_dict(json.loads(curation_json_str)),
     )
     return make_phase_b_revision_prompt(request).text
 
@@ -651,6 +752,7 @@ def generate_plan(
     try:
         epic = EpicArtifact.from_epic_dir(epic_dir)
         repo_facts = _read_repo_facts(epic_dir)
+        curation = _read_optional_curation(epic_dir)
     except FileNotFoundError:
         epic_path = epic_dir / "EPIC.md"
         raise PlanGenerationError(
@@ -659,7 +761,7 @@ def generate_plan(
         )
     except ValueError as exc:
         raise PlanGenerationError(str(exc)) from exc
-    prompt_artifact = make_planner_prompt(epic, repo_facts)
+    prompt_artifact = make_planner_prompt(epic, repo_facts, curation)
     prompt = prompt_artifact.text
 
     prompt_tokens = len(prompt) // 4

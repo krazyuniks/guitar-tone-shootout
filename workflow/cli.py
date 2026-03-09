@@ -10,6 +10,7 @@ Provides subcommand routing for:
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -48,6 +49,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # ---------------------------------------------------------------------------
 # Pipeline helpers
 # ---------------------------------------------------------------------------
+
+
+class PlanningPipelineOutcome(StrEnum):
+    """Terminal outcomes from the planning pipeline."""
+
+    COMMITTED = "committed"
+    STOPPED_AT_GATE = "stopped_at_gate"
+    REJECTED = "rejected"
+    FAILED = "failed"
 
 
 def flush_stdin() -> None:
@@ -224,7 +234,7 @@ def _confirm_pipeline_config(config_path: Path) -> EpicConfig:
     return updated
 
 
-def _run_planning_pipeline(epic_number: int) -> None:
+def _run_planning_pipeline(epic_number: int) -> PlanningPipelineOutcome:
     """Run the planning pipeline from ingest through commit+push.
 
     This is the Stage 3 planning pipeline. Called by the orchestrator's
@@ -243,7 +253,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
     # Check for already-committed plan — caller handles Stage 4
     if _check_plan_committed(epic_dir):
         console.print("[green]Plan already committed.[/green]")
-        return
+        return PlanningPipelineOutcome.COMMITTED
 
     # Load epic configuration profile and confirm agent roles
     config_path = ensure_epic_config(epic_dir)
@@ -251,7 +261,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
         config = _confirm_pipeline_config(config_path)
     except (ValueError, FileNotFoundError) as exc:
         console.print(f"[red]Configuration error:[/red] {exc}")
-        raise typer.Exit(1) from exc
+        return PlanningPipelineOutcome.FAILED
 
     # Set up JSONL logging for planning events
     run_id = str(uuid.uuid4())
@@ -261,7 +271,7 @@ def _run_planning_pipeline(epic_number: int) -> None:
     from workflow.dispatch_log import dispatch_logging
 
     with dispatch_logging(epic_dir, run_id):
-        _run_planning_steps(epic_number, epic_dir, config, epic_logger)
+        return _run_planning_steps(epic_number, epic_dir, config, epic_logger)
 
 
 def _run_planning_steps(
@@ -269,18 +279,23 @@ def _run_planning_steps(
     epic_dir: Path,
     config,
     epic_logger,
-) -> None:
+) -> PlanningPipelineOutcome:
     """Execute the planning pipeline until commit (wrapped in dispatch_logging).
 
     Pipeline:
       1. Ingest — fetch epic from GitHub
       2. Repo Facts — deterministically inspect the repo for epic-specific grounding
-      3. Plan — agent explores codebase, breaks epic into stories
-      4. Verify — Phase A (deterministic) + Phase B (cross-model critique)
-      5. Decision Gate — human approval
-      6. Commit + Push
+      3. Curation — bounded agent handoff between repo-facts and planning
+      4. Plan — agent explores codebase, breaks epic into stories
+      5. Verify — Phase A (deterministic) + Phase B (cross-model critique)
+      6. Decision Gate — human approval
+      7. Commit + Push
     """
     from workflow.artifacts import (
+        CurationArtifact,
+        CurationCompleteArtifact,
+        CurationDispatchedArtifact,
+        CurationFailedArtifact,
         PhaseAValidationEventArtifact,
         PhaseBVerificationEventArtifact,
         PlannerCompleteArtifact,
@@ -290,6 +305,7 @@ def _run_planning_steps(
     )
     from workflow.epic_ingest import IngestionError, ingest_epic
     from workflow.git_helpers import GitPushError, robust_commit
+    from workflow.curation import CurationError, generate_curation
     from workflow.plan_generator import PlanGenerationError, generate_plan
     from workflow.plan_verifier import (
         PlanVerificationError,
@@ -309,7 +325,7 @@ def _run_planning_steps(
             console.print(f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)}")
         except IngestionError as exc:
             console.print(f"  [red]Error:[/red] {exc}")
-            raise typer.Exit(1) from exc
+            return PlanningPipelineOutcome.FAILED
 
     # Step 2: Repo Facts
     repo_facts_path = epic_dir / "repo_facts.json"
@@ -322,15 +338,71 @@ def _run_planning_steps(
             console.print(f"  [green]Written:[/green] {path.relative_to(PROJECT_ROOT)}")
         except (FileNotFoundError, ValueError) as exc:
             console.print(f"  [red]Error:[/red] {exc}")
-            raise typer.Exit(1) from exc
+            return PlanningPipelineOutcome.FAILED
 
-    # Step 3: Plan Generation
+    # Step 3: Curation
+    curation_json_path = epic_dir / "curation.json"
+    curation_md_path = epic_dir / "CURATION.md"
+    if curation_json_path.exists() and curation_md_path.exists() and _should_skip(
+        curation_json_path, "curation.json"
+    ):
+        console.print("[dim]Step 3: Curation — skipped[/dim]")
+    elif curation_json_path.exists() and not curation_md_path.exists():
+        console.print("[bold]Step 3:[/bold] Rendering CURATION.md from existing curation.json...")
+        try:
+            curation_md_path, curation_json_path = CurationArtifact.from_path(curation_json_path).write(
+                epic_dir
+            )
+            console.print(f"  [green]Written:[/green] {curation_md_path.relative_to(PROJECT_ROOT)}")
+        except (FileNotFoundError, ValueError) as exc:
+            console.print(f"  [red]Error:[/red] {exc}")
+            return PlanningPipelineOutcome.FAILED
+    else:
+        if curation_md_path.exists() and not curation_json_path.exists():
+            console.print(
+                "[bold]Step 3:[/bold] Rebuilding curation because CURATION.md exists without curation.json..."
+            )
+        else:
+            console.print("[bold]Step 3:[/bold] Curating planning inputs...")
+
+        curation_dispatch = CurationDispatchedArtifact(
+            epic_number=epic_number,
+            attempt=1,
+            model=config.models.planner,
+        )
+        epic_logger.log_event(curation_dispatch.event_name, **curation_dispatch.event_payload)
+
+        try:
+            curation_md_path, curation_json_path = generate_curation(epic_dir, config=config)
+            size = curation_json_path.stat().st_size
+            console.print(
+                f"  [green]Written:[/green] {curation_json_path.relative_to(PROJECT_ROOT)} "
+                f"({size:,d} bytes)"
+            )
+            console.print(f"  [green]Written:[/green] {curation_md_path.relative_to(PROJECT_ROOT)}")
+            curation_complete = CurationCompleteArtifact(
+                epic_number=epic_number,
+                attempt=1,
+                response_path=str(curation_json_path.relative_to(PROJECT_ROOT)),
+            )
+            epic_logger.log_event(curation_complete.event_name, **curation_complete.event_payload)
+        except CurationError as exc:
+            curation_failed = CurationFailedArtifact(
+                epic_number=epic_number,
+                attempt=1,
+                error=str(exc),
+            )
+            epic_logger.log_event(curation_failed.event_name, **curation_failed.event_payload)
+            console.print(f"  [red]Error:[/red] {exc}")
+            return PlanningPipelineOutcome.FAILED
+
+    # Step 4: Plan Generation
     plan_json_path = epic_dir / "plan.json"
     plan_md_path = epic_dir / "PLAN.md"
     if _should_skip(plan_json_path, "plan.json"):
-        console.print("[dim]Step 3: Plan Generation — skipped[/dim]")
+        console.print("[dim]Step 4: Plan Generation — skipped[/dim]")
     else:
-        console.print("[bold]Step 3:[/bold] Generating plan...")
+        console.print("[bold]Step 4:[/bold] Generating plan...")
 
         planner_dispatch = PlannerDispatchedArtifact(
             epic_number=epic_number,
@@ -361,18 +433,18 @@ def _run_planning_steps(
             )
             epic_logger.log_event(planner_failed.event_name, **planner_failed.event_payload)
             console.print(f"  [red]Error:[/red] {exc}")
-            raise typer.Exit(1) from exc
+            return PlanningPipelineOutcome.FAILED
 
-    # Step 4: Verification (structural validation + cross-model review)
+    # Step 5: Verification (structural validation + cross-model review)
     critic_model = config.models.plan_critic if config else "codex"
     console.print()
-    console.print("[bold]Step 4:[/bold] Verifying plan...")
+    console.print("[bold]Step 5:[/bold] Verifying plan...")
 
     try:
         verification_result, success = verify_with_revision_cycle(epic_dir, config=config)
     except PlanVerificationError as exc:
         console.print(f"  [red]Error:[/red] {exc}")
-        raise typer.Exit(1) from exc
+        return PlanningPipelineOutcome.FAILED
 
     if success:
         verifier_feedback = verification_result.verifier_feedback
@@ -413,7 +485,7 @@ def _run_planning_steps(
         console.print("\n  Review findings at the Decision Gate below.")
         # Fall through to Decision Gate — human can still approve
 
-    # Step 5: Decision Gate
+    # Step 6: Decision Gate
     console.print()
     plan_md_path = epic_dir / "PLAN.md"
 
@@ -424,7 +496,7 @@ def _run_planning_steps(
             f"[red]Decision Gate requires an interactive TTY.[/red]\n"
             f"Re-run `just epic {epic_number}` in an interactive shell to approve, revise, or reject the plan."
         )
-        raise typer.Exit(1)
+        return PlanningPipelineOutcome.STOPPED_AT_GATE
 
     gate_result = present_decision_gate(plan_md_path, verification_result)
 
@@ -438,11 +510,11 @@ def _run_planning_steps(
         console.print(
             "\n[yellow]Plan marked for manual revision.[/yellow]\n"
             "  The automatic planner revision budget is already exhausted before the human gate.\n"
-            "  Review repo_facts.json, plan.json, and PLAN.md, then re-run:\n"
+            "  Review repo_facts.json, curation.json (if present), plan.json, and PLAN.md, then re-run:\n"
             f"    just epic-validate-plan {epic_number}\n"
             f"    just epic {epic_number}"
         )
-        return
+        return PlanningPipelineOutcome.STOPPED_AT_GATE
     elif gate_result.rejected:
         rejection = PlanDecisionArtifact.for_rejection(
             epic_number,
@@ -451,11 +523,11 @@ def _run_planning_steps(
         )
         epic_logger.log_event(rejection.event_name, **rejection.event_payload)
         console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
-        return
+        return PlanningPipelineOutcome.REJECTED
 
-    # Step 6: Commit + Push
+    # Step 7: Commit + Push
     console.print()
-    console.print("[bold]Step 6:[/bold] Committing planning artefacts...")
+    console.print("[bold]Step 7:[/bold] Committing planning artefacts...")
 
     planning_paths = [
         str(epic_dir.relative_to(PROJECT_ROOT)),
@@ -469,7 +541,7 @@ def _run_planning_steps(
         console.print(f"  [green]Committed:[/green] {commit_hash}")
     except Exception as exc:
         console.print(f"  [red]Commit failed:[/red] {exc}")
-        raise typer.Exit(1) from exc
+        return PlanningPipelineOutcome.FAILED
 
     # Push to remote
     console.print("  Pushing to remote...")
@@ -480,16 +552,14 @@ def _run_planning_steps(
         console.print("  [green]Pushed successfully.[/green]")
     except GitPushError as exc:
         console.print(f"  [red]Push failed:[/red] {exc}")
-        raise typer.Exit(1) from exc
+        return PlanningPipelineOutcome.FAILED
 
     epic_logger.log_event("plan_committed", epic=epic_number, commit=commit_hash)
 
     console.print()
     console.print("[green]Planning complete.[/green] Plan committed.")
-    console.print(
-        f"\n[bold]Next step:[/bold] Run [cyan]just epic {epic_number}[/cyan] "
-        "again to start story execution."
-    )
+    console.print("Continuing into story execution in this run.")
+    return PlanningPipelineOutcome.COMMITTED
 
 
 # ---------------------------------------------------------------------------

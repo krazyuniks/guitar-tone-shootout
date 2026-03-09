@@ -6,6 +6,10 @@ from workflow.artifacts import (
     CheckpointRunArtifact,
     CritiqueFindingArtifact,
     CritiqueRunArtifact,
+    CurationArtifact,
+    CurationCompleteArtifact,
+    CurationDispatchedArtifact,
+    CurationFailedArtifact,
     DispatchArtifact,
     DispatchResultArtifact,
     EpicArtifact,
@@ -119,6 +123,63 @@ class TestRepoFactsArtifact:
         assert path.read_text(encoding="utf-8") == artifact.json_text
         assert round_tripped.to_dict() == artifact.to_dict()
         assert "<repo_facts>" in artifact.prompt_block
+
+
+class TestCurationArtifact:
+    def test_json_round_trip_and_prompt_block_are_deterministic(self, tmp_path) -> None:
+        artifact = CurationArtifact.from_dict(
+            {
+                "schema_v": 1,
+                "epic_number": 146,
+                "candidate_journeys": [
+                    {
+                        "journey_id": "CJ1",
+                        "title": "Journey candidate",
+                        "entry_point": "/start",
+                        "desired_outcome": "Reach /done",
+                        "key_steps": ["Load source", "Trigger transition"],
+                    }
+                ],
+                "story_slices": [
+                    {
+                        "slice_id": "SL1",
+                        "title": "Slice one",
+                        "objective": "Build the first vertical slice",
+                        "likely_surfaces": ["workflow/plan_generator.py"],
+                        "dependencies": [],
+                    }
+                ],
+                "missing_assumptions": [
+                    {
+                        "assumption": "Source page exists",
+                        "why_it_matters": "Planner must verify it",
+                        "planner_action": "Check the source route before planning",
+                    }
+                ],
+                "scope_tensions": [
+                    {
+                        "tension": "Small slices vs real behaviour",
+                        "tradeoff": "Avoid fake-green checkpoints",
+                        "planner_guidance": "Prefer thin vertical slices",
+                    }
+                ],
+                "planner_handoff": {
+                    "priority_order": ["Fix source route", "Then wire transition"],
+                    "watchouts": ["Do not invent alternate routes"],
+                    "recommended_story_shape": "Two focused slices",
+                },
+            }
+        )
+        epic_dir = tmp_path / "E146"
+        epic_dir.mkdir()
+
+        path_md, path_json = artifact.write(epic_dir)
+        round_tripped = CurationArtifact.from_epic_dir(epic_dir)
+
+        assert path_json.read_text(encoding="utf-8") == artifact.json_text
+        assert path_md.read_text(encoding="utf-8") == artifact.markdown
+        assert round_tripped.to_dict() == artifact.to_dict()
+        assert "<curation>" in artifact.prompt_block
 
 
 class TestPlanArtifact:
@@ -396,6 +457,59 @@ class TestPhaseAValidationEventArtifact:
 
 
 class TestPlannerEventArtifacts:
+    def test_curation_events_round_trip(self) -> None:
+        dispatched = CurationDispatchedArtifact(
+            epic_number=155,
+            attempt=1,
+            model="sonnet",
+            prompt_hash="abc123",
+            prompt_tokens=256,
+        )
+        completed = CurationCompleteArtifact(
+            epic_number=155,
+            attempt=1,
+            response_path=".planning/epics/E155/curation.json",
+        )
+        failed = CurationFailedArtifact(
+            epic_number=155,
+            attempt=2,
+            error="Curation output was not valid JSON",
+        )
+
+        assert (
+            CurationDispatchedArtifact.from_event(
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:02:30+00:00",
+                    event=dispatched.event_name,
+                    data=dispatched.event_payload,
+                )
+            )
+            == dispatched
+        )
+        assert (
+            CurationCompleteArtifact.from_event(
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:02:31+00:00",
+                    event=completed.event_name,
+                    data=completed.event_payload,
+                )
+            )
+            == completed
+        )
+        assert (
+            CurationFailedArtifact.from_event(
+                RunEventArtifact(
+                    run_id="run-1",
+                    ts="2026-03-07T12:02:32+00:00",
+                    event=failed.event_name,
+                    data=failed.event_payload,
+                )
+            )
+            == failed
+        )
+
     def test_planner_dispatched_round_trips_and_accepts_legacy_model_key(self) -> None:
         dispatched = PlannerDispatchedArtifact(
             epic_number=155,
@@ -964,11 +1078,27 @@ class TestRevisionRequestArtifact:
                 },
             }
         )
+        curation = CurationArtifact.from_dict(
+            {
+                "schema_v": 1,
+                "epic_number": 146,
+                "candidate_journeys": [],
+                "story_slices": [],
+                "missing_assumptions": [],
+                "scope_tensions": [],
+                "planner_handoff": {
+                    "priority_order": ["Fix source route"],
+                    "watchouts": ["Do not invent alternate routes"],
+                    "recommended_story_shape": "One focused slice",
+                },
+            }
+        )
 
-        request = RevisionRequestArtifact.for_phase_b(epic, repo_facts, plan, feedback)
+        request = RevisionRequestArtifact.for_phase_b(epic, repo_facts, plan, feedback, curation)
 
         assert request.to_dict()["epic"]["epic_number"] == 146
         assert request.to_dict()["repo_facts"]["epic_number"] == 146
+        assert request.to_dict()["curation"]["epic_number"] == 146
         assert request.to_dict()["verifier_feedback"]["status"] == "fail"
 
     def test_phase_b_request_composes_a_prompt_from_typed_artifacts(self) -> None:
@@ -1006,6 +1136,21 @@ class TestRevisionRequestArtifact:
                     },
                 }
             ),
+            CurationArtifact.from_dict(
+                {
+                    "schema_v": 1,
+                    "epic_number": 146,
+                    "candidate_journeys": [],
+                    "story_slices": [],
+                    "missing_assumptions": [],
+                    "scope_tensions": [],
+                    "planner_handoff": {
+                        "priority_order": ["Keep the source route"],
+                        "watchouts": ["Do not invent alternate routes"],
+                        "recommended_story_shape": "Two focused slices",
+                    },
+                }
+            ),
         )
 
         prompt = make_phase_b_revision_prompt(request)
@@ -1013,5 +1158,6 @@ class TestRevisionRequestArtifact:
         assert prompt.role == "planner_revision_phase_b"
         assert '"acceptance_criteria": [' in prompt.text
         assert "## Repo Facts" in prompt.text
+        assert "## Curated Planning Handoff" in prompt.text
         assert "Use HTMX inline update" in prompt.text
         assert "architectural_context" not in prompt.text

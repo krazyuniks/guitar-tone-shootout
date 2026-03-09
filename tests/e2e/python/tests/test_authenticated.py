@@ -62,12 +62,13 @@ class TestGearDetailAuthenticated:
     """Gear detail page behaviour for authenticated users."""
 
     async def _get_gear_slug(self, auth_page: Page, frontend_url: str) -> str:
-        """Fetch a known gear slug from the API."""
-        api_response = await auth_page.request.get(f"{frontend_url}/api/gear/?limit=1")
-        assert api_response.ok, "Gear API must return 200"
-        data = await api_response.json()
-        assert data.get("items"), "Database must contain gear data"
-        return data["items"][0]["slug"]
+        """Fetch a known gear slug from the browse page."""
+        await auth_page.goto(f"{frontend_url}/gear")
+        gear_links = auth_page.locator('[data-testid="gear-pack-card"] a[href^="/gear/"]')
+        await expect(gear_links.first).to_be_visible()
+        href = await gear_links.first.get_attribute("href")
+        assert href is not None, "Gear browse must expose a gear detail link"
+        return href.rstrip("/").split("/")[-1]
 
     async def test_gear_detail_shows_checkboxes(
         self, auth_page: Page, frontend_url: str, verified_auth: dict
@@ -102,12 +103,13 @@ class TestModelSaveToggle:
     """Model save/unsave toggle via HTMX."""
 
     async def _get_gear_slug(self, auth_page: Page, frontend_url: str) -> str:
-        """Fetch a known gear slug from the API."""
-        api_response = await auth_page.request.get(f"{frontend_url}/api/gear/?limit=1")
-        assert api_response.ok
-        data = await api_response.json()
-        assert data.get("items"), "Database must contain gear data"
-        return data["items"][0]["slug"]
+        """Fetch a known gear slug from the browse page."""
+        await auth_page.goto(f"{frontend_url}/gear")
+        gear_links = auth_page.locator('[data-testid="gear-pack-card"] a[href^="/gear/"]')
+        await expect(gear_links.first).to_be_visible()
+        href = await gear_links.first.get_attribute("href")
+        assert href is not None, "Gear browse must expose a gear detail link"
+        return href.rstrip("/").split("/")[-1]
 
     async def test_model_save_toggle(
         self, auth_page: Page, frontend_url: str, verified_auth: dict

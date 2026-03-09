@@ -2,7 +2,7 @@
 epic_critic = "opus"
 implementor = "codex"
 plan_critic = "codex"
-planner = "sonnet"
+planner = "opus"
 story_critic = "opus"
 test_writer = "sonnet"
 

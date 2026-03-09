@@ -3,7 +3,7 @@ github_issue: 146
 title: "Phase 4 — Security fixes, group detail page, comment editing"
 state: OPEN
 labels: []
-fetched: 2026-03-06T17:55:11Z
+fetched: 2026-03-06T23:54:30Z
 ---
 
 ## Summary

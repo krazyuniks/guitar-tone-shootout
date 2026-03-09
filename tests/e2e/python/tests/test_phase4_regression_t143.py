@@ -237,21 +237,26 @@ class TestDITracksBrowsePlayback:
 @pytest.mark.asyncio
 @pytest.mark.e2e
 class TestIRUploadEndpoint:
-    """Verify IR upload endpoint is mounted and responds correctly."""
+    """Verify DI track upload endpoint is mounted and responds correctly."""
 
     async def test_ir_upload_requires_auth(self, guest_page: Page, frontend_url: str) -> None:
-        """IR upload POST endpoint requires authentication (not 404)."""
+        """DI track upload POST endpoint requires authentication (not 404)."""
         response = await guest_page.request.post(
-            f"{frontend_url}/api/irs/upload",
-            multipart={"file": {"name": "test.wav", "mimeType": "audio/wav", "buffer": b"RIFF"}},
+            f"{frontend_url}/api/di-tracks",
+            multipart={
+                "file": {"name": "test.wav", "mimeType": "audio/wav", "buffer": b"RIFF"},
+                "name": "Golden path DI track",
+            },
         )
         # Should get 401 (unauthenticated) or 422 (bad input), NOT 404
-        assert response.status != 404, f"IR upload endpoint not mounted (got {response.status})"
+        assert response.status != 404, (
+            f"DI track upload endpoint not mounted (got {response.status})"
+        )
 
     async def test_ir_upload_endpoint_accepts_multipart(
         self, auth_context: BrowserContext, frontend_url: str
     ) -> None:
-        """IR upload endpoint accepts multipart form data (auth required).
+        """DI track upload endpoint accepts multipart form data (auth required).
 
         We send an invalid file to verify the endpoint is reachable and
         processes the request (422 for bad file is acceptable).
@@ -259,20 +264,23 @@ class TestIRUploadEndpoint:
         page = await auth_context.new_page()
         try:
             response = await page.request.post(
-                f"{frontend_url}/api/irs/upload",
+                f"{frontend_url}/api/di-tracks",
                 multipart={
                     "file": {
                         "name": "fake.wav",
                         "mimeType": "audio/wav",
                         "buffer": b"not a real wav file",
-                    }
+                    },
+                    "name": "Invalid DI track",
                 },
             )
             # Should process the request (200, 201, 400, 422 for bad file) — NOT 404
-            assert response.status != 404, f"IR upload endpoint not mounted (got {response.status})"
+            assert response.status != 404, (
+                f"DI track upload endpoint not mounted (got {response.status})"
+            )
             # Should not be a server error from missing route
             assert response.status != 502, (
-                f"IR upload endpoint not responding (got {response.status})"
+                f"DI track upload endpoint not responding (got {response.status})"
             )
         finally:
             await page.close()

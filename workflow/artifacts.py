@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from workflow.models import Plan, render_plan_md
+from workflow.models import Curation, Plan, render_curation_md, render_plan_md
 
 VERIFIER_DIMENSIONS: tuple[str, ...] = (
     "journey_completeness",
@@ -202,6 +202,72 @@ class RepoFactsArtifact:
         return repo_facts_path
 
 
+@dataclass(frozen=True)
+class CurationArtifact:
+    """Validated curation artifact with deterministic renderers."""
+
+    curation: Curation
+
+    @classmethod
+    def from_model(cls, curation: Curation) -> "CurationArtifact":
+        return cls(curation=curation)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "CurationArtifact":
+        return cls(curation=Curation.model_validate(data))
+
+    @classmethod
+    def from_json_text(cls, text: str) -> "CurationArtifact":
+        return cls.from_dict(json.loads(text))
+
+    @classmethod
+    def from_path(cls, path: Path) -> "CurationArtifact":
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        return cls.from_json_text(path.read_text(encoding="utf-8"))
+
+    @classmethod
+    def from_epic_dir(cls, epic_dir: Path) -> "CurationArtifact":
+        curation_json_path = epic_dir / "curation.json"
+        if not curation_json_path.is_file():
+            raise FileNotFoundError(curation_json_path)
+        artifact = cls.from_path(curation_json_path)
+        if artifact.epic_number != _epic_number_from_dir(epic_dir):
+            raise ValueError(
+                "curation.json epic_number does not match epic directory "
+                f"{epic_dir.name}: {artifact.epic_number}"
+            )
+        return artifact
+
+    @property
+    def epic_number(self) -> int:
+        return self.curation.epic_number
+
+    def to_dict(self) -> dict[str, Any]:
+        return self.curation.model_dump()
+
+    @property
+    def json_text(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False) + "\n"
+
+    @property
+    def markdown(self) -> str:
+        return render_curation_md(self.curation)
+
+    @property
+    def prompt_block(self) -> str:
+        return f"<curation>\n{self.json_text.rstrip()}\n</curation>"
+
+    def write(self, epic_dir: Path) -> tuple[Path, Path]:
+        curation_json_path = epic_dir / "curation.json"
+        curation_json_path.write_text(self.json_text, encoding="utf-8")
+
+        curation_md_path = epic_dir / "CURATION.md"
+        curation_md_path.write_text(self.markdown, encoding="utf-8")
+
+        return curation_md_path, curation_json_path
+
+
 def _compact_plan_payload(plan_json: dict[str, Any]) -> dict[str, Any]:
     compact: dict[str, Any] = {
         "schema_v": plan_json.get("schema_v"),
@@ -209,6 +275,7 @@ def _compact_plan_payload(plan_json: dict[str, Any]) -> dict[str, Any]:
         "goal": plan_json.get("goal"),
         "observable_truths": plan_json.get("observable_truths", []),
         "user_journeys": plan_json.get("user_journeys", []),
+        "contract_decisions": plan_json.get("contract_decisions", []),
         "validation_checkpoints": plan_json.get("validation_checkpoints", []),
         "stories": [],
     }
@@ -469,6 +536,169 @@ class PlanVerificationResultArtifact:
             payload["scores"] = self.phase_b_scores
         if self.error:
             payload["error"] = self.error
+        return payload
+
+
+@dataclass(frozen=True)
+class CurationDispatchedArtifact:
+    """Typed curation dispatch event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    model: str
+    adapter: str = ""
+    prompt_hash: str = ""
+    prompt_tokens: int | None = None
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "CurationDispatchedArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event != "curation_dispatched":
+            raise ValueError(
+                f"Cannot build CurationDispatchedArtifact from event {event_artifact.event}"
+            )
+
+        model = event_artifact.get("model")
+        if not model:
+            raise ValueError("Curation dispatch events require a model")
+
+        prompt_tokens = event_artifact.get("prompt_tokens")
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            model=str(model),
+            adapter=str(event_artifact.get("adapter", "")),
+            prompt_hash=str(event_artifact.get("prompt_hash", "")),
+            prompt_tokens=int(prompt_tokens) if prompt_tokens is not None else None,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "curation_dispatched"
+
+    @property
+    def summary_text(self) -> str:
+        summary = f"model={self.model}"
+        if self.prompt_tokens is not None:
+            summary += f", ~{self.prompt_tokens} tokens"
+        return summary
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+            "model": self.model,
+        }
+        if self.adapter:
+            payload["adapter"] = self.adapter
+        if self.prompt_hash:
+            payload["prompt_hash"] = self.prompt_hash
+        if self.prompt_tokens is not None:
+            payload["prompt_tokens"] = self.prompt_tokens
+        return payload
+
+
+@dataclass(frozen=True)
+class CurationCompleteArtifact:
+    """Typed curation completion event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    response_path: str = ""
+    turns: int | None = None
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "CurationCompleteArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event != "curation_complete":
+            raise ValueError(f"Cannot build CurationCompleteArtifact from event {event_artifact.event}")
+
+        turns = event_artifact.get("turns")
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            response_path=str(event_artifact.get("response_path", "")),
+            turns=int(turns) if turns is not None else None,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "curation_complete"
+
+    @property
+    def summary_text(self) -> str:
+        parts = [self.response_path] if self.response_path else []
+        if self.turns is not None:
+            parts.append(f"turns={self.turns}")
+        return ", ".join(part for part in parts if part)
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+        }
+        if self.response_path:
+            payload["response_path"] = self.response_path
+        if self.turns is not None:
+            payload["turns"] = self.turns
+        return payload
+
+
+@dataclass(frozen=True)
+class CurationFailedArtifact:
+    """Typed curation failure event boundary for planning/report consumers."""
+
+    epic_number: int
+    attempt: int
+    error: str
+    response_path: str = ""
+    turns: int | None = None
+
+    @classmethod
+    def from_event(
+        cls,
+        event: dict[str, Any] | "RunEventArtifact",
+    ) -> "CurationFailedArtifact":
+        event_artifact = event if isinstance(event, RunEventArtifact) else RunEventArtifact.from_dict(event)
+        if event_artifact.event != "curation_failed":
+            raise ValueError(f"Cannot build CurationFailedArtifact from event {event_artifact.event}")
+
+        turns = event_artifact.get("turns")
+        return cls(
+            epic_number=int(event_artifact.get("epic")),
+            attempt=int(event_artifact.get("attempt")),
+            error=str(event_artifact.get("error", "")),
+            response_path=str(event_artifact.get("response_path", "")),
+            turns=int(turns) if turns is not None else None,
+        )
+
+    @property
+    def event_name(self) -> str:
+        return "curation_failed"
+
+    @property
+    def summary_text(self) -> str:
+        return self.error
+
+    @property
+    def event_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "epic": self.epic_number,
+            "attempt": self.attempt,
+            "error": self.error,
+        }
+        if self.response_path:
+            payload["response_path"] = self.response_path
+        if self.turns is not None:
+            payload["turns"] = self.turns
         return payload
 
 
@@ -941,13 +1171,19 @@ class RevisionRequestArtifact:
     errors: tuple[str, ...] = ()
     epic: EpicArtifact | None = None
     repo_facts: RepoFactsArtifact | None = None
+    curation: CurationArtifact | None = None
     verifier_feedback: VerifierFeedbackArtifact | None = None
 
     def __post_init__(self) -> None:
         if self.phase == "phase_a":
             if not self.errors:
                 raise ValueError("Phase A revision request requires validation errors")
-            if self.epic is not None or self.repo_facts is not None or self.verifier_feedback is not None:
+            if (
+                self.epic is not None
+                or self.repo_facts is not None
+                or self.curation is not None
+                or self.verifier_feedback is not None
+            ):
                 raise ValueError("Phase A revision request only accepts plan + errors")
             return
 
@@ -977,11 +1213,13 @@ class RevisionRequestArtifact:
         repo_facts: RepoFactsArtifact,
         plan: PlanArtifact,
         verifier_feedback: VerifierFeedbackArtifact,
+        curation: CurationArtifact | None = None,
     ) -> "RevisionRequestArtifact":
         return cls(
             phase="phase_b",
             epic=epic,
             repo_facts=repo_facts,
+            curation=curation,
             plan=plan,
             verifier_feedback=verifier_feedback,
         )
@@ -997,6 +1235,8 @@ class RevisionRequestArtifact:
             data["epic"] = self.epic.to_dict()
         if self.repo_facts is not None:
             data["repo_facts"] = self.repo_facts.to_dict()
+        if self.curation is not None:
+            data["curation"] = self.curation.to_dict()
         if self.verifier_feedback is not None:
             data["verifier_feedback"] = self.verifier_feedback.to_dict()
         return data

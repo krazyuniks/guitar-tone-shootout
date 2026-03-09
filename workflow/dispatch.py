@@ -164,6 +164,10 @@ class ClaudeAdapter:
             elif isinstance(result_text, str) and result_text:
                 # Normal mode: text response in "result"
                 output = result_text
+            else:
+                # Failure envelopes such as error_max_structured_output_retries still
+                # carry useful diagnostics; surface them instead of the entire raw stream.
+                output = json.dumps(parsed)
         else:
             logger.warning("parse_result: raw stdout is empty or unparseable (exit_code=%d)", exit_code)
 
@@ -373,6 +377,92 @@ def _extract_json_payload(raw: str) -> dict | None:
             return payload
 
     return payloads[-1]
+
+
+def _extract_last_json_object(raw: str) -> dict | None:
+    """Extract the last JSON object embedded anywhere in a string."""
+    decoder = json.JSONDecoder()
+    payloads: list[dict] = []
+
+    for index, char in enumerate(raw):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(raw[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            payloads.append(parsed)
+
+    if not payloads:
+        return None
+    return payloads[-1]
+
+
+def _unwrap_structured_output_candidate(payload: object) -> dict | None:
+    """Return a likely structured-output payload, unwrapping common envelopes.
+
+    Claude's StructuredOutput tool sometimes receives ``{"result": {...}}`` or a
+    similar singleton envelope instead of the schema object itself. This helper
+    unwraps that shape so downstream typed parsing can still validate the
+    recovered object.
+    """
+    if not isinstance(payload, dict):
+        return None
+
+    if len(payload) == 1:
+        key, value = next(iter(payload.items()))
+        if key in {"result", "output", "plan", "curation", "data"} and isinstance(value, dict):
+            return value
+        if key in {"$schema", "schema"} and isinstance(value, str):
+            return _extract_last_json_object(value)
+
+    return payload
+
+
+def _recover_structured_output_from_conversation(conversation_log: Path) -> dict | None:
+    """Recover the latest StructuredOutput tool payload from a conversation log."""
+    if not conversation_log.is_file():
+        return None
+
+    entries: list[dict] = []
+    for raw_line in conversation_log.read_text(encoding="utf-8").splitlines():
+        raw_line = raw_line.strip()
+        if not raw_line:
+            continue
+        try:
+            entries.append(json.loads(raw_line))
+        except json.JSONDecodeError:
+            continue
+
+    for entry in reversed(entries):
+        payload = entry.get("payload", {})
+        if payload.get("type") != "assistant":
+            continue
+        message = payload.get("message", {})
+        for item in reversed(message.get("content", [])):
+            if item.get("type") != "tool_use" or item.get("name") != "StructuredOutput":
+                continue
+            recovered = _unwrap_structured_output_candidate(item.get("input"))
+            if recovered is not None:
+                return recovered
+
+    return None
+
+
+def _is_structured_output_retry_failure(raw_stdout: str) -> bool:
+    """Return True when Claude failed only after exhausting structured-output retries."""
+    parsed = _extract_json_payload(raw_stdout)
+    if not isinstance(parsed, dict):
+        return False
+    if parsed.get("type") != "result":
+        return False
+    if parsed.get("subtype") != "error_max_structured_output_retries":
+        return False
+    errors = parsed.get("errors")
+    return isinstance(errors, list) and any(
+        "structured output" in str(error).lower() for error in errors
+    )
 
 
 def extract_json_from_text(text: str) -> dict:
@@ -748,7 +838,26 @@ def _dispatch_streaming(
             exit_code=-1,
         )
 
-    return adapter.parse_result(completed)
+    parsed_result = adapter.parse_result(completed)
+    if (
+        not parsed_result.success
+        and adapter.name == "claude"
+        and _is_structured_output_retry_failure(stdout_output)
+    ):
+        recovered = _recover_structured_output_from_conversation(conversation_log)
+        if recovered is not None:
+            logger.warning(
+                "Recovered Claude structured output from conversation log after retry exhaustion"
+            )
+            return AgentResult(
+                success=True,
+                output=json.dumps(recovered),
+                structured_output=recovered,
+                exit_code=0,
+                turns=parsed_result.turns,
+            )
+
+    return parsed_result
 
 
 # ---------------------------------------------------------------------------

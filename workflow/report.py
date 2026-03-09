@@ -22,6 +22,9 @@ from workflow.artifacts import (
     CheckpointRunArtifact,
     CritiqueFindingArtifact,
     CritiqueRunArtifact,
+    CurationCompleteArtifact,
+    CurationDispatchedArtifact,
+    CurationFailedArtifact,
     PhaseAValidationEventArtifact,
     PhaseBVerificationEventArtifact,
     PlannerCompleteArtifact,
@@ -51,6 +54,9 @@ KNOWN_EVENTS: dict[str, list[str]] = {
     "gap_critique_complete": ["locked_count", "escalated_count", "demoted_count"],
     "gap_questions_presented": ["question_count"],
     "gap_detection_complete": ["epic"],
+    "curation_dispatched": ["epic", "attempt", "model", "adapter", "prompt_hash", "prompt_tokens"],
+    "curation_complete": ["epic", "attempt", "turns", "response_path"],
+    "curation_failed": ["epic", "attempt", "error", "turns", "response_path"],
     "planner_dispatched": ["epic", "attempt", "model", "adapter", "prompt_hash", "prompt_tokens"],
     "planner_complete": ["epic", "attempt", "turns", "response_path"],
     "planner_failed": ["epic", "attempt", "error", "turns", "response_path"],
@@ -327,6 +333,9 @@ def _human_label(event_type: str) -> str:
         "gap_critique_complete": "Gap Critique Complete",
         "gap_questions_presented": "Gap Questions",
         "gap_detection_complete": "Gap Detection Complete",
+        "curation_dispatched": "Curation Dispatched",
+        "curation_complete": "Curation Complete",
+        "curation_failed": "Curation FAIL",
         "planner_dispatched": "Planner Dispatched",
         "planner_complete": "Plan Generated",
         "planner_failed": "Planner FAIL",
@@ -460,20 +469,27 @@ def _render_event_details(
         count = event.get("question_count", 0)
         parts.append(f'<span style="color:#94a3b8;">{count} questions</span>')
 
-    elif event_type == "planner_dispatched":
-        try:
-            planner_dispatch = PlannerDispatchedArtifact.from_event(event)
-        except (KeyError, TypeError, ValueError):
-            planner_dispatch = None
+    elif event_type in ("curation_dispatched", "planner_dispatched"):
+        dispatch = None
+        if event_type == "curation_dispatched":
+            try:
+                dispatch = CurationDispatchedArtifact.from_event(event)
+            except (KeyError, TypeError, ValueError):
+                dispatch = None
+        else:
+            try:
+                dispatch = PlannerDispatchedArtifact.from_event(event)
+            except (KeyError, TypeError, ValueError):
+                dispatch = None
 
         model = (
-            planner_dispatch.model
-            if planner_dispatch is not None
+            dispatch.model
+            if dispatch is not None
             else event.get("model") or event.get("planner_model", "?")
         )
         tokens = (
-            planner_dispatch.prompt_tokens
-            if planner_dispatch is not None and planner_dispatch.prompt_tokens is not None
+            dispatch.prompt_tokens
+            if dispatch is not None and dispatch.prompt_tokens is not None
             else event.get("prompt_tokens", "?")
         )
         parts.append(
@@ -484,13 +500,48 @@ def _render_event_details(
         if story_id and attempt:
             prompt_text = find_story_prompt(epic_dir, story_id, attempt)
         if not prompt_text:
-            prompt_hash = (
-                planner_dispatch.prompt_hash if planner_dispatch is not None else event.get("prompt_hash")
-            )
+            prompt_hash = dispatch.prompt_hash if dispatch is not None else event.get("prompt_hash")
             if prompt_hash:
                 prompt_text = match_prompt_file(epic_dir, prompt_hash)
         if prompt_text:
             parts.append(_render_collapsible("Show prompt", prompt_text))
+
+    elif event_type in ("curation_complete", "curation_failed", "planner_complete", "planner_failed"):
+        result_artifact = None
+        try:
+            if event_type == "curation_complete":
+                result_artifact = CurationCompleteArtifact.from_event(event)
+            elif event_type == "curation_failed":
+                result_artifact = CurationFailedArtifact.from_event(event)
+            elif event_type == "planner_complete":
+                result_artifact = PlannerCompleteArtifact.from_event(event)
+            else:
+                result_artifact = PlannerFailedArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            result_artifact = None
+
+        meta: list[str] = []
+        if result_artifact is not None:
+            if result_artifact.response_path:
+                meta.append(result_artifact.response_path)
+            if result_artifact.turns is not None:
+                meta.append(f"turns={result_artifact.turns}")
+            error = getattr(result_artifact, "error", "")
+            if error:
+                meta.append(f"error: {str(error)[:200]}")
+        else:
+            response_path = event.get("response_path", "")
+            turns = event.get("turns")
+            if response_path:
+                meta.append(str(response_path))
+            if turns is not None:
+                meta.append(f"turns={turns}")
+            if event_type in ("curation_failed", "planner_failed"):
+                error = event.get("error", "")
+                if error:
+                    meta.append(f"error: {error[:200]}")
+        if meta:
+            parts.append(f'<span style="color:#94a3b8;">{_esc(", ".join(meta))}</span>')
 
     elif event_type in ("agent_dispatched", "critique_dispatched", "epic_critique_dispatched"):
         model = event.get("model") or event.get("critique_model", "?")
@@ -508,38 +559,6 @@ def _render_event_details(
                 prompt_text = match_prompt_file(epic_dir, prompt_hash)
         if prompt_text:
             parts.append(_render_collapsible("Show prompt", prompt_text))
-
-    elif event_type in ("planner_complete", "planner_failed"):
-        planner_result: PlannerCompleteArtifact | PlannerFailedArtifact | None = None
-        try:
-            if event_type == "planner_complete":
-                planner_result = PlannerCompleteArtifact.from_event(event)
-            else:
-                planner_result = PlannerFailedArtifact.from_event(event)
-        except (KeyError, TypeError, ValueError):
-            planner_result = None
-
-        meta: list[str] = []
-        if planner_result is not None:
-            if planner_result.response_path:
-                meta.append(planner_result.response_path)
-            if planner_result.turns is not None:
-                meta.append(f"turns={planner_result.turns}")
-            if isinstance(planner_result, PlannerFailedArtifact) and planner_result.error:
-                meta.append(f"error: {planner_result.error[:200]}")
-        else:
-            response_path = event.get("response_path", "")
-            turns = event.get("turns")
-            if response_path:
-                meta.append(str(response_path))
-            if turns is not None:
-                meta.append(f"turns={turns}")
-            if event_type == "planner_failed":
-                error = event.get("error", "")
-                if error:
-                    meta.append(f"error: {error[:200]}")
-        if meta:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(", ".join(meta))}</span>')
 
     elif event_type in ("agent_complete", "agent_failed"):
         commit = event.get("commit", "")

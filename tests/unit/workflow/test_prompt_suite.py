@@ -4,6 +4,7 @@ import json
 
 from workflow.artifacts import VerifierFeedbackArtifact
 from workflow.prompt_suite import (
+    compile_curation_prompt,
     compile_phase_a_revision_prompt,
     compile_phase_b_revision_prompt,
     compile_planner_prompt,
@@ -42,6 +43,52 @@ def _write_epic_dir(tmp_path):
                         ],
                     }
                 ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (epic_dir / "curation.json").write_text(
+        json.dumps(
+            {
+                "schema_v": 1,
+                "epic_number": 146,
+                "candidate_journeys": [
+                    {
+                        "journey_id": "CJ1",
+                        "title": "Workflow journey",
+                        "entry_point": "/start",
+                        "desired_outcome": "Reach the epic flow",
+                        "key_steps": ["Load /start", "Submit the main action"],
+                    }
+                ],
+                "story_slices": [
+                    {
+                        "slice_id": "SL1",
+                        "title": "First slice",
+                        "objective": "Create the first vertical slice",
+                        "likely_surfaces": ["workflow/plan_generator.py"],
+                        "dependencies": [],
+                    }
+                ],
+                "missing_assumptions": [
+                    {
+                        "assumption": "The source page already exists",
+                        "why_it_matters": "Planner must create it if missing",
+                        "planner_action": "Verify and plan the source-state fix explicitly",
+                    }
+                ],
+                "scope_tensions": [
+                    {
+                        "tension": "Keep the slice small but end to end",
+                        "tradeoff": "Avoid fake-green checkpoints",
+                        "planner_guidance": "Prefer a thin vertical slice with real validation",
+                    }
+                ],
+                "planner_handoff": {
+                    "priority_order": ["Fix source route", "Then wire transition"],
+                    "watchouts": ["Do not invent alternate routes"],
+                    "recommended_story_shape": "Two focused vertical slices",
+                },
             }
         ),
         encoding="utf-8",
@@ -119,6 +166,7 @@ class TestPromptSuite:
         )
 
         assert set(suite) == {
+            "curation",
             "planner",
             "plan_verifier",
             "planner_revision_phase_a",
@@ -134,6 +182,7 @@ class TestPromptSuite:
             {"severity": "must_fix", "missed_gap": "Missing route"},
         )
 
+        assert compile_curation_prompt(epic_dir).role == "curation"
         assert compile_planner_prompt(epic_dir).role == "planner"
         assert compile_verifier_prompt(epic_dir).role == "plan_verifier"
         assert compile_phase_a_revision_prompt(epic_dir, ["bad checkpoint"]).role == (
@@ -143,6 +192,13 @@ class TestPromptSuite:
             epic_dir,
             verifier_feedback,
         ).role == ("planner_revision_phase_b")
+
+    def test_curation_prompt_warns_against_wrapper_keys(self, tmp_path) -> None:
+        epic_dir = _write_epic_dir(tmp_path)
+
+        prompt = compile_curation_prompt(epic_dir).text
+
+        assert "Do NOT wrap it in `result`, `curation`, `output`, or any outer key." in prompt
 
     def test_write_prompt_suite_writes_phase_b_prompt_from_typed_feedback(self, tmp_path) -> None:
         epic_dir = _write_epic_dir(tmp_path)
@@ -159,3 +215,4 @@ class TestPromptSuite:
         assert "planner_revision_phase_b" in suite
         assert "Route never reaches page" in written_prompt
         assert "## Repo Facts" in written_prompt
+        assert "## Curated Planning Handoff" in written_prompt

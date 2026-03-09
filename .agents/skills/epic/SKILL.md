@@ -27,8 +27,8 @@ If args are empty, ask for the epic number.
 ## Live Workflow Contract
 
 - `just epic <N>` is idempotent.
-- First run: ingest -> plan -> verify -> human gate -> commit.
-- Second run: execute committed stories.
+- Happy path: ingest -> repo-facts -> curation -> plan -> verify -> human gate -> commit -> immediate execution.
+- Rerun `just epic <N>` only to resume after interruption; `plan_committed` remains the execution handoff marker.
 - Planning is issue-first and tool-equipped.
 - The planner explores the repo directly.
 - The verifier critiques against the original epic contract.

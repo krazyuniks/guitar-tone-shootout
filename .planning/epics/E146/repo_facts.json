@@ -160,6 +160,26 @@
           "detail": "{% if is_library_view and not track.is_system_track %}"
         }
       ]
+    },
+    {
+      "statement": "`Jinja2` already spans multiple live repo surfaces and may require coordinated edits.",
+      "evidence": [
+        {
+          "path": ".gemini/commands/arch-review.toml",
+          "line": 88,
+          "detail": "### Frontend (Astro + Jinja2 + HTMX)"
+        },
+        {
+          "path": ".gemini/commands/arch-review.toml",
+          "line": 91,
+          "detail": "- [ ] Jinja2 templates (SSR) extend Astro-built base layout"
+        },
+        {
+          "path": ".gemini/commands/workflow-check.toml",
+          "line": 97,
+          "detail": "### 5. Jinja2 Templates"
+        }
+      ]
     }
   ],
   "contradicted_assumptions": [
@@ -206,6 +226,26 @@
   ],
   "likely_edit_targets": [
     {
+      "statement": "`.gemini/commands/arch-review.toml` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": ".gemini/commands/arch-review.toml",
+          "line": 88,
+          "detail": "### Frontend (Astro + Jinja2 + HTMX)"
+        }
+      ]
+    },
+    {
+      "statement": "`.gemini/commands/workflow-check.toml` is a likely edit target for this epic.",
+      "evidence": [
+        {
+          "path": ".gemini/commands/workflow-check.toml",
+          "line": 97,
+          "detail": "### 5. Jinja2 Templates"
+        }
+      ]
+    },
+    {
       "statement": "`apps/webapp/src/webapp/api/pages/__init__.py` is a likely edit target for this epic.",
       "evidence": [
         {
@@ -242,26 +282,6 @@
           "path": "scripts/epic_ingest.py",
           "line": 74,
           "detail": "f\"github_issue: {epic_number}\\n\""
-        }
-      ]
-    },
-    {
-      "statement": "`workflow/epic_ingest.py` is a likely edit target for this epic.",
-      "evidence": [
-        {
-          "path": "workflow/epic_ingest.py",
-          "line": 155,
-          "detail": "f\"github_issue: {epic_number}\\n\""
-        }
-      ]
-    },
-    {
-      "statement": "`worktree/issue_ops.py` is a likely edit target for this epic.",
-      "evidence": [
-        {
-          "path": "worktree/issue_ops.py",
-          "line": 137,
-          "detail": "def fetch_github_issues("
         }
       ]
     }

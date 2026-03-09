@@ -2,8 +2,13 @@
 
 import json
 import subprocess
+from pathlib import Path
 
-from workflow.dispatch import ClaudeAdapter
+from workflow.dispatch import (
+    ClaudeAdapter,
+    _recover_structured_output_from_conversation,
+    _unwrap_structured_output_candidate,
+)
 from workflow.dispatch_log import DispatchLog, read_dispatch_artifacts, token_summary
 
 
@@ -64,6 +69,154 @@ class TestClaudeAdapterStructuredOutputParsing:
             "goal": "test",
         }
 
+    def test_error_envelope_surfaces_json_diagnostics(self) -> None:
+        adapter = ClaudeAdapter()
+        completed = subprocess.CompletedProcess(
+            args=["claude"],
+            returncode=1,
+            stdout=json.dumps(
+                {
+                    "type": "result",
+                    "subtype": "error_max_structured_output_retries",
+                    "num_turns": 56,
+                    "errors": ["Failed to provide valid structured output after 5 attempts"],
+                }
+            ),
+            stderr="",
+        )
+
+        result = adapter.parse_result(completed)
+
+        assert result.success is False
+        assert result.turns == 56
+        assert json.loads(result.output)["subtype"] == "error_max_structured_output_retries"
+
+
+class TestStructuredOutputRecovery:
+    def test_unwrap_structured_output_candidate_handles_result_wrapper(self) -> None:
+        wrapped = {"result": {"schema_v": 1, "epic_number": 146, "goal": "test"}}
+
+        assert _unwrap_structured_output_candidate(wrapped) == {
+            "schema_v": 1,
+            "epic_number": 146,
+            "goal": "test",
+        }
+
+    def test_unwrap_structured_output_candidate_handles_schema_string_with_embedded_plan(
+        self,
+    ) -> None:
+        malformed = {
+            "$schema": json.dumps({"title": "Plan", "type": "object"})
+            + json.dumps({"schema_v": 1, "epic_number": 146, "goal": "test"})
+        }
+
+        assert _unwrap_structured_output_candidate(malformed) == {
+            "schema_v": 1,
+            "epic_number": 146,
+            "goal": "test",
+        }
+
+    def test_recover_structured_output_from_conversation_unwraps_singleton_wrapper(
+        self, tmp_path
+    ) -> None:
+        conversation_log = tmp_path / "conversation.jsonl"
+        conversation_log.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "seq": 1,
+                            "payload": {
+                                "type": "assistant",
+                                "message": {
+                                    "content": [
+                                        {
+                                            "type": "tool_use",
+                                            "name": "StructuredOutput",
+                                            "input": {
+                                                "result": {
+                                                    "schema_v": 1,
+                                                    "epic_number": 146,
+                                                    "goal": "test",
+                                                }
+                                            },
+                                        }
+                                    ]
+                                },
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "seq": 2,
+                            "payload": {
+                                "type": "result",
+                                "subtype": "error_max_structured_output_retries",
+                            },
+                        }
+                    ),
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        recovered = _recover_structured_output_from_conversation(conversation_log)
+
+        assert recovered == {"schema_v": 1, "epic_number": 146, "goal": "test"}
+
+    def test_recover_structured_output_from_conversation_extracts_embedded_plan_from_schema_string(
+        self, tmp_path
+    ) -> None:
+        conversation_log = tmp_path / "conversation.jsonl"
+        conversation_log.write_text(
+            "\n".join(
+                [
+                    json.dumps(
+                        {
+                            "seq": 1,
+                            "payload": {
+                                "type": "assistant",
+                                "message": {
+                                    "content": [
+                                        {
+                                            "type": "tool_use",
+                                            "name": "StructuredOutput",
+                                            "input": {
+                                                "$schema": json.dumps(
+                                                    {"title": "Plan", "type": "object"}
+                                                )
+                                                + json.dumps(
+                                                    {
+                                                        "schema_v": 1,
+                                                        "epic_number": 146,
+                                                        "goal": "test",
+                                                    }
+                                                )
+                                            },
+                                        }
+                                    ]
+                                },
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "seq": 2,
+                            "payload": {
+                                "type": "result",
+                                "subtype": "error_max_structured_output_retries",
+                            },
+                        }
+                    ),
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        recovered = _recover_structured_output_from_conversation(conversation_log)
+
+        assert recovered == {"schema_v": 1, "epic_number": 146, "goal": "test"}
+
 
 class TestDispatchLogLifecycle:
     """DispatchLog should expose started and completed lifecycle entries."""
@@ -99,6 +252,7 @@ class TestDispatchLogLifecycle:
         assert entries[1]["conversation_file"].endswith("-conversation.jsonl")
         assert (epic_dir / entries[0]["prompt_file"]).exists()
         assert (epic_dir / entries[1]["response_file"]).exists()
+        assert Path(entries[1]["response_file"]).name == f"{dispatch.dispatch_id}-response.txt"
 
     def test_token_summary_counts_completed_entries_only(self, tmp_path) -> None:
         epic_dir = tmp_path / "E999"

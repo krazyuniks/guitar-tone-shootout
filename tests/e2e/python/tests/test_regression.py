@@ -94,12 +94,12 @@ class TestGearPages:
         self, guest_page: Page, frontend_url: str
     ) -> None:
         """Gear detail page returns 200 with model listing."""
-        api_response = await guest_page.request.get(f"{frontend_url}/api/gear/?limit=1")
-        assert api_response.ok, "Gear API must return 200"
-        data = await api_response.json()
-        assert data.get("items"), "Database must contain gear data"
-
-        slug = data["items"][0]["slug"]
+        await guest_page.goto(f"{frontend_url}/gear")
+        gear_links = guest_page.locator('[data-testid="gear-pack-card"] a[href^="/gear/"]')
+        await expect(gear_links.first).to_be_visible()
+        href = await gear_links.first.get_attribute("href")
+        assert href is not None, "Gear browse must expose a gear detail link"
+        slug = href.rstrip("/").split("/")[-1]
         await guest_page.goto(f"{frontend_url}/gear/{slug}")
         await expect(guest_page.locator("body")).to_be_visible()
 

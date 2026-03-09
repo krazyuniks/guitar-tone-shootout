@@ -96,7 +96,7 @@ class DispatchLog:
         prompt_hash = compute_prompt_hash(prompt)
         dispatch_id = f"{prompt_hash}-{time.time_ns()}"
         prompt_file = f"dispatches/{prompt_hash}-prompt.txt"
-        response_file = f"dispatches/{prompt_hash}-response.txt"
+        response_file = f"dispatches/{dispatch_id}-response.txt"
 
         if conversation_log is None:
             conversation_path = self.dispatches_dir / f"{dispatch_id}-conversation.jsonl"

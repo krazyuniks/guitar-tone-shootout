@@ -1,13 +1,12 @@
 """Phase A: Deterministic plan validation ($0 AI cost).
 
-Validates plan.json against the Pydantic Plan model and checks 7
-structural properties that are mechanical and instant to verify. This
-runs before Phase B (AI verification) to catch structural errors without
+Validates plan.json against the Pydantic Plan model and runs deterministic
+checks that are mechanical and instant to verify. This runs before Phase B
+(AI verification) to catch structural errors and contract drift without
 spending any AI tokens.
 
-Check 1 (schema conformance) is eliminated — Pydantic validation in
-the plan generator already enforces it. Check 8 (command coverage)
-runs but only produces warnings, not errors.
+Schema conformance is enforced by Pydantic validation in the plan generator.
+Command coverage still runs as a warning-only check.
 
 Reference: Research doc Section 8.4 Decision 8.
 
@@ -17,6 +16,7 @@ Usage:
 
 import json
 import logging
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -59,16 +59,17 @@ class ValidationResult:
 
 
 # ---------------------------------------------------------------------------
-# Check 2: Referential integrity
+# Referential integrity
 # ---------------------------------------------------------------------------
 
 
 def _check_referential_integrity(plan: Plan) -> list[ValidationError]:
-    """Check 2: All cross-references are valid.
+    """All cross-references must be valid.
 
     - Every truths_addressed ID exists in observable_truths
     - Every checkpoint after_story references a valid story_id
     - Every journey truths_covered ID exists in observable_truths
+    - Every contract decision affected_story references a valid story_id
     """
     errors: list[ValidationError] = []
 
@@ -112,16 +113,31 @@ def _check_referential_integrity(plan: Plan) -> list[ValidationError]:
                     )
                 )
 
+    # affected_stories in contract_decisions
+    for decision in plan.contract_decisions:
+        for story_id in decision.affected_stories:
+            if story_id not in story_ids:
+                errors.append(
+                    ValidationError(
+                        check="referential_integrity",
+                        message=(
+                            f"Contract decision '{decision.decision_id}' references story_id "
+                            f"'{story_id}' in affected_stories, but no story with that ID exists. "
+                            f"Valid story_ids: {sorted(story_ids)}"
+                        ),
+                    )
+                )
+
     return errors
 
 
 # ---------------------------------------------------------------------------
-# Check 3: Truth coverage
+# Truth coverage
 # ---------------------------------------------------------------------------
 
 
 def _check_truth_coverage(plan: Plan) -> list[ValidationError]:
-    """Check 3: Every truth is addressed by at least one story AND covered by at least one journey."""
+    """Every truth must be addressed by a story and covered by a journey."""
     errors: list[ValidationError] = []
 
     truth_ids = {t.id for t in plan.observable_truths}
@@ -164,12 +180,12 @@ def _check_truth_coverage(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
-# Check 4: Journey coverage
+# Journey coverage
 # ---------------------------------------------------------------------------
 
 
 def _check_journey_coverage(plan: Plan) -> list[ValidationError]:
-    """Check 4: Every truth appears in at least one journey's truths_covered."""
+    """Every truth must appear in at least one journey's truths_covered."""
     errors: list[ValidationError] = []
 
     truth_ids = {t.id for t in plan.observable_truths}
@@ -196,12 +212,12 @@ def _check_journey_coverage(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
-# Check 5: Scope coherence
+# Scope coherence
 # ---------------------------------------------------------------------------
 
 
 def _check_scope_coherence(plan: Plan) -> list[ValidationError]:
-    """Check 5: Files in modify scope exist on disk or in projected state from earlier stories."""
+    """Files in modify scope must exist on disk or in projected state from earlier stories."""
     errors: list[ValidationError] = []
 
     # Track files and directories that earlier stories will create
@@ -249,12 +265,12 @@ def _check_scope_coherence(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
-# Check 6: Dependency ordering
+# Dependency ordering
 # ---------------------------------------------------------------------------
 
 
 def _check_dependency_ordering(plan: Plan) -> list[ValidationError]:
-    """Check 6: Stories referencing files from earlier stories appear after them."""
+    """Stories referencing files from earlier stories must appear after them."""
     errors: list[ValidationError] = []
 
     stories = plan.stories
@@ -302,12 +318,12 @@ def _check_dependency_ordering(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
-# Check 7: Command coverage
+# Command coverage
 # ---------------------------------------------------------------------------
 
 
 def _check_command_coverage(plan: Plan) -> list[ValidationError]:
-    """Check 8: Every checkpoint criterion resolves to a command.
+    """Every checkpoint criterion should resolve to a command.
 
     A criterion resolves if it has an explicit ``command`` field or if
     ``_match_command()`` finds a keyword match. Criteria without a
@@ -335,12 +351,99 @@ def _check_command_coverage(plan: Plan) -> list[ValidationError]:
 
 
 # ---------------------------------------------------------------------------
+# Contract fidelity
+# ---------------------------------------------------------------------------
+
+_ROUTE_SURFACE_PATTERN = re.compile(r"(?<![A-Za-z0-9])/(?:[^\s`'\"<>()\[\],;]+|<[^>\n/]+>|{[^}\n/]+})+")
+_NON_ROUTE_SUFFIXES = (
+    ".py",
+    ".md",
+    ".json",
+    ".toml",
+    ".yml",
+    ".yaml",
+    ".css",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".html",
+)
+
+
+def _normalize_route_surface(value: str) -> str | None:
+    cleaned = value.strip().rstrip(".,:;!?)]}'\"")
+    if not cleaned.startswith("/") or cleaned == "/":
+        return None
+    leaf = cleaned.rstrip("/").split("/")[-1]
+    if any(leaf.endswith(suffix) for suffix in _NON_ROUTE_SUFFIXES):
+        return None
+    return cleaned.rstrip("/")
+
+
+def _extract_route_like_surfaces(epic_body: str) -> list[str]:
+    """Extract pragmatic route-like surfaces from EPIC.md text."""
+    seen: set[str] = set()
+    routes: list[str] = []
+    for raw in _ROUTE_SURFACE_PATTERN.findall(epic_body):
+        normalized = _normalize_route_surface(raw)
+        if normalized is None:
+            continue
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        routes.append(normalized)
+    return routes
+
+
+def _plan_contract_surface_text(plan: Plan) -> str:
+    parts: list[str] = []
+    parts.extend(truth.statement for truth in plan.observable_truths)
+    for journey in plan.user_journeys:
+        parts.append(journey.narrative)
+        parts.append(journey.entry_point)
+        for transition in journey.critical_transitions:
+            parts.extend([transition.source, transition.to, transition.mechanism])
+    for story in plan.stories:
+        parts.extend(story.acceptance_criteria)
+    for decision in plan.contract_decisions:
+        parts.extend([decision.epic_contract, decision.repo_convention])
+        if decision.bridge:
+            parts.append(decision.bridge)
+    return "\n".join(parts).lower()
+
+
+def _check_contract_fidelity(plan: Plan, epic_body: str) -> list[ValidationError]:
+    """Epic route surfaces must survive planning or be recorded explicitly."""
+    errors: list[ValidationError] = []
+    route_surfaces = _extract_route_like_surfaces(epic_body)
+    if not route_surfaces:
+        return errors
+
+    plan_text = _plan_contract_surface_text(plan)
+    for route in route_surfaces:
+        if route.lower() in plan_text:
+            continue
+        errors.append(
+            ValidationError(
+                check="contract_fidelity",
+                message=(
+                    f"Epic route '{route}' disappears from the plan. Preserve it in the plan text "
+                    "or record an explicit contract_decision that names the epic contract and any bridge."
+                ),
+            )
+        )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Core function
 # ---------------------------------------------------------------------------
 
 
 def _check_empty_checkpoints(plan: Plan) -> list[ValidationError]:
-    """Check 9: No checkpoint should have an empty checks list.
+    """No checkpoint should have an empty checks list.
 
     An empty checks list means the story has no verification criteria,
     which would silently pass validation without proving anything.
@@ -361,7 +464,7 @@ def _check_empty_checkpoints(plan: Plan) -> list[ValidationError]:
 
 
 def _check_acceptance_criteria(plan: Plan) -> list[ValidationError]:
-    """Check 11: Every story must have non-empty acceptance_criteria.
+    """Every story must have non-empty acceptance_criteria.
 
     An empty acceptance_criteria list means the agent has no verifiable
     definition of done, making the story unvalidatable.
@@ -382,7 +485,7 @@ def _check_acceptance_criteria(plan: Plan) -> list[ValidationError]:
 
 
 def _check_story_enrichment(plan: Plan) -> list[ValidationError]:
-    """Check 12: Every story must have non-empty enrichment fields.
+    """Every story must have non-empty enrichment fields.
 
     - architectural_context: required non-empty on ALL stories.
     - navigation_hints: required non-empty on ALL stories.
@@ -411,7 +514,7 @@ def _check_story_enrichment(plan: Plan) -> list[ValidationError]:
 
 
 def _check_checkpoint_coverage(plan: Plan) -> list[ValidationError]:
-    """Check 10: Every story must have a validation checkpoint.
+    """Every story must have a validation checkpoint.
 
     A story without a checkpoint will fail at runtime with
     'No validation checkpoint defined for story'. Catch this at
@@ -527,12 +630,11 @@ def _check_test_specs(plan: Plan) -> list[ValidationError]:
 
 
 def validate_plan(epic_dir: Path) -> ValidationResult:
-    """Run 7 deterministic validation checks on plan.json.
+    """Run deterministic Phase A validation checks on plan.json.
 
     Phase A of the two-phase plan verification system. This is the
-    deterministic, $0, instant check. Check 1 (schema conformance) is
-    eliminated — Pydantic validation already handles it at parse time.
-    Check 8 (command coverage) runs but only produces warnings.
+    deterministic, $0, instant check. Schema conformance is handled by
+    Pydantic at parse time. Command coverage runs but only produces warnings.
 
     Args:
         epic_dir: Path to the epic directory (e.g. .planning/epics/E95/).
@@ -566,7 +668,7 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
             ],
         )
 
-    # Validate against Pydantic model (replaces Check 1: schema conformance)
+    # Validate against the Pydantic model first.
     try:
         plan = Plan.model_validate(raw)
     except Exception as exc:
@@ -587,16 +689,26 @@ def validate_plan(epic_dir: Path) -> ValidationResult:
     all_errors.extend(_check_journey_coverage(plan))
     all_errors.extend(_check_scope_coherence(plan))
     all_errors.extend(_check_dependency_ordering(plan))
+    epic_path = epic_dir / "EPIC.md"
+    if epic_path.is_file():
+        all_errors.extend(
+            _check_contract_fidelity(
+                plan,
+                epic_path.read_text(encoding="utf-8"),
+            )
+        )
+    else:
+        logger.warning("Skipping contract_fidelity check because EPIC.md is missing at %s", epic_path)
     all_errors.extend(_check_empty_checkpoints(plan))
     all_errors.extend(_check_checkpoint_coverage(plan))
     all_errors.extend(_check_acceptance_criteria(plan))
     all_errors.extend(_check_story_enrichment(plan))
     all_errors.extend(_check_test_specs(plan))
 
-    # Check 8: Command coverage (warnings only — doesn't fail validation)
+    # Command coverage is warning-only; it does not fail validation.
     command_warnings = _check_command_coverage(plan)
     for w in command_warnings:
-        logger.warning("Check 8 warning: %s", w.message)
+        logger.warning("Command coverage warning: %s", w.message)
 
     return ValidationResult(
         valid=len(all_errors) == 0,

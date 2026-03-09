@@ -31,6 +31,15 @@
       "description": "Stage 3 (Planning) events written to epic.jsonl.",
       "type": "object",
       "properties": {
+        "curation_dispatched": {
+          "description": "Fields: epic, attempt, model, adapter, prompt_hash, prompt_tokens"
+        },
+        "curation_complete": {
+          "description": "Fields: epic, attempt, turns, response_path"
+        },
+        "curation_failed": {
+          "description": "Fields: epic, attempt, error, turns, response_path"
+        },
         "planner_dispatched": {
           "description": "Fields: epic, attempt, tier, model, prompt_hash, prompt_tokens"
         },

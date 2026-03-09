@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 from workflow.artifacts import (
+    CurationArtifact,
     EpicArtifact,
     PlanArtifact,
     RepoFactsArtifact,
@@ -32,11 +33,30 @@ def _read_plan(path: Path) -> PlanArtifact:
     return PlanArtifact.from_json_text(_read_text(path))
 
 
+def _read_optional_curation(epic_dir: Path) -> CurationArtifact | None:
+    curation_path = epic_dir / "curation.json"
+    if not curation_path.is_file():
+        return None
+    return CurationArtifact.from_path(curation_path)
+
+
 def compile_planner_prompt(epic_dir: Path) -> PromptArtifact:
     """Compile the planner prompt for an epic directory."""
     return make_planner_prompt(
         EpicArtifact.from_epic_dir(epic_dir),
         RepoFactsArtifact.from_epic_dir(epic_dir),
+        _read_optional_curation(epic_dir),
+    )
+
+
+def compile_curation_prompt(epic_dir: Path) -> PromptArtifact:
+    """Compile the curation prompt for an epic directory."""
+    from workflow.curation import PROJECT_ROOT, _read_optional_codebase_hints, make_curation_prompt
+
+    return make_curation_prompt(
+        EpicArtifact.from_epic_dir(epic_dir),
+        RepoFactsArtifact.from_epic_dir(epic_dir),
+        optional_codebase_hints=_read_optional_codebase_hints(PROJECT_ROOT),
     )
 
 
@@ -46,6 +66,7 @@ def compile_verifier_prompt(epic_dir: Path) -> PromptArtifact:
         _read_plan(epic_dir / "plan.json"),
         EpicArtifact.from_epic_dir(epic_dir),
         RepoFactsArtifact.from_epic_dir(epic_dir),
+        _read_optional_curation(epic_dir),
     )
 
 
@@ -70,6 +91,7 @@ def compile_phase_b_revision_prompt(
             RepoFactsArtifact.from_epic_dir(epic_dir),
             _read_plan(epic_dir / "plan.json"),
             verifier_feedback,
+            _read_optional_curation(epic_dir),
         )
     )
 
@@ -82,6 +104,7 @@ def compile_prompt_suite(
 ) -> dict[str, PromptArtifact]:
     """Compile the available prompt stages for an epic without dispatching."""
     suite: dict[str, PromptArtifact] = {
+        "curation": compile_curation_prompt(epic_dir),
         "planner": compile_planner_prompt(epic_dir),
     }
 

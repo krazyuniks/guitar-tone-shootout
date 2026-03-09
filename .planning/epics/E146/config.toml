@@ -4,8 +4,7 @@ implementor = "codex"
 plan_critic = "codex"
 planner = "opus"
 story_critic = "opus"
-test_reviewer = "opus"
-test_writer = "codex"
+test_writer = "sonnet"
 
 [budgets.critique_epic]
 timeout = 600
@@ -16,17 +15,11 @@ timeout = 600
 [budgets.critique_story]
 timeout = 600
 
-[budgets.gap_detection]
-timeout = 1800
-
 [budgets.implementation]
 timeout = 600
 
 [budgets.planning]
 timeout = 1800
-
-[budgets.test_review]
-timeout = 300
 
 [budgets.test_writing]
 timeout = 300
@@ -36,9 +29,7 @@ timeout = 600
 
 [mcp]
 critique = ["serena", "pyright"]
-gap_detection = ["serena", "pyright"]
 implementation = ["serena", "pyright"]
 planning = ["serena", "pyright"]
-test_review = []
 test_writing = ["serena", "pyright"]
 validation = []
