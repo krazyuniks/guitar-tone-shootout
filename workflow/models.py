@@ -1,4 +1,4 @@
-"""Pydantic models for epic plan data structures.
+"""Pydantic models for epic plan and curation data structures.
 
 These models are the single source of truth for plan.json structure.
 They replace plan.schema.json for both validation and structured output.
@@ -161,18 +161,11 @@ class Story(BaseModel):
         default_factory=list,
         description="File paths, symbol names, and entry points to orient the agent in the codebase.",
     )
-    depends_on_summary: list[str] = Field(
-        default_factory=list,
-        description="Key outputs and contracts from prior stories that this story builds upon.",
-    )
     implementation_notes: list[str] = Field(
         default_factory=list, description="Domain-specific hints."
     )
     truths_addressed: list[int] = Field(
         description="IDs of observable truths this story contributes to."
-    )
-    wiki_sections: list[str] = Field(
-        default_factory=list, description="Wiki section headers for Stage 4 prompt builder."
     )
     test_spec: TestSpec | None = Field(
         default=None,
@@ -197,6 +190,99 @@ class ValidationCheckpoint(BaseModel):
     checks: list[CheckCriterion] = Field(description="Criteria to verify.")
 
 
+class ContractDecision(BaseModel):
+    """Explicit resolution for an epic-vs-repo contract mismatch."""
+
+    decision_id: str = Field(description="Stable contract decision identifier, e.g. CD1.")
+    epic_contract: str = Field(description="Canonical user-facing/API contract from the epic.")
+    repo_convention: str = Field(description="Conflicting route, field, or transport already in repo.")
+    canonical: Literal["epic", "bridge"] = Field(
+        description="Whether the epic contract stands alone or ships with a compatibility bridge."
+    )
+    bridge: str | None = Field(
+        default=None,
+        description="Compatibility bridge details. Required when canonical is 'bridge'.",
+    )
+    affected_stories: list[str] = Field(
+        default_factory=list,
+        description="Story IDs that implement or validate this decision.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_bridge_requirements(self) -> "ContractDecision":
+        if self.canonical == "bridge" and not (self.bridge and self.bridge.strip()):
+            raise ValueError("ContractDecision.bridge is required when canonical == 'bridge'.")
+        if self.canonical == "epic" and self.bridge is not None:
+            raise ValueError("ContractDecision.bridge must be omitted when canonical == 'epic'.")
+        return self
+
+
+# ---------------------------------------------------------------------------
+# Curation models
+# ---------------------------------------------------------------------------
+
+
+class CandidateJourney(BaseModel):
+    """Bounded journey candidate used to shape the planner handoff."""
+
+    journey_id: str = Field(description="Stable candidate identifier, e.g. CJ1.")
+    title: str = Field(description="Short label for the journey candidate.")
+    entry_point: str = Field(description="Observed or required entry point for this journey.")
+    desired_outcome: str = Field(description="What the user should achieve by the end.")
+    key_steps: list[str] = Field(
+        default_factory=list,
+        description="Ordered steps or transitions that planning must preserve.",
+    )
+
+
+class StorySlice(BaseModel):
+    """Candidate vertical slice boundary proposed before final plan generation."""
+
+    slice_id: str = Field(description="Stable slice identifier, e.g. SL1.")
+    title: str = Field(description="Short label for the slice.")
+    objective: str = Field(description="What the slice should deliver.")
+    likely_surfaces: list[str] = Field(
+        default_factory=list,
+        description="Files, routes, or components likely involved in this slice.",
+    )
+    dependencies: list[str] = Field(
+        default_factory=list,
+        description="Preconditions or earlier slices this slice depends on.",
+    )
+
+
+class MissingAssumption(BaseModel):
+    """Epic ambiguity or repo gap the planner should resolve explicitly."""
+
+    assumption: str = Field(description="The missing or ambiguous assumption.")
+    why_it_matters: str = Field(description="Why this assumption affects plan correctness.")
+    planner_action: str = Field(description="What the planner should do about it.")
+
+
+class ScopeTension(BaseModel):
+    """Scope boundary or design tension that needs explicit handling."""
+
+    tension: str = Field(description="The scope tension or conflict.")
+    tradeoff: str = Field(description="Why the tension matters.")
+    planner_guidance: str = Field(description="How the planner should resolve or balance it.")
+
+
+class PlannerHandoff(BaseModel):
+    """Compact bounded handoff from curation into planning."""
+
+    priority_order: list[str] = Field(
+        default_factory=list,
+        description="Ordered priorities the planner should preserve.",
+    )
+    watchouts: list[str] = Field(
+        default_factory=list,
+        description="Pitfalls the planner should avoid.",
+    )
+    recommended_story_shape: str = Field(
+        description="Concise guidance on the intended story framing.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Root model
 # ---------------------------------------------------------------------------
@@ -210,10 +296,51 @@ class Plan(BaseModel):
     goal: str = Field(description="Outcome-shaped goal statement.")
     observable_truths: list[ObservableTruth] = Field(description="Truths that define 'done'.")
     user_journeys: list[UserJourney] = Field(description="End-to-end narratives.")
+    contract_decisions: list[ContractDecision] = Field(
+        default_factory=list,
+        description="Explicit epic-vs-repo contract resolutions. Canonical may be 'epic' or 'bridge' only.",
+    )
     stories: list[Story] = Field(description="Ordered sequence of stories to execute.")
     validation_checkpoints: list[ValidationCheckpoint] = Field(
         default_factory=list, description="Strategic validation checkpoints."
     )
+
+    @model_validator(mode="after")
+    def _validate_unique_contract_decision_ids(self) -> "Plan":
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for decision in self.contract_decisions:
+            if decision.decision_id in seen:
+                duplicates.add(decision.decision_id)
+            seen.add(decision.decision_id)
+        if duplicates:
+            duplicate_list = ", ".join(sorted(duplicates))
+            raise ValueError(f"Duplicate contract decision IDs are not allowed: {duplicate_list}")
+        return self
+
+
+class Curation(BaseModel):
+    """Machine-readable curation handoff between repo-facts and planning."""
+
+    schema_v: Literal[1] = Field(default=1, description="Schema version.")
+    epic_number: int = Field(description="GitHub issue number for the epic.")
+    candidate_journeys: list[CandidateJourney] = Field(
+        default_factory=list,
+        description="Candidate end-to-end journeys that should shape planning.",
+    )
+    story_slices: list[StorySlice] = Field(
+        default_factory=list,
+        description="Candidate story boundaries and sequencing hints.",
+    )
+    missing_assumptions: list[MissingAssumption] = Field(
+        default_factory=list,
+        description="Assumptions or ambiguities the planner must resolve.",
+    )
+    scope_tensions: list[ScopeTension] = Field(
+        default_factory=list,
+        description="Scope tensions to balance explicitly during planning.",
+    )
+    planner_handoff: PlannerHandoff
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +384,30 @@ def render_plan_md(plan: Plan) -> str:
         lines.append("**Critical transitions:**")
         for ct in journey.critical_transitions:
             lines.append(f"- {ct.source} -> {ct.to} ({ct.mechanism})")
-        lines.append("")
+    lines.append("")
+
+    # Contract Decisions
+    lines.append("## Contract Decisions")
+    lines.append("")
+    if plan.contract_decisions:
+        lines.append("| ID | Epic Contract | Repo Convention | Resolution | Affected Stories |")
+        lines.append("|---|---|---|---|---|")
+        for decision in plan.contract_decisions:
+            resolution = decision.canonical
+            if decision.bridge:
+                resolution = f"{resolution}: {decision.bridge}"
+            affected = ", ".join(f"`{story_id}`" for story_id in decision.affected_stories) or "-"
+            lines.append(
+                "| "
+                f"{decision.decision_id} | "
+                f"{_escape_markdown_table_cell(decision.epic_contract)} | "
+                f"{_escape_markdown_table_cell(decision.repo_convention)} | "
+                f"{_escape_markdown_table_cell(resolution)} | "
+                f"{affected} |"
+            )
+    else:
+        lines.append("(none)")
+    lines.append("")
 
     # Stories
     lines.append("## Stories")
@@ -293,14 +443,6 @@ def render_plan_md(plan: Plan) -> str:
         for hint in story.navigation_hints:
             lines.append(f"- {hint}")
         lines.append("")
-        lines.append("### Dependencies from Prior Stories")
-        lines.append("")
-        for dep in story.depends_on_summary:
-            lines.append(f"- {dep}")
-        lines.append("")
-        if story.wiki_sections:
-            lines.append(f"**Wiki Sections:** {', '.join(story.wiki_sections)}")
-            lines.append("")
         if story.implementation_notes:
             lines.append("**Implementation Notes:**")
             for note in story.implementation_notes:
@@ -359,3 +501,98 @@ def render_plan_md(plan: Plan) -> str:
     lines.append("")
 
     return "\n".join(lines)
+
+
+def render_curation_md(curation: Curation) -> str:
+    """Render a Curation model to deterministic CURATION.md markdown."""
+    lines: list[str] = []
+
+    lines.append(f"# Curation: Epic #{curation.epic_number}")
+    lines.append("")
+
+    lines.append("## Candidate Journeys")
+    lines.append("")
+    if curation.candidate_journeys:
+        for journey in curation.candidate_journeys:
+            lines.append(f"### {journey.title} (`{journey.journey_id}`)")
+            lines.append("")
+            lines.append(f"**Entry point:** {journey.entry_point}")
+            lines.append(f"**Desired outcome:** {journey.desired_outcome}")
+            if journey.key_steps:
+                lines.append("**Key steps:**")
+                for step in journey.key_steps:
+                    lines.append(f"- {step}")
+            lines.append("")
+    else:
+        lines.append("(none)")
+        lines.append("")
+
+    lines.append("## Story Slices")
+    lines.append("")
+    if curation.story_slices:
+        for story_slice in curation.story_slices:
+            lines.append(f"### {story_slice.title} (`{story_slice.slice_id}`)")
+            lines.append("")
+            lines.append(story_slice.objective)
+            if story_slice.likely_surfaces:
+                lines.append("")
+                lines.append("**Likely surfaces:**")
+                for surface in story_slice.likely_surfaces:
+                    lines.append(f"- {surface}")
+            if story_slice.dependencies:
+                lines.append("")
+                lines.append("**Dependencies:**")
+                for dependency in story_slice.dependencies:
+                    lines.append(f"- {dependency}")
+            lines.append("")
+    else:
+        lines.append("(none)")
+        lines.append("")
+
+    lines.append("## Missing Assumptions")
+    lines.append("")
+    if curation.missing_assumptions:
+        for item in curation.missing_assumptions:
+            lines.append(f"- **Assumption:** {item.assumption}")
+            lines.append(f"  **Why it matters:** {item.why_it_matters}")
+            lines.append(f"  **Planner action:** {item.planner_action}")
+    else:
+        lines.append("(none)")
+    lines.append("")
+
+    lines.append("## Scope Tensions")
+    lines.append("")
+    if curation.scope_tensions:
+        for item in curation.scope_tensions:
+            lines.append(f"- **Tension:** {item.tension}")
+            lines.append(f"  **Tradeoff:** {item.tradeoff}")
+            lines.append(f"  **Planner guidance:** {item.planner_guidance}")
+    else:
+        lines.append("(none)")
+    lines.append("")
+
+    lines.append("## Planner Handoff")
+    lines.append("")
+    lines.append(f"**Recommended story shape:** {curation.planner_handoff.recommended_story_shape}")
+    lines.append("")
+    lines.append("**Priority order:**")
+    if curation.planner_handoff.priority_order:
+        for item in curation.planner_handoff.priority_order:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- (none)")
+    lines.append("")
+    lines.append("**Watchouts:**")
+    if curation.planner_handoff.watchouts:
+        for item in curation.planner_handoff.watchouts:
+            lines.append(f"- {item}")
+    else:
+        lines.append("- (none)")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+def _escape_markdown_table_cell(value: str) -> str:
+    """Keep deterministic markdown table cells on one line."""
+    return value.replace("|", "\\|").replace("\n", " ")

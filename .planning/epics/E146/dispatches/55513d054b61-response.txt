@@ -1,0 +1,623 @@
+Now I have everything I need. Let me write the plan JSON:
+
+**Self-verification before output:**
+
+1. **Observable Truths coverage**: 10 truths, each addressed by exactly one story
+2. **Journey coverage**: All 10 truths covered across 4 journeys
+3. **Checkpoint story_ids**: 01-group-detail-page, 02-shootout-chain-ownership, 03-comment-edit-api, 04-comment-edit-ui, 05-is-system-track-cleanup — all valid
+4. **scope.modify paths verified**: All confirmed to exist via Glob
+5. **scope.create parent dirs verified**: All parent directories exist
+6. **Group detail entry point**: Group item cards at `/library/chains/group?id=<uuid>` — route missing, story 01 creates it
+7. **Shootout chain ownership**: `shootout_create_submit` does NOT check chain.user_id — story 02 adds the check
+8. **Comment PATCH**: No PATCH endpoint exists — story 03 creates it at `/api/v1/comments/{id}`
+9. **HTMX transport**: PATCH returns JSON; Alpine.js manages edit state, HTMX posts and updates DOM on success
+10. **is_system_track**: Hardcoded in `context.py:108`, badge in `track_item.html.ts`, `detail.html.ts`, and TypeScript types — story 05 removes all
+
+```json
+{
+  "schema_v": 1,
+  "epic_number": 146,
+  "goal": "Wire the missing group detail page endpoint, enforce chain ownership on shootout creation, add comment editing, and purge dead is_system_track references — closing four Phase 4 gaps without introducing regressions.",
+  "observable_truths": [
+    {
+      "id": 1,
+      "statement": "A user can navigate to /library/chains/group?id=<uuid> for their own group and see a page displaying the group's name and description (HTTP 200, not 404)"
+    },
+    {
+      "id": 2,
+      "statement": "Clicking a group item link on the group list area navigates to the group detail page without error"
+    },
+    {
+      "id": 3,
+      "statement": "Submitting the shootout creation form with a signal chain that belongs to a different user returns HTTP 404"
+    },
+    {
+      "id": 4,
+      "statement": "Submitting the shootout creation form with signal chains that all belong to the current user succeeds and redirects to the new shootout page"
+    },
+    {
+      "id": 5,
+      "statement": "PATCH /api/v1/comments/<id> by the comment's author with {\"body\": \"updated text\"} returns HTTP 200 with the updated comment JSON"
+    },
+    {
+      "id": 6,
+      "statement": "PATCH /api/v1/comments/<id> by a user who did not write the comment returns HTTP 404"
+    },
+    {
+      "id": 7,
+      "statement": "The comments section on a shootout detail page shows an edit button only on comments written by the currently logged-in user"
+    },
+    {
+      "id": 8,
+      "statement": "Clicking the edit button on a comment shows an inline editing form; submitting it updates the comment text in place without a full page reload"
+    },
+    {
+      "id": 9,
+      "statement": "The hardcoded is_system_track: False value is removed from pages/context.py; DI track pages render correctly without it"
+    },
+    {
+      "id": 10,
+      "statement": "Frontend templates and TypeScript types no longer reference is_system_track: the badge and delete-suppression conditional blocks are absent from all Jinja2 templates and the DITrackSelectModal component"
+    }
+  ],
+  "user_journeys": [
+    {
+      "journey_id": "J1",
+      "persona": "Authenticated user with at least one signal chain group",
+      "narrative": "The user sees a group card somewhere in the chain library (group list area). They click the group name link. The browser navigates to /library/chains/group?id=<uuid>. The page renders with the group's name and description. No 404 error occurs.",
+      "truths_covered": [1, 2],
+      "entry_point": "/library/chains/group?id=<group-uuid>",
+      "critical_transitions": [
+        {
+          "source": "Group item card with href /library/chains/group?id=<uuid>",
+          "to": "Group detail page at /library/chains/group?id=<uuid>",
+          "mechanism": "Standard anchor navigation (href click)"
+        },
+        {
+          "source": "Group detail page",
+          "to": "Group detail page rendered with name and description",
+          "mechanism": "Backend renders pages/library/group_detail.html template with group context"
+        }
+      ]
+    },
+    {
+      "journey_id": "J2",
+      "persona": "Authenticated user attempting to create a shootout",
+      "narrative": "User A submits the shootout create wizard form including a chain_id that belongs to User B. The server validates chain ownership, finds the chain does not belong to User A, and returns 404. When User A uses only their own chains, the shootout is created and the browser redirects to /shootout/<id>.",
+      "truths_covered": [3, 4],
+      "entry_point": "/shootout/create",
+      "critical_transitions": [
+        {
+          "source": "Shootout create wizard at /shootout/create",
+          "to": "POST /shootout/create with chain_ids containing a foreign chain",
+          "mechanism": "HTMX form submission"
+        },
+        {
+          "source": "POST /shootout/create handler — chain ownership validation",
+          "to": "HTTP 404 response",
+          "mechanism": "Server raises HTTPException(404) when chain.user_id != current_user.id"
+        },
+        {
+          "source": "POST /shootout/create handler with valid owned chains",
+          "to": "HX-Redirect to /shootout/<new-id>",
+          "mechanism": "Server creates shootout, responds with HX-Redirect header"
+        }
+      ]
+    },
+    {
+      "journey_id": "J3",
+      "persona": "Authenticated user who has posted a comment on a shootout",
+      "narrative": "User visits the shootout detail page and sees their comment with an edit icon visible only to them. They click the edit icon and an inline form appears. They type new text and submit. The comment text updates in place via HTMX without a page reload. A different user hitting PATCH /api/v1/comments/<id> for someone else's comment receives 404.",
+      "truths_covered": [5, 6, 7, 8],
+      "entry_point": "/shootout/<shootout-id>",
+      "critical_transitions": [
+        {
+          "source": "Shootout detail page with comments",
+          "to": "Comment item with visible edit button (only for own comments)",
+          "mechanism": "Server-rendered comments fragment with is_own context flag"
+        },
+        {
+          "source": "Comment item with edit button",
+          "to": "Inline edit form replacing the comment text",
+          "mechanism": "Alpine.js toggles edit mode client-side"
+        },
+        {
+          "source": "Inline edit form submission",
+          "to": "PATCH /api/v1/comments/<id> request with updated body",
+          "mechanism": "Alpine.js fetch call with JSON body"
+        },
+        {
+          "source": "PATCH by non-author",
+          "to": "HTTP 404 response",
+          "mechanism": "Service validates comment.user_id == current_user.id, raises 404 on mismatch"
+        },
+        {
+          "source": "Successful PATCH response (200 JSON)",
+          "to": "Updated comment text displayed in place",
+          "mechanism": "Alpine.js updates the displayed text from JSON response"
+        }
+      ]
+    },
+    {
+      "journey_id": "J4",
+      "persona": "Any user viewing DI tracks or the chain builder",
+      "narrative": "User views a DI track detail page or the library track list. No system track badge appears (it was always False and is now removed). The delete button appears normally for all user-owned tracks. The chain builder DI track modal shows no system badge. No template errors occur.",
+      "truths_covered": [9, 10],
+      "entry_point": "/di-tracks/<id>",
+      "critical_transitions": [
+        {
+          "source": "DI track detail page",
+          "to": "Page renders without system track badge",
+          "mechanism": "Backend no longer emits is_system_track in context; template conditional removed"
+        },
+        {
+          "source": "Library track list fragment",
+          "to": "Track item renders without system badge or conditional delete suppression",
+          "mechanism": "Jinja2 conditional blocks referencing is_system_track removed from template"
+        }
+      ]
+    }
+  ],
+  "stories": [
+    {
+      "story_id": "01-group-detail-page",
+      "name": "Group detail page route and template",
+      "purpose": "Add the missing GET /library/chains/group?id=<uuid> SSR page so group item links no longer 404.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-frontend-dev"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"]
+      },
+      "scope": {
+        "create": [
+          "frontend/astro/src/pages/pages/library/group_detail.html.ts",
+          "frontend/astro/dist/pages/library/group_detail.html",
+          "tests/integration/webapp/test_group_detail_page.py"
+        ],
+        "modify": [
+          "apps/webapp/src/webapp/api/pages/chains.py"
+        ]
+      },
+      "acceptance_criteria": [
+        "GET /library/chains/group?id=<valid-group-uuid> returns HTTP 200 for the group owner",
+        "GET /library/chains/group?id=<valid-group-uuid> returns HTTP 404 for a different user",
+        "GET /library/chains/group?id=<nonexistent-uuid> returns HTTP 404",
+        "The response HTML contains the group name",
+        "The response HTML contains the group description when set",
+        "No 404 when clicking a group item link (group_item.html href already points to this route)"
+      ],
+      "architectural_context": [
+        "Page routes live in apps/webapp/src/webapp/api/pages/chains.py and are registered via api/pages/__init__.py",
+        "Page templates use Jinja2 SSR, extend layouts/base.html, and are compiled from Astro .ts files in frontend/astro/src/pages/pages/",
+        "The existing Astro fragment template dist/fragments/library/group_detail.html is already built — the new page template wraps it with {% extends 'layouts/base.html' %} and {% include 'fragments/library/group_detail.html' %}",
+        "SignalChainGroupService.get_by_id() and SQLAlchemySignalChainGroupRepository exist and return the domain entity",
+        "The fragment template expects: group.id, group.name, group.description, group.base_chain, group.permutation_count; also slots list with position, gear_count, gear_options (list with name), include_null",
+        "The domain entity SignalChainGroup has slot_positions: list[int] and gear_options: dict[int, list[UUID]] and estimated_permutation_count() method"
+      ],
+      "navigation_hints": [
+        "apps/webapp/src/webapp/api/pages/chains.py — add route after existing routes",
+        "apps/webapp/src/webapp/services/signal_chain_group_service.py — SignalChainGroupService.get_by_id()",
+        "frontend/astro/src/pages/fragments/library/group_detail.html.ts — existing fragment to include",
+        "frontend/astro/src/pages/pages/library/chains.html.ts — model the new page .ts after this pattern",
+        "frontend/astro/dist/pages/library/chains.html — model dist output after this file"
+      ],
+      "implementation_notes": [
+        "Route signature: GET /library/chains/group with id: UUID = Query(...)",
+        "The group entity has gear_options: dict[int, list[UUID]] — build slots list as: [{position: pos, gear_count: len(ids), gear_options: [{name: str(gid)} for gid in ids], include_null: group.include_null} for pos, ids in group.gear_options.items()]",
+        "For base_chain, query SignalChain by group.base_chain_id to get its name; use 'N/A' if not found",
+        "Add import for SignalChainGroupService at top of chains.py",
+        "The Astro page template is a .ts file exporting a GET function returning a Response with the Jinja2 template string; see chains.html.ts for exact pattern",
+        "After writing the Astro .ts source file, also write the compiled dist .html (they should be identical content-wise)",
+        "The chains fragment in the group_detail shows 'api/signal-chain-groups/{{ group.id }}' — no backend changes needed for that, the API already exists"
+      ],
+      "truths_addressed": [1, 2],
+      "test_spec": {
+        "test_type": "integration",
+        "fixtures": ["make_user", "make_signal_chain"],
+        "assertions": [
+          {
+            "type": "http_status",
+            "details": {
+              "method": "GET",
+              "route": "/library/chains/group?id={group.id}",
+              "auth": "test_user",
+              "expected_status": 200
+            }
+          },
+          {
+            "type": "dom_element",
+            "details": {
+              "selector": "[data-testid='group-detail-page']",
+              "expected_text": ""
+            }
+          },
+          {
+            "type": "http_status",
+            "details": {
+              "method": "GET",
+              "route": "/library/chains/group?id={group.id}",
+              "auth": "other_user",
+              "expected_status": 404
+            }
+          }
+        ]
+      }
+    },
+    {
+      "story_id": "02-shootout-chain-ownership",
+      "name": "Enforce chain ownership in shootout creation",
+      "purpose": "Prevent a user from including signal chains owned by others in a new shootout — returns 404 instead of silently succeeding.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-testing"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"]
+      },
+      "scope": {
+        "create": [
+          "tests/integration/webapp/test_shootout_chain_ownership.py"
+        ],
+        "modify": [
+          "apps/webapp/src/webapp/api/pages/shootouts.py"
+        ]
+      },
+      "acceptance_criteria": [
+        "POST /shootout/create with a chain_id owned by a different user returns HTTP 404",
+        "POST /shootout/create with chain_ids all owned by the current user succeeds and returns HX-Redirect",
+        "The existing golden-path test suite continues to pass after this change"
+      ],
+      "architectural_context": [
+        "shootout_create_submit is a page route (POST /shootout/create) in apps/webapp/src/webapp/api/pages/shootouts.py",
+        "It currently reads chain_ids from form data and creates ShootoutChain value objects without verifying ownership",
+        "Pattern: fetch each chain via SQLAlchemySignalChainRepository.get_by_id(), check chain.user_id == current_user.id, raise HTTPException(404) if not",
+        "SQLAlchemySignalChainRepository is already imported locally inside shootout_create_chains_fragment — use same local import inside shootout_create_submit",
+        "Resource ownership rule: return 404 not 403 to avoid leaking existence"
+      ],
+      "navigation_hints": [
+        "apps/webapp/src/webapp/api/pages/shootouts.py:335 — shootout_create_submit function",
+        "apps/webapp/src/webapp/adapters/persistence/repositories/signal_chain_repository.py — SQLAlchemySignalChainRepository.get_by_id()",
+        "apps/webapp/src/webapp/api/pages/chains.py:193 — existing ownership check pattern: if not chain or chain.user_id != current_user.id"
+      ],
+      "implementation_notes": [
+        "After collecting chain_ids and before building ShootoutChainVO list, add a validation loop",
+        "For each chain_id in chain_ids: call repo.get_by_id(UUID(chain_id)), if not found or chain.user_id != current_user.id raise HTTPException(404, 'Chain not found')",
+        "Import SQLAlchemySignalChainRepository locally inside the function (matching the pattern in shootout_create_chains_fragment)",
+        "The ownership check must happen before creating ShootoutEntity — fail fast"
+      ],
+      "truths_addressed": [3, 4],
+      "test_spec": {
+        "test_type": "integration",
+        "fixtures": ["make_user", "make_di_track", "make_signal_chain"],
+        "assertions": [
+          {
+            "type": "http_status",
+            "details": {
+              "method": "POST",
+              "route": "/shootout/create",
+              "auth": "test_user",
+              "body": {"name": "Test", "di_track_id": "{di_track.id}", "chain_ids[]": ["{other_user_chain.id}", "{other_user_chain2.id}"]},
+              "expected_status": 404
+            }
+          },
+          {
+            "type": "http_status",
+            "details": {
+              "method": "POST",
+              "route": "/shootout/create",
+              "auth": "test_user",
+              "body": {"name": "Test", "di_track_id": "{di_track.id}", "chain_ids[]": ["{own_chain.id}", "{own_chain2.id}"]},
+              "expected_status": 200
+            }
+          }
+        ]
+      }
+    },
+    {
+      "story_id": "03-comment-edit-api",
+      "name": "PATCH /api/v1/comments endpoint for comment editing",
+      "purpose": "Add the backend API endpoint, service method, and repository method for editing a comment body, with ownership enforced at 404.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-testing"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"]
+      },
+      "scope": {
+        "create": [
+          "apps/webapp/src/webapp/api/v1/comments.py",
+          "tests/integration/webapp/test_comment_edit_api.py"
+        ],
+        "modify": [
+          "apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py",
+          "apps/webapp/src/webapp/services/shootout_comment_service.py",
+          "apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py",
+          "apps/webapp/src/webapp/main.py"
+        ]
+      },
+      "acceptance_criteria": [
+        "PATCH /api/v1/comments/{id} by the comment author with {\"body\": \"new text\"} returns HTTP 200 with updated comment JSON",
+        "The returned JSON includes the updated content field",
+        "PATCH /api/v1/comments/{id} by a non-author returns HTTP 404",
+        "PATCH /api/v1/comments/{nonexistent-id} returns HTTP 404",
+        "Empty or whitespace-only body is rejected with HTTP 422"
+      ],
+      "architectural_context": [
+        "New router file api/v1/comments.py with prefix /api/v1/comments; registered in main.py alongside other v1 routers",
+        "Follows signal_chain_groups.py pattern: uses get_current_user_required and get_db_session from webapp.auth.dependencies",
+        "Repository layer: add update(comment_id, content) method to ShootoutCommentRepository — SELECT + mutate + flush + refresh",
+        "Service layer: add update(comment_id, user_id, body) to ShootoutCommentService — validate ownership (raise ValueError if wrong user), validate body not empty, call repo.update()",
+        "Schema: add CommentUpdateRequest with body: str field; reuse CommentResponse for the response",
+        "Ownership failure: service raises ValueError with 'not authorized'; router maps this to 404 (not 403)",
+        "The comment model stores text in the 'content' column; the API request field is named 'body' per epic spec"
+      ],
+      "navigation_hints": [
+        "apps/webapp/src/webapp/api/v1/signal_chain_groups.py — model the new router after this file",
+        "apps/webapp/src/webapp/adapters/persistence/repositories/shootout_comment_repository.py — add update() method",
+        "apps/webapp/src/webapp/services/shootout_comment_service.py — add update() method",
+        "apps/webapp/src/webapp/api/v1/schemas/shootout_comment.py — add CommentUpdateRequest",
+        "apps/webapp/src/webapp/main.py:16 — add comments import alongside other v1 imports; include router same as others",
+        "apps/webapp/src/webapp/adapters/persistence/models/shootout_comment.py — ShootoutComment ORM model with 'content' column"
+      ],
+      "implementation_notes": [
+        "Repository update method: SELECT comment by id with joinedload(user), mutate comment.content = new_content, flush, refresh with ['user'], return comment",
+        "Service update method signature: async def update(self, comment_id: UUID, user_id: UUID, body: str) -> ShootoutComment",
+        "Service validates: body.strip() not empty; comment exists; comment.user_id == user_id (return 404 on mismatch); then calls repo.update()",
+        "Router: PATCH /{comment_id} — fetch via service.update(), on ValueError raise 404, return CommentResponse",
+        "In main.py, add 'from webapp.api.v1 import comments' and 'app.include_router(comments.router)'",
+        "The router prefix is /api/v1/comments — distinct from /api/shootouts pattern used by older endpoints"
+      ],
+      "truths_addressed": [5, 6],
+      "test_spec": {
+        "test_type": "integration",
+        "fixtures": ["make_user", "make_di_track", "make_shootout"],
+        "assertions": [
+          {
+            "type": "api_response",
+            "details": {
+              "method": "PATCH",
+              "route": "/api/v1/comments/{comment.id}",
+              "auth": "comment_author",
+              "body": {"body": "Updated text"},
+              "expected_status": 200,
+              "expected_json": {"content": "Updated text"}
+            }
+          },
+          {
+            "type": "http_status",
+            "details": {
+              "method": "PATCH",
+              "route": "/api/v1/comments/{comment.id}",
+              "auth": "other_user",
+              "body": {"body": "Hacked text"},
+              "expected_status": 404
+            }
+          },
+          {
+            "type": "http_status",
+            "details": {
+              "method": "PATCH",
+              "route": "/api/v1/comments/00000000-0000-0000-0000-000000000000",
+              "auth": "test_user",
+              "body": {"body": "text"},
+              "expected_status": 404
+            }
+          }
+        ]
+      }
+    },
+    {
+      "story_id": "04-comment-edit-ui",
+      "name": "Inline comment editing UI with Alpine.js and HTMX",
+      "purpose": "Add an edit button to own comments in the shootout comments fragment; clicking it shows an inline form that PATCHes the API and updates the comment text in-place.",
+      "agent": {
+        "model": "sonnet",
+        "skills": ["gts-frontend-dev"],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"]
+      },
+      "scope": {
+        "create": [
+          "tests/integration/webapp/test_comment_edit_ui.py"
+        ],
+        "modify": [
+          "frontend/astro/src/pages/fragments/shootouts/comments.html.ts",
+          "frontend/astro/dist/fragments/shootouts/comments.html"
+        ]
+      },
+      "acceptance_criteria": [
+        "The comments fragment renders an edit button (data-testid='comment-edit') only when comment.is_own is true",
+        "Users who did not write the comment see no edit button",
+        "Clicking the edit button switches the comment item to show an editable textarea pre-filled with the current comment text",
+        "Submitting the edit form calls PATCH /api/v1/comments/<id> and updates the displayed text on success",
+        "The cancel button restores the original view without changes",
+        "All existing delete and post-comment functionality continues to work"
+      ],
+      "architectural_context": [
+        "comments.html.ts is an Astro SSG file that outputs a Jinja2 fragment template to dist/fragments/shootouts/comments.html",
+        "The fragment already passes comment.is_own and comment.id in context via comment_to_context()",
+        "Edit state management uses Alpine.js x-data on each comment item: {editing: false, editText: '{{ comment.text }}'}",
+        "Submitting the edit uses Alpine.js fetch() calling PATCH /api/v1/comments/{{ comment.id }} with JSON body {body: editText}",
+        "On success (status 200), update the displayed text and set editing: false",
+        "No new backend routes needed — story 03 already created the PATCH endpoint",
+        "After editing Astro .ts source, also update the compiled dist .html to match"
+      ],
+      "navigation_hints": [
+        "frontend/astro/src/pages/fragments/shootouts/comments.html.ts — the full fragment template source to modify",
+        "frontend/astro/dist/fragments/shootouts/comments.html — compiled output to update",
+        "apps/webapp/src/webapp/api/pages/context.py:229 — comment_to_context() already returns is_own flag",
+        "frontend/astro/src/pages/fragments/library/group_detail.html.ts — example of Alpine.js fetch pattern with POST/DELETE"
+      ],
+      "implementation_notes": [
+        "Wrap each comment item div with x-data='{editing: false, editText: \"{{ comment.text | e }}\", currentText: \"{{ comment.text | e }}\"}' Alpine state",
+        "Add edit button next to delete button: show only {% if comment.is_own %}, data-testid='comment-edit', @click='editing = true'",
+        "When editing=true: show a textarea (x-model='editText') and Save/Cancel buttons; hide the display text",
+        "Save button: @click='fetch(\"/api/v1/comments/{{ comment.id }}\", {method:\"PATCH\", headers:{\"Content-Type\":\"application/json\"}, body: JSON.stringify({body: editText})}).then(r=>r.json()).then(d=>{currentText=d.content; editing=false})'",
+        "Cancel button: @click='editText=currentText; editing=false'",
+        "Use x-show='!editing' on the display paragraph and x-show='editing' on the edit form",
+        "All Jinja2 string values must be properly escaped for embedding in Alpine.js strings (use | e filter for content)",
+        "The Astro dist file must be updated to exactly match the compiled output of the .ts source"
+      ],
+      "truths_addressed": [7, 8],
+      "test_spec": {
+        "test_type": "integration",
+        "fixtures": ["make_user", "make_di_track", "make_shootout"],
+        "assertions": [
+          {
+            "type": "dom_element",
+            "details": {
+              "selector": "[data-testid='comment-edit']",
+              "context": "own comment item"
+            }
+          },
+          {
+            "type": "dom_absent",
+            "details": {
+              "selector": "[data-testid='comment-edit']",
+              "context": "comment item from another user"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "story_id": "05-is-system-track-cleanup",
+      "name": "Remove dead is_system_track references",
+      "purpose": "Purge the hardcoded is_system_track: False from the backend context mapper and remove all frontend conditional blocks and TypeScript type fields that reference it.",
+      "agent": {
+        "model": "sonnet",
+        "skills": [],
+        "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"]
+      },
+      "scope": {
+        "create": [],
+        "modify": [
+          "apps/webapp/src/webapp/api/pages/context.py",
+          "frontend/astro/src/pages/fragments/library/track_item.html.ts",
+          "frontend/astro/dist/fragments/library/track_item.html",
+          "frontend/astro/src/pages/pages/di-tracks/detail.html.ts",
+          "frontend/astro/dist/pages/di-tracks/detail.html",
+          "frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx",
+          "frontend/astro/src/lib/api.ts"
+        ]
+      },
+      "acceptance_criteria": [
+        "The string 'is_system_track' does not appear in apps/webapp/src/webapp/api/pages/context.py",
+        "The string 'is_system_track' does not appear in frontend/astro/src/pages/fragments/library/track_item.html.ts",
+        "The string 'is_system_track' does not appear in frontend/astro/src/pages/pages/di-tracks/detail.html.ts",
+        "The string 'is_system_track' does not appear in frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx",
+        "The string 'is_system_track' does not appear in frontend/astro/src/lib/api.ts",
+        "DI track detail and library pages continue to render correctly (just without the system track badge)",
+        "The delete button on track items is no longer conditionally suppressed by is_system_track"
+      ],
+      "architectural_context": [
+        "context.py:108 has 'is_system_track': False in di_track_to_context() — remove this key entirely",
+        "track_item.html.ts lines 86 and 95: remove {% if track.is_system_track %} badge block and the 'and not track.is_system_track' part of the delete-button condition",
+        "di-tracks/detail.html.ts line 66: remove the {% if track.is_system_track %} badge block",
+        "DITrackSelectModal.tsx line 229: remove the {track.is_system_track && <span>System</span>} JSX block",
+        "api.ts lines 489 and 505: remove is_system_track: boolean from both DITrack interface declarations",
+        "After removing from Astro .ts source files, also update the compiled dist .html files to match"
+      ],
+      "navigation_hints": [
+        "apps/webapp/src/webapp/api/pages/context.py:95 — di_track_to_context function, line 108 has the dead field",
+        "frontend/astro/src/pages/fragments/library/track_item.html.ts:86,95 — two references to remove",
+        "frontend/astro/src/pages/pages/di-tracks/detail.html.ts:66 — badge block to remove",
+        "frontend/astro/src/components/SignalChain/DITrackSelectModal.tsx:229 — JSX conditional to remove",
+        "frontend/astro/src/lib/api.ts:489,505 — two TypeScript interface fields to remove"
+      ],
+      "implementation_notes": [
+        "In context.py: remove only the 'is_system_track': False line from the dict literal in di_track_to_context",
+        "In track_item.html.ts: remove the {% if track.is_system_track %}...<span>System Track</span>...{% endif %} block (lines ~86-88)",
+        "In track_item.html.ts: change '{% if is_library_view and not track.is_system_track %}' to simply '{% if is_library_view %}' (line ~95)",
+        "In detail.html.ts: remove the entire {% if track.is_system_track %}...<span>System Track</span>...{% endif %} block",
+        "In DITrackSelectModal.tsx: remove the {track.is_system_track && (<span>System</span>)} JSX fragment",
+        "In api.ts: remove is_system_track: boolean from both interface declarations (search for both occurrences)",
+        "For each Astro .ts source modified, also update the corresponding dist .html file to reflect the removal"
+      ],
+      "truths_addressed": [9, 10],
+      "test_spec": {
+        "test_type": "integration",
+        "fixtures": ["make_user", "make_di_track"],
+        "assertions": [
+          {
+            "type": "http_status",
+            "details": {
+              "method": "GET",
+              "route": "/library/di-tracks",
+              "auth": "test_user",
+              "expected_status": 200
+            }
+          },
+          {
+            "type": "dom_absent",
+            "details": {
+              "selector": "[data-testid='system-track-badge']",
+              "context": "DI track library list"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "validation_checkpoints": [
+    {
+      "after_story": "01-group-detail-page",
+      "check_type": "http+dom",
+      "checks": [
+        {
+          "criterion": "Group detail page route returns 200 for owner",
+          "command": "just tdd tests/integration/webapp/test_group_detail_page.py"
+        }
+      ]
+    },
+    {
+      "after_story": "02-shootout-chain-ownership",
+      "check_type": "http",
+      "checks": [
+        {
+          "criterion": "Shootout creation with foreign chain returns 404",
+          "command": "just tdd tests/integration/webapp/test_shootout_chain_ownership.py"
+        }
+      ]
+    },
+    {
+      "after_story": "03-comment-edit-api",
+      "check_type": "api+response",
+      "checks": [
+        {
+          "criterion": "PATCH /api/v1/comments/{id} by author returns 200 with updated content",
+          "command": "just tdd tests/integration/webapp/test_comment_edit_api.py"
+        },
+        {
+          "criterion": "PATCH /api/v1/comments/{id} by non-author returns 404",
+          "command": "just tdd tests/integration/webapp/test_comment_edit_api.py -k non_author"
+        }
+      ]
+    },
+    {
+      "after_story": "04-comment-edit-ui",
+      "check_type": "http+dom",
+      "checks": [
+        {
+          "criterion": "Comment fragment renders edit button only for own comments",
+          "command": "just tdd tests/integration/webapp/test_comment_edit_ui.py"
+        }
+      ]
+    },
+    {
+      "after_story": "05-is-system-track-cleanup",
+      "check_type": "quality",
+      "checks": [
+        {
+          "criterion": "No is_system_track references remain in source files",
+          "command": "grep -r 'is_system_track' apps/webapp/src frontend/astro/src && exit 1 || exit 0"
+        },
+        {
+          "criterion": "Quality gates pass (lint, types, tests)",
+          "command": "just check"
+        },
+        {
+          "criterion": "Golden path regression tests pass",
+          "command": "just test-golden-path"
+        }
+      ]
+    }
+  ]
+}
+```

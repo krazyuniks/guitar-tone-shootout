@@ -37,20 +37,20 @@ class TestAPIRoutersMounted:
         # Should be 401 (auth required) not 404 (route not found)
         assert response.status != 404, "signal-chain-groups router not mounted"
 
-    async def test_notifications_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
-        """Notifications API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/notifications/")
-        assert response.status != 404, "notifications router not mounted"
+    async def test_signal_chains_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
+        """Signal chains API is mounted (401 for unauth, not 404)."""
+        response = await guest_page.request.get(f"{frontend_url}/api/signal-chains/")
+        assert response.status != 404, "signal-chains router not mounted"
 
-    async def test_tags_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
-        """Tags API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/tags/")
-        assert response.status != 404, "tags router not mounted"
+    async def test_shootouts_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
+        """Shootouts API is mounted (401 for unauth, not 404)."""
+        response = await guest_page.request.get(f"{frontend_url}/api/shootouts/")
+        assert response.status != 404, "shootouts router not mounted"
 
-    async def test_presets_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
-        """Presets API is mounted (401 for unauth, not 404)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/presets/")
-        assert response.status != 404, "presets router not mounted"
+    async def test_jobs_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
+        """Jobs API is mounted (401 for unauth, not 404)."""
+        response = await guest_page.request.get(f"{frontend_url}/api/jobs/")
+        assert response.status != 404, "jobs router not mounted"
 
     async def test_block_types_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Block types API is mounted and returns data (public endpoint)."""
@@ -59,12 +59,17 @@ class TestAPIRoutersMounted:
         data = await response.json()
         assert isinstance(data, list), "block-types should return a list"
 
-    async def test_irs_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
-        """IRs API is mounted (401 for unauth, not 404)."""
-        # IR router only has POST /upload — no GET /
-        response = await guest_page.request.post(f"{frontend_url}/api/irs/upload")
-        # Should get 401 (auth required) or 422 (missing fields), NOT 404
-        assert response.status != 404, "irs router not mounted"
+    async def test_di_tracks_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
+        """DI tracks API is mounted (401 for unauth, not 404)."""
+        response = await guest_page.request.get(f"{frontend_url}/api/di-tracks")
+        assert response.status != 404, "di-tracks router not mounted"
+
+    async def test_auth_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
+        """Auth status endpoint is mounted and returns JSON."""
+        response = await guest_page.request.get(f"{frontend_url}/auth/status")
+        assert response.ok, f"auth/status returned {response.status}"
+        data = await response.json()
+        assert "valid" in data, "auth/status response must include validity"
 
     async def test_files_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """Files API is mounted (not 404)."""

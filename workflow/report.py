@@ -14,9 +14,28 @@ from __future__ import annotations
 
 import html
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
+from workflow.artifacts import (
+    CheckpointRunArtifact,
+    CritiqueFindingArtifact,
+    CritiqueRunArtifact,
+    CurationCompleteArtifact,
+    CurationDispatchedArtifact,
+    CurationFailedArtifact,
+    PhaseAValidationEventArtifact,
+    PhaseBVerificationEventArtifact,
+    PlannerCompleteArtifact,
+    PlannerDispatchedArtifact,
+    PlannerFailedArtifact,
+    PlanDecisionArtifact,
+    PreflightEventArtifact,
+    StoryFailureContextArtifact,
+    StoryRunArtifact,
+    VerifierFeedbackArtifact,
+)
 from workflow.jsonl_logger import read_log
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -35,13 +54,16 @@ KNOWN_EVENTS: dict[str, list[str]] = {
     "gap_critique_complete": ["locked_count", "escalated_count", "demoted_count"],
     "gap_questions_presented": ["question_count"],
     "gap_detection_complete": ["epic"],
-    "planner_dispatched": ["epic", "model", "adapter", "prompt_hash", "prompt_tokens"],
-    "planner_complete": ["epic", "attempt"],
-    "planner_failed": ["epic", "error"],
+    "curation_dispatched": ["epic", "attempt", "model", "adapter", "prompt_hash", "prompt_tokens"],
+    "curation_complete": ["epic", "attempt", "turns", "response_path"],
+    "curation_failed": ["epic", "attempt", "error", "turns", "response_path"],
+    "planner_dispatched": ["epic", "attempt", "model", "adapter", "prompt_hash", "prompt_tokens"],
+    "planner_complete": ["epic", "attempt", "turns", "response_path"],
+    "planner_failed": ["epic", "attempt", "error", "turns", "response_path"],
     "phase_a_pass": ["epic", "attempt"],
     "phase_a_fail": ["epic", "attempt", "failures"],
     "phase_b_pass": ["epic", "attempt", "scores", "feedback"],
-    "phase_b_fail": ["epic", "attempt", "feedback"],
+    "phase_b_fail": ["epic", "attempt", "scores", "feedback"],
     "phase_c_pass": ["epic", "attempt"],
     "phase_c_fail": ["epic", "attempt"],
     "plan_approved": ["epic"],
@@ -56,21 +78,98 @@ KNOWN_EVENTS: dict[str, list[str]] = {
     "test_review_fail": ["story_id", "attempt", "reviewer_feedback"],
     "epic_started": ["epic", "run_id", "stories_total"],
     "story_started": ["story_id", "attempt", "index"],
-    "preflight_pass": ["story_id", "attempt", "note"],
-    "preflight_fail": ["story_id", "attempt", "failure_category", "description", "reason", "checks"],
+    "preflight_pass": ["story_id", "attempt", "note", "checks"],
+    "preflight_fail": [
+        "story_id",
+        "attempt",
+        "failure_category",
+        "description",
+        "reason",
+        "checks",
+    ],
     "agent_dispatched": ["story_id", "attempt", "model", "adapter", "prompt_hash", "prompt_tokens"],
     "agent_complete": ["story_id", "attempt", "commit", "turns"],
     "agent_failed": ["story_id", "attempt", "error", "turns"],
-    "validation_pass": ["story_id", "attempt", "results"],
-    "validation_fail": ["story_id", "attempt", "results", "reason"],
-    "critique_dispatched": ["story_id", "attempt", "critique_type", "critique_model", "target_model", "adapter", "role", "prompt_hash", "prompt_tokens"],
-    "critique_pass": ["story_id", "attempt", "critique_type", "critique_model", "turns", "findings_count"],
-    "critique_fail": ["story_id", "attempt", "critique_type", "critique_model", "turns", "findings_count", "findings"],
-    "critique_failed": ["story_id", "attempt", "critique_type", "critique_model", "turns", "findings_count", "findings"],
+    "validation_pass": ["story_id", "attempt", "check_type", "results"],
+    "validation_fail": [
+        "story_id",
+        "attempt",
+        "check_type",
+        "results",
+        "failure_reason",
+        "failure_category",
+    ],
+    "critique_dispatched": [
+        "story_id",
+        "attempt",
+        "critique_type",
+        "critique_model",
+        "target_model",
+        "adapter",
+        "role",
+        "prompt_hash",
+        "prompt_tokens",
+    ],
+    "critique_pass": [
+        "story_id",
+        "attempt",
+        "critique_type",
+        "critique_model",
+        "turns",
+        "findings_count",
+        "summary",
+        "raw_response",
+    ],
+    "critique_fail": [
+        "story_id",
+        "attempt",
+        "critique_type",
+        "critique_model",
+        "turns",
+        "findings_count",
+        "findings",
+        "summary",
+        "raw_response",
+    ],
+    "critique_failed": [
+        "story_id",
+        "attempt",
+        "critique_type",
+        "critique_model",
+        "turns",
+        "findings_count",
+        "findings",
+        "summary",
+        "raw_response",
+        "error",
+    ],
     "critique_skipped": ["story_id", "attempt", "critique_type", "critique_model", "reason"],
-    "epic_critique_dispatched": ["critique_type", "critique_model", "adapter", "role", "prompt_hash", "prompt_tokens"],
-    "epic_critique_pass": ["critique_type", "critique_model", "turns", "findings_count"],
-    "epic_critique_fail": ["critique_type", "critique_model", "turns", "findings_count", "findings", "error"],
+    "epic_critique_dispatched": [
+        "critique_type",
+        "critique_model",
+        "adapter",
+        "role",
+        "prompt_hash",
+        "prompt_tokens",
+    ],
+    "epic_critique_pass": [
+        "critique_type",
+        "critique_model",
+        "turns",
+        "findings_count",
+        "summary",
+        "raw_response",
+    ],
+    "epic_critique_fail": [
+        "critique_type",
+        "critique_model",
+        "turns",
+        "findings_count",
+        "findings",
+        "summary",
+        "raw_response",
+        "error",
+    ],
     "story_complete": ["story_id", "attempt", "commit"],
     "story_failed": ["story_id", "attempt", "reason", "failure_category"],
     "exit_to_human": ["story_id", "reason", "failure_category", "context"],
@@ -124,11 +223,15 @@ def collect_all_events(epic_dir: Path) -> list[dict]:
     return deduped
 
 
-def match_prompt_file(prompt_hash: str) -> str | None:
-    if not prompt_hash or not LOGS_DIR.is_dir():
+def match_prompt_file(epic_dir: Path, prompt_hash: str) -> str | None:
+    if not prompt_hash:
         return None
-    for p in LOGS_DIR.glob(f"dispatch-*-{prompt_hash}-*.txt"):
-        return p.read_text(encoding="utf-8")
+    prompt_path = epic_dir / "dispatches" / f"{prompt_hash}-prompt.txt"
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+    if LOGS_DIR.is_dir():
+        for legacy_path in LOGS_DIR.glob(f"dispatch-*-{prompt_hash}-*.txt"):
+            return legacy_path.read_text(encoding="utf-8")
     return None
 
 
@@ -144,7 +247,9 @@ def find_conversation_log(epic_dir: Path, story_id: str, attempt: int) -> list[d
     return read_log(conv_path)
 
 
-def compute_duration(events: list[dict], start_event: str, end_event: str, story_id: str | None = None) -> str | None:
+def compute_duration(
+    events: list[dict], start_event: str, end_event: str, story_id: str | None = None
+) -> str | None:
     start_ts = None
     end_ts = None
     for e in events:
@@ -173,6 +278,26 @@ def compute_duration(events: list[dict], start_event: str, end_event: str, story
         return f"{seconds}s"
     except (ValueError, TypeError):
         return None
+
+
+def _build_story_runs(events: list[dict], plan: dict | None = None) -> dict[str, StoryRunArtifact]:
+    story_ids: list[str] = []
+    seen: set[str] = set()
+
+    if plan:
+        for story in plan.get("stories", []):
+            story_id = story.get("story_id")
+            if story_id and story_id not in seen:
+                seen.add(story_id)
+                story_ids.append(story_id)
+
+    for event in events:
+        story_id = event.get("story_id")
+        if story_id and story_id not in seen:
+            seen.add(story_id)
+            story_ids.append(story_id)
+
+    return {story_id: StoryRunArtifact.from_events(events, story_id) for story_id in story_ids}
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +333,9 @@ def _human_label(event_type: str) -> str:
         "gap_critique_complete": "Gap Critique Complete",
         "gap_questions_presented": "Gap Questions",
         "gap_detection_complete": "Gap Detection Complete",
+        "curation_dispatched": "Curation Dispatched",
+        "curation_complete": "Curation Complete",
+        "curation_failed": "Curation FAIL",
         "planner_dispatched": "Planner Dispatched",
         "planner_complete": "Plan Generated",
         "planner_failed": "Planner FAIL",
@@ -258,33 +386,37 @@ def _render_collapsible(summary: str, content: str) -> str:
     """Render a <details> block for large content."""
     return (
         f'<details><summary style="cursor:pointer;color:#93c5fd;font-size:13px;">'
-        f'{_esc(summary)}</summary>'
+        f"{_esc(summary)}</summary>"
         f'<pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;'
-        f'color:#cbd5e1;background:#0f172a;padding:8px;border-radius:4px;'
+        f"color:#cbd5e1;background:#0f172a;padding:8px;border-radius:4px;"
         f'margin:4px 0;max-height:30em;overflow-y:auto;line-height:1.4;">'
-        f'{_esc(content)}</pre></details>'
+        f"{_esc(content)}</pre></details>"
     )
 
 
-def _render_findings(findings: list) -> str:
+def _render_findings(findings: list[CritiqueFindingArtifact] | list) -> str:
     """Render critique findings as a simple list."""
     if not findings:
         return ""
     parts = []
     for f in findings:
-        if isinstance(f, dict):
-            severity = f.get("severity", "?")
-            issue = f.get("finding", "") or f.get("issue", "")
-            fix = f.get("fix", "") or f.get("recommendation", "")
-            file_ref = f.get("file", "")
-            line = f"[{severity.upper()}] {issue}"
-            if file_ref:
-                line = f"[{severity.upper()}] {file_ref} - {issue}"
-            if fix:
-                line += f" (fix: {fix})"
-            parts.append(f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(line)}</div>')
-        else:
-            parts.append(f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(str(f))}</div>')
+        finding = f if isinstance(f, CritiqueFindingArtifact) else None
+        if finding is None and isinstance(f, dict):
+            try:
+                finding = CritiqueFindingArtifact.from_dict(f)
+            except (TypeError, ValueError):
+                finding = None
+
+        if finding is not None:
+            line = f"[{(finding.severity or '?').upper()}] {finding.summary_text}"
+            parts.append(
+                f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(line)}</div>'
+            )
+            continue
+
+        parts.append(
+            f'<div style="font-size:12px;color:#cbd5e1;padding:2px 0;">{_esc(str(f))}</div>'
+        )
     return "".join(parts)
 
 
@@ -293,7 +425,12 @@ def _render_findings(findings: list) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _render_event_details(event: dict, epic_dir: Path) -> str:
+def _render_event_details(
+    event: dict,
+    epic_dir: Path,
+    *,
+    story_run: StoryRunArtifact | None = None,
+) -> str:
     """Render the details column for a single event row.
 
     Returns HTML content for the details cell. Large content (prompts,
@@ -309,7 +446,9 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
         # Unknown event — show all non-universal fields as raw JSON
         extra = {k: v for k, v in event.items() if k not in UNIVERSAL_FIELDS}
         if extra:
-            parts.append(_render_collapsible("Raw event data", json.dumps(extra, indent=2, default=str)))
+            parts.append(
+                _render_collapsible("Raw event data", json.dumps(extra, indent=2, default=str))
+            )
         return "".join(parts)
 
     # -- Inline metadata for specific events --
@@ -321,28 +460,103 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
     elif event_type == "gap_critique_complete":
         parts.append(
             f'<span style="color:#94a3b8;">'
-            f'{event.get("locked_count", "?")} locked, '
-            f'{event.get("escalated_count", 0)} escalated, '
-            f'{event.get("demoted_count", 0)} demoted</span>'
+            f"{event.get('locked_count', '?')} locked, "
+            f"{event.get('escalated_count', 0)} escalated, "
+            f"{event.get('demoted_count', 0)} demoted</span>"
         )
 
     elif event_type == "gap_questions_presented":
         count = event.get("question_count", 0)
         parts.append(f'<span style="color:#94a3b8;">{count} questions</span>')
 
-    elif event_type in ("planner_dispatched", "agent_dispatched", "critique_dispatched", "epic_critique_dispatched"):
+    elif event_type in ("curation_dispatched", "planner_dispatched"):
+        dispatch = None
+        if event_type == "curation_dispatched":
+            try:
+                dispatch = CurationDispatchedArtifact.from_event(event)
+            except (KeyError, TypeError, ValueError):
+                dispatch = None
+        else:
+            try:
+                dispatch = PlannerDispatchedArtifact.from_event(event)
+            except (KeyError, TypeError, ValueError):
+                dispatch = None
+
+        model = (
+            dispatch.model
+            if dispatch is not None
+            else event.get("model") or event.get("planner_model", "?")
+        )
+        tokens = (
+            dispatch.prompt_tokens
+            if dispatch is not None and dispatch.prompt_tokens is not None
+            else event.get("prompt_tokens", "?")
+        )
+        parts.append(
+            f'<span style="color:#94a3b8;">model={_esc(str(model))}, ~{tokens} tokens</span>'
+        )
+
+        prompt_text = None
+        if story_id and attempt:
+            prompt_text = find_story_prompt(epic_dir, story_id, attempt)
+        if not prompt_text:
+            prompt_hash = dispatch.prompt_hash if dispatch is not None else event.get("prompt_hash")
+            if prompt_hash:
+                prompt_text = match_prompt_file(epic_dir, prompt_hash)
+        if prompt_text:
+            parts.append(_render_collapsible("Show prompt", prompt_text))
+
+    elif event_type in ("curation_complete", "curation_failed", "planner_complete", "planner_failed"):
+        result_artifact = None
+        try:
+            if event_type == "curation_complete":
+                result_artifact = CurationCompleteArtifact.from_event(event)
+            elif event_type == "curation_failed":
+                result_artifact = CurationFailedArtifact.from_event(event)
+            elif event_type == "planner_complete":
+                result_artifact = PlannerCompleteArtifact.from_event(event)
+            else:
+                result_artifact = PlannerFailedArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            result_artifact = None
+
+        meta: list[str] = []
+        if result_artifact is not None:
+            if result_artifact.response_path:
+                meta.append(result_artifact.response_path)
+            if result_artifact.turns is not None:
+                meta.append(f"turns={result_artifact.turns}")
+            error = getattr(result_artifact, "error", "")
+            if error:
+                meta.append(f"error: {str(error)[:200]}")
+        else:
+            response_path = event.get("response_path", "")
+            turns = event.get("turns")
+            if response_path:
+                meta.append(str(response_path))
+            if turns is not None:
+                meta.append(f"turns={turns}")
+            if event_type in ("curation_failed", "planner_failed"):
+                error = event.get("error", "")
+                if error:
+                    meta.append(f"error: {error[:200]}")
+        if meta:
+            parts.append(f'<span style="color:#94a3b8;">{_esc(", ".join(meta))}</span>')
+
+    elif event_type in ("agent_dispatched", "critique_dispatched", "epic_critique_dispatched"):
         model = event.get("model") or event.get("critique_model", "?")
         tokens = event.get("prompt_tokens", "?")
-        parts.append(f'<span style="color:#94a3b8;">model={_esc(str(model))}, ~{tokens} tokens</span>')
+        parts.append(
+            f'<span style="color:#94a3b8;">model={_esc(str(model))}, ~{tokens} tokens</span>'
+        )
 
-        # Show the prompt if available
         prompt_text = None
         if story_id and attempt:
             prompt_text = find_story_prompt(epic_dir, story_id, attempt)
         if not prompt_text:
             prompt_hash = event.get("prompt_hash")
             if prompt_hash:
-                prompt_text = match_prompt_file(prompt_hash)
+                prompt_text = match_prompt_file(epic_dir, prompt_hash)
         if prompt_text:
             parts.append(_render_collapsible("Show prompt", prompt_text))
 
@@ -387,7 +601,9 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
                     if usage.get("output_tokens"):
                         cost_parts.append(f"{usage['output_tokens']:,} output tokens")
                     if cost_parts:
-                        parts.append(f'<span style="color:#64748b;font-size:11px;">{_esc(" | ".join(cost_parts))}</span>')
+                        parts.append(
+                            f'<span style="color:#64748b;font-size:11px;">{_esc(" | ".join(cost_parts))}</span>'
+                        )
                     break
 
     elif event_type in ("story_complete", "story_failed"):
@@ -399,7 +615,12 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
         if commit:
             meta.append(f"commit {commit[:8]}")
         if event_type == "story_failed":
-            reason = event.get("reason", "")
+            category = story_run.failure_category if story_run is not None else event.get(
+                "failure_category", ""
+            )
+            if category:
+                meta.append(f"[{category}]")
+            reason = story_run.failure_reason if story_run is not None else event.get("reason", "")
             if reason:
                 meta.append(f"reason: {reason[:200]}")
         if meta:
@@ -411,63 +632,238 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
             parts.append(f'<span style="color:#94a3b8;">commit {_esc(commit[:8])}</span>')
 
     elif event_type == "plan_rejected":
-        reason = event.get("reason", "")
-        if reason:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(reason[:300])}</span>')
-        details = event.get("details") or event.get("feedback")
-        if details:
-            parts.append(_render_collapsible(
-                "Show rejection details",
-                json.dumps(details, indent=2, default=str) if not isinstance(details, str) else details,
-            ))
+        try:
+            rejection = PlanDecisionArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            rejection = None
+
+        if rejection is not None:
+            if rejection.summary_text:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(rejection.summary_text[:300])}</span>')
+            if rejection.detail_payload is not None:
+                parts.append(_render_collapsible("Show rejection details", rejection.detail_json_text))
+        else:
+            reason = event.get("reason", "")
+            if reason:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(reason[:300])}</span>')
+            details = event.get("details") or event.get("feedback")
+            if details:
+                parts.append(
+                    _render_collapsible(
+                        "Show rejection details",
+                        json.dumps(details, indent=2, default=str)
+                        if not isinstance(details, str)
+                        else details,
+                    )
+                )
 
     elif event_type in ("preflight_pass", "preflight_fail"):
-        note = event.get("note") or event.get("description") or event.get("reason", "")
-        if note:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(str(note)[:300])}</span>')
-        checks = event.get("checks", [])
-        if checks:
-            parts.append(_render_collapsible("Show checks", json.dumps(checks, indent=2, default=str)))
+        try:
+            preflight_event = PreflightEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            preflight_event = None
+
+        if preflight_event is not None:
+            if preflight_event.summary_text:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(preflight_event.summary_text[:300])}</span>'
+                )
+            if preflight_event.checks:
+                parts.append(
+                    _render_collapsible(
+                        "Show checks",
+                        json.dumps(preflight_event.checks_payload, indent=2, default=str),
+                    )
+                )
+        else:
+            note = event.get("note") or event.get("description") or event.get("reason", "")
+            if note:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(str(note)[:300])}</span>')
+            checks = event.get("checks", [])
+            if checks:
+                parts.append(
+                    _render_collapsible("Show checks", json.dumps(checks, indent=2, default=str))
+                )
 
     elif event_type in ("phase_b_pass", "phase_b_fail"):
-        feedback = event.get("feedback")
-        if feedback:
-            if isinstance(feedback, str):
-                try:
-                    feedback = json.loads(feedback)
-                except (json.JSONDecodeError, ValueError):
-                    pass
-            if isinstance(feedback, (dict, list)):
-                parts.append(_render_collapsible("Show critique feedback", json.dumps(feedback, indent=2, default=str)))
-            elif isinstance(feedback, str) and feedback.strip():
-                parts.append(_render_collapsible("Show critique feedback", feedback))
+        try:
+            phase_b_event = PhaseBVerificationEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            phase_b_event = None
 
-    elif event_type in ("phase_a_fail",):
-        failures = event.get("failures", [])
-        if failures:
-            parts.append(_render_collapsible("Show failures", json.dumps(failures, indent=2, default=str)))
+        if phase_b_event is not None:
+            if phase_b_event.summary_text:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(phase_b_event.summary_text[:300])}</span>'
+                )
+            parts.append(
+                _render_collapsible("Show critique feedback", phase_b_event.detail_json_text)
+            )
+        else:
+            feedback = event.get("feedback")
+            if feedback:
+                if isinstance(feedback, str):
+                    try:
+                        feedback = json.loads(feedback)
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+                if isinstance(feedback, dict):
+                    try:
+                        typed_feedback = VerifierFeedbackArtifact.from_dict(feedback)
+                    except TypeError:
+                        typed_feedback = None
+                    if typed_feedback is not None:
+                        parts.append(
+                            _render_collapsible("Show critique feedback", typed_feedback.json_text)
+                        )
+                    else:
+                        parts.append(
+                            _render_collapsible(
+                                "Show critique feedback", json.dumps(feedback, indent=2, default=str)
+                            )
+                        )
+                elif isinstance(feedback, list):
+                    parts.append(
+                        _render_collapsible(
+                            "Show critique feedback", json.dumps(feedback, indent=2, default=str)
+                        )
+                    )
+                elif isinstance(feedback, str) and feedback.strip():
+                    parts.append(_render_collapsible("Show critique feedback", feedback))
+
+    elif event_type in ("phase_a_pass", "phase_a_fail"):
+        try:
+            phase_a_event = PhaseAValidationEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            phase_a_event = None
+
+        if phase_a_event is not None:
+            if phase_a_event.summary_text:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(phase_a_event.summary_text[:300])}</span>'
+                )
+            if phase_a_event.failures:
+                parts.append(
+                    _render_collapsible(
+                        "Show failures",
+                        json.dumps(phase_a_event.failures_payload, indent=2, default=str),
+                    )
+                )
+        else:
+            failures = event.get("failures", [])
+            if failures:
+                parts.append(
+                    _render_collapsible("Show failures", json.dumps(failures, indent=2, default=str))
+                )
 
     elif event_type in ("validation_pass", "validation_fail"):
-        results = event.get("results", [])
-        reason = event.get("reason", "")
-        if reason:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(reason[:200])}</span>')
-        if results:
-            parts.append(_render_collapsible("Show results", json.dumps(results, indent=2, default=str)))
+        checkpoint: CheckpointRunArtifact | None = None
+        try:
+            checkpoint = CheckpointRunArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            checkpoint = None
 
-    elif event_type in ("critique_pass", "critique_fail", "critique_failed", "epic_critique_pass", "epic_critique_fail"):
-        model = event.get("critique_model", "?")
-        count = event.get("findings_count", 0)
-        parts.append(f'<span style="color:#94a3b8;">model={_esc(model)}, {count} findings</span>')
-        findings = event.get("findings", [])
-        if findings:
-            parts.append(_render_findings(findings))
-        raw_response = event.get("raw_response", "")
-        if raw_response:
-            parts.append(_render_collapsible("Show raw response", str(raw_response)))
-        error = event.get("error", "")
-        if error:
-            parts.append(f'<span style="color:#94a3b8;">error: {_esc(error[:200])}</span>')
+        if checkpoint is not None:
+            if checkpoint.failure_reason:
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(checkpoint.failure_reason[:200])}</span>'
+                )
+            if checkpoint.results:
+                parts.append(
+                    _render_collapsible(
+                        "Show results",
+                        json.dumps(
+                            [result.to_dict() for result in checkpoint.results],
+                            indent=2,
+                            default=str,
+                        ),
+                    )
+                )
+        else:
+            results = event.get("results", [])
+            reason = event.get("failure_reason", event.get("reason", ""))
+            if reason:
+                parts.append(f'<span style="color:#94a3b8;">{_esc(str(reason)[:200])}</span>')
+            if results:
+                parts.append(
+                    _render_collapsible("Show results", json.dumps(results, indent=2, default=str))
+                )
+
+    elif event_type == "exit_to_human":
+        reason = story_run.failure_reason if story_run is not None else event.get("reason", "")
+        category = story_run.failure_category if story_run is not None else event.get(
+            "failure_category", ""
+        )
+        if reason:
+            parts.append(f'<span style="color:#94a3b8;">{_esc(str(reason)[:300])}</span>')
+        if category:
+            parts.append(f'<span style="color:#94a3b8;"> [{_esc(str(category))}]</span>')
+
+        failure_context = story_run.failure_context if story_run is not None else None
+        if failure_context is None:
+            raw_context = event.get("context")
+            if isinstance(raw_context, dict):
+                try:
+                    failure_context = StoryFailureContextArtifact.from_dict(raw_context)
+                except (KeyError, TypeError, ValueError):
+                    failure_context = None
+
+        context: Any = (
+            failure_context.to_dict() if failure_context is not None else event.get("context")
+        )
+        if context:
+            parts.append(
+                _render_collapsible("Show context", json.dumps(context, indent=2, default=str))
+            )
+
+    elif event_type in (
+        "critique_pass",
+        "critique_fail",
+        "critique_failed",
+        "epic_critique_pass",
+        "epic_critique_fail",
+    ):
+        critique_run: CritiqueRunArtifact | None = None
+        try:
+            critique_run = CritiqueRunArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            critique_run = None
+
+        if critique_run is not None:
+            model = critique_run.critique_model or "?"
+            parts.append(
+                f'<span style="color:#94a3b8;">model={_esc(model)}, '
+                f'{critique_run.findings_count} findings</span>'
+            )
+            if critique_run.concise_summary and critique_run.concise_summary != "No findings":
+                parts.append(
+                    f'<span style="color:#94a3b8;">{_esc(critique_run.concise_summary[:300])}</span>'
+                )
+            if critique_run.normalized_findings:
+                parts.append(_render_findings(list(critique_run.normalized_findings)))
+            if critique_run.raw_response:
+                parts.append(
+                    _render_collapsible("Show raw response", critique_run.raw_response)
+                )
+            if critique_run.error:
+                parts.append(
+                    f'<span style="color:#94a3b8;">error: {_esc(critique_run.error[:200])}</span>'
+                )
+        else:
+            model = event.get("critique_model", "?")
+            count = event.get("findings_count", 0)
+            parts.append(
+                f'<span style="color:#94a3b8;">model={_esc(model)}, {count} findings</span>'
+            )
+            findings = event.get("findings", [])
+            if findings:
+                parts.append(_render_findings(findings))
+            raw_response = event.get("raw_response", "")
+            if raw_response:
+                parts.append(_render_collapsible("Show raw response", str(raw_response)))
+            error = event.get("error", "")
+            if error:
+                parts.append(f'<span style="color:#94a3b8;">error: {_esc(error[:200])}</span>')
 
     elif event_type == "critique_skipped":
         reason = event.get("reason", "")
@@ -477,18 +873,9 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
     elif event_type == "github_comment":
         url = event.get("comment_url", "")
         if url:
-            parts.append(f'<a href="{_esc(url)}" target="_blank" style="color:#93c5fd;font-size:12px;">View on GitHub</a>')
-
-    elif event_type == "exit_to_human":
-        reason = event.get("reason", "")
-        category = event.get("failure_category", "")
-        if reason:
-            parts.append(f'<span style="color:#94a3b8;">{_esc(reason[:300])}</span>')
-        if category:
-            parts.append(f'<span style="color:#94a3b8;"> [{_esc(category)}]</span>')
-        context = event.get("context")
-        if context:
-            parts.append(_render_collapsible("Show context", json.dumps(context, indent=2, default=str)))
+            parts.append(
+                f'<a href="{_esc(url)}" target="_blank" style="color:#93c5fd;font-size:12px;">View on GitHub</a>'
+            )
 
     elif event_type == "epic_complete":
         count = event.get("stories_completed", "?")
@@ -502,18 +889,31 @@ def _render_event_details(event: dict, epic_dir: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _render_metadata_header(epic_dir: Path, events: list[dict], plan: dict | None) -> str:
+def _render_metadata_header(
+    epic_dir: Path,
+    events: list[dict],
+    plan: dict | None,
+    *,
+    story_runs: dict[str, StoryRunArtifact] | None = None,
+) -> str:
     """Render the metadata summary header at the top of the report."""
     epic_name = epic_dir.name
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     run_ids = sorted({e.get("run_id", "?") for e in events})
     first_ts = _format_ts_full(events[0]["ts"]) if events else "N/A"
     last_ts = _format_ts_full(events[-1]["ts"]) if events else "N/A"
 
-    story_count = len(plan.get("stories", [])) if plan else "?"
-    completed = len({e["story_id"] for e in events if e.get("event") == "story_complete"})
-    failed = len({e["story_id"] for e in events if e.get("event") == "story_failed"})
+    story_runs = _build_story_runs(events, plan) if story_runs is None else story_runs
+    story_count = len(plan.get("stories", [])) if plan else len(story_runs)
+    completed = len([story_run for story_run in story_runs.values() if story_run.status == "complete"])
+    failed = len(
+        [
+            story_run
+            for story_run in story_runs.values()
+            if story_run.status in {"failed", "exit_to_human"}
+        ]
+    )
 
     has_complete = any(e.get("event") == "epic_complete" for e in events)
     has_failed = any(e.get("event") == "epic_failed" for e in events)
@@ -528,9 +928,12 @@ def _render_metadata_header(epic_dir: Path, events: list[dict], plan: dict | Non
     else:
         status_text = "IN PROGRESS"
 
-    duration = compute_duration(events, "epic_started", "epic_complete") or compute_duration(
-        events, events[0].get("event", ""), events[-1].get("event", "")
-    ) if events else "N/A"
+    duration = (
+        compute_duration(events, "epic_started", "epic_complete")
+        or compute_duration(events, events[0].get("event", ""), events[-1].get("event", ""))
+        if events
+        else "N/A"
+    )
 
     return f"""<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:20px;margin-bottom:16px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
@@ -540,7 +943,7 @@ def _render_metadata_header(epic_dir: Path, events: list[dict], plan: dict | Non
     <table style="width:100%;font-size:13px;color:#cbd5e1;border-collapse:collapse;">
         <tr>
             <td style="padding:3px 16px 3px 0;color:#64748b;">Generated</td><td style="padding:3px 0;">{_esc(now)}</td>
-            <td style="padding:3px 16px 3px 24px;color:#64748b;">Duration</td><td style="padding:3px 0;">{_esc(str(duration) if duration else 'N/A')}</td>
+            <td style="padding:3px 16px 3px 24px;color:#64748b;">Duration</td><td style="padding:3px 0;">{_esc(str(duration) if duration else "N/A")}</td>
         </tr>
         <tr>
             <td style="padding:3px 16px 3px 0;color:#64748b;">Started</td><td style="padding:3px 0;">{_esc(first_ts)}</td>
@@ -558,7 +961,74 @@ def _render_metadata_header(epic_dir: Path, events: list[dict], plan: dict | Non
 </div>"""
 
 
-def _render_story_nav(plan: dict | None, events: list[dict]) -> str:
+def _render_token_budget_table(epic_dir: Path) -> str:
+    """Render an HTML table of token usage per dispatch role."""
+    from workflow.dispatch_log import read_dispatch_log
+
+    entries = read_dispatch_log(epic_dir)
+    entries = [e for e in entries if e.get("status", "completed") == "completed"]
+    if not entries:
+        return ""
+
+    # Aggregate by role
+    roles: dict[str, dict] = {}
+    for entry in entries:
+        role = entry.get("role", "unknown")
+        if role not in roles:
+            roles[role] = {"dispatches": 0, "input_tokens": 0, "output_tokens": 0, "duration_ms": 0}
+        agg = roles[role]
+        agg["dispatches"] += 1
+        agg["input_tokens"] += entry.get("prompt_tokens", 0)
+        agg["output_tokens"] += entry.get("response_tokens", 0)
+        agg["duration_ms"] += entry.get("duration_ms", 0)
+
+    rows = ""
+    total_d, total_i, total_o, total_dur = 0, 0, 0, 0
+    for role, agg in sorted(roles.items()):
+        dur_s = agg["duration_ms"] / 1000
+        rows += (
+            f"<tr><td style='padding:4px 12px;'>{_esc(role)}</td>"
+            f"<td style='padding:4px 12px;text-align:right;'>{agg['dispatches']:,}</td>"
+            f"<td style='padding:4px 12px;text-align:right;'>{agg['input_tokens']:,}</td>"
+            f"<td style='padding:4px 12px;text-align:right;'>{agg['output_tokens']:,}</td>"
+            f"<td style='padding:4px 12px;text-align:right;'>{dur_s:.1f}s</td></tr>\n"
+        )
+        total_d += agg["dispatches"]
+        total_i += agg["input_tokens"]
+        total_o += agg["output_tokens"]
+        total_dur += agg["duration_ms"]
+
+    total_dur_s = total_dur / 1000
+    rows += (
+        f"<tr style='border-top:1px solid #475569;font-weight:700;'>"
+        f"<td style='padding:4px 12px;'>TOTAL</td>"
+        f"<td style='padding:4px 12px;text-align:right;'>{total_d:,}</td>"
+        f"<td style='padding:4px 12px;text-align:right;'>{total_i:,}</td>"
+        f"<td style='padding:4px 12px;text-align:right;'>{total_o:,}</td>"
+        f"<td style='padding:4px 12px;text-align:right;'>{total_dur_s:.1f}s</td></tr>"
+    )
+
+    return f"""<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:16px;margin-bottom:16px;">
+    <h3 style="margin:0 0 8px 0;font-size:15px;color:#e2e8f0;">Token Budget</h3>
+    <table style="width:100%;font-size:13px;color:#cbd5e1;border-collapse:collapse;">
+        <tr style="color:#64748b;border-bottom:1px solid #334155;">
+            <th style="padding:4px 12px;text-align:left;">Role</th>
+            <th style="padding:4px 12px;text-align:right;">Dispatches</th>
+            <th style="padding:4px 12px;text-align:right;">Input tokens</th>
+            <th style="padding:4px 12px;text-align:right;">Output tokens</th>
+            <th style="padding:4px 12px;text-align:right;">Duration</th>
+        </tr>
+        {rows}
+    </table>
+</div>"""
+
+
+def _render_story_nav(
+    plan: dict | None,
+    events: list[dict],
+    *,
+    story_runs: dict[str, StoryRunArtifact] | None = None,
+) -> str:
     """Render horizontal scrollable story navigation bar."""
     if not plan:
         return ""
@@ -567,33 +1037,36 @@ def _render_story_nav(plan: dict | None, events: list[dict]) -> str:
     if not stories:
         return ""
 
-    completed_ids = {e["story_id"] for e in events if e.get("event") == "story_complete"}
-    failed_ids = {e["story_id"] for e in events if e.get("event") == "story_failed"}
+    story_runs = _build_story_runs(events, plan) if story_runs is None else story_runs
 
     items = []
     for i, story in enumerate(stories):
         sid = story.get("story_id", "?")
         name = story.get("name", "?")
-        if sid in completed_ids:
+        story_run = story_runs.get(sid)
+        if story_run is not None and story_run.status == "complete":
             indicator = "DONE"
             indicator_style = "color:#10b981;"
-        elif sid in failed_ids:
+        elif story_run is not None and story_run.status in {"failed", "exit_to_human"}:
             indicator = "FAIL"
             indicator_style = "color:#ef4444;"
+        elif story_run is not None and story_run.status in {"running", "tests_running", "tests_passed"}:
+            indicator = "WIP"
+            indicator_style = "color:#f59e0b;"
         else:
             indicator = "..."
             indicator_style = "color:#64748b;"
 
         items.append(
             f'<a href="javascript:void(0)" '
-            f'onclick="document.getElementById(\'story-{_esc(sid)}\').scrollIntoView({{behavior:\'smooth\'}})" '
+            f"onclick=\"document.getElementById('story-{_esc(sid)}').scrollIntoView({{behavior:'smooth'}})\" "
             f'style="flex-shrink:0;display:inline-block;padding:6px 12px;'
-            f'background:#1e293b;border:1px solid #334155;border-radius:6px;'
+            f"background:#1e293b;border:1px solid #334155;border-radius:6px;"
             f'text-decoration:none;font-size:12px;white-space:nowrap;cursor:pointer;">'
             f'<span style="{indicator_style}font-weight:600;">{_esc(indicator)}</span> '
             f'<span style="color:#e2e8f0;">{i + 1}. {_esc(sid)}</span>'
             f'<br><span style="color:#64748b;font-size:11px;">{_esc(name)}</span>'
-            f'</a>'
+            f"</a>"
         )
 
     return f"""<div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px;margin-bottom:16px;
@@ -607,7 +1080,7 @@ def _render_event_table(events: list[dict], epic_dir: Path, plan: dict | None) -
     rows: list[str] = []
     current_story: str | None = None
 
-    for event in events:
+    for idx, event in enumerate(events):
         event_type = event.get("event", "unknown")
         story_id = event.get("story_id")
         ts = event.get("ts", "")
@@ -625,9 +1098,9 @@ def _render_event_table(events: list[dict], epic_dir: Path, plan: dict | None) -
                 f'<tr id="story-{_esc(story_id)}">'
                 f'<td colspan="3" style="padding:16px 8px 8px;font-weight:700;font-size:15px;'
                 f'color:#c7d2fe;border-bottom:2px solid #4338ca;">'
-                f'Story: {_esc(story_id)}'
-                f'{f" &mdash; {_esc(story_name)}" if story_name else ""}'
-                f'</td></tr>'
+                f"Story: {_esc(story_id)}"
+                f"{f' &mdash; {_esc(story_name)}' if story_name else ''}"
+                f"</td></tr>"
             )
 
         # Build label with story_id and attempt context
@@ -639,7 +1112,10 @@ def _render_event_table(events: list[dict], epic_dir: Path, plan: dict | None) -
         if attempt and attempt > 1:
             label += f" (attempt {attempt})"
 
-        details = _render_event_details(event, epic_dir)
+        story_run = (
+            StoryRunArtifact.from_events(events[: idx + 1], story_id) if story_id is not None else None
+        )
+        details = _render_event_details(event, epic_dir, story_run=story_run)
 
         rows.append(
             f'<tr style="border-bottom:1px solid #1e293b;vertical-align:top;">'
@@ -648,7 +1124,7 @@ def _render_event_table(events: list[dict], epic_dir: Path, plan: dict | None) -
             f'<td style="padding:6px 8px;font-size:13px;color:#e2e8f0;white-space:nowrap;'
             f'width:200px;">{_esc(label)}</td>'
             f'<td style="padding:6px 8px;font-size:13px;color:#cbd5e1;">{details}</td>'
-            f'</tr>'
+            f"</tr>"
         )
 
     return f"""<table style="width:100%;border-collapse:collapse;background:#0f172a;">
@@ -671,6 +1147,7 @@ def render_report(epic_dir: Path) -> str:
     plan = json.loads(plan_path.read_text(encoding="utf-8")) if plan_path.exists() else None
 
     events = collect_all_events(epic_dir)
+    story_runs = _build_story_runs(events, plan)
 
     if not events:
         return f"""<!DOCTYPE html><html><body style="background:#0f0f23;color:#e2e8f0;font-family:sans-serif;padding:40px;">
@@ -706,8 +1183,9 @@ def render_report(epic_dir: Path) -> str:
 </head>
 <body>
     <div class="container">
-        {_render_metadata_header(epic_dir, events, plan)}
-        {_render_story_nav(plan, events)}
+        {_render_metadata_header(epic_dir, events, plan, story_runs=story_runs)}
+        {_render_token_budget_table(epic_dir)}
+        {_render_story_nav(plan, events, story_runs=story_runs)}
         {_render_event_table(events, epic_dir, plan)}
     </div>
 </body>

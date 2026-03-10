@@ -149,11 +149,14 @@ class TestGearDataPresent:
     async def test_gear_api_returns_minimum_count(
         self, guest_page: Page, frontend_url: str
     ) -> None:
-        """Gear API reports at least MIN_GEAR_COUNT items."""
-        response = await guest_page.request.get(f"{frontend_url}/api/gear/?limit=1")
-        assert response.ok
-        data = await response.json()
-        total = data["total"]
+        """Gear browse SSR page reports at least MIN_GEAR_COUNT packs."""
+        await guest_page.goto(f"{frontend_url}/gear")
+        results_count = guest_page.locator('[data-testid="results-count"]')
+        await expect(results_count).to_be_visible()
+        results_text = (await results_count.text_content() or "").strip()
+        match = re.search(r"(\d+)\s+packs?\s+available", results_text)
+        assert match is not None, f"Could not parse gear count from: {results_text}"
+        total = int(match.group(1))
         assert total >= MIN_GEAR_COUNT, f"Expected >= {MIN_GEAR_COUNT} gear, got {total}"
 
 

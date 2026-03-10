@@ -402,6 +402,9 @@ def write_worktree_configs(worktree: Worktree, worktree_path: Path) -> None:
     # Ensure Traefik variables are in .env (for docker-compose.traefik.yml)
     _update_env_traefik(env_path, worktree)
 
+    # Ensure OAuth encryption key is populated (generates Fernet key if empty)
+    _update_env_encryption_key(env_path)
+
     # Write docker-compose.override.yml
     compose_override_path = worktree_path / "docker-compose.override.yml"
     compose_override_content = render_compose_override(worktree)
@@ -463,6 +466,33 @@ def _update_env_password(env_path: Path, db_password: str) -> None:
             lines.insert(insert_pos, "")  # Add blank line before
 
     env_path.write_text("\n".join(lines) + "\n")
+
+
+def _update_env_encryption_key(env_path: Path) -> None:
+    """Ensure OAUTH_ENCRYPTION_KEY is populated in .env file.
+
+    Generates a Fernet key if the value is empty. Idempotent — preserves
+    existing keys.
+
+    Args:
+        env_path: Path to .env file
+    """
+    if not env_path.exists():
+        return
+
+    content = env_path.read_text()
+    lines = content.splitlines()
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped == "OAUTH_ENCRYPTION_KEY=":
+            import base64
+            import os
+
+            key = base64.urlsafe_b64encode(os.urandom(32)).decode()
+            lines[i] = f"OAUTH_ENCRYPTION_KEY={key}"
+            env_path.write_text("\n".join(lines) + "\n")
+            return
 
 
 def _update_env_traefik(env_path: Path, worktree: Worktree) -> None:

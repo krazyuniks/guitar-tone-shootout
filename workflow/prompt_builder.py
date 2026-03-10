@@ -65,18 +65,6 @@ DOMAIN_TO_SKILLS: dict[str, list[str]] = {
     "infrastructure": ["docker-infra"],
 }
 
-# Domain to wiki section names mapping
-# (sections from GTS-Technical-Architecture.index and domain-specific indexes)
-DOMAIN_TO_WIKI_SECTIONS: dict[str, list[str]] = {
-    "backend": ["api-design", "design-patterns"],
-    "frontend": ["frontend"],
-    "database": ["persistence", "domain-model"],
-    "testing": ["testing"],
-    "security": ["auth"],
-    "audio": ["audio"],
-    "infrastructure": ["infrastructure"],
-}
-
 
 # ---------------------------------------------------------------------------
 # Domain derivation
@@ -185,7 +173,7 @@ def build_doc_index(
 ) -> str:
     """Build compressed doc index string.
 
-    Format: [GTS]|rules:{...}|skills:{...}|wiki:{...}
+    Format: [GTS]|rules:{...}|skills:{...}
     """
     # Rules: strip .md extension, comma-separated
     rules_names = sorted(r.removesuffix(".md") for r in selected_rules)
@@ -197,19 +185,10 @@ def build_doc_index(
         skills.update(mapped)
     skills_sorted = sorted(skills)
 
-    # Wiki sections: collect from domain mapping, deduplicate
-    wiki_sections: set[str] = set()
-    for domain in story_domains:
-        mapped = DOMAIN_TO_WIKI_SECTIONS.get(domain, [])
-        wiki_sections.update(mapped)
-    wiki_sorted = sorted(wiki_sections)
-
     parts = ["[GTS]"]
     parts.append(f"rules:{{{','.join(rules_names)}}}")
     if skills_sorted:
         parts.append(f"skills:{{{','.join(skills_sorted)}}}")
-    if wiki_sorted:
-        parts.append(f"wiki:{{{','.join(wiki_sorted)}}}")
 
     return "|".join(parts)
 
@@ -352,11 +331,6 @@ def build_story_prompt(
         parts.append(f"- {item}")
     parts.append("")
 
-    parts.append("### Dependencies from Prior Stories")
-    for item in story.get("depends_on_summary", []):
-        parts.append(f"- {item}")
-    parts.append("")
-
     # Scope
     scope = story.get("scope", {})
     create_files = scope.get("create", [])
@@ -473,7 +447,6 @@ def main() -> None:
                 "Route registration: webapp/api/v1/signal_chains.py",
                 "Repository base: libs/core/domain/base.py",
             ],
-            "depends_on_summary": [],
             "implementation_notes": [
                 "Follow existing repository patterns",
                 "Use joinedload for eager loading",
@@ -497,9 +470,6 @@ def main() -> None:
             ],
             "navigation_hints": [
                 "Page template: frontend/astro/src/pages/gear/index.html.ts",
-            ],
-            "depends_on_summary": [
-                "Backend story created GET /api/v1/gears endpoint",
             ],
             "implementation_notes": [
                 "Use Astro SSG pattern",
@@ -529,10 +499,6 @@ def main() -> None:
             "navigation_hints": [
                 "API endpoint: apps/webapp/src/webapp/api/v1/di_tracks.py",
                 "Repository: apps/webapp/src/webapp/adapters/persistence/repositories/di_track.py",
-            ],
-            "depends_on_summary": [
-                "Backend story established repository and service patterns",
-                "Frontend story established page template patterns",
             ],
             "implementation_notes": [
                 "Upload form with HTMX",

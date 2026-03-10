@@ -146,7 +146,11 @@ test:
 test-golden-path:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ -f .env.local ] && set -a && source .env.local && set +a
+    source scripts/e2e-env.sh
+    AUTH_FILE="${GTS_AUTH_FILE:-/worktrees/.gts-auth.json}"
+    if docker compose exec -T webapp test -f "$AUTH_FILE"; then
+        just ensure-auth-user
+    fi
     cd tests/e2e/python && uv run pytest tests/ -v
 
 # Run a single test file or test (TDD mode, in Docker)
@@ -397,7 +401,7 @@ ensure-auth-user:
     USERNAME=$(docker compose exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['username'])" 2>/dev/null || true)
     if [ -n "$USER_ID" ] && [ -n "$USERNAME" ]; then
         docker compose exec -T db psql -U gts gts_core -c \
-            "INSERT INTO users (id, username, is_active, created_at, updated_at) VALUES ('$USER_ID', '$USERNAME', true, NOW(), NOW()) ON CONFLICT (id) DO NOTHING;" \
+            "INSERT INTO core_users (id, username, is_active, created_at, updated_at) VALUES ('$USER_ID', '$USERNAME', true, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, is_active = EXCLUDED.is_active, updated_at = NOW();" \
             > /dev/null 2>&1
         echo "  Auth user ensured: $USERNAME ($USER_ID)"
     else
@@ -430,7 +434,11 @@ epic-validate-plan epic_num:
 
 # Generate HTML timeline report for an epic
 epic-report epic_num:
-    python -m workflow.report {{epic_num}}
+    docker compose exec -T webapp python -m workflow.report {{epic_num}}
+
+# Compile prompt artefacts for an epic without dispatching any agents
+epic-compile-prompts epic_num *ARGS='':
+    docker compose exec -T webapp python -m workflow.prompt_suite {{epic_num}} {{ARGS}}
 
 # Regenerate .planning/codebase/ files
 map-codebase:

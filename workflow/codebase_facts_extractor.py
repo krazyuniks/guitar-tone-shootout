@@ -253,6 +253,24 @@ def extract_facts(
     return output_path
 
 
+def load_optional_codebase_hints(codebase_dir: Path) -> dict[str, list[str]]:
+    """Load lightweight path/endpoint hints when codebase mapping already exists.
+
+    These hints are optional acceleration only. Callers must still verify any
+    surfaced candidate against the live repo before using it as evidence.
+    """
+    hints: dict[str, list[str]] = {"paths": [], "endpoints": []}
+    structure_path = codebase_dir / "STRUCTURE.md"
+    endpoints_path = codebase_dir / "ENDPOINTS.md"
+
+    if structure_path.is_file():
+        hints["paths"] = _extract_module_structure(structure_path.read_text(encoding="utf-8"))
+    if endpoints_path.is_file():
+        hints["endpoints"] = _extract_endpoints(endpoints_path.read_text(encoding="utf-8"))
+
+    return hints
+
+
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------

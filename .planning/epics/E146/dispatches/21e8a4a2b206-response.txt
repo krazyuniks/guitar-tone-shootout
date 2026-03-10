@@ -1,0 +1,121 @@
+{
+  "status": "fail",
+  "dimensions": {
+    "journey_completeness": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "journey_id": "J1",
+          "gap": "The journey step 'user opens group list page and clicks a group item link' is not fully built/validated by any story; Story 01 only adds the destination route/template.",
+          "evidence": [
+            "No page handler for /library/groups in apps/webapp/src/webapp/api/pages/*.py",
+            "Existing regression test explicitly expects /library/groups to return 404 (tests/e2e/python/tests/test_regression.py)"
+          ]
+        },
+        {
+          "severity": "must_fix",
+          "journey_id": "J3",
+          "gap": "The narrative steps 'click edit -> inline form appears -> submit -> text updates in place' are not verified by checkpoints.",
+          "evidence": [
+            "Story 04 checkpoint runs only test_comment_edit_ui.py",
+            "Story 04 test_spec asserts edit-button presence/absence, not form-open/cancel/submit in-place update"
+          ]
+        }
+      ]
+    },
+    "transition_coverage": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "journey_id": "J1",
+          "transition": "Group list item -> /library/chains/group?id=<uuid>",
+          "uncovered": "No checkpoint verifies source page rendering with clickable group links plus successful navigation mechanism."
+        },
+        {
+          "severity": "must_fix",
+          "journey_id": "J2",
+          "transition": "POST /shootout/create -> /shootout/<new-id> via HX-Redirect",
+          "uncovered": "Checkpoint/test spec verifies 200 but does not require asserting HX-Redirect value resolves to a renderable detail page."
+        },
+        {
+          "severity": "must_fix",
+          "journey_id": "J3",
+          "transition": "Edit button click -> inline form; PATCH submit -> in-place updated comment",
+          "uncovered": "No checkpoint explicitly verifies the interaction mechanism or the target state update."
+        }
+      ]
+    },
+    "intent_alignment": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "unaddressed_requirement": "Epic outcome requires clicking a group item link on the group list page and reaching detail without 404.",
+          "why_unaddressed": "Plan does not include story scope to ensure a rendered group list page/source route with those links; it only adds destination handling."
+        }
+      ]
+    },
+    "gap_detection": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "chain": "Frontend edit form -> PATCH API contract",
+          "gap": "Story 03 defines JSON body contract ({\"body\": ...}) while Story 04 uses HTMX form flow, but plan does not scope explicit JSON encoding support (e.g., json-enc extension wiring) or API form parsing fallback."
+        },
+        {
+          "severity": "must_fix",
+          "chain": "Navigation source -> destination",
+          "gap": "Group item links exist in fragment files, but no page route is scoped to render that fragment as a user-accessible source page, leaving the click-path logically incomplete."
+        }
+      ]
+    },
+    "validation_sufficiency": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "checkpoint": "after_story=01-group-detail-page",
+          "weak_check": "Validates destination page response/content but not that users can reach it from the group list link path (truth #2)."
+        },
+        {
+          "severity": "must_fix",
+          "checkpoint": "after_story=02-shootout-chain-ownership",
+          "weak_check": "Success path check can false-green because it does not require asserting redirect header/target page render."
+        },
+        {
+          "severity": "must_fix",
+          "checkpoint": "after_story=04-comment-edit-frontend",
+          "weak_check": "Only button visibility is checked; core behavior (open edit UI, submit patch, in-place text update) can be broken while passing."
+        },
+        {
+          "severity": "must_fix",
+          "checkpoint": "after_story=05-remove-is-system-track",
+          "weak_check": "Generic gates (just check, golden path) do not explicitly prove dead is_system_track references were removed from targeted files."
+        }
+      ]
+    },
+    "gap_sufficiency": {
+      "status": "fail",
+      "findings": [
+        {
+          "severity": "must_fix",
+          "missed_gap": "Planner assumes /library/groups journey path without covering the current missing/404 page condition.",
+          "evidence": "tests/e2e/python/tests/test_regression.py currently asserts /library/groups returns 404."
+        },
+        {
+          "severity": "must_fix",
+          "missed_gap": "Planner missed the transport mismatch risk between HTMX form submission and the new JSON PATCH API contract.",
+          "impact": "Comment edit can fail at runtime despite story completion checkpoints passing."
+        },
+        {
+          "severity": "note",
+          "missed_gap": "Regression boundary 'existing comment display/create/delete must not change' is only indirectly covered; no dedicated checkpoint validates comment fragment behavior end-to-end after edit UI/API changes."
+        }
+      ]
+    }
+  },
+  "summary": "The plan covers the intended feature areas, but it has blocking gaps in navigation-source coverage, edit-flow contract wiring, and checkpoint strength; multiple core transitions can false-green under the current validation strategy."
+}

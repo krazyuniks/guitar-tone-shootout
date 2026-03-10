@@ -3,7 +3,7 @@
 The main entry point for the V3 behavioural-validation epic workflow.
 Provides two primary functions:
 
-    run_pipeline(epic_number) — full pipeline: ingest -> plan -> execute
+    run_pipeline(epic_number) — full pipeline: ingest -> repo-facts -> plan -> execute
     show_status(epic_number) — read-only JSONL inspection
 
 The orchestrator is stateless: it reads JSONL logs, determines the
@@ -25,7 +25,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
+from rich.console import Console
 
+from workflow.artifacts import (
+    CritiqueRunArtifact,
+    CurationCompleteArtifact,
+    CurationDispatchedArtifact,
+    CurationFailedArtifact,
+    PhaseAValidationEventArtifact,
+    PhaseBVerificationEventArtifact,
+    PlannerCompleteArtifact,
+    PlannerDispatchedArtifact,
+    PlannerFailedArtifact,
+    StoryRunArtifact,
+)
 from workflow.config_validator import validate_config
 from workflow.dispatch import (
     EPIC_CRITIQUE_SCHEMA,
@@ -35,6 +48,7 @@ from workflow.dispatch import (
     extract_json_from_text,
     get_dispatch_params,
 )
+from workflow.dispatch_log import dispatch_logging, token_summary
 from workflow.epic_config import (
     EpicConfig,
     ensure_epic_config,
@@ -46,16 +60,17 @@ from workflow.git_helpers import (
     git_sync,
 )
 from workflow.jsonl_logger import (
+    build_run_artifact,
     EventLogger,
     generate_run_id,
     get_resumable_state,
     is_story_complete,
-    is_test_generation_complete,
     read_log,
 )
 from workflow.story_executor import execute_story
 
 logger = logging.getLogger(__name__)
+console = Console()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
@@ -198,6 +213,7 @@ def build_story_comment(story: dict, events: list[dict]) -> str:
     story_id = story.get("story_id", "?")
     name = story.get("name", "?")
     model = story.get("agent", {}).get("model", "sonnet")
+    story_run = StoryRunArtifact.from_events(events, story_id)
 
     # Find the most recent agent_complete for this story
     agent_event = None
@@ -215,19 +231,10 @@ def build_story_comment(story: dict, events: list[dict]) -> str:
     modified = len(scope.get("modify", []))
 
     # Find validation results
-    validation_lines = []
-    for e in reversed(events):
-        if (
-            e.get("event") in ("validation_pass", "validation_fail")
-            and e.get("story_id") == story_id
-        ):
-            for r in e.get("results", []):
-                status_icon = "PASS" if r.get("status") == "pass" else "FAIL"
-                validation_lines.append(f"- [{status_icon}] {r.get('criterion', '?')}")
-            break
-
     validation_section = (
-        "\n".join(validation_lines) if validation_lines else "No validation checkpoint"
+        "\n".join(story_run.checkpoint_summary_lines)
+        if story_run.checkpoint_summary_lines
+        else "No validation checkpoint"
     )
 
     return f"""\
@@ -255,24 +262,10 @@ def build_failure_comment(story: dict, events: list[dict]) -> str:
     """
     story_id = story.get("story_id", "?")
     name = story.get("name", "?")
+    story_run = StoryRunArtifact.from_events(events, story_id)
 
-    # Find the latest failure event
-    failure_event = None
-    for e in reversed(events):
-        if e.get("story_id") == story_id and e.get("event") in (
-            "story_failed",
-            "exit_to_human",
-            "agent_failed",
-            "validation_fail",
-        ):
-            failure_event = e
-            break
-
-    reason = "Unknown"
-    category = "unknown"
-    if failure_event:
-        reason = failure_event.get("reason", failure_event.get("failure_reason", "Unknown"))
-        category = failure_event.get("failure_category", "unknown")
+    reason = story_run.failure_reason or "Unknown"
+    category = story_run.failure_category or "unknown"
 
     return f"""\
 ## Story Failed: {name}
@@ -374,13 +367,26 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
     """
     stories = plan.get("stories", [])
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    story_runs = {
+        story.get("story_id", ""): StoryRunArtifact.from_events(events, story.get("story_id", ""))
+        for story in stories
+        if story.get("story_id")
+    }
 
     # Stories completed
-    completed_ids = sorted({e["story_id"] for e in events if e.get("event") == "story_complete"})
+    completed_ids = sorted(
+        story_id for story_id, story_run in story_runs.items() if story_run.status == "complete"
+    )
     # Stories failed
-    failed_ids = sorted({e["story_id"] for e in events if e.get("event") == "story_failed"})
+    failed_ids = sorted(
+        story_id
+        for story_id, story_run in story_runs.items()
+        if story_run.status in {"failed", "exit_to_human"}
+    )
     # Exit to human events
-    exit_events = [e for e in events if e.get("event") == "exit_to_human"]
+    exit_story_ids = sorted(
+        story_id for story_id, story_run in story_runs.items() if story_run.status == "exit_to_human"
+    )
 
     # Commits
     commits = [
@@ -391,31 +397,32 @@ def generate_summary(epic_dir: Path, plan: dict, events: list[dict]) -> Path:
 
     # Validation checkpoint results
     validation_results = []
-    for e in events:
-        if e.get("event") in ("validation_pass", "validation_fail"):
-            status = "PASS" if e["event"] == "validation_pass" else "FAIL"
-            story_id = e.get("story_id", "?")
-            check_type = e.get("check_type", "?")
-            criteria_count = len(e.get("results", []))
-            validation_results.append(
-                f"| {story_id} | {check_type} | {status} | {criteria_count} |"
-            )
+    for story_id in sorted(story_runs):
+        checkpoint = story_runs[story_id].last_checkpoint
+        if checkpoint is None:
+            continue
+
+        status = "PASS" if checkpoint.passed else "FAIL"
+        criteria_count = len(checkpoint.results)
+        validation_results.append(
+            f"| {story_id} | {checkpoint.check_type} | {status} | {criteria_count} |"
+        )
 
     # Failure details
     failure_lines = []
     for sid in failed_ids:
-        for e in reversed(events):
-            if e.get("story_id") == sid and e.get("event") == "story_failed":
-                reason = e.get("reason", "Unknown")
-                failure_lines.append(f"- **{sid}**: {reason}")
-                break
+        story_run = story_runs[sid]
+        category = story_run.failure_category or "unknown"
+        reason = story_run.failure_reason or "Unknown"
+        failure_lines.append(f"- **{sid}** [{category}]: {reason}")
 
     # Deferred/unresolved items
     deferred_lines = []
-    for e in exit_events:
-        story_id = e.get("story_id", "?")
-        reason = e.get("reason", "Unknown")
-        deferred_lines.append(f"- **{story_id}**: {reason}")
+    for story_id in exit_story_ids:
+        story_run = story_runs[story_id]
+        category = story_run.failure_category or "unknown"
+        reason = story_run.failure_reason or "Unknown"
+        deferred_lines.append(f"- **{story_id}** [{category}]: {reason}")
 
     lines = [
         "# Epic Summary",
@@ -593,6 +600,16 @@ def generate_story_context(
 
     # Queue topology
     queue_lines = _get_queue_topology()
+    critique_runs: list[CritiqueRunArtifact] = []
+    for event in events:
+        if event.get("run_id") != run_id:
+            continue
+        try:
+            critique_run = CritiqueRunArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            continue
+        if critique_run.level == "story" and critique_run.failed and critique_run.normalized_findings:
+            critique_runs.append(critique_run)
 
     # --- Header ---
     lines: list[str] = [
@@ -625,14 +642,9 @@ def generate_story_context(
             for note in story.get("implementation_notes", []):
                 key_decision_lines.append(f"- [{sid}] {note}")
 
-    # Collect critique_fail findings from this run
-    for e in events:
-        if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
-            e_sid = e.get("story_id", "?")
-            findings = e.get("findings", [])
-            for f in findings:
-                issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
-                key_decision_lines.append(f"- [critique] {issue}")
+    for critique_run in critique_runs:
+        for finding in critique_run.normalized_findings:
+            key_decision_lines.append(f"- [critique] {finding.issue or finding.summary_text}")
 
     if key_decision_lines:
         lines += ["", "## Key Decisions", "", *key_decision_lines]
@@ -710,14 +722,12 @@ def generate_story_context(
 
     # --- Advisory Notes ---
     advisory_lines: list[str] = []
-    for e in events:
-        if e.get("event") == "critique_fail" and e.get("run_id") == run_id:
-            e_sid = e.get("story_id", "?")
-            findings = e.get("findings", [])
-            for f in findings:
-                issue = f.get("issue", "?") if isinstance(f, dict) else str(f)
-                severity = f.get("severity", "?") if isinstance(f, dict) else "?"
-                advisory_lines.append(f"- [{severity}] {e_sid}: {issue}")
+    for critique_run in critique_runs:
+        story_label = critique_run.story_id or "?"
+        for finding in critique_run.normalized_findings:
+            severity = finding.severity or "?"
+            issue = finding.issue or finding.summary_text
+            advisory_lines.append(f"- [{severity}] {story_label}: {issue}")
 
     if advisory_lines:
         lines += ["## Advisory Notes", "", *advisory_lines, ""]
@@ -875,7 +885,7 @@ def _run_epic_critique(
     events: list[dict],
     epic_logger: EventLogger,
     config: EpicConfig | None = None,
-) -> tuple[bool, list]:
+) -> CritiqueRunArtifact:
     """Run post-epic critique on the full implementation.
 
     Dispatches a read-only agent with the critique_epic template
@@ -889,7 +899,7 @@ def _run_epic_critique(
         config: Epic configuration profile. If None, falls back to defaults.
 
     Returns:
-        Tuple of (passed, findings_list).
+        Typed critique result for the full epic.
     """
     # Read template
     template_path = Path(__file__).resolve().parent / "templates" / "critique_epic.md"
@@ -976,6 +986,7 @@ def _run_epic_critique(
         mcp_servers=mcp_servers,
         timeout=timeout,
         cwd=PROJECT_ROOT,
+        role="epic_critique",
     )
 
     if not result.success:
@@ -983,14 +994,22 @@ def _run_epic_critique(
             "Epic critique dispatch failed (exit_code=%d)",
             result.exit_code,
         )
-        epic_logger.log_event(
-            "epic_critique_fail",
+        critique_run = CritiqueRunArtifact.for_error(
+            level="epic",
             critique_type="epic",
             critique_model=critique_model,
             error=result.output[:500] if result.output else "Dispatch failed",
+            raw_response=result.output or "",
         )
+        epic_logger.log_event(critique_run.event_name, **critique_run.event_payload)
         # Dispatch failure is fail-closed (invariant E2)
-        return (False, [{"error": "Epic critique dispatch failed"}])
+        return CritiqueRunArtifact.for_error(
+            level="epic",
+            critique_type="epic",
+            critique_model=critique_model,
+            error="Epic critique dispatch failed",
+            raw_response=result.output or "",
+        )
 
     # Parse JSON result — robust extraction handles text around JSON
     try:
@@ -998,38 +1017,33 @@ def _run_epic_critique(
     except ValueError:
         output_preview = (result.output or "")[:200]
         logger.warning("Epic critique returned invalid JSON")
-        epic_logger.log_event(
-            "epic_critique_fail",
+        critique_run = CritiqueRunArtifact.for_error(
+            level="epic",
             critique_type="epic",
             critique_model=critique_model,
             error=f"Invalid JSON: {output_preview}",
+            raw_response=result.output or "",
         )
+        epic_logger.log_event(critique_run.event_name, **critique_run.event_payload)
         # Parse failure is fail-closed (invariant E2)
-        return (False, [{"error": "Epic critique returned invalid JSON"}])
-
-    status = critique.get("status", "pass")
-    findings = critique.get("findings", [])
-    passed = status == "pass"
-
-    if passed:
-        epic_logger.log_event(
-            "epic_critique_pass",
+        return CritiqueRunArtifact.for_error(
+            level="epic",
             critique_type="epic",
             critique_model=critique_model,
-            turns=result.turns,
-            findings_count=0,
-        )
-    else:
-        epic_logger.log_event(
-            "epic_critique_fail",
-            critique_type="epic",
-            critique_model=critique_model,
-            turns=result.turns,
-            findings_count=len(findings),
-            findings=findings,
+            error="Epic critique returned invalid JSON",
+            raw_response=result.output or "",
         )
 
-    return (passed, findings)
+    critique_run = CritiqueRunArtifact.from_dict(
+        critique,
+        level="epic",
+        critique_type="epic",
+        critique_model=critique_model,
+        turns=result.turns,
+        raw_response=result.output or "",
+    )
+    epic_logger.log_event(critique_run.event_name, **critique_run.event_payload)
+    return critique_run
 
 
 # ---------------------------------------------------------------------------
@@ -1099,10 +1113,7 @@ def _determine_next_story(
 
 def _is_exit_to_human(events: list[dict], run_id: str) -> bool:
     """Check if the latest event for this run is an exit_to_human."""
-    for event in reversed(events):
-        if event.get("run_id") == run_id:
-            return event.get("event") == "exit_to_human"
-    return False
+    return build_run_artifact(events, run_id).next_action == "exit_to_human"
 
 
 def _get_last_attempt(events: list[dict], story_id: str) -> int:
@@ -1242,6 +1253,36 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         logger.debug("agent-sync not available or timed out, continuing")
 
+    # Activate unified dispatch logging for all dispatch_agent() calls
+    with dispatch_logging(epic_dir, run_id):
+        _run_epic_loop(
+            epic_number=epic_number,
+            epic_dir=epic_dir,
+            epic_log_path=epic_log_path,
+            epic_logger=epic_logger,
+            plan=plan,
+            run_id=run_id,
+            config=config,
+            completed_stories=completed_stories,
+        )
+
+    # Print token usage summary
+    summary = token_summary(epic_dir, run_id)
+    console.print(f"\n[bold]Dispatch Token Summary[/bold]\n{summary}")
+
+
+def _run_epic_loop(
+    *,
+    epic_number: int,
+    epic_dir: Path,
+    epic_log_path: Path,
+    epic_logger: EventLogger,
+    plan: dict,
+    run_id: str,
+    config: EpicConfig,
+    completed_stories: list[str],
+) -> None:
+    """Inner execution loop for an epic run (extracted for dispatch_logging scope)."""
     # The outer loop
     while True:
         # Re-read the log to get latest state (events accumulate)
@@ -1269,7 +1310,7 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
 
             all_events = _collect_story_events(epic_dir, plan)
 
-            critique_passed, findings = _run_epic_critique(
+            critique_run = _run_epic_critique(
                 plan=plan,
                 epic_dir=epic_dir,
                 events=all_events,
@@ -1277,25 +1318,28 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
                 config=config,
             )
 
-            if not critique_passed:
+            if not critique_run.passed:
                 # Epic critique failed -- exit to human (no retries)
                 logger.error(
                     "Epic critique failed with %d findings. Exiting to human.",
-                    len(findings),
+                    critique_run.findings_count,
                 )
 
                 # Post critique findings as GitHub comment
-                finding_lines = []
-                for f in findings:
-                    file_ref = f.get("file", "?")
-                    line_ref = f.get("line", "?")
-                    issue = f.get("issue", "?")
-                    severity = f.get("severity", "?")
-                    finding_lines.append(f"- **[{severity}]** `{file_ref}:{line_ref}` — {issue}")
+                finding_lines = [
+                    finding.markdown_text for finding in critique_run.normalized_findings
+                ]
+                if not finding_lines:
+                    finding_lines.append(f"- {critique_run.concise_summary}")
 
+                critique_heading = (
+                    f"Opus review found {critique_run.findings_count} issue(s):"
+                    if critique_run.findings_count
+                    else "Opus review failed:"
+                )
                 critique_body = (
                     "## Epic Critique Failed\n\n"
-                    f"Opus review found {len(findings)} issue(s):\n\n"
+                    f"{critique_heading}\n\n"
                     + "\n".join(finding_lines)
                     + "\n\nManual intervention required."
                 )
@@ -1309,12 +1353,9 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
 
                 epic_logger.log_event(
                     "exit_to_human",
-                    reason=f"Epic critique failed with {len(findings)} findings",
+                    reason=f"Epic critique failed: {critique_run.concise_summary}",
                     failure_category="implementation",
-                    context={
-                        "critique_findings": findings[:5],
-                        "findings_count": len(findings),
-                    },
+                    context=critique_run.context_payload(limit=5),
                 )
 
                 generate_summary(epic_dir, plan, all_events)
@@ -1442,170 +1483,36 @@ def run_epic(epic_number: int, resume: bool = False) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Full pipeline: run_pipeline (unified entry point for ./wf epic N)
+# Full pipeline: run_pipeline (unified entry point for `just epic N`)
 # ---------------------------------------------------------------------------
-
-
-def _check_gate_event(epic_dir: Path, event_type: str) -> bool:
-    """Check if a specific gate event exists in epic.jsonl."""
-    from workflow.jsonl_logger import find_last_event
-
-    log_path = epic_dir / "epic.jsonl"
-    events = read_log(log_path)
-    return find_last_event(events, event_type) is not None
-
-
-def _run_test_generation_stage(epic_number: int, epic_dir: Path) -> bool:
-    """Run test generation for stories with test_specs.
-
-    Pre-flight: refuses to run if ``tests_approved`` is not in JSONL.
-    On success: logs ``tests_generated``, commits tests, pushes.
-
-    Args:
-        epic_number: The GitHub issue number of the epic.
-        epic_dir: Path to the epic directory.
-
-    Returns:
-        True if test generation succeeded (or no specs), False on failure.
-    """
-    import json as _json
-
-    from workflow.test_generator import run_test_generation
-
-    plan_path = epic_dir / "plan.json"
-    if not plan_path.is_file():
-        return True
-
-    plan = _json.loads(plan_path.read_text(encoding="utf-8"))
-    stories_with_specs = [
-        s.get("story_id", "unknown")
-        for s in plan.get("stories", [])
-        if s.get("test_spec") is not None
-    ]
-
-    if not stories_with_specs:
-        logger.info("No stories with test_specs. Skipping test generation.")
-        return True
-
-    epic_log_path = epic_dir / "epic.jsonl"
-    events = read_log(epic_log_path)
-
-    # Check if already complete
-    if is_test_generation_complete(events, stories_with_specs):
-        logger.info("Test generation already complete for all %d stories.", len(stories_with_specs))
-        return True
-
-    # Load config
-    config_path = ensure_epic_config(epic_dir)
-    config = load_config(override_path=config_path)
-
-    # Reuse existing run_id if available, otherwise generate new
-    run_id = events[-1].get("run_id", "") if events else ""
-    if not run_id:
-        run_id = generate_run_id()
-
-    epic_logger = EventLogger(epic_log_path, run_id)
-
-    logger.info(
-        "Running test generation for %d stories with test_specs...",
-        len(stories_with_specs),
-    )
-
-    test_report = run_test_generation(
-        epic_dir=epic_dir,
-        plan=plan,
-        config=config,
-        event_logger=epic_logger,
-    )
-
-    if not test_report.all_passed:
-        logger.error(
-            "Test generation failed: %d passed, %d failed. Cannot proceed.",
-            len(test_report.passed),
-            len(test_report.failed),
-        )
-        return False
-
-    # Log tests_generated and commit
-    epic_logger.log_event(
-        "tests_generated",
-        epic=epic_number,
-        stories_count=len(test_report.passed),
-    )
-
-    logger.info("All %d tests passed review. Committing test files...", len(test_report.passed))
-
-    try:
-        from workflow.git_helpers import robust_commit
-
-        test_paths = [
-            r.test_file_path
-            for r in test_report.passed
-            if r.test_file_path is not None
-        ]
-        # Also commit the epic.jsonl with new events
-        test_paths.append(str(epic_log_path.relative_to(PROJECT_ROOT)))
-
-        commit_hash = robust_commit(
-            f"test(epic-{epic_number}): generated tests approved",
-            test_paths,
-        )
-        logger.info("Tests committed: %s", commit_hash)
-
-        git_sync()
-        logger.info("Pushed test commit.")
-    except (GitConflictError, GitPushError) as exc:
-        logger.warning("Failed to commit/push tests: %s", exc)
-        # Non-fatal — tests are generated, execution can proceed
-
-    return True
 
 
 def run_pipeline(epic_number: int) -> None:
     """Idempotent epic pipeline entry point.
 
-    Reads JSONL state and does the next thing. Three user interactions
-    for a full epic:
+    Reads JSONL state and does the next thing. The happy path is one run:
 
-    1. ``just epic N`` — plans, stops after approval (logs plan_committed)
-    2. ``/epic review-tests N`` — CC interactive test spec review (logs tests_approved)
-    3. ``just epic N`` — generates tests, then executes stories
+    1. ``just epic N`` — plan, verify, approve, commit, and continue into execution
+    2. rerun ``just epic N`` only if recovery/resume is needed after interruption
 
     Args:
         epic_number: The GitHub issue number of the epic.
     """
-    from workflow.cli import _check_plan_committed, _run_planning_pipeline
+    from workflow.cli import PlanningPipelineOutcome, _check_plan_committed, _run_planning_pipeline
 
     epic_dir = PLANNING_DIR / f"E{epic_number}"
 
     # Gate 1: plan_committed
     if not _check_plan_committed(epic_dir):
-        # Run planning pipeline (Steps 1-6), which STOPs after commit+push
-        _run_planning_pipeline(epic_number)
-        return
-
-    logger.info("Plan already committed for epic #%d.", epic_number)
-
-    # Gate 2: tests_approved
-    if not _check_gate_event(epic_dir, "tests_approved"):
-        print(
-            f"\nPlan committed. Run /epic review-tests {epic_number} "
-            "to review and approve test specs before proceeding."
-        )
-        return
-
-    # Gate 3: tests_generated
-    if not _check_gate_event(epic_dir, "tests_generated"):
-        if not _run_test_generation_stage(epic_number, epic_dir):
-            logger.error(
-                "Test generation failed for epic #%d. Fix issues and re-run.",
-                epic_number,
-            )
+        planning_outcome = _run_planning_pipeline(epic_number)
+        if planning_outcome != PlanningPipelineOutcome.COMMITTED:
             return
-        # Fall through to execution
+        logger.info("Planning committed for epic #%d. Continuing into execution.", epic_number)
+    else:
+        logger.info("Plan already committed for epic #%d.", epic_number)
 
-    # Stage 4: Execution
-    logger.info("Starting Stage 4 execution for epic #%d.", epic_number)
+    # Stage 4: Execution (test generation happens per-story, after implementation)
+    logger.info("Starting story execution for epic #%d.", epic_number)
     run_epic(epic_number, resume=True)
 
 
@@ -1637,7 +1544,9 @@ def show_status(epic_number: int) -> None:
 
     artefacts = {
         "EPIC.md": epic_dir / "EPIC.md",
-        "CONTEXT.md": epic_dir / "CONTEXT.md",
+        "repo_facts.json": epic_dir / "repo_facts.json",
+        "CURATION.md": epic_dir / "CURATION.md",
+        "curation.json": epic_dir / "curation.json",
         "PLAN.md": epic_dir / "PLAN.md",
         "plan.json": epic_dir / "plan.json",
         "epic.jsonl": epic_dir / "epic.jsonl",
@@ -1655,7 +1564,7 @@ def show_status(epic_number: int) -> None:
 
     if not has_plan:
         print("\nPipeline stage: PLANNING (no plan.json)")
-        print(f"Run: ./wf epic {epic_number}")
+        print(f"Run: just epic {epic_number}")
         return
 
     plan = json.loads((epic_dir / "plan.json").read_text(encoding="utf-8"))
@@ -1664,7 +1573,7 @@ def show_status(epic_number: int) -> None:
     if not has_epic_log:
         print("\nPipeline stage: PLANNED (plan exists, no execution log)")
         print(f"Plan has {len(stories)} stories.")
-        print(f"Run: ./wf epic {epic_number}")
+        print(f"Run: just epic {epic_number}")
         return
 
     # Read JSONL logs
@@ -1679,80 +1588,125 @@ def show_status(epic_number: int) -> None:
 
     # Find run_id
     run_id = events[-1].get("run_id", "?")
-    state = get_resumable_state(events, run_id)
-
-    # Determine pipeline stage from events
-    has_plan_committed = any(e.get("event") == "plan_committed" for e in events)
-    has_tests_approved = any(e.get("event") == "tests_approved" for e in events)
-    has_tests_generated = any(e.get("event") == "tests_generated" for e in events)
-    has_epic_complete = any(
-        e.get("event") == "epic_complete" and e.get("run_id") == run_id for e in events
+    run_artifact = build_run_artifact(
+        events,
+        run_id,
+        epic_number=epic_number,
+        has_plan=True,
     )
-    has_epic_failed = any(
-        e.get("event") == "epic_failed" and e.get("run_id") == run_id for e in events
-    )
-
-    if has_epic_complete:
-        stage = "COMPLETE"
-    elif has_epic_failed:
-        stage = "FAILED"
-    elif has_tests_generated:
-        stage = "EXECUTION"
-    elif has_tests_approved:
-        stage = "TEST GENERATION"
-    elif has_plan_committed:
-        stage = "AWAITING TEST REVIEW"
-    else:
-        stage = "PLANNING"
+    state = run_artifact.to_resume_state()
+    stage = run_artifact.stage.upper()
 
     print(f"\nPipeline stage: {stage}")
     print(f"Run ID: {run_id}")
-    print(f"Status: {state['next_action']}")
-    print(f"Completed: {len(state['completed_stories'])}/{len(stories)}")
+    print(f"Status: {run_artifact.next_action}")
+    print(f"Completed: {len(run_artifact.completed_stories)}/{len(stories)}")
 
     # Show gate status
-    print(f"\nGates:")
-    print(f"  plan_committed:  {'YES' if has_plan_committed else 'no'}")
-    print(f"  tests_approved:  {'YES' if has_tests_approved else 'no'}")
-    print(f"  tests_generated: {'YES' if has_tests_generated else 'no'}")
+    print("\nGates:")
+    print(f"  plan_committed:  {'YES' if run_artifact.stage in ('execution', 'complete', 'failed') else 'no'}")
 
-    if state.get("failed_story_id"):
-        print(f"Failed story: {state['failed_story_id']}")
+    if run_artifact.failed_story_id:
+        print(f"Failed story: {run_artifact.failed_story_id}")
 
     # Planning status
-    planner_events = [e for e in events if e.get("event", "").startswith("planner_")]
-    phase_a_events = [e for e in events if e.get("event", "").startswith("phase_a_")]
-    phase_b_events = [e for e in events if e.get("event", "").startswith("phase_b_")]
+    curation_dispatches: list[CurationDispatchedArtifact] = []
+    curation_result: CurationCompleteArtifact | CurationFailedArtifact | None = None
+    planner_dispatches: list[PlannerDispatchedArtifact] = []
+    planner_result: PlannerCompleteArtifact | PlannerFailedArtifact | None = None
+    phase_a_event: PhaseAValidationEventArtifact | None = None
+    phase_b_event: PhaseBVerificationEventArtifact | None = None
+
+    for event in events:
+        try:
+            curation_dispatches.append(CurationDispatchedArtifact.from_event(event))
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            curation_result = CurationCompleteArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            curation_result = CurationFailedArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            planner_dispatches.append(PlannerDispatchedArtifact.from_event(event))
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            planner_result = PlannerCompleteArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            planner_result = PlannerFailedArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            phase_a_event = PhaseAValidationEventArtifact.from_event(event)
+            continue
+        except (KeyError, TypeError, ValueError):
+            pass
+
+        try:
+            phase_b_event = PhaseBVerificationEventArtifact.from_event(event)
+        except (KeyError, TypeError, ValueError):
+            pass
     gate_events = [
         e for e in events if e.get("event") in ("plan_approved", "plan_revised", "plan_rejected")
     ]
 
-    if planner_events or phase_a_events or phase_b_events or gate_events:
+    if (
+        curation_dispatches
+        or curation_result is not None
+        or planner_dispatches
+        or planner_result is not None
+        or phase_a_event is not None
+        or phase_b_event is not None
+        or gate_events
+    ):
         print("\nPlanning:")
-        if planner_events:
-            print(
-                f"  Planner attempts: {len([e for e in planner_events if e.get('event') == 'planner_dispatched'])}"
+        if curation_dispatches:
+            print(f"  Curation attempts: {len(curation_dispatches)}")
+        if curation_result is not None:
+            curation_status = (
+                "COMPLETE" if isinstance(curation_result, CurationCompleteArtifact) else "FAILED"
             )
-        if phase_a_events:
-            last_a = phase_a_events[-1]
-            print(f"  Phase A: {last_a.get('event', '?').replace('phase_a_', '').upper()}")
-        if phase_b_events:
-            last_b = phase_b_events[-1]
-            print(f"  Phase B: {last_b.get('event', '?').replace('phase_b_', '').upper()}")
-        if gate_events:
-            last_gate = gate_events[-1]
-            print(f"  Decision gate: {last_gate.get('event', '?').replace('plan_', '').upper()}")
+            print(f"  Curation: {curation_status}")
+        if planner_dispatches:
+            print(f"  Planner attempts: {len(planner_dispatches)}")
+        if planner_result is not None:
+            planner_status = "COMPLETE" if isinstance(planner_result, PlannerCompleteArtifact) else "FAILED"
+            print(f"  Planner: {planner_status}")
+        if phase_a_event is not None:
+            print(f"  Phase A: {'PASS' if phase_a_event.passed else 'FAIL'}")
+        if phase_b_event is not None:
+            print(f"  Phase B: {'PASS' if phase_b_event.passed else 'FAIL'}")
+        if run_artifact.decision_gate:
+            print(f"  Decision gate: {run_artifact.decision_gate.upper()}")
 
     # Show per-story status
     print("\nStories:")
-    completed_set = set(state["completed_stories"])
+    completed_set = set(run_artifact.completed_stories)
     for i, story in enumerate(stories, 1):
         sid = story.get("story_id", "?")
         name = story.get("name", "?")
 
         if sid in completed_set:
             status = "DONE"
-        elif sid == state.get("failed_story_id"):
+        elif sid == run_artifact.failed_story_id:
             status = "FAIL"
         elif i <= len(completed_set) + 1:
             status = "NEXT"
@@ -1761,15 +1715,30 @@ def show_status(epic_number: int) -> None:
         print(f"  [{status}] {i}. {sid}: {name}")
 
     # Recent failures
-    failure_events = [
-        e
+    failure_story_ids = [
+        e.get("story_id")
         for e in all_events
-        if e.get("event") in ("story_failed", "exit_to_human") and e.get("run_id") == run_id
+        if e.get("event") in ("story_failed", "exit_to_human")
+        and e.get("run_id") == run_id
+        and e.get("story_id")
     ]
-    if failure_events:
+    seen_failure_story_ids: set[str] = set()
+    recent_failures: list[tuple[str, StoryRunArtifact]] = []
+    for story_id in reversed(failure_story_ids):
+        if story_id in seen_failure_story_ids:
+            continue
+        seen_failure_story_ids.add(story_id)
+        recent_failures.append((story_id, StoryRunArtifact.from_events(all_events, story_id)))
+        if len(recent_failures) == 3:
+            break
+    if recent_failures:
         print("\nRecent failures:")
-        for e in failure_events[-3:]:
-            sid = e.get("story_id", "?")
-            reason = e.get("reason", "Unknown")
-            category = e.get("failure_category", "unknown")
+        for sid, story_run in reversed(recent_failures):
+            reason = story_run.failure_reason or "Unknown"
+            category = story_run.failure_category or "unknown"
             print(f"  {sid}: [{category}] {reason[:120]}")
+
+    # Dispatch token summary
+    dispatch_summary = token_summary(epic_dir, run_id)
+    if not dispatch_summary.startswith("No dispatch"):
+        print(f"\nToken Usage:\n{dispatch_summary}")

@@ -10,6 +10,8 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from workflow.artifacts import RunArtifact, RunEventArtifact
+
 SCHEMA_VERSION = 2
 
 
@@ -55,15 +57,15 @@ class EventLogger:
             now = self._last_ts.replace(microsecond=self._last_ts.microsecond + 1)
         self._last_ts = now
 
-        entry = {
-            "schema_v": SCHEMA_VERSION,
-            "run_id": self.run_id,
-            "ts": now.isoformat(),
-            "event": event,
-            **kwargs,
-        }
+        entry = RunEventArtifact(
+            schema_v=SCHEMA_VERSION,
+            run_id=self.run_id,
+            ts=now.isoformat(),
+            event=event,
+            data=dict(kwargs),
+        )
 
-        line = json.dumps(entry, default=str)
+        line = json.dumps(entry.to_dict(), default=str)
 
         with self.log_path.open("a") as f:
             f.write(line + "\n")
@@ -86,7 +88,15 @@ def read_log(log_path: Path) -> list[dict]:
     if not log_path.exists():
         return []
 
-    events: list[dict] = []
+    return [event.to_dict() for event in read_event_log(log_path)]
+
+
+def read_event_log(log_path: Path) -> list[RunEventArtifact]:
+    """Read typed event artifacts from a JSONL log file."""
+    if not log_path.exists():
+        return []
+
+    events: list[RunEventArtifact] = []
     raw = log_path.read_text()
 
     for line in raw.splitlines():
@@ -94,8 +104,8 @@ def read_log(log_path: Path) -> list[dict]:
         if not line:
             continue
         try:
-            events.append(json.loads(line))
-        except json.JSONDecodeError:
+            events.append(RunEventArtifact.from_dict(json.loads(line)))
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             # Partial last line from a crash — discard it silently.
             # Only the final line can be partial (append-only + flush-per-line),
             # so we continue parsing in case there are blank lines interspersed.
@@ -201,71 +211,23 @@ def get_resumable_state(
         - failed_story_id: story_id of the last failed story (if applicable)
         - stories_with_passing_tests: list of story_id strings with passing tests
     """
-    # Filter events belonging to this run
-    run_events = [e for e in events if e.get("run_id") == run_id]
+    return build_run_artifact(events, run_id).to_resume_state()
 
-    if not run_events:
-        return {
-            "completed_stories": [],
-            "last_event": None,
-            "next_action": "start",
-            "failed_story_id": None,
-            "stories_with_passing_tests": [],
-        }
 
-    # Collect completed stories
-    completed_stories = sorted(
-        {
-            e["story_id"]
-            for e in run_events
-            if e.get("event") == "story_complete" and "story_id" in e
-        }
+def build_run_artifact(
+    events: list[dict],
+    run_id: str,
+    *,
+    epic_number: int | None = None,
+    has_plan: bool = False,
+) -> RunArtifact:
+    """Build a typed run snapshot from JSONL event dictionaries."""
+    return RunArtifact.from_logs(
+        events,
+        run_id,
+        epic_number=epic_number,
+        has_plan=has_plan,
     )
-
-    # Collect stories with passing tests (not scoped to run_id — test_review_pass
-    # events are valid across runs, matching _is_test_already_passing behaviour)
-    stories_with_passing_tests = sorted(
-        {
-            e["story_id"]
-            for e in events
-            if e.get("event") == "test_review_pass" and "story_id" in e
-        }
-    )
-
-    last_event = run_events[-1]
-    last_event_type = last_event.get("event", "")
-
-    # Determine next action based on the last event
-    if last_event_type == "epic_complete":
-        next_action = "epic_complete"
-        failed_story_id = None
-    elif last_event_type in ("exit_to_human", "epic_critique_fail"):
-        next_action = "exit_to_human"
-        failed_story_id = last_event.get("story_id")
-    elif last_event_type in ("story_failed", "agent_failed", "validation_fail", "critique_fail"):
-        next_action = "retry_story"
-        failed_story_id = last_event.get("story_id")
-    elif last_event_type in (
-        "test_gen_started",
-        "test_gen_attempt",
-        "test_review_fail",
-        "tests_approved",
-    ):
-        # Mid-test-generation or awaiting test gen after approval
-        next_action = "test_generation"
-        failed_story_id = None
-    else:
-        # Normal continuation — either mid-story or between stories
-        next_action = "continue"
-        failed_story_id = None
-
-    return {
-        "completed_stories": completed_stories,
-        "last_event": last_event,
-        "next_action": next_action,
-        "failed_story_id": failed_story_id,
-        "stories_with_passing_tests": stories_with_passing_tests,
-    }
 
 
 def is_test_generation_complete(

@@ -112,17 +112,19 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 - **Principle: "No model marks its own homework."** Opus plans, Codex critiques the plan, agents implement, Opus critiques the implementation.
 - Epics run via the stateless orchestrator (`workflow/orchestrator.py`). JSONL log is the only state — enables crash-resume.
-- **Idempotent 3-command flow:**
-  1. `just epic N` — plans, stops after approval (logs `plan_committed`)
-  2. `/epic review-tests N` — CC interactive test spec review + approval (logs `tests_approved`)
-  3. `just epic N` — generates tests (logs `tests_generated`), then executes stories
-- **JSONL state gates (enforced ordering):** `plan_committed` → `tests_approved` → `tests_generated` → Stage 4 execution.
-- **12 verification gates:** epic structure (ingest), gap sufficiency (AI + human), Phase A (deterministic, 11 checks), Phase B (adversarial critique), decision gate (human), test spec review (CC interactive), test generation (test_writer + test_reviewer per story), test file protection (SHA-256 hash verification), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model, hard gate), epic critique (cross-model).
+- **Idempotent 2-command flow:**
+  1. `just epic N` — plans, verifies, human-gates, commits, then continues directly into execution in the same run
+  2. `just epic N` — resume path after interruption; picks up from `plan_committed` or in-flight execution state
+- **JSONL state gates:** `plan_committed` → story execution.
+- **Verification gates:** epic structure (ingest), Phase A (deterministic, 12 checks), Phase B (adversarial critique, 6 dimensions incl. gap sufficiency), decision gate (human), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model, hard gate), epic critique (cross-model).
 - `just epic N` — idempotent: reads JSONL state, does the next thing.
 - `just epic-status N` — check progress from JSONL logs (read-only).
 - `just epic-validate-plan N` — run Phase A deterministic validation only (read-only).
+- `just epic-report N` — generate the HTML run report (read-only).
+- `just epic-compile-prompts N` — compile planner/verifier/revision prompts without dispatching agents (read-only).
 - `just map-codebase` — regenerate .planning/codebase/ files.
 - `just index-wiki` — regenerate .planning/wiki-indexes/.
+- Live planning is issue-first and tool-equipped. Do not describe `CONTEXT.md`, gap detection, or `tests_approved` as active required stages unless the code path is reintroduced and the docs are updated first.
 - NEVER read plan files manually, dispatch sub-agents, or use old V1/V2 commands. The orchestrator handles everything.
 - See `wiki/Epic-Workflow.md` for full pipeline documentation.
 

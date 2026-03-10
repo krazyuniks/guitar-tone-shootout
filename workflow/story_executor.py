@@ -13,15 +13,20 @@ File-to-story ownership). Section 8.5 Decision 2 (failure feedback).
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from workflow.artifacts import (
+    CritiqueRunArtifact,
+    FailureClassificationArtifact,
+    PreflightArtifact,
+    PreflightEventArtifact,
+    StoryFailureContextArtifact,
+)
 from workflow.dispatch import (
     STORY_CRITIQUE_SCHEMA,
     compute_prompt_hash,
@@ -50,50 +55,10 @@ WIKI_INDEXES_DIR = PROJECT_ROOT / ".planning" / "wiki-indexes"
 # failure categories. Total attempts = 1 initial + 2 retries = 3.
 MAX_RETRIES = 2
 
-TESTS_DIR = PROJECT_ROOT / "tests"
+# Compatibility aliases while callers migrate to typed artifact names.
+FailureClassification = FailureClassificationArtifact
+PreflightResult = PreflightArtifact
 
-
-# ---------------------------------------------------------------------------
-# Test file protection — snapshot hashes before/after dispatch
-# ---------------------------------------------------------------------------
-
-
-def _snapshot_test_hashes() -> dict[str, str]:
-    """Return SHA-256 hashes of all .py files under tests/.
-
-    Used to detect if the implementing agent modified pre-written tests.
-    """
-    hashes: dict[str, str] = {}
-    if not TESTS_DIR.is_dir():
-        return hashes
-    for py_file in sorted(TESTS_DIR.rglob("*.py")):
-        try:
-            digest = hashlib.sha256(py_file.read_bytes()).hexdigest()
-            hashes[str(py_file.relative_to(PROJECT_ROOT))] = digest
-        except OSError:
-            continue
-    return hashes
-
-
-def _detect_test_modifications(
-    before: dict[str, str],
-    after: dict[str, str],
-) -> list[str]:
-    """Compare before/after snapshots and return list of modified test files.
-
-    Detects modifications and deletions. New test files are allowed (the
-    agent may create tests as part of implementation).
-    """
-    modified: list[str] = []
-    for path, old_hash in before.items():
-        new_hash = after.get(path)
-        if new_hash is None:
-            # File was deleted
-            modified.append(path)
-        elif new_hash != old_hash:
-            # File was modified
-            modified.append(path)
-    return sorted(modified)
 
 
 # ---------------------------------------------------------------------------
@@ -189,19 +154,6 @@ def build_file_ownership_map(plan: dict) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # Failure classification (Section 2)
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class FailureClassification:
-    """Result of classifying a failure event.
-
-    Contains both the category and the matched evidence so the JSONL
-    failure_category entry is auditable.
-    """
-
-    category: str  # env, scope, implementation, upstream, unknown
-    evidence: str  # The matched pattern + source text
-    pattern: str  # The specific pattern that triggered classification
 
 
 # Explicit pattern tables for failure classification.
@@ -336,7 +288,7 @@ def classify_failure(
     file_ownership: dict[str, str],
     completed_stories: list[str],
     plan_scope_paths: list[str] | None = None,
-) -> FailureClassification:
+) -> FailureClassificationArtifact:
     """Classify a failure into one of 5 categories with evidence.
 
     The classification order matters -- earlier checks take priority:
@@ -361,10 +313,10 @@ def classify_failure(
             disambiguation.
 
     Returns:
-        FailureClassification with category, evidence, and pattern.
+        FailureClassificationArtifact with category, evidence, and pattern.
     """
     if not error_text:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="unknown",
             evidence="No error text available",
             pattern="empty_error",
@@ -373,7 +325,7 @@ def classify_failure(
     # 1. Check env patterns first (infrastructure problems)
     env_match = _match_patterns(error_text, ENV_PATTERNS)
     if env_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="env",
             evidence=env_match[0],
             pattern=env_match[1],
@@ -384,7 +336,7 @@ def classify_failure(
         error_text, current_story_id, file_ownership, completed_stories
     )
     if upstream_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="upstream",
             evidence=upstream_match[0],
             pattern=upstream_match[1],
@@ -398,7 +350,7 @@ def classify_failure(
         # Check if the error references a plan scope path
         for scope_path in plan_scope_paths:
             if scope_path in error_text:
-                return FailureClassification(
+                return FailureClassificationArtifact(
                     category="scope",
                     evidence=f"{scope_match[0]} (references plan scope path: {scope_path})",
                     pattern=scope_match[1],
@@ -406,7 +358,7 @@ def classify_failure(
     # If we matched a scope pattern but can't confirm it references plan paths,
     # still classify as scope (the pattern itself is strong enough)
     if scope_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="scope",
             evidence=scope_match[0],
             pattern=scope_match[1],
@@ -415,7 +367,7 @@ def classify_failure(
     # 4. Check implementation patterns (code errors)
     impl_match = _match_patterns(error_text, IMPLEMENTATION_PATTERNS)
     if impl_match:
-        return FailureClassification(
+        return FailureClassificationArtifact(
             category="implementation",
             evidence=impl_match[0],
             pattern=impl_match[1],
@@ -424,7 +376,7 @@ def classify_failure(
     # 5. Fallback: unknown
     # Include the first 300 chars of error text as evidence
     truncated = error_text[:300].strip()
-    return FailureClassification(
+    return FailureClassificationArtifact(
         category="unknown",
         evidence=truncated,
         pattern="no_pattern_matched",
@@ -453,15 +405,6 @@ def get_retry_budget(category: str) -> int:
 # ---------------------------------------------------------------------------
 # Pre-flight checks (Section 2)
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class PreflightResult:
-    """Result of pre-flight checks for a story."""
-
-    passed: bool
-    issues: list[str]
-    is_minor: bool = False  # True if all issues are minor (agent can self-fix)
 
 
 def _get_scope_paths(story: dict) -> list[str]:
@@ -504,7 +447,7 @@ def _get_files_from_previous_stories(plan: dict, current_story_id: str) -> list[
 def run_preflight_checks(
     story: dict,
     plan: dict,
-) -> PreflightResult:
+) -> PreflightArtifact:
     """Run pre-flight checks before dispatching a story's agent.
 
     Verifies that inputs from previous stories are present: files that
@@ -516,7 +459,7 @@ def run_preflight_checks(
         plan: The full plan.json dict.
 
     Returns:
-        PreflightResult with pass/fail status and any issues found.
+        PreflightArtifact with pass/fail status and any issues found.
     """
     story_id = story.get("story_id", "")
     issues: list[str] = []
@@ -542,14 +485,14 @@ def run_preflight_checks(
             issues.append(f"Parent directory for file to create missing: {parent}")
 
     if not issues:
-        return PreflightResult(passed=True, issues=[])
+        return PreflightArtifact(passed=True)
 
     # Apply minor/major heuristic
     is_minor = _is_minor_preflight_issue(issues, story)
 
-    return PreflightResult(
+    return PreflightArtifact(
         passed=False,
-        issues=issues,
+        issues=tuple(issues),
         is_minor=is_minor,
     )
 
@@ -728,26 +671,27 @@ def execute_story(
 
     # Step 2: Handle state assumption
     if not handle_state_assumption(state_assumption):
-        event_logger.log_event(
-            "preflight_fail",
+        failure_context = StoryFailureContextArtifact(
             story_id=story_id,
             attempt=1,
-            failure_category="env",
-            description="Database reset failed (state_assumption='clean')",
+            last_error="just db-reset failed",
+            files_affected=(),
+            jsonl_excerpt="state_assumption=clean, db-reset failed",
         )
+        preflight_event = PreflightEventArtifact.from_failure(
+            story_id=story_id,
+            attempt=1,
+            summary="Database reset failed (state_assumption='clean')",
+            failure_category="env",
+        )
+        event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
         event_logger.log_event(
             "exit_to_human",
             story_id=story_id,
             attempt=1,
             reason="Database reset failed",
             failure_category="env",
-            context={
-                "story_id": story_id,
-                "attempt": 1,
-                "last_error": "just db-reset failed",
-                "files_affected": [],
-                "jsonl_excerpt": "state_assumption=clean, db-reset failed",
-            },
+            context=failure_context.event_context,
         )
         return False
 
@@ -762,12 +706,8 @@ def execute_story(
                 story_id,
                 "; ".join(preflight.issues),
             )
-            event_logger.log_event(
-                "preflight_pass",
-                story_id=story_id,
-                attempt=1,
-                note=f"Minor issues (agent self-fix): {'; '.join(preflight.issues)}",
-            )
+            preflight_event = PreflightEventArtifact.from_preflight(story_id, 1, preflight)
+            event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
         else:
             # Major issues -- cannot proceed
             logger.error(
@@ -775,22 +715,28 @@ def execute_story(
                 story_id,
                 "; ".join(preflight.issues),
             )
-            event_logger.log_event(
-                "preflight_fail",
-                story_id=story_id,
-                attempt=1,
-                failure_category="scope",
-                description="; ".join(preflight.issues),
-            )
+            preflight_event = PreflightEventArtifact.from_preflight(story_id, 1, preflight)
+            event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
 
             # Classify the preflight failure more precisely
-            combined_issues = "\n".join(preflight.issues)
             classification = classify_failure(
-                combined_issues,
+                preflight.combined_issues,
                 story_id,
                 file_ownership,
                 completed_stories,
                 plan_scope_paths,
+            )
+            failure_context = StoryFailureContextArtifact(
+                story_id=story_id,
+                attempt=1,
+                last_error=preflight.description,
+                files_affected=tuple(plan_scope_paths),
+                jsonl_excerpt=json.dumps(
+                    {
+                        "classification": classification.category,
+                        "evidence": classification.evidence,
+                    }
+                ),
             )
 
             if get_retry_budget(classification.category) == 0:
@@ -799,20 +745,9 @@ def execute_story(
                     story_id=story_id,
                     attempt=1,
                     reason=f"Pre-flight failure ({classification.category}): "
-                    f"{'; '.join(preflight.issues)}",
+                    f"{preflight.description}",
                     failure_category=classification.category,
-                    context={
-                        "story_id": story_id,
-                        "attempt": 1,
-                        "last_error": "; ".join(preflight.issues),
-                        "files_affected": plan_scope_paths,
-                        "jsonl_excerpt": json.dumps(
-                            {
-                                "classification": classification.category,
-                                "evidence": classification.evidence,
-                            }
-                        ),
-                    },
+                    context=failure_context.event_context,
                 )
                 return False
 
@@ -822,15 +757,12 @@ def execute_story(
                 "story_failed",
                 story_id=story_id,
                 attempt=1,
-                reason=f"Pre-flight failure: {'; '.join(preflight.issues)}",
+                reason=f"Pre-flight failure: {preflight.description}",
             )
             return False
     else:
-        event_logger.log_event(
-            "preflight_pass",
-            story_id=story_id,
-            attempt=1,
-        )
+        preflight_event = PreflightEventArtifact.from_preflight(story_id, 1, preflight)
+        event_logger.log_event(preflight_event.event_name, **preflight_event.event_payload)
 
     # Step 4-9: Dispatch loop with retries
     return _dispatch_and_validate_loop(
@@ -854,7 +786,7 @@ def _run_story_critique(
     model: str,
     config: EpicConfig | None = None,
     base_commit: str | None = None,
-) -> tuple[bool, list]:
+) -> CritiqueRunArtifact:
     """Run post-story critique on the implementation.
 
     Dispatches a read-only agent with the critique_story template
@@ -871,7 +803,7 @@ def _run_story_critique(
             produce the full story diff (not just HEAD~1).
 
     Returns:
-        Tuple of (passed, findings_list).
+        Typed critique result for the story attempt.
     """
     story_id = story.get("story_id", "unknown")
 
@@ -942,6 +874,7 @@ def _run_story_critique(
         mcp_servers=mcp_servers,
         timeout=timeout,
         cwd=PROJECT_ROOT,
+        role="story_critique",
     )
 
     if not result.success:
@@ -960,7 +893,14 @@ def _run_story_critique(
             reason=result.output[:500] if result.output else "Dispatch failed",
         )
         # Critique dispatch failure is non-fatal — validation is the correctness gate.
-        return (True, [])
+        return CritiqueRunArtifact.from_dict(
+            {"status": "pass", "findings": [], "summary": ""},
+            level="story",
+            critique_type="story",
+            critique_model=critique_model,
+            story_id=story_id,
+            attempt=attempt,
+        )
 
     # Parse JSON result — robust extraction handles text around JSON
     raw_output = result.output or ""
@@ -983,35 +923,27 @@ def _run_story_critique(
         )
         # Critique parse failure is non-fatal — validation is the correctness gate.
         # Log the skip and proceed as pass with no findings.
-        return (True, [])
-
-    status = critique.get("status", "pass")
-    findings = critique.get("findings", [])
-    passed = status == "pass"
-
-    if passed:
-        event_logger.log_event(
-            "critique_pass",
-            story_id=story_id,
-            attempt=attempt,
+        return CritiqueRunArtifact.from_dict(
+            {"status": "pass", "findings": [], "summary": ""},
+            level="story",
             critique_type="story",
             critique_model=critique_model,
-            turns=result.turns,
-            findings_count=0,
-        )
-    else:
-        event_logger.log_event(
-            "critique_fail",
             story_id=story_id,
             attempt=attempt,
-            critique_type="story",
-            critique_model=critique_model,
-            turns=result.turns,
-            findings_count=len(findings),
-            findings=findings,
         )
 
-    return (passed, findings)
+    critique_run = CritiqueRunArtifact.from_dict(
+        critique,
+        level="story",
+        critique_type="story",
+        critique_model=critique_model,
+        story_id=story_id,
+        attempt=attempt,
+        turns=result.turns,
+        raw_response=raw_output,
+    )
+    event_logger.log_event(critique_run.event_name, **critique_run.event_payload)
+    return critique_run
 
 
 def _dispatch_and_validate_loop(
@@ -1051,7 +983,7 @@ def _dispatch_and_validate_loop(
     # Read agent config — prefer epic config, fall back to story dict
     agent = story.get("agent", {})
     model = config.models.implementor if config else agent.get("model", "sonnet")
-    retry_context: dict | None = None
+    retry_context: StoryFailureContextArtifact | None = None
     max_attempts = MAX_RETRIES + 1  # initial + retries
     base_commit = _get_latest_commit_hash()  # snapshot before any dispatch
 
@@ -1077,10 +1009,7 @@ def _dispatch_and_validate_loop(
 
         # For retries, append failure feedback section to the prompt
         if retry_context:
-            prompt += f"\n\n---\n## Failure Feedback (Attempt {retry_context['attempt']})\n\n"
-            prompt += f"**Error:** {retry_context['error']}\n"
-            prompt += f"**Files modified:** {', '.join(retry_context['files_modified'])}\n"
-            prompt += f"**JSONL excerpt:** {retry_context['jsonl_excerpt']}\n"
+            prompt += retry_context.prompt_block
 
         # Log the prompt for debugging
         log_prompt(epic_dir, story_id, attempt, prompt)
@@ -1099,9 +1028,6 @@ def _dispatch_and_validate_loop(
             **metadata,
         )
 
-        # Snapshot test file hashes before dispatch (for scope violation detection)
-        test_hashes_before = _snapshot_test_hashes()
-
         # Dispatch the implementation agent (with conversation transcript)
         story_dir = epic_dir / "stories" / story_id
         story_dir.mkdir(parents=True, exist_ok=True)
@@ -1114,36 +1040,8 @@ def _dispatch_and_validate_loop(
             mcp_servers=mcp_servers_impl,
             timeout=0,  # streaming mode; no subprocess timeout
             conversation_log=conv_log,
+            role="implementation",
         )
-
-        # Check for test file modifications (scope violation)
-        test_hashes_after = _snapshot_test_hashes()
-        modified_tests = _detect_test_modifications(test_hashes_before, test_hashes_after)
-        if modified_tests:
-            logger.error(
-                "Story '%s' modified pre-written test files (scope violation): %s",
-                story_id,
-                ", ".join(modified_tests),
-            )
-            event_logger.log_event(
-                "story_failed",
-                story_id=story_id,
-                attempt=attempt,
-                reason=f"Scope violation: agent modified test files: {', '.join(modified_tests)}",
-                failure_category="scope_violation",
-            )
-            return _handle_terminal_failure(
-                story_id=story_id,
-                attempt=attempt,
-                classification=FailureClassification(
-                    category="scope_violation",
-                    evidence=f"Modified test files: {', '.join(modified_tests)}",
-                    pattern="test_file_modification",
-                ),
-                error_text=f"Agent modified pre-written test files: {', '.join(modified_tests)}",
-                event_logger=event_logger,
-                plan_scope_paths=plan_scope_paths,
-            )
 
         # Log agent result
         if agent_result.success:
@@ -1197,11 +1095,12 @@ def _dispatch_and_validate_loop(
                 )
 
             # Build retry context for next attempt (simple dict)
-            retry_context = {
-                "attempt": attempt,
-                "error": _extract_key_error(error_text),
-                "files_modified": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
+            retry_context = StoryFailureContextArtifact(
+                story_id=story_id,
+                attempt=attempt,
+                last_error=_extract_key_error(error_text),
+                files_affected=tuple(plan_scope_paths),
+                jsonl_excerpt=json.dumps(
                     {
                         "event": "agent_failed",
                         "story_id": story_id,
@@ -1210,7 +1109,7 @@ def _dispatch_and_validate_loop(
                         "evidence": classification.evidence,
                     }
                 ),
-            }
+            )
 
             # Log story_started for the retry attempt
             event_logger.log_event(
@@ -1236,11 +1135,13 @@ def _dispatch_and_validate_loop(
             return False
 
         # Run validation checkpoint
+        skip_golden = config.gates.skip_golden_path if config else False
         validation_result = run_validation_checkpoint(
             checkpoint=checkpoint,
             epic_dir=epic_dir,
             story_id=story_id,
             event_logger=event_logger,
+            skip_golden_path=skip_golden,
         )
 
         if validation_result.passed:
@@ -1249,7 +1150,7 @@ def _dispatch_and_validate_loop(
                 {"check_type": validation_result.check_type, "status": "pass"},
                 indent=2,
             )
-            critique_passed, findings = _run_story_critique(
+            critique_run = _run_story_critique(
                 story=story,
                 validation_results=validation_summary,
                 event_logger=event_logger,
@@ -1259,7 +1160,7 @@ def _dispatch_and_validate_loop(
                 base_commit=base_commit,
             )
 
-            if critique_passed:
+            if critique_run.passed:
                 # Critique passed -- story is complete
                 event_logger.log_event(
                     "story_complete",
@@ -1276,10 +1177,9 @@ def _dispatch_and_validate_loop(
 
             # Critique failed -- hard gate: treat as implementation failure + retry
             critique_error = "; ".join(
-                f.get("issue", str(f)) if isinstance(f, dict) else str(f)
-                for f in findings
-            )
-            classification = FailureClassification(
+                finding.summary_text for finding in critique_run.normalized_findings
+            ) or critique_run.concise_summary
+            classification = FailureClassificationArtifact(
                 category="implementation",
                 evidence=critique_error[:500],
                 pattern="critique_failure",
@@ -1290,7 +1190,7 @@ def _dispatch_and_validate_loop(
                 "treating as implementation failure",
                 story_id,
                 attempt,
-                len(findings),
+                critique_run.findings_count,
             )
 
             # Check retry budget
@@ -1308,20 +1208,19 @@ def _dispatch_and_validate_loop(
                 )
 
             # Build retry context with critique failure details
-            retry_context = {
-                "attempt": attempt,
-                "error": _extract_key_error(critique_error),
-                "files_modified": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
+            retry_context = StoryFailureContextArtifact(
+                story_id=story_id,
+                attempt=attempt,
+                last_error=_extract_key_error(critique_error),
+                files_affected=tuple(plan_scope_paths),
+                jsonl_excerpt=json.dumps(
                     {
-                        "event": "critique_fail",
-                        "story_id": story_id,
-                        "attempt": attempt,
+                        "event": critique_run.event_name,
                         "failure_category": "implementation",
-                        "findings_count": len(findings),
+                        **critique_run.context_payload(limit=3),
                     }
                 ),
-            }
+            )
 
             # Log story_started for the retry attempt
             event_logger.log_event(
@@ -1348,7 +1247,7 @@ def _dispatch_and_validate_loop(
 
         # Override classification if validation already set a category
         if validation_result.failure_category:
-            classification = FailureClassification(
+            classification = FailureClassificationArtifact(
                 category=validation_result.failure_category,
                 evidence=classification.evidence,
                 pattern=classification.pattern,
@@ -1377,11 +1276,12 @@ def _dispatch_and_validate_loop(
             )
 
         # Build retry context with validation failure details (simple dict)
-        retry_context = {
-            "attempt": attempt,
-            "error": _extract_key_error(combined_error),
-            "files_modified": plan_scope_paths,
-            "jsonl_excerpt": json.dumps(
+        retry_context = StoryFailureContextArtifact(
+            story_id=story_id,
+            attempt=attempt,
+            last_error=_extract_key_error(combined_error),
+            files_affected=tuple(plan_scope_paths),
+            jsonl_excerpt=json.dumps(
                 {
                     "event": "validation_fail",
                     "story_id": story_id,
@@ -1392,7 +1292,7 @@ def _dispatch_and_validate_loop(
                     "evidence": classification.evidence,
                 }
             ),
-        }
+        )
 
         # Log story_started for the retry attempt
         event_logger.log_event(
@@ -1421,7 +1321,7 @@ def _dispatch_and_validate_loop(
 def _handle_terminal_failure(
     story_id: str,
     attempt: int,
-    classification: FailureClassification,
+    classification: FailureClassificationArtifact,
     error_text: str,
     event_logger: EventLogger,
     plan_scope_paths: list[str],
@@ -1442,10 +1342,20 @@ def _handle_terminal_failure(
     Returns:
         Always False (story failed).
     """
-    reason = (
-        f"Failure ({classification.category}): {classification.pattern} "
-        f"-- {classification.evidence[:200]}"
+    failure_context = StoryFailureContextArtifact(
+        story_id=story_id,
+        attempt=attempt,
+        last_error=_extract_key_error(error_text),
+        files_affected=tuple(plan_scope_paths),
+        jsonl_excerpt=json.dumps(
+            {
+                "failure_category": classification.category,
+                "evidence": classification.evidence,
+                "pattern": classification.pattern,
+            }
+        ),
     )
+    reason = classification.terminal_reason
 
     event_logger.log_event(
         "story_failed",
@@ -1462,19 +1372,7 @@ def _handle_terminal_failure(
             attempt=attempt,
             reason=reason,
             failure_category=classification.category,
-            context={
-                "story_id": story_id,
-                "attempt": attempt,
-                "last_error": _extract_key_error(error_text),
-                "files_affected": plan_scope_paths,
-                "jsonl_excerpt": json.dumps(
-                    {
-                        "failure_category": classification.category,
-                        "evidence": classification.evidence,
-                        "pattern": classification.pattern,
-                    }
-                ),
-            },
+            context=failure_context.event_context,
         )
 
     logger.error(

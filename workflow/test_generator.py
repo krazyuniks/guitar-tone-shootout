@@ -17,8 +17,12 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from workflow.artifacts import (
+    DispatchResultArtifact,
+    StoryRunArtifact,
+    TestReviewArtifact,
+)
 from workflow.dispatch import (
-    AgentResult,
     dispatch_agent,
     extract_json_from_text,
     get_dispatch_params,
@@ -72,7 +76,7 @@ class TestGenResult:
     success: bool
     test_file_path: str | None = None
     attempts: int = 0
-    feedback_trail: list[dict] = field(default_factory=list)
+    feedback_trail: list[TestReviewArtifact] = field(default_factory=list)
 
 
 @dataclass
@@ -112,7 +116,7 @@ def _build_writer_prompt(
     test_spec: dict,
     story: dict,
     epic_number: int,
-    prior_feedback: list[dict] | None = None,
+    prior_feedback: list[TestReviewArtifact | dict] | None = None,
 ) -> str:
     """Build the prompt for the test_writer agent.
 
@@ -205,7 +209,8 @@ def _build_writer_prompt(
                 "",
             ]
         )
-        for i, fb in enumerate(prior_feedback, 1):
+        for i, feedback in enumerate(prior_feedback, 1):
+            fb = feedback.to_dict() if isinstance(feedback, TestReviewArtifact) else feedback
             lines.append(f"### Attempt {i} Feedback")
             verdict = fb.get("verdict", "fail")
             lines.append(f"**Verdict:** {verdict}")
@@ -337,11 +342,12 @@ def write_test_for_story(
     model = config.models.test_writer
     mcp_servers, timeout = get_dispatch_params("test_writing", config)
 
-    result: AgentResult = dispatch_agent(
+    result: DispatchResultArtifact = dispatch_agent(
         prompt=prompt,
         model=model,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="test_writer",
     )
 
     if not result.success:
@@ -374,7 +380,7 @@ def review_test(
     test_code: str,
     test_spec: dict,
     config: object,
-) -> dict:
+) -> TestReviewArtifact:
     """Dispatch the test_reviewer agent to review generated test code.
 
     Args:
@@ -383,7 +389,7 @@ def review_test(
         config: EpicConfig instance.
 
     Returns:
-        Review result dict with verdict, checklist, and suggestions.
+        Typed review artifact with verdict, checklist, and suggestions.
 
     Raises:
         RuntimeError: If the reviewer dispatch fails.
@@ -395,15 +401,16 @@ def review_test(
 
     prompt = _build_reviewer_prompt(test_code, test_spec)
 
-    model = config.models.test_reviewer
-    mcp_servers, timeout = get_dispatch_params("test_review", config)
+    model = config.models.test_writer
+    mcp_servers, timeout = get_dispatch_params("test_writing", config)
 
-    result: AgentResult = dispatch_agent(
+    result: DispatchResultArtifact = dispatch_agent(
         prompt=prompt,
         model=model,
         json_schema=TEST_REVIEW_SCHEMA,
         mcp_servers=mcp_servers,
         timeout=timeout,
+        role="test_reviewer",
     )
 
     if not result.success:
@@ -411,17 +418,13 @@ def review_test(
 
     # Parse the structured review output
     try:
-        review = extract_json_from_text(result.output)
+        payload = result.structured_output or extract_json_from_text(result.output)
     except ValueError as exc:
         raise ValueError(
             f"Failed to parse reviewer output: {exc}\nRaw: {result.output[:500]}"
         ) from exc
 
-    # Validate minimum expected fields
-    if "verdict" not in review:
-        raise ValueError(f"Reviewer output missing 'verdict': {review}")
-
-    return review
+    return TestReviewArtifact.from_dict(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +458,7 @@ def generate_and_review_test(
         TestGenResult with success status and feedback trail.
     """
     story_id = story.get("story_id", "unknown")
-    feedback_trail: list[dict] = []
+    feedback_trail: list[TestReviewArtifact] = []
 
     event_logger.log_event("test_gen_started", story_id=story_id)
 
@@ -500,11 +503,13 @@ def generate_and_review_test(
         except (RuntimeError, ValueError) as exc:
             logger.error("test_reviewer failed for %s: %s", story_id, exc)
             feedback_trail.append(
-                {
+                TestReviewArtifact.from_dict(
+                    {
                     "verdict": "fail",
                     "checklist": [],
                     "suggestions": [f"Reviewer error: {exc}"],
-                }
+                    }
+                )
             )
             event_logger.log_event(
                 "test_review_fail",
@@ -514,9 +519,7 @@ def generate_and_review_test(
             )
             continue
 
-        verdict = review.get("verdict", "fail")
-
-        if verdict == "pass":
+        if review.passed:
             logger.info("Test review PASSED for %s (attempt %d)", story_id, attempt)
             event_logger.log_event(
                 "test_review_pass",
@@ -543,7 +546,7 @@ def generate_and_review_test(
             "test_review_fail",
             story_id=story_id,
             attempt=attempt,
-            reviewer_feedback=review,
+            reviewer_feedback=review.to_dict(),
         )
 
     # Exhausted all attempts
@@ -568,7 +571,7 @@ def generate_and_review_test(
 
 def _is_test_already_passing(events: list[dict], story_id: str) -> bool:
     """Check if a test_review_pass event exists for a story in the JSONL log."""
-    return find_last_event(events, "test_review_pass", story_id=story_id) is not None
+    return StoryRunArtifact.from_events(events, story_id).has_passing_test
 
 
 def run_test_generation(
@@ -625,16 +628,17 @@ def run_test_generation(
     for story in stories_with_specs:
         story_id = story.get("story_id", "unknown")
         test_spec = story["test_spec"]
+        story_run = StoryRunArtifact.from_events(events, story_id)
 
         # Resume support: skip already-passing tests
-        if _is_test_already_passing(events, story_id):
+        if story_run.has_passing_test:
             logger.info("Skipping %s — test already passing", story_id)
             report.passed.append(
                 TestGenResult(
                     story_id=story_id,
                     success=True,
-                    test_file_path=None,  # Already written
-                    attempts=0,
+                    test_file_path=story_run.latest_test_file_path,
+                    attempts=story_run.attempt,
                 )
             )
             continue

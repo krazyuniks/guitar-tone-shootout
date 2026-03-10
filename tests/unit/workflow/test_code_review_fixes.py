@@ -88,13 +88,15 @@ class TestPlanVerifierAdapterSelection:
 
 
 class TestGapDetectionBudgetConfig:
-    """gap_detection must have its own budget entry in default config."""
+    """gap_detection uses the planning budget (no separate entry needed)."""
 
-    def test_default_config_has_gap_detection_budget(self):
-        """default_config.toml must define [budgets.gap_detection]."""
+    def test_gap_detection_uses_planning_budget(self):
+        """gap_detection falls back to planning budget timeout."""
         config = load_config(DEFAULT_CONFIG_PATH)
-        assert "gap_detection" in config.budgets
-        budget = config.budgets["gap_detection"]
+        # gap_detection no longer has its own budget entry;
+        # it uses the planning budget via get_dispatch_params fallback
+        assert "planning" in config.budgets
+        budget = config.budgets["planning"]
         assert isinstance(budget, BudgetConfig)
         assert budget.timeout > 0
 
