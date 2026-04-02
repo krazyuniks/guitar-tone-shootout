@@ -1,0 +1,4 @@
+{"ts": "2026-04-02T13:55:00.010653Z", "provider": "codex", "model": "codex", "seq": 1, "payload": {"type": "thread.started", "thread_id": "019d4e79-d30b-75e3-afa2-195400fc8a55"}}
+{"ts": "2026-04-02T13:55:00.013518Z", "provider": "codex", "model": "codex", "seq": 2, "payload": {"type": "turn.started"}}
+{"ts": "2026-04-02T13:55:02.969001Z", "provider": "codex", "model": "codex", "seq": 3, "payload": {"type": "error", "message": "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying."}}
+{"ts": "2026-04-02T13:55:03.007042Z", "provider": "codex", "model": "codex", "seq": 4, "payload": {"type": "turn.failed", "error": {"message": "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying."}}}
