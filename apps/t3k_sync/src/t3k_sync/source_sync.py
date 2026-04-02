@@ -43,20 +43,22 @@ def _check_auth_gate(auth_file_path: str | None = None) -> None:
         raise RuntimeError(msg)
 
 
-def _build_api_client() -> tuple[T3KTokenManager, T3KAPIClient]:
-    """Build T3K token manager + API client from environment configuration."""
+def build_token_manager() -> T3KTokenManager:
+    """Build T3K token manager from environment configuration."""
     base_url = os.getenv("T3K_API_URL", "https://www.tone3000.com")
     auth_file_path = os.getenv("GTS_AUTH_FILE", "/.gts-auth.json")
     encryption_key = os.environ["OAUTH_ENCRYPTION_KEY"]
-    token_manager = T3KTokenManager(
+    return T3KTokenManager(
         auth_file_path=auth_file_path,
         base_url=base_url,
         encryption_key=encryption_key,
     )
-    api_client = T3KAPIClient(
-        token_manager=token_manager, base_url=base_url, requests_per_second=1.0
-    )
-    return token_manager, api_client
+
+
+def _build_api_client(token_manager: T3KTokenManager) -> T3KAPIClient:
+    """Build T3K API client with the given token manager."""
+    base_url = os.getenv("T3K_API_URL", "https://www.tone3000.com")
+    return T3KAPIClient(token_manager=token_manager, base_url=base_url, requests_per_second=1.0)
 
 
 def _build_model_downloader(api_client: T3KAPIClient) -> ModelDownloader:
@@ -110,6 +112,7 @@ async def run_source_sync(
     job_id: UUID | None = None,
     *,
     tracker: SyncHealthTracker | None = None,
+    token_manager: T3KTokenManager | None = None,
 ) -> UUID:
     """Run one source sync batch (one-shot, lock-protected)."""
     tracked_job_id = job_id if job_id is not None else await _create_source_sync_job()
@@ -125,7 +128,8 @@ async def run_source_sync(
         )
         raise
 
-    token_manager: T3KTokenManager | None = None
+    _owns_tm = token_manager is None
+    effective_tm = token_manager
     async with get_core_session_no_tx() as lock_session:
         result = await lock_session.execute(
             text("SELECT pg_try_advisory_lock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
@@ -148,7 +152,9 @@ async def run_source_sync(
 
         try:
             async with get_core_session_no_tx() as session:
-                token_manager, api_client = _build_api_client()
+                if effective_tm is None:
+                    effective_tm = build_token_manager()
+                api_client = _build_api_client(effective_tm)
                 model_downloader = _build_model_downloader(api_client)
                 publisher = GearSyncPublisher(session=session, queue_name="source_events")
                 sync_service = T3KSyncService(
@@ -198,8 +204,8 @@ async def run_source_sync(
             if tracker is not None:
                 tracker.record_sync_failure("Sync batch failed")
         finally:
-            if token_manager is not None:
-                await token_manager.close()
+            if _owns_tm and effective_tm is not None:
+                await effective_tm.close()
 
             await lock_session.execute(
                 text("SELECT pg_advisory_unlock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}

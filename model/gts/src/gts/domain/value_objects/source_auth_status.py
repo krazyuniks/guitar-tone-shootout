@@ -23,7 +23,7 @@ class SourceAuthStatus(str, Enum):
 
     def can_proceed(self) -> bool:
         """Return True if API calls are safe to make."""
-        return self != SourceAuthStatus.LOGIN_REQUIRED
+        return self in (SourceAuthStatus.VALID, SourceAuthStatus.EXPIRING_SOON)
 
     def needs_login(self) -> bool:
         """Return True if manual re-authentication is needed."""

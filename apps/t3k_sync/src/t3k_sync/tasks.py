@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from source_t3k.adapters.inbound.token_manager import T3KTokenManager
+
 logger = logging.getLogger(__name__)
 
 _REFRESH_WINDOW_SECONDS = 600
@@ -64,6 +66,8 @@ async def refresh_t3k_token(
     auth_file_path: str | None = None,
     encryption_key: str | None = None,
     base_url: str | None = None,
+    *,
+    token_manager: T3KTokenManager | None = None,
 ) -> None:
     """Check T3K token expiry and refresh if needed."""
     if auth_file_path is None:
@@ -127,7 +131,7 @@ async def refresh_t3k_token(
     if not needs_refresh:
         return
 
-    if not encryption_key:
+    if token_manager is None and not encryption_key:
         logger.error("OAUTH_ENCRYPTION_KEY not set — cannot refresh")
         return
 
@@ -136,14 +140,15 @@ async def refresh_t3k_token(
     from source_t3k.adapters.inbound.exceptions import T3KAPIError
     from source_t3k.adapters.inbound.token_manager import T3KTokenManager
 
-    new_status = SourceAuthStatus.REFRESH_FAILED
-    token_manager = T3KTokenManager(
+    _owns_tm = token_manager is None
+    effective_tm: T3KTokenManager = token_manager or T3KTokenManager(
         auth_file_path=auth_file_path,
         base_url=base_url,
         encryption_key=encryption_key,
     )
+    new_status = SourceAuthStatus.REFRESH_FAILED
     try:
-        await token_manager.get_access_token()
+        await effective_tm.get_access_token()
         new_status = SourceAuthStatus.VALID
         logger.info("T3K token refreshed successfully")
     except T3KAPIError as e:
@@ -158,7 +163,8 @@ async def refresh_t3k_token(
         new_status = SourceAuthStatus.REFRESH_FAILED
         logger.exception("Unexpected error during T3K token refresh")
     finally:
-        await token_manager.close()
+        if _owns_tm:
+            await effective_tm.close()
 
     _update_auth_status(auth_file_path, new_status)
 
