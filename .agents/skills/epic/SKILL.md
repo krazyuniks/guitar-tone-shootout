@@ -7,9 +7,11 @@ context: fork
 
 # Epic Skill
 
-**Activation:** `/epic` command -- lifecycle management for epics using the behavioural validation workflow.
+**Activation:** `/epic` command -- lifecycle management for epics using the
+current issue-first workflow.
 
-**NEVER run `just --list` or search for commands.** All commands are listed below. Use them exactly as written.
+**NEVER run `just --list` or search for commands.** All commands are listed
+below. Use them exactly as written.
 
 ---
 
@@ -17,13 +19,15 @@ context: fork
 
 **User arguments: `$ARGUMENTS`**
 
-Parse the arguments above and run the matching command. Do NOT ask clarifying questions. Do NOT search for commands.
+Parse the arguments above and run the matching command. Do NOT ask clarifying
+questions. Do NOT search for commands.
 
-**Argument matching rules** (args may arrive as just the number, or with the full `/epic` prefix):
+**Argument matching rules** (args may arrive as just the number, or with the
+full `/epic` prefix):
 
 | Args pattern | Run this immediately |
-|-----------|---------------------|
-| `run <N>`, `/epic run <N>` | `yes \| just epic <N>` |
+|---|---|
+| `run <N>`, `/epic run <N>` | `just epic <N>` |
 | `brainstorm <N>`, `/epic brainstorm <N>` | Load `brainstorm.md` skill and follow it |
 | `status <N>`, `/epic status <N>` | `just epic-status <N>` |
 | `validate-plan <N>`, `/epic validate-plan <N>` | `just epic-validate-plan <N>` |
@@ -31,111 +35,97 @@ Parse the arguments above and run the matching command. Do NOT ask clarifying qu
 | `deps <N>`, `/epic deps <N>` | Load `deps.md` skill and follow it |
 | `next`, `/epic next` | Load `next.md` skill and follow it |
 
-Where `<N>` is a number (the epic/issue number).
+Where `<N>` is a number (the epic or issue number).
 
-**A bare number (e.g. `/epic 95`) is ambiguous.** Ask the user which action they want:
+**A bare number (for example `/epic 95`) is ambiguous.** Ask the user which
+action they want:
 
 > Epic #N — what would you like to do?
 > 1. **brainstorm** — enrich the issue interactively before planning
-> 2. **run** — execute the full pipeline (plan → verify → execute)
+> 2. **run** — execute the full pipeline
 > 3. **status** — check progress from JSONL logs
 
-If args are empty (blank or whitespace only), ask which epic number, then ask which action.
+If args are empty, ask which epic number, then ask which action.
 
 ---
 
 ## Commands
 
 | Command | Purpose |
-|---------|---------|
-| `just epic <N>` | Full pipeline: ingest -> plan -> verify -> gate -> execute |
+|---|---|
+| `just map-codebase` | Refresh `.planning/codebase/` when repo maps are missing or stale |
+| `just epic <N>` | Full pipeline: ingest -> repo-facts -> curation -> plan -> verify -> execute (gate only on unresolved planning failures) |
 | `just epic-status <N>` | Show progress from JSONL logs |
 | `just epic-validate-plan <N>` | Validate plan.json against schema (Phase A only) |
 
 ---
 
-## Architecture
+## Workflow Contracts
 
-### Planning Pipeline
+Read `workflow/references/workflow-architecture.md` for the canonical
+invocation model and workflow type framework.
 
-**Principle: "No model marks its own homework."** Every AI artefact is verified by a different model.
+### Invocation Modes
 
-| Phase | Module | Model | Purpose |
-|-------|--------|-------|---------|
-| Ingest | `workflow/epic_ingest.py` | (deterministic) | Fetch epic from GitHub, write EPIC.md |
-| Context | `workflow/context_assembler.py` | (deterministic) | Assemble wiki + codebase context into CONTEXT.md |
-| Scope | (orchestrator, interactive) | - | Human confirms scope, resolves gray areas |
-| Plan | `workflow/plan_generator.py` | Opus | Goal-backward analysis -> PLAN.md + plan.json |
-| Validate | `workflow/plan_validator.py` | (deterministic) | Phase A: schema + referential integrity checks |
-| Verify | `workflow/plan_verifier.py` | Codex | Phase B: adversarial 5-dimension critique |
-| Gate | (orchestrator, interactive) | - | Human approves, revises, or rejects |
+| Mode | Runs in | Character |
+|---|---|---|
+| Autonomous | `just` | Runs to completion or the next gate without requiring conversation. |
+| Gate | `just` | Stops cleanly at a human decision point and is safe to re-run. |
+| Interactive | `/epic brainstorm` | User-in-the-loop exploration and issue refinement. |
 
-### Execution Pipeline
+### Workflow Types
 
-| Phase | Module | Purpose |
-|-------|--------|---------|
-| Execute | `workflow/orchestrator.py` | Dispatch stories, run validation checkpoints |
-| Story critique | `workflow/story_executor.py` | Post-story Opus critique of implementation |
-| Epic critique | `workflow/orchestrator.py` | Post-epic Opus holistic review |
-| Resume | `workflow/orchestrator.py` (--resume) | Crash recovery from JSONL log |
-| Status | `workflow/orchestrator.py` (status) | Read JSONL, report progress |
+| Type | Use it when | Examples |
+|---|---|---|
+| Skill | The user must stay in the loop. | `/epic brainstorm`, `/epic next` |
+| `just` command | The workflow can run deterministically by itself. | `just epic <N>`, `just check` |
+| Hook | The system should enforce an invariant automatically. | mock gate, adherence check |
+| Rule | Context should always shape behaviour without explicit invocation. | container execution, worktree branching |
+
+### Current Epic Pipeline
+
+**Principle: "No model marks its own homework."** Planning and execution use
+cross-model verification rather than self-approval.
+
+Planning pipeline:
+
+1. Ingest the GitHub issue into `EPIC.md`
+2. Build `repo_facts.json`
+3. Generate `curation.json` and `CURATION.md`
+4. Generate `plan.json` and `PLAN.md`
+5. Run Phase A validation and Phase B verification
+6. If verification still fails, stop at the decision gate
+7. Commit and push planning artefacts
+
+Execution continues from JSONL state when `just epic <N>` is re-run after
+planning is committed.
+
+### Gate Behaviour
+
+- Run `just epic <N>` directly. Do not pipe `yes` into it.
+- When the workflow stops at a gate, resolve the requested review or revision,
+  then re-run the same `just` command.
+- Re-running `just epic <N>` at an unresolved gate is expected and safe.
+- If `.planning/codebase/` is missing and a workflow or skill needs mapper
+  output, run `just map-codebase`.
 
 ### File Structure Per Epic
 
 ```
 .planning/epics/E<N>/
   EPIC.md           # Ingested GitHub issue (YAML frontmatter + body)
-  CONTEXT.md        # Assembled context for planner
+  repo_facts.json   # Deterministic repo-grounding facts for the epic contract
+  CURATION.md       # Human-readable curation handoff
+  curation.json     # Machine-readable curation handoff
   PLAN.md           # Human-readable plan (narrative)
   plan.json         # Machine-readable plan (stories, checkpoints, truths)
   epic.jsonl        # Epic-level event log
   SUMMARY.md        # Post-epic summary generated from JSONL
   stories/
     <story_id>/
-      story.jsonl           # Story-level event log
-      prompt-attempt-N.md   # Logged agent prompts per attempt
+      story.jsonl         # Story-level event log
+      prompt-attempt-N.md # Logged agent prompts per attempt
 ```
-
----
-
-## Planning Workflow
-
-### CRITICAL: Always Plan Fresh
-
-**Planning always starts from scratch.** The pipeline derives its own story breakdown from the epic body and codebase analysis.
-
-- **Delete stale planning state** (`.planning/epics/E<N>/`) before starting
-- **Never reuse** old plans or partial artefacts
-
-### CRITICAL: Everything Ships -- No Deferral
-
-**Every capability in the epic gets built. 100%. No tech debt. Nothing deferred.**
-
-- **Never ask** "what's the ONE thing that must work" or "what's the core priority"
-- **Never suggest** reducing scope, cutting features, or building an MVP subset
-- The epic defines the work. ALL of it gets planned. ALL of it gets built.
-
-### Phase Flow
-
-1. **Ingest** -- Fetch epic from GitHub via `gh issue view`, write EPIC.md with YAML frontmatter
-2. **Context Assembly** -- Read EPIC.md + wiki + codebase files, keyword scan for relevant areas, write CONTEXT.md (deterministic, $0)
-3. **Interactive Scope** -- User confirms scope, resolves ambiguities, locks decisions
-4. **Plan Generation** -- Opus performs goal-backward analysis: observable truths -> user journeys -> stories -> validation checkpoints. Produces PLAN.md + plan.json
-5. **Schema Validation** -- Phase A: deterministic checks on plan.json (referential integrity, truth coverage, scope coherence, dependency ordering)
-6. **Plan Verification** -- Phase B: Codex adversarial critique -- journey completeness, transition coverage, intent alignment, gap detection, validation sufficiency
-7. **Decision Gate** -- Human approves, revises, or rejects
-8. **Commit + Push** -- Planning artefacts committed to remote
-
-### READ Before DERIVE (MANDATORY)
-
-**NEVER assume data models exist. ALWAYS read the source.**
-
-Before deriving ANY artefact:
-1. Use the **Read tool directly** on the authoritative file -- NO summarisation agents
-2. Cite the exact file and line where the entity/field is defined
-3. If you cannot cite a source, **STOP and ASK**
-
-**GTS is source-agnostic.** Core domain models NEVER contain source-specific fields.
 
 ---
 
@@ -143,33 +133,30 @@ Before deriving ANY artefact:
 
 ### Story Execution Loop
 
-For each story in plan.json:
+For each story in `plan.json`:
 
-1. Check state assumption (if `"clean"`, reset DB before dispatch)
-2. Run pre-flight checks (verify inputs from previous stories exist)
-3. Construct prompt via `workflow/prompt_builder.py` (T0 epic context + T1 enriched story spec: acceptance criteria, architectural context, navigation hints, dependencies, scope, implementation notes, checkpoint criteria)
-4. Dispatch implementation agent via `workflow/dispatch.py` (model per plan.json: Codex/Sonnet/Opus)
-5. If validation checkpoint follows this story, run validation check
-6. On validation pass: dispatch **post-story Opus critique** (read-only, reviews code diff)
-7. On critique pass: log `story_complete`, proceed to next story
-8. On critique fail: counts against implementation retry budget, retry or exit
-9. On validation fail: classify failure, retry (up to 2 attempts) or exit to human
-10. After all stories pass: run **post-epic Opus critique** (holistic review, terminal on fail)
+1. Check state assumptions and pre-flight dependencies
+2. Build the story prompt with `workflow/prompt_builder.py`
+3. Dispatch the implementation agent via `workflow/dispatch.py`
+4. Run the checkpoint after the story when required
+5. On validation pass, run post-story critique
+6. Retry or exit to human based on the failure category
+7. After all stories pass, run the post-epic critique
 
 ### Failure Categories
 
 | Category | Retry Policy |
-|----------|-------------|
-| `env` | 0 retries -- exit immediately (Docker down, MCP unavailable) |
-| `upstream` | 0 retries -- exit to human (bug in earlier story's scope) |
-| `scope` | 2 retries (plan references wrong path) |
-| `implementation` | 2 retries (agent wrote incorrect code) |
-| `unknown` | 2 retries (timeout, ambiguous error) |
+|---|---|
+| `env` | 0 retries -- exit immediately |
+| `upstream` | 0 retries -- exit to human |
+| `scope` | 2 retries |
+| `implementation` | 2 retries |
+| `unknown` | 2 retries |
 
 ### Validation Checkpoint Types
 
 | Check Type | Model | MCP Required |
-|------------|-------|-------------|
+|---|---|---|
 | `http` | haiku | none |
 | `http+dom` | haiku | chrome-devtools |
 | `browser+db` | sonnet | chrome-devtools |
@@ -184,48 +171,50 @@ For each story in plan.json:
 ## Container-First Commands (MANDATORY)
 
 | Action | Use This | NEVER This |
-|--------|----------|------------|
+|---|---|---|
 | Run tests | `just test-unit`, `just test-integration` | `pytest`, `python -m pytest` |
 | Run E2E | `just test-golden-path` | `cd tests/e2e && pytest` |
 | Single test | `just tdd <path>` | `docker compose exec webapp pytest` |
-| Lint/types | `just check` | `ruff check`, `mypy` |
+| Lint and types | `just check` | `ruff check`, `mypy` |
 | Build frontend | `just build-astro` | `pnpm build` |
 
 ---
 
-## Reference Files (READ BEFORE EACH PHASE)
+## Reference Files
 
 | File | When to Read | Purpose |
-|------|--------------|---------|
-| `references/question-bank.md` | Before interactive scope | GTS-specific questions |
-| `references/gray-areas.md` | Before context assembly | Detection patterns |
-| `references/goal-backward.md` | **Before plan generation** | Planning guide with GTS artefact mappings |
+|---|---|---|
+| `workflow/references/workflow-architecture.md` | Before changing workflow contracts | Invocation model, artefact storage, mapper contract |
+| `references/goal-backward.md` | Before plan generation | Planning guide with GTS artefact mappings |
 
 ---
 
-## Context Sources (MUST READ)
+## Context Sources
 
 | Source | Path | Purpose |
-|--------|------|---------|
+|---|---|---|
 | Architecture | `../wiki/GTS-Technical-Architecture.md` | Stack, domain model |
+| Epic workflow wiki | `../wiki/Epic-Workflow.md` | Full orchestrator pipeline walkthrough |
 | Agent Guide | `AGENTS.md` | Development workflow, rules |
 
 ---
 
 ## GitHub CLI Requirements
 
-**ALWAYS** include `--repo krazyuniks/guitar-tone-shootout` with ALL `gh` commands.
+**ALWAYS** include `--repo krazyuniks/guitar-tone-shootout` with all `gh`
+commands.
 
 ---
 
-## State Persistence and Audit Trail
+## State Persistence And Audit Trail
 
 `.planning/` is tracked in git, forming a complete audit trail:
 
 ```
 GitHub Issue (epic)
-  -> .planning/epics/E<N>/    (planning: EPIC.md, CONTEXT.md, PLAN.md, plan.json)
-  -> .planning/epics/E<N>/    (execution: epic.jsonl, stories/, SUMMARY.md)
+  -> .planning/epics/E<N>/    (planning: EPIC.md, repo_facts.json, curation.json, PLAN.md, plan.json)
+  -> .planning/epics/E<N>/    (execution: epic.jsonl, stories/, SUMMARY.md, STORY_CONTEXT.md)
 ```
 
-All events logged to JSONL. JSONL is the source of truth for crash recovery, status reporting, and post-epic analysis.
+All events logged to JSONL. JSONL is the source of truth for crash recovery,
+status reporting, and post-epic analysis.

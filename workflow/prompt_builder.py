@@ -14,10 +14,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
 
+from workflow.artifacts import CritiqueRunArtifact
 from workflow.models import CheckCriterion, ValidationCheckpoint
 
 # ---------------------------------------------------------------------------
@@ -26,6 +28,7 @@ from workflow.models import CheckCriterion, ValidationCheckpoint
 
 # Approximate chars per token (same ratio as wiki_indexer.py)
 CHARS_PER_TOKEN = 4
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Check-type to domain mapping
 CHECK_TYPE_TO_DOMAINS: dict[str, list[str]] = {
@@ -365,6 +368,50 @@ def build_story_prompt(
             parts.append(f"- {check.criterion} (evidence: {evidence})")
         parts.append("")
 
+    return "\n".join(parts)
+
+
+def build_story_revision_prompt(
+    story: dict,
+    critique_run: CritiqueRunArtifact,
+    git_diff: str,
+) -> str:
+    """Build a targeted revision prompt for advisory critique follow-up.
+
+    The prompt is intentionally narrow. It includes only:
+    1. The specific story block from plan.json
+    2. The implementation diff for the story
+    3. Critique findings that need revision
+    4. AGENTS.md content for project conventions
+    """
+    agents_path = PROJECT_ROOT / "AGENTS.md"
+    agents_content = agents_path.read_text(encoding="utf-8").strip()
+    story_json = json.dumps(story, indent=2, ensure_ascii=False)
+    findings = [finding.markdown_text for finding in critique_run.normalized_findings]
+    if not findings:
+        findings.append(f"- {critique_run.concise_summary}")
+
+    parts = [
+        "Revise the implementation to address the critique findings below.",
+        "Do not broaden scope beyond this story.",
+        "",
+        "## Story Block",
+        "```json",
+        story_json,
+        "```",
+        "",
+        "## Implementation Diff",
+        "```diff",
+        git_diff or "(no diff)",
+        "```",
+        "",
+        "## Critique Findings",
+        *findings,
+        "",
+        "## AGENTS.md",
+        agents_content,
+        "",
+    ]
     return "\n".join(parts)
 
 

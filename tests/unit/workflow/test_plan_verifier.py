@@ -5,12 +5,14 @@ from workflow.artifacts import (
     PlanVerificationResultArtifact,
     VerifierFeedbackArtifact,
 )
+from workflow.plan_validator import ValidationResult
 from workflow.plan_verifier import (
     _extract_dimension_failures,
     _get_dimensions,
     _has_extractable_findings,
     _is_verifier_pass,
     present_decision_gate,
+    verify_with_revision_cycle,
 )
 
 
@@ -136,3 +138,54 @@ class TestVerifierFeedbackHelpers:
         assert _is_verifier_pass(feedback) is False
         assert _extract_dimension_failures(feedback) == ["validation_sufficiency"]
         assert _has_extractable_findings(feedback) is False
+
+
+class TestVerifyWithRevisionCycle:
+    def test_phase_b_failure_then_phase_a_revalidation_success_returns_success(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        plan_md_path = _write_plan_files(tmp_path)
+        epic_dir = plan_md_path.parent
+        verifier_calls: list[Path] = []
+
+        monkeypatch.setattr(
+            "workflow.plan_verifier.validate_plan",
+            lambda _epic_dir: ValidationResult(valid=True),
+        )
+
+        def fake_regenerate(_epic_dir: Path, _feedback, config=None) -> None:
+            _ = config
+
+        monkeypatch.setattr(
+            "workflow.plan_verifier._regenerate_plan_with_verifier_feedback",
+            fake_regenerate,
+        )
+
+        def fake_verify(epic_dir_arg: Path, config=None) -> VerifierFeedbackArtifact:
+            verifier_calls.append(epic_dir_arg)
+            return VerifierFeedbackArtifact.from_dict(
+                {
+                    "status": "fail",
+                    "summary": "Intent alignment needs revision",
+                    "dimensions": {
+                        "intent_alignment": {
+                            "status": "fail",
+                            "findings": [
+                                {
+                                    "severity": "must_fix",
+                                    "epic_requirement": "Keep the story sequence intact",
+                                }
+                            ],
+                        }
+                    },
+                }
+            )
+
+        monkeypatch.setattr("workflow.plan_verifier._verify_plan_artifact", fake_verify)
+
+        result, success = verify_with_revision_cycle(epic_dir)
+
+        assert success is True
+        assert result.passed is True
+        assert result.revised_after_critique is True
+        assert verifier_calls == [epic_dir]

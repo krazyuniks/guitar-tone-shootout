@@ -441,7 +441,9 @@ class VerifierFeedbackArtifact:
 def _is_verifier_feedback_payload(payload: object) -> bool:
     if not isinstance(payload, dict):
         return False
-    if "dimensions" in payload or "summary" in payload:
+    if "dimensions" in payload:
+        return True
+    if "status" in payload and "summary" in payload:
         return True
     return any(name in payload for name in VERIFIER_DIMENSIONS)
 
@@ -454,6 +456,7 @@ class PlanVerificationResultArtifact:
     status: Literal["pass", "fail"]
     verifier_feedback: VerifierFeedbackArtifact | None = None
     phase_a_errors: tuple[str, ...] = ()
+    details: dict[str, Any] | None = None
     error: str = ""
 
     def __post_init__(self) -> None:
@@ -462,12 +465,14 @@ class PlanVerificationResultArtifact:
                 raise ValueError("Phase A verification result requires validation errors")
             if self.verifier_feedback is not None:
                 raise ValueError("Phase A verification result cannot include verifier feedback")
+            if self.details is not None:
+                raise ValueError("Phase A verification result cannot include Phase B details")
             return
 
         if self.phase_a_errors:
             raise ValueError("Phase B verification result cannot include Phase A errors")
-        if self.verifier_feedback is None and not self.error:
-            raise ValueError("Phase B verification result requires feedback or an error")
+        if self.verifier_feedback is None and self.details is None and not self.error:
+            raise ValueError("Phase B verification result requires feedback, details, or an error")
 
     @classmethod
     def from_phase_a_errors(cls, errors: list[str]) -> "PlanVerificationResultArtifact":
@@ -486,6 +491,20 @@ class PlanVerificationResultArtifact:
             phase="phase_b",
             status="pass" if feedback.status == "pass" else "fail",
             verifier_feedback=feedback,
+        )
+
+    @classmethod
+    def from_revision_success(
+        cls,
+        summary: str = "Plan revised after verifier findings and passed Phase A revalidation.",
+    ) -> "PlanVerificationResultArtifact":
+        return cls(
+            phase="phase_b",
+            status="pass",
+            details={
+                "summary": summary,
+                "revision_applied": True,
+            },
         )
 
     @classmethod
@@ -508,11 +527,16 @@ class PlanVerificationResultArtifact:
             return "; ".join(self.phase_a_errors[:3])
         if self.verifier_feedback is not None:
             return self.verifier_feedback.summary
+        if self.details is not None:
+            return str(self.details.get("summary", ""))
         return ""
 
     @property
     def phase_b_scores(self) -> dict[str, str]:
         if self.verifier_feedback is None:
+            raw_scores = self.details.get("scores", {}) if self.details is not None else {}
+            if isinstance(raw_scores, dict):
+                return {str(key): str(value) for key, value in raw_scores.items()}
             return {}
         return self.verifier_feedback.dimension_statuses
 
@@ -520,9 +544,15 @@ class PlanVerificationResultArtifact:
     def feedback_payload(self) -> dict[str, Any] | None:
         if self.verifier_feedback is not None:
             return self.verifier_feedback.to_dict()
+        if self.details is not None:
+            return dict(self.details)
         if self.error:
             return {"status": "fail", "error": self.error}
         return None
+
+    @property
+    def revised_after_critique(self) -> bool:
+        return bool(self.details and self.details.get("revision_applied"))
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -534,6 +564,10 @@ class PlanVerificationResultArtifact:
         if self.verifier_feedback is not None:
             payload["verifier_feedback"] = self.verifier_feedback.to_dict()
             payload["scores"] = self.phase_b_scores
+        if self.details is not None:
+            payload["details"] = dict(self.details)
+            if self.phase_b_scores:
+                payload["scores"] = self.phase_b_scores
         if self.error:
             payload["error"] = self.error
         return payload
@@ -961,8 +995,6 @@ class PhaseBVerificationEventArtifact:
     def __post_init__(self) -> None:
         if self.verifier_feedback is None and self.details is None:
             raise ValueError("Phase B verification event requires feedback or details")
-        if self.passed and self.verifier_feedback is None:
-            raise ValueError("Phase B pass events require typed verifier feedback")
 
     @classmethod
     def from_result(
@@ -979,7 +1011,7 @@ class PhaseBVerificationEventArtifact:
             attempt=attempt,
             passed=result.passed,
             verifier_feedback=result.verifier_feedback,
-            details=None if result.verifier_feedback is not None else result.to_dict(),
+            details=None if result.verifier_feedback is not None else result.feedback_payload,
         )
 
     @classmethod
@@ -1456,10 +1488,24 @@ class CritiqueFindingArtifact:
 
     @property
     def line(self) -> int | None:
-        line = self.raw_payload.get("line")
-        if line is None or line == "":
+        line_ref = self.line_ref
+        if not line_ref:
             return None
-        return int(line)
+        if line_ref.isdigit():
+            return int(line_ref)
+
+        match = re.match(r"^(?P<start>\d+)\s*-\s*(?P<end>\d+)$", line_ref)
+        if match:
+            return int(match.group("start"))
+
+        return None
+
+    @property
+    def line_ref(self) -> str:
+        line = self.raw_payload.get("line")
+        if line is None:
+            return ""
+        return str(line).strip()
 
     @property
     def summary_text(self) -> str:
@@ -1472,9 +1518,9 @@ class CritiqueFindingArtifact:
     def location(self) -> str:
         if not self.file:
             return ""
-        if self.line is None:
+        if not self.line_ref:
             return self.file
-        return f"{self.file}:{self.line}"
+        return f"{self.file}:{self.line_ref}"
 
     @property
     def advisory_text(self) -> str:

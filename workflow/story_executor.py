@@ -36,8 +36,12 @@ from workflow.dispatch import (
     get_dispatch_metadata,
     get_dispatch_params,
 )
+from workflow.github_epic_comments import (
+    build_critique_findings_comment,
+    comment_on_epic,
+)
 from workflow.models import ValidationCheckpoint
-from workflow.prompt_builder import build_story_prompt
+from workflow.prompt_builder import build_story_prompt, build_story_revision_prompt
 from workflow.validation import run_validation_checkpoint
 
 if TYPE_CHECKING:
@@ -51,9 +55,9 @@ RULES_DIR = PROJECT_ROOT / ".claude" / "rules"
 WIKI_INDEXES_DIR = PROJECT_ROOT / ".planning" / "wiki-indexes"
 
 # Maximum retry attempts per story.
-# The plan specifies "2 retries" for scope, implementation, and unknown
-# failure categories. Total attempts = 1 initial + 2 retries = 3.
+# Total attempts = 1 initial + 2 retries = 3 for normal failure paths.
 MAX_RETRIES = 2
+ADVISORY_REVISION_ATTEMPTS = 1
 
 # Compatibility aliases while callers migrate to typed artifact names.
 FailureClassification = FailureClassificationArtifact
@@ -611,6 +615,7 @@ def execute_story(
     event_logger: EventLogger,
     completed_stories: list[str] | None = None,
     config: EpicConfig | None = None,
+    epic_number: int | None = None,
 ) -> bool:
     """Execute a single story: pre-flight -> dispatch -> validate -> retry/proceed.
 
@@ -640,6 +645,7 @@ def execute_story(
             upstream failure detection). If None, defaults to empty list.
         config: Epic configuration profile. If None, falls back to
             plan.json agent defaults for backward compatibility.
+        epic_number: GitHub issue number used for advisory critique comments.
 
     Returns:
         True if the story completed successfully, False otherwise.
@@ -775,6 +781,7 @@ def execute_story(
         completed_stories=completed_stories,
         plan_scope_paths=plan_scope_paths,
         config=config,
+        epic_number=epic_number,
     )
 
 
@@ -811,34 +818,7 @@ def _run_story_critique(
     template_path = Path(__file__).resolve().parent / "templates" / "critique_story.md"
     template = template_path.read_text(encoding="utf-8")
 
-    # Get git diff for story scope — diff from pre-story base commit.
-    # Uses scope paths first; falls back to unfiltered diff when scope paths
-    # miss changes (e.g. git mv renames files to new paths not in scope).
-    scope = story.get("scope", {})
-    scope_paths = list(scope.get("create", [])) + list(scope.get("modify", []))
-    diff_ref = f"{base_commit}..HEAD" if base_commit else "HEAD~1"
-    try:
-        diff_args = ["git", "diff", diff_ref, "--", *scope_paths]
-        diff_result = subprocess.run(
-            diff_args,
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT,
-            timeout=30,
-        )
-        git_diff = diff_result.stdout.strip()
-        if not git_diff:
-            # Scope paths missed changes (renames, new paths) — full diff
-            diff_result = subprocess.run(
-                ["git", "diff", diff_ref],
-                capture_output=True,
-                text=True,
-                cwd=PROJECT_ROOT,
-                timeout=30,
-            )
-            git_diff = diff_result.stdout.strip() or "(no diff)"
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        git_diff = "(diff unavailable)"
+    git_diff = _build_story_git_diff(story, base_commit)
 
     # Build prompt from template
     story_json = json.dumps(story, indent=2)
@@ -946,6 +926,35 @@ def _run_story_critique(
     return critique_run
 
 
+def _build_story_git_diff(story: dict, base_commit: str | None) -> str:
+    """Build the story-scoped git diff from the pre-story base commit."""
+    scope = story.get("scope", {})
+    scope_paths = list(scope.get("create", [])) + list(scope.get("modify", []))
+    diff_ref = f"{base_commit}..HEAD" if base_commit else "HEAD~1"
+    try:
+        diff_args = ["git", "diff", diff_ref, "--", *scope_paths]
+        diff_result = subprocess.run(
+            diff_args,
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=30,
+        )
+        git_diff = diff_result.stdout.strip()
+        if not git_diff:
+            diff_result = subprocess.run(
+                ["git", "diff", diff_ref],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
+                timeout=30,
+            )
+            git_diff = diff_result.stdout.strip() or "(no diff)"
+        return git_diff
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return "(diff unavailable)"
+
+
 def _dispatch_and_validate_loop(
     story: dict,
     plan: dict,
@@ -956,6 +965,7 @@ def _dispatch_and_validate_loop(
     completed_stories: list[str],
     plan_scope_paths: list[str],
     config: EpicConfig | None = None,
+    epic_number: int | None = None,
 ) -> bool:
     """Run the dispatch-validate loop with retry handling.
 
@@ -984,31 +994,53 @@ def _dispatch_and_validate_loop(
     agent = story.get("agent", {})
     model = config.models.implementor if config else agent.get("model", "sonnet")
     retry_context: StoryFailureContextArtifact | None = None
-    max_attempts = MAX_RETRIES + 1  # initial + retries
+    max_standard_attempts = MAX_RETRIES + 1  # initial + retries
     base_commit = _get_latest_commit_hash()  # snapshot before any dispatch
+    critique_has_run = False
+    advisory_critique_run: CritiqueRunArtifact | None = None
+    advisory_revision_pending = False
+    advisory_revision_used = False
+    standard_attempts_used = 0
+    total_attempt_budget = max_standard_attempts + ADVISORY_REVISION_ATTEMPTS
+    attempt = 0
 
-    for attempt in range(1, max_attempts + 1):
+    while attempt < total_attempt_budget:
+        attempt += 1
+        is_advisory_revision_attempt = advisory_revision_pending
+        advisory_revision_pending = False
+        if not is_advisory_revision_attempt:
+            standard_attempts_used += 1
         logger.info(
             "Story '%s' attempt %d/%d",
             story_id,
             attempt,
-            max_attempts,
+            total_attempt_budget,
         )
 
         # Build the agent prompt using V3 prompt_builder
-        total_stories = len(plan.get("stories", []))
-        prompt = build_story_prompt(
-            story,
-            RULES_DIR,
-            WIKI_INDEXES_DIR,
-            plan,
-            (len(completed_stories), total_stories),
-            checkpoint=checkpoint,
-            epic_dir=epic_dir,
-        )
+        if is_advisory_revision_attempt:
+            assert advisory_critique_run is not None, (
+                "Advisory revision prompt requested without critique findings."
+            )
+            prompt = build_story_revision_prompt(
+                story=story,
+                critique_run=advisory_critique_run,
+                git_diff=_build_story_git_diff(story, base_commit),
+            )
+        else:
+            total_stories = len(plan.get("stories", []))
+            prompt = build_story_prompt(
+                story,
+                RULES_DIR,
+                WIKI_INDEXES_DIR,
+                plan,
+                (len(completed_stories), total_stories),
+                checkpoint=checkpoint,
+                epic_dir=epic_dir,
+            )
 
-        # For retries, append failure feedback section to the prompt
-        if retry_context:
+        # For non-advisory retries, append failure feedback section to the prompt
+        if retry_context and not is_advisory_revision_attempt:
             prompt += retry_context.prompt_block
 
         # Log the prompt for debugging
@@ -1061,6 +1093,31 @@ def _dispatch_and_validate_loop(
                 turns=agent_result.turns,
             )
 
+            if is_advisory_revision_attempt and advisory_critique_run is not None:
+                logger.warning(
+                    "Advisory revision attempt failed for story '%s' (attempt %d); "
+                    "stopping for human review.",
+                    story_id,
+                    attempt,
+                )
+                classification = classify_failure(
+                    agent_result.output or "",
+                    story_id,
+                    file_ownership,
+                    completed_stories,
+                    plan_scope_paths,
+                )
+                return _handle_advisory_revision_failure(
+                    story_id=story_id,
+                    attempt=attempt,
+                    critique_run=advisory_critique_run,
+                    classification=classification,
+                    error_text=agent_result.output or "Advisory revision attempt failed",
+                    event_logger=event_logger,
+                    plan_scope_paths=plan_scope_paths,
+                    epic_number=epic_number,
+                )
+
             # Classify the agent failure
             error_text = agent_result.output or ""
             classification = classify_failure(
@@ -1081,7 +1138,7 @@ def _dispatch_and_validate_loop(
 
             # Check if this category allows retries
             retry_allowed = get_retry_budget(classification.category)
-            remaining_attempts = max_attempts - attempt
+            remaining_attempts = max_standard_attempts - standard_attempts_used
 
             if retry_allowed == 0 or remaining_attempts == 0:
                 # No retries allowed or budget exhausted
@@ -1145,7 +1202,35 @@ def _dispatch_and_validate_loop(
         )
 
         if validation_result.passed:
-            # Validation passed -- run Opus critique before completing
+            if critique_has_run:
+                assert advisory_critique_run is not None, (
+                    "Critique state missing after critique evaluation; "
+                    "expected advisory findings before a follow-up validation pass."
+                )
+                commit_hash = _commit_story_checkpoint(
+                    story_id=story_id,
+                    attempt=attempt,
+                    epic_dir=epic_dir,
+                    plan_scope_paths=plan_scope_paths,
+                    event_logger=event_logger,
+                )
+                if commit_hash is None:
+                    return False
+                logger.info(
+                    "Story '%s' completed after advisory revision attempt (attempt %d).",
+                    story_id,
+                    attempt,
+                )
+                return _complete_story_with_advisory_findings(
+                    story_id=story_id,
+                    attempt=attempt,
+                    critique_run=advisory_critique_run,
+                    commit_hash=commit_hash,
+                    event_logger=event_logger,
+                    epic_number=epic_number,
+                )
+
+            # Validation passed -- run critique once before completing.
             validation_summary = json.dumps(
                 {"check_type": validation_result.check_type, "status": "pass"},
                 indent=2,
@@ -1159,14 +1244,24 @@ def _dispatch_and_validate_loop(
                 config=config,
                 base_commit=base_commit,
             )
+            critique_has_run = True
 
             if critique_run.passed:
+                commit_hash = _commit_story_checkpoint(
+                    story_id=story_id,
+                    attempt=attempt,
+                    epic_dir=epic_dir,
+                    plan_scope_paths=plan_scope_paths,
+                    event_logger=event_logger,
+                )
+                if commit_hash is None:
+                    return False
                 # Critique passed -- story is complete
                 event_logger.log_event(
                     "story_complete",
                     story_id=story_id,
                     attempt=attempt,
-                    commit=_get_latest_commit_hash(),
+                    commit=commit_hash,
                 )
                 logger.info(
                     "Story '%s' completed (validation + critique passed, attempt %d)",
@@ -1175,39 +1270,35 @@ def _dispatch_and_validate_loop(
                 )
                 return True
 
-            # Critique failed -- hard gate: treat as implementation failure + retry
+            # Critique failed -- advisory gate: revise once and continue.
+            advisory_critique_run = critique_run
             critique_error = "; ".join(
                 finding.summary_text for finding in critique_run.normalized_findings
             ) or critique_run.concise_summary
-            classification = FailureClassificationArtifact(
-                category="implementation",
-                evidence=critique_error[:500],
-                pattern="critique_failure",
-            )
 
             logger.warning(
-                "Critique failed for story '%s' (attempt %d, %d findings) — "
-                "treating as implementation failure",
+                "Story critique found %d advisory finding(s) for story '%s' (attempt %d). "
+                "Scheduling one revision attempt.",
+                critique_run.findings_count,
                 story_id,
                 attempt,
-                critique_run.findings_count,
             )
 
-            # Check retry budget
-            retry_allowed = get_retry_budget(classification.category)
-            remaining_attempts = max_attempts - attempt
-
-            if retry_allowed == 0 or remaining_attempts == 0:
-                return _handle_terminal_failure(
+            if advisory_revision_used:
+                logger.warning(
+                    "Advisory revision budget already used for story '%s'. "
+                    "Continuing with unresolved critique findings.",
+                    story_id,
+                )
+                return _complete_story_with_advisory_findings(
                     story_id=story_id,
                     attempt=attempt,
-                    classification=classification,
-                    error_text=critique_error,
+                    critique_run=advisory_critique_run,
                     event_logger=event_logger,
-                    plan_scope_paths=plan_scope_paths,
+                    epic_number=epic_number,
                 )
 
-            # Build retry context with critique failure details
+            # Build one-shot revision context with critique findings.
             retry_context = StoryFailureContextArtifact(
                 story_id=story_id,
                 attempt=attempt,
@@ -1221,6 +1312,8 @@ def _dispatch_and_validate_loop(
                     }
                 ),
             )
+            advisory_revision_used = True
+            advisory_revision_pending = True
 
             # Log story_started for the retry attempt
             event_logger.log_event(
@@ -1236,6 +1329,38 @@ def _dispatch_and_validate_loop(
         error_text = validation_result.failure_reason or ""
         raw_output = validation_result.raw_output or ""
         combined_error = f"{error_text}\n{raw_output}".strip()
+
+        if is_advisory_revision_attempt and advisory_critique_run is not None:
+            classification = classify_failure(
+                combined_error,
+                story_id,
+                file_ownership,
+                completed_stories,
+                plan_scope_paths,
+            )
+            if validation_result.failure_category:
+                classification = FailureClassificationArtifact(
+                    category=validation_result.failure_category,
+                    evidence=classification.evidence,
+                    pattern=classification.pattern,
+                )
+            logger.warning(
+                "Validation failed during advisory revision for story '%s' (attempt %d): %s. "
+                "Stopping for human review.",
+                story_id,
+                attempt,
+                validation_result.failure_reason,
+            )
+            return _handle_advisory_revision_failure(
+                story_id=story_id,
+                attempt=attempt,
+                critique_run=advisory_critique_run,
+                classification=classification,
+                error_text=combined_error,
+                event_logger=event_logger,
+                plan_scope_paths=plan_scope_paths,
+                epic_number=epic_number,
+            )
 
         classification = classify_failure(
             combined_error,
@@ -1263,7 +1388,7 @@ def _dispatch_and_validate_loop(
 
         # Check retry budget
         retry_allowed = get_retry_budget(classification.category)
-        remaining_attempts = max_attempts - attempt
+        remaining_attempts = max_standard_attempts - standard_attempts_used
 
         if retry_allowed == 0 or remaining_attempts == 0:
             return _handle_terminal_failure(
@@ -1307,10 +1432,135 @@ def _dispatch_and_validate_loop(
     event_logger.log_event(
         "story_failed",
         story_id=story_id,
-        attempt=max_attempts,
+        attempt=attempt,
         reason="Exhausted all retry attempts",
     )
     return False
+
+
+def _post_story_critique_findings_comment(
+    *,
+    epic_number: int | None,
+    story_id: str,
+    critique_run: CritiqueRunArtifact,
+    event_logger: EventLogger,
+) -> None:
+    """Post advisory critique findings to the epic issue."""
+    if epic_number is None:
+        logger.warning(
+            "Cannot post advisory critique findings for story '%s': epic number missing.",
+            story_id,
+        )
+        return
+
+    body = build_critique_findings_comment(
+        gate_type="story",
+        critique_run=critique_run,
+        story_id=story_id,
+    )
+    comment_url = comment_on_epic(epic_number, body)
+    if comment_url:
+        event_logger.log_event(
+            "github_comment",
+            epic=epic_number,
+            story_id=story_id,
+            comment_url=comment_url,
+        )
+
+
+def _complete_story_with_advisory_findings(
+    *,
+    story_id: str,
+    attempt: int,
+    critique_run: CritiqueRunArtifact,
+    commit_hash: str,
+    event_logger: EventLogger,
+    epic_number: int | None,
+) -> bool:
+    """Record story completion while preserving advisory critique findings."""
+    _post_story_critique_findings_comment(
+        epic_number=epic_number,
+        story_id=story_id,
+        critique_run=critique_run,
+        event_logger=event_logger,
+    )
+    event_logger.log_event(
+        "story_complete",
+        story_id=story_id,
+        attempt=attempt,
+        commit=commit_hash,
+    )
+    return True
+
+
+def _handle_advisory_revision_failure(
+    *,
+    story_id: str,
+    attempt: int,
+    critique_run: CritiqueRunArtifact,
+    classification: FailureClassificationArtifact,
+    error_text: str,
+    event_logger: EventLogger,
+    plan_scope_paths: list[str],
+    epic_number: int | None,
+) -> bool:
+    """Stop after a failed advisory revision while preserving critique findings."""
+    _post_story_critique_findings_comment(
+        epic_number=epic_number,
+        story_id=story_id,
+        critique_run=critique_run,
+        event_logger=event_logger,
+    )
+    return _handle_terminal_failure(
+        story_id=story_id,
+        attempt=attempt,
+        classification=classification,
+        error_text=error_text,
+        event_logger=event_logger,
+        plan_scope_paths=plan_scope_paths,
+    )
+
+
+def _commit_story_checkpoint(
+    *,
+    story_id: str,
+    attempt: int,
+    epic_dir: Path,
+    plan_scope_paths: list[str],
+    event_logger: EventLogger,
+) -> str | None:
+    """Commit a validated story checkpoint and return the new commit hash."""
+    from workflow.git_helpers import GitCommitError, robust_commit
+
+    story_log_path = epic_dir / "stories" / story_id / "story.jsonl"
+    paths_to_stage = [*plan_scope_paths]
+    if story_log_path.exists():
+        paths_to_stage.append(str(story_log_path.relative_to(PROJECT_ROOT)))
+    stage_list = list(dict.fromkeys(paths_to_stage))
+
+    try:
+        return robust_commit(
+            f"checkpoint({story_id}): validation passed",
+            stage_list,
+        )
+    except GitCommitError as exc:
+        reason = f"Checkpoint commit failed: {exc}"
+        event_logger.log_event(
+            "story_failed",
+            story_id=story_id,
+            attempt=attempt,
+            reason=reason,
+        )
+        event_logger.log_event(
+            "exit_to_human",
+            story_id=story_id,
+            attempt=attempt,
+            reason=reason,
+            failure_category="env",
+            context={"paths": stage_list},
+        )
+        logger.error("Checkpoint commit failed for story '%s': %s", story_id, exc)
+        return None
 
 
 # ---------------------------------------------------------------------------

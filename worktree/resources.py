@@ -145,7 +145,7 @@ def check_ports_available(ports: PortConfig) -> dict[str, bool]:
         ("db", ports.db),
         ("redis", ports.redis),
         ("cloudbeaver", ports.cloudbeaver),
-        ("video-worker", ports.video),
+        ("video", ports.video),
     ]
 
     # Observability services (optional, profile-based)

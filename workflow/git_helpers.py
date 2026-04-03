@@ -33,6 +33,34 @@ class GitPushError(Exception):
         super().__init__(f"Git push failed: {stderr}")
 
 
+class GitDirtyWorktreeError(Exception):
+    """Raised when the working tree has uncommitted changes."""
+
+    def __init__(self, dirty_entries: list[str]) -> None:
+        self.dirty_entries = dirty_entries
+        preview = ", ".join(dirty_entries[:5])
+        if len(dirty_entries) > 5:
+            preview += ", ..."
+        super().__init__(
+            "Working tree is dirty. Commit or stash changes before running the pipeline: "
+            f"{preview}"
+        )
+
+
+def check_working_tree_clean() -> None:
+    """Raise when the git working tree has uncommitted changes."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    dirty_entries = [line for line in result.stdout.splitlines() if line.strip()]
+    if dirty_entries:
+        raise GitDirtyWorktreeError(dirty_entries)
+
+
 def robust_commit(message: str, paths: list[str]) -> str:
     """Stage specified paths and commit with pre-commit hook retry logic.
 

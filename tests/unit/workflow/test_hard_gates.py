@@ -2,7 +2,7 @@
 
 Covers:
 - 5b: Golden path gate in validation checkpoint
-- 5c: Critique failure triggers retry (no advisory path)
+- 5c: Critique advisory behavior and retry budgets
 """
 
 from workflow.story_executor import (
@@ -23,6 +23,9 @@ class TestScopeViolationRetryBudget:
 
     def test_implementation_has_retries(self):
         assert get_retry_budget("implementation") > 0
+
+    def test_implementation_retry_budget_remains_two_retries(self):
+        assert get_retry_budget("implementation") == 2
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +58,7 @@ class TestGoldenPathGate:
 
 
 # ---------------------------------------------------------------------------
-# 5c: Critique advisory removed
+# 5c: Critique advisory behavior
 # ---------------------------------------------------------------------------
 
 

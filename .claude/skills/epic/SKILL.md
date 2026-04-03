@@ -54,7 +54,7 @@ If args are empty, ask which epic number, then ask which action.
 | Command | Purpose |
 |---|---|
 | `just map-codebase` | Refresh `.planning/codebase/` when repo maps are missing or stale |
-| `just epic <N>` | Full pipeline: ingest -> repo-facts -> curation -> plan -> verify -> gate -> execute |
+| `just epic <N>` | Full pipeline: ingest -> repo-facts -> curation -> plan -> verify -> execute (gate only on unresolved planning failures) |
 | `just epic-status <N>` | Show progress from JSONL logs |
 | `just epic-validate-plan <N>` | Validate plan.json against schema (Phase A only) |
 
@@ -94,7 +94,7 @@ Planning pipeline:
 3. Generate `curation.json` and `CURATION.md`
 4. Generate `plan.json` and `PLAN.md`
 5. Run Phase A validation and Phase B verification
-6. Stop at the decision gate when human review is required
+6. If verification still fails, stop at the decision gate
 7. Commit and push planning artefacts
 
 Execution continues from JSONL state when `just epic <N>` is re-run after

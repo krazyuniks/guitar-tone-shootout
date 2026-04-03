@@ -111,22 +111,11 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 ## Epic Workflow
 
 - **Principle: "No model marks its own homework."** Opus plans, Codex critiques the plan, agents implement, Opus critiques the implementation.
-- Epics run via the stateless orchestrator (`workflow/orchestrator.py`). JSONL log is the only state — enables crash-resume.
-- **Idempotent 2-command flow:**
-  1. `just epic N` — plans, verifies, human-gates, commits, then continues directly into execution in the same run
-  2. `just epic N` — resume path after interruption; picks up from `plan_committed` or in-flight execution state
-- **JSONL state gates:** `plan_committed` → story execution.
-- **Verification gates:** epic structure (ingest), Phase A (deterministic, 12 checks), Phase B (adversarial critique, 6 dimensions incl. gap sufficiency), decision gate (human), config validation (infra + agent pre-flight), story validation (checkpoints), story critique (cross-model, hard gate), epic critique (cross-model).
-- `just epic N` — idempotent: reads JSONL state, does the next thing.
-- `just epic-status N` — check progress from JSONL logs (read-only).
-- `just epic-validate-plan N` — run Phase A deterministic validation only (read-only).
-- `just epic-report N` — generate the HTML run report (read-only).
-- `just epic-compile-prompts N` — compile planner/verifier/revision prompts without dispatching agents (read-only).
-- `just map-codebase` — regenerate .planning/codebase/ files.
-- `just index-wiki` — regenerate .planning/wiki-indexes/.
-- Live planning is issue-first and tool-equipped. Do not describe `CONTEXT.md`, gap detection, or `tests_approved` as active required stages unless the code path is reintroduced and the docs are updated first.
-- NEVER read plan files manually, dispatch sub-agents, or use old V1/V2 commands. The orchestrator handles everything.
-- See `wiki/Epic-Workflow.md` for full pipeline documentation.
+- The orchestrator and `just epic ...` commands are optional tools, not mandatory execution paths.
+- Epic implementation may be done directly in code when working on the workflow system itself or when the orchestrator is broken.
+- Operational instructions, command flows, and entry-point details for epic execution belong in the epic skill docs, not here.
+- Keep this file focused on durable repo policy; keep workflow mechanics in `.agents/skills/epic/` and `.claude/skills/epic/`.
+- If workflow docs and skill instructions diverge, update the skills first and only keep high-level policy here.
 
 ## Infrastructure
 

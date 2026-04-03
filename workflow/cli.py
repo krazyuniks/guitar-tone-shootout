@@ -288,7 +288,7 @@ def _run_planning_steps(
       3. Curation — bounded agent handoff between repo-facts and planning
       4. Plan — agent explores codebase, breaks epic into stories
       5. Verify — Phase A (deterministic) + Phase B (cross-model critique)
-      6. Decision Gate — human approval
+      6. Decision Gate — human approval when verification still fails
       7. Commit + Push
     """
     from workflow.artifacts import (
@@ -447,8 +447,6 @@ def _run_planning_steps(
         return PlanningPipelineOutcome.FAILED
 
     if success:
-        verifier_feedback = verification_result.verifier_feedback
-        assert verifier_feedback is not None
         phase_a_event = PhaseAValidationEventArtifact.passed_event(epic_number, 1)
         epic_logger.log_event(phase_a_event.event_name, **phase_a_event.event_payload)
         phase_b_event = PhaseBVerificationEventArtifact.from_result(
@@ -457,7 +455,13 @@ def _run_planning_steps(
             verification_result,
         )
         epic_logger.log_event(phase_b_event.event_name, **phase_b_event.event_payload)
-        console.print("  [green]Plan verified successfully.[/green]")
+        if verification_result.revised_after_critique:
+            console.print(
+                "  [green]Plan revised successfully after verifier findings and passed "
+                "Phase A revalidation.[/green]"
+            )
+        else:
+            console.print("  [green]Plan verified successfully.[/green]")
     else:
         phase_a_errors = list(verification_result.phase_a_errors)
         if phase_a_errors:
@@ -483,47 +487,45 @@ def _run_planning_steps(
             )
 
         console.print("\n  Review findings at the Decision Gate below.")
-        # Fall through to Decision Gate — human can still approve
+        # Step 6: Decision Gate
+        console.print()
+        plan_md_path = epic_dir / "PLAN.md"
 
-    # Step 6: Decision Gate
-    console.print()
-    plan_md_path = epic_dir / "PLAN.md"
+        import sys as _sys
 
-    import sys as _sys
+        if not _sys.stdin.isatty():
+            console.print(
+                f"[red]Decision Gate requires an interactive TTY.[/red]\n"
+                f"Re-run `just epic {epic_number}` in an interactive shell to approve, revise, or reject the plan."
+            )
+            return PlanningPipelineOutcome.STOPPED_AT_GATE
 
-    if not _sys.stdin.isatty():
-        console.print(
-            f"[red]Decision Gate requires an interactive TTY.[/red]\n"
-            f"Re-run `just epic {epic_number}` in an interactive shell to approve, revise, or reject the plan."
-        )
-        return PlanningPipelineOutcome.STOPPED_AT_GATE
+        gate_result = present_decision_gate(plan_md_path, verification_result)
 
-    gate_result = present_decision_gate(plan_md_path, verification_result)
-
-    if gate_result.approved:
-        decision = PlanDecisionArtifact(epic_number=epic_number, decision="approved")
-        epic_logger.log_event(decision.event_name, **decision.event_payload)
-        console.print("\n[green]Plan approved.[/green]")
-    elif gate_result.needs_revision:
-        decision = PlanDecisionArtifact(epic_number=epic_number, decision="revised")
-        epic_logger.log_event(decision.event_name, **decision.event_payload)
-        console.print(
-            "\n[yellow]Plan marked for manual revision.[/yellow]\n"
-            "  The automatic planner revision budget is already exhausted before the human gate.\n"
-            "  Review repo_facts.json, curation.json (if present), plan.json, and PLAN.md, then re-run:\n"
-            f"    just epic-validate-plan {epic_number}\n"
-            f"    just epic {epic_number}"
-        )
-        return PlanningPipelineOutcome.STOPPED_AT_GATE
-    elif gate_result.rejected:
-        rejection = PlanDecisionArtifact.for_rejection(
-            epic_number,
-            gate_result.reason,
-            verification_result,
-        )
-        epic_logger.log_event(rejection.event_name, **rejection.event_payload)
-        console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
-        return PlanningPipelineOutcome.REJECTED
+        if gate_result.approved:
+            decision = PlanDecisionArtifact(epic_number=epic_number, decision="approved")
+            epic_logger.log_event(decision.event_name, **decision.event_payload)
+            console.print("\n[green]Plan approved.[/green]")
+        elif gate_result.needs_revision:
+            decision = PlanDecisionArtifact(epic_number=epic_number, decision="revised")
+            epic_logger.log_event(decision.event_name, **decision.event_payload)
+            console.print(
+                "\n[yellow]Plan marked for manual revision.[/yellow]\n"
+                "  The automatic planner revision budget is already exhausted before the human gate.\n"
+                "  Review repo_facts.json, curation.json (if present), plan.json, and PLAN.md, then re-run:\n"
+                f"    just epic-validate-plan {epic_number}\n"
+                f"    just epic {epic_number}"
+            )
+            return PlanningPipelineOutcome.STOPPED_AT_GATE
+        elif gate_result.rejected:
+            rejection = PlanDecisionArtifact.for_rejection(
+                epic_number,
+                gate_result.reason,
+                verification_result,
+            )
+            epic_logger.log_event(rejection.event_name, **rejection.event_payload)
+            console.print("\n[red]Plan rejected.[/red] Artefacts remain uncommitted.")
+            return PlanningPipelineOutcome.REJECTED
 
     # Step 7: Commit + Push
     console.print()
@@ -575,8 +577,14 @@ def epic_run(
     import logging
 
     from workflow.orchestrator import run_pipeline
+    from workflow.git_helpers import GitDirtyWorktreeError, check_working_tree_clean
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    try:
+        check_working_tree_clean()
+    except GitDirtyWorktreeError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(1) from exc
     run_pipeline(epic_number)
 
 

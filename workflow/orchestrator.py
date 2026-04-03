@@ -54,6 +54,10 @@ from workflow.epic_config import (
     ensure_epic_config,
     load_config,
 )
+from workflow.github_epic_comments import (
+    build_critique_findings_comment,
+    comment_on_epic,
+)
 from workflow.git_helpers import (
     GitConflictError,
     GitPushError,
@@ -75,49 +79,6 @@ console = Console()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLANNING_DIR = PROJECT_ROOT / ".planning" / "epics"
 GH_REPO = "krazyuniks/guitar-tone-shootout"
-
-
-# ---------------------------------------------------------------------------
-# GitHub integration helpers
-# ---------------------------------------------------------------------------
-
-
-def comment_on_epic(epic_number: int, body: str) -> str | None:
-    """Post a comment on a GitHub epic issue.
-
-    Args:
-        epic_number: The GitHub issue number.
-        body: Markdown body for the comment.
-
-    Returns:
-        The comment URL if successful, None on failure.
-    """
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "issue",
-                "comment",
-                str(epic_number),
-                "--repo",
-                GH_REPO,
-                "--body",
-                body,
-            ],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT,
-            timeout=30,
-        )
-        if result.returncode == 0:
-            url = result.stdout.strip()
-            logger.info("GitHub comment posted: %s", url)
-            return url
-        logger.warning("Failed to post GitHub comment: %s", result.stderr.strip())
-        return None
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        logger.warning("Failed to post GitHub comment: %s", exc)
-        return None
 
 
 def label_epic(epic_number: int, label: str) -> bool:
@@ -1319,29 +1280,13 @@ def _run_epic_loop(
             )
 
             if not critique_run.passed:
-                # Epic critique failed -- exit to human (no retries)
-                logger.error(
-                    "Epic critique failed with %d findings. Exiting to human.",
+                logger.warning(
+                    "Epic critique found %d advisory finding(s). Continuing pipeline.",
                     critique_run.findings_count,
                 )
-
-                # Post critique findings as GitHub comment
-                finding_lines = [
-                    finding.markdown_text for finding in critique_run.normalized_findings
-                ]
-                if not finding_lines:
-                    finding_lines.append(f"- {critique_run.concise_summary}")
-
-                critique_heading = (
-                    f"Opus review found {critique_run.findings_count} issue(s):"
-                    if critique_run.findings_count
-                    else "Opus review failed:"
-                )
-                critique_body = (
-                    "## Epic Critique Failed\n\n"
-                    f"{critique_heading}\n\n"
-                    + "\n".join(finding_lines)
-                    + "\n\nManual intervention required."
+                critique_body = build_critique_findings_comment(
+                    gate_type="epic",
+                    critique_run=critique_run,
                 )
                 url = comment_on_epic(epic_number, critique_body)
                 if url:
@@ -1351,17 +1296,7 @@ def _run_epic_loop(
                         comment_url=url,
                     )
 
-                epic_logger.log_event(
-                    "exit_to_human",
-                    reason=f"Epic critique failed: {critique_run.concise_summary}",
-                    failure_category="implementation",
-                    context=critique_run.context_payload(limit=5),
-                )
-
-                generate_summary(epic_dir, plan, all_events)
-                break
-
-            # Critique passed -- log epic_complete
+            # Critique is advisory; continue to epic completion either way.
             epic_logger.log_event(
                 "epic_complete",
                 epic=epic_number,
@@ -1419,6 +1354,7 @@ def _run_epic_loop(
             event_logger=story_logger,
             completed_stories=completed_stories,
             config=config,
+            epic_number=epic_number,
         )
 
         # Re-read all events for comment building

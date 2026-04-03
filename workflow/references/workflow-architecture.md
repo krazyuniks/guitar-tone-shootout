@@ -71,8 +71,8 @@ than inventing ad-hoc inputs.
 | Repo facts | `EPIC.md`, live repo, optional `.planning/codebase/` hints | `repo_facts.json` | `RepoFactsArtifact` is the deterministic repo-grounding contract for planning. |
 | Curation | `EPIC.md`, `repo_facts.json`, optional mapper hints, repo docs | `curation.json`, `CURATION.md` | `CurationArtifact` is a bounded planner handoff, not a final plan. |
 | Plan generation | `EPIC.md`, `repo_facts.json`, optional `curation.json`, plan schema | `plan.json`, `PLAN.md` | `PlanArtifact` is the execution contract the rest of the pipeline consumes. |
-| Verification | `EPIC.md`, `repo_facts.json`, `plan.json`, optional `curation.json` | Phase A results, Phase B feedback, decision-gate instructions/events | Verification checks the plan contract without silently replacing it. |
-| Decision gate | `PLAN.md`, verification results | `plan_approved`, `plan_revised`, or `plan_rejected` event | Human resolution is recorded as the gate outcome for safe resume. |
+| Verification | `EPIC.md`, `repo_facts.json`, `plan.json`, optional `curation.json` | Phase A results, Phase B feedback, or a revised accepted plan | Verification checks the plan contract without silently replacing it. |
+| Decision gate | `PLAN.md`, unresolved verification results | `plan_approved`, `plan_revised`, or `plan_rejected` event | Human resolution is recorded as the gate outcome only when verification cannot auto-resolve. |
 | Execution | committed `plan.json`, `epic.jsonl`, repo state | story JSONL logs, critique events, `STORY_CONTEXT.md`, summary artefacts | Execution consumes the committed plan contract and appends runtime state. |
 
 These contracts are both file-level and schema-level:
@@ -127,7 +127,7 @@ The live `just epic <N>` planning flow is:
 3. Generate `curation.json` and `CURATION.md`
 4. Generate `plan.json` and `PLAN.md`
 5. Run Phase A validation and Phase B verification
-6. Stop at the human decision gate when required
+6. If verification still fails, stop at the human decision gate
 7. Commit and push planning artefacts
 8. Resume into execution from JSONL state when re-run
 

@@ -235,3 +235,15 @@ class TestPreflightFileNotFoundHandling:
         assert isinstance(result, ValidationCheck)
         assert result.passed is False
         assert "not found" in result.detail
+
+
+class TestEpic163WorkflowFixes:
+    """Regression coverage for workflow-system fixes under Epic 163."""
+
+    def test_story_executor_no_longer_runtime_imports_orchestrator_for_comments(self):
+        import inspect
+
+        from workflow import story_executor
+
+        source = inspect.getsource(story_executor._post_story_critique_findings_comment)
+        assert "from workflow.orchestrator" not in source

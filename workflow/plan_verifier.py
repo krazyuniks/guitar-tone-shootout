@@ -1,18 +1,17 @@
-"""Phase C: Cross-model plan verification (~$3-5 per invocation).
+"""Phase B: Cross-model plan verification (~$3-5 per invocation).
 
 Dispatches a Codex agent to adversarially verify the Opus-generated plan.
 Checks 5 dimensions: journey completeness, transition coverage, intent
 alignment, gap detection, and validation sufficiency.
 
-This runs AFTER Phase A deterministic validation passes. Phase C catches
+This runs AFTER Phase A deterministic validation passes. Phase B catches
 what deterministic checks cannot: narrative completeness, intent alignment,
 and logical gaps between stories. Using a different model family provides
 genuine cross-model verification.
 
-Reference: Research doc Section 8.4 Decision 8.
-
-One revision cycle is budgeted: planner -> verifier -> planner -> verifier.
-If the second attempt also fails Phase B, exit to human.
+One revision cycle is budgeted: planner -> verifier -> planner -> Phase A.
+If the revised plan passes Phase A revalidation, accept it and continue.
+If it still fails, exit to human.
 
 Usage:
     python -m workflow.plan_verifier <epic_number>
@@ -571,7 +570,7 @@ def verify_with_revision_cycle(
     epic_dir: Path,
     config: EpicConfig | None = None,
 ) -> tuple[PlanVerificationResultArtifact, bool]:
-    """Run the full two-phase verification with one revision cycle."""
+    """Run Phase A validation plus a single Phase B critique/revision cycle."""
 
     # Phase A: Deterministic validation (attempt 1)
     logger.info("Running Phase A validation (attempt 1)...")
@@ -671,26 +670,11 @@ def verify_with_revision_cycle(
         logger.info("Restored pre-revision plan.json and PLAN.md.")
         return (PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback), False)
 
-    # Phase B: AI verification (attempt 2 — final)
-    logger.info("Running Phase B verification (attempt 2, final)...")
-    try:
-        verifier_feedback = _verify_plan_artifact(epic_dir, config=config)
-    except PlanVerificationError as exc:
-        logger.error("Phase B dispatch failed on second attempt: %s", exc)
-        return (PlanVerificationResultArtifact.from_error(str(exc)), False)
-
-    if _is_verifier_pass(verifier_feedback):
-        logger.info("Phase B passed on second attempt. Plan verified.")
-        result = PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback)
-        return (result, result.passed)
-
-    # Second attempt still has findings — present to human at Decision Gate
-    failed_dims = _extract_dimension_failures(verifier_feedback)
     logger.info(
-        "Phase B has remaining findings (dimensions: %s). Presenting to human.",
-        ", ".join(failed_dims),
+        "Revised plan passed Phase A revalidation after verifier findings. "
+        "Skipping a second Phase B critique and accepting the revised plan."
     )
-    return (PlanVerificationResultArtifact.from_verifier_feedback(verifier_feedback), False)
+    return (PlanVerificationResultArtifact.from_revision_success(), True)
 
 
 # ---------------------------------------------------------------------------

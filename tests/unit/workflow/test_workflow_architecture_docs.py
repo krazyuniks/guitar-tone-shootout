@@ -29,16 +29,18 @@ def test_workflow_architecture_reference_documents_issue_166_contracts() -> None
     assert "RepoFactsArtifact" in text
     assert "CurationArtifact" in text
     assert "PlanArtifact" in text
+    assert "If verification still fails, stop at the human decision gate" in text
 
 
 def test_epic_skill_docs_match_current_pipeline_contract() -> None:
     expected_present = (
-        "`just epic <N>` | Full pipeline: ingest -> repo-facts -> curation -> plan -> verify -> gate -> execute",
+        "`just epic <N>` | Full pipeline: ingest -> repo-facts -> curation -> plan -> verify -> execute (gate only on unresolved planning failures)",
         "just map-codebase",
         "repo_facts.json",
         "curation.json",
         "workflow/references/workflow-architecture.md",
         "Do not pipe `yes` into it.",
+        "If verification still fails, stop at the decision gate",
     )
     expected_absent = (
         "yes \\| just epic <N>",

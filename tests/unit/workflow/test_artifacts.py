@@ -285,6 +285,23 @@ class TestPlanVerificationResultArtifact:
         assert result.feedback_payload == feedback.to_dict()
         assert result.to_dict()["verifier_feedback"]["summary"] == "Intent alignment needs revision"
 
+    def test_phase_b_revision_success_uses_typed_details(self) -> None:
+        result = PlanVerificationResultArtifact.from_revision_success()
+
+        assert result.phase == "phase_b"
+        assert result.passed is True
+        assert result.verifier_feedback is None
+        assert result.revised_after_critique is True
+        assert (
+            result.summary
+            == "Plan revised after verifier findings and passed Phase A revalidation."
+        )
+        assert result.feedback_payload == {
+            "summary": "Plan revised after verifier findings and passed Phase A revalidation.",
+            "revision_applied": True,
+        }
+        assert result.to_dict()["details"]["revision_applied"] is True
+
     def test_phase_a_result_keeps_validation_errors_typed(self) -> None:
         result = PlanVerificationResultArtifact.from_phase_a_errors(
             ["Story 01 missing checkpoint", "Story 02 missing acceptance criteria"]
@@ -430,6 +447,28 @@ class TestPhaseBVerificationEventArtifact:
         assert round_tripped.verifier_feedback is None
         assert round_tripped.detail_payload["error"] == "Verifier dispatch failed"
         assert round_tripped.summary_text == "Verifier dispatch failed"
+
+    def test_from_result_supports_revision_success_without_second_verifier_pass(self) -> None:
+        result = PlanVerificationResultArtifact.from_revision_success()
+
+        event = PhaseBVerificationEventArtifact.from_result(155, 1, result)
+        round_tripped = PhaseBVerificationEventArtifact.from_event(
+            RunEventArtifact(
+                run_id="run-1",
+                ts="2026-03-07T12:02:00+00:00",
+                event=event.event_name,
+                data=event.event_payload,
+            )
+        )
+
+        assert event.event_name == "phase_b_pass"
+        assert event.scores == {}
+        assert round_tripped.verifier_feedback is None
+        assert round_tripped.detail_payload["revision_applied"] is True
+        assert (
+            round_tripped.summary_text
+            == "Plan revised after verifier findings and passed Phase A revalidation."
+        )
 
 
 class TestPhaseAValidationEventArtifact:
@@ -1007,6 +1046,25 @@ class TestExecutionArtifacts:
         assert finding.summary_text == "workflow/report.py:644 - Critique render path is untyped"
         assert finding.markdown_text == (
             "- **[major]** `workflow/report.py:644` — Critique render path is untyped"
+        )
+
+    def test_critique_finding_accepts_line_ranges_without_crashing(self) -> None:
+        finding = CritiqueFindingArtifact.from_dict(
+            {
+                "file": "workflow/story_executor.py",
+                "line": "1187-1198",
+                "issue": "Unreachable branch should be an invariant",
+                "severity": "major",
+            }
+        )
+
+        assert finding.line == 1187
+        assert finding.summary_text == (
+            "workflow/story_executor.py:1187-1198 - Unreachable branch should be an invariant"
+        )
+        assert finding.markdown_text == (
+            "- **[major]** `workflow/story_executor.py:1187-1198` — "
+            "Unreachable branch should be an invariant"
         )
 
     def test_checkpoint_run_artifact_round_trips_and_reconstructs_from_event(self) -> None:
