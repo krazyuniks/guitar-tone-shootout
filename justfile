@@ -415,39 +415,3 @@ test-quality:
 # Check test files for mock violations (strict — errors block)
 mock-check +FILES:
     python scripts/test_quality_check.py --strict {{FILES}}
-
-# =============================================================================
-# Epic Workflow V3 — Behavioural Validation
-# =============================================================================
-
-# Full epic pipeline: ingest -> plan -> verify -> gate -> execute
-epic epic_num:
-    ./wf epic run {{epic_num}}
-
-# Show epic status from JSONL logs
-epic-status epic_num:
-    ./wf epic status {{epic_num}}
-
-# Validate plan.json against schema (Phase A only)
-epic-validate-plan epic_num:
-    ./wf epic validate-plan {{epic_num}}
-
-# Generate HTML timeline report for an epic
-epic-report epic_num:
-    docker compose exec -T webapp python -m workflow.report {{epic_num}}
-
-# Compile prompt artefacts for an epic without dispatching any agents
-epic-compile-prompts epic_num *ARGS='':
-    docker compose exec -T webapp python -m workflow.prompt_suite {{epic_num}} {{ARGS}}
-
-# Regenerate .planning/codebase/ files
-map-codebase:
-    ./wf map codebase
-
-# Regenerate .planning/wiki-indexes/
-index-wiki:
-    ./wf map wiki
-
-# Regenerate both codebase and wiki maps
-map-context:
-    ./wf map all

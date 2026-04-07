@@ -91,9 +91,9 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 - Use `just tdd <path>` for running tests during development.
 - Test against real services. No mocking. `unittest.mock` imports are banned (enforced by quality gate).
-- `just test-golden-path` is MANDATORY before story completion. Failures BLOCK completion.
+- `just test-golden-path` is MANDATORY before completing feature work. Failures BLOCK completion.
 - Tests are regression nets written AFTER the product works, not the definition of done.
-- NEVER use `curl`/`wget`/`httpie` as validation. Only: `just test-golden-path`, `just tdd`, Chrome DevTools MCP, orchestrator checkpoints.
+- NEVER use `curl`/`wget`/`httpie` as validation. Only: `just test-golden-path`, `just tdd`, Chrome DevTools MCP.
 - E2E tests run on HOST, not Docker. Cannot import internal packages. Use Playwright + raw SQL via `text()`.
 - E2E tests MUST: use `page.goto()` for navigation, assert DOM visibility, verify database state.
 - NEVER mock internal services or APIs in any test.
@@ -110,12 +110,12 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Epic Workflow
 
-- **Principle: "No model marks its own homework."** Opus plans, Codex critiques the plan, agents implement, Opus critiques the implementation.
-- The orchestrator and `just epic ...` commands are optional tools, not mandatory execution paths.
-- Epic implementation may be done directly in code when working on the workflow system itself or when the orchestrator is broken.
-- Operational instructions, command flows, and entry-point details for epic execution belong in the epic skill docs, not here.
-- Keep this file focused on durable repo policy; keep workflow mechanics in `.agents/skills/epic/` and `.claude/skills/epic/`.
-- If workflow docs and skill instructions diverge, update the skills first and only keep high-level policy here.
+**Status: Under redesign.** The previous pipeline (`workflow/`, `wf`, `just epic`) has been removed. Code is preserved in git history. See `wiki/Discovery-Workflow-Design.md` for the new design.
+
+- **No pipeline commands exist.** Do not reference `just epic`, `/epic brainstorm`, `./wf`, or any `workflow/` module. They have been deleted.
+- **GitHub issues are still the source of truth** for all work.
+- **Brainstorming** uses open-source frameworks (Superpowers, GSD, taches) installed ephemerally in worktrees until the new discovery workflow is built.
+- **Implementation** is done directly in code with manual planning until the new workflow is operational.
 
 ## Infrastructure
 
