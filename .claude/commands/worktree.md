@@ -57,5 +57,5 @@ Or see the global `/worktree` skill for detailed documentation.
 
 Once your worktree is created:
 1. `cd` into the new worktree directory
-2. Run `/epic plan <issue>` to plan tasks
-3. Run `/epic start <issue>` to execute
+2. If the discovery workflow is available, run `/epic discover <N>` before unfamiliar work
+3. Otherwise, implement directly from the GitHub issue — the worktree is your isolated workspace

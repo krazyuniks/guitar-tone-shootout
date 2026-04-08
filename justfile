@@ -93,7 +93,7 @@ test-unit:
 
 # Run documentation tests (on host - requires AGENTS.md/DEVELOPMENT.md)
 test-docs:
-    uv run pytest tests/unit/backend/documentation/ -v
+    uv run pytest tests/unit/backend/docs/ -v
 
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)

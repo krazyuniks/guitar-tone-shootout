@@ -1,5 +1,9 @@
 # Workflow V2 — Use Cases & Failure Modes
 
+> Historical scratch note. The Python/orchestrator workflow described here is not the current plan. The old pipeline was removed from the working tree; current workflow development is tracked by GitHub issue #165 and `../wiki/Discovery-Workflow-Design.md`.
+>
+> Do not implement against this file.
+
 ## Architecture: Stateless Orchestrator
 
 The orchestrator is a **Python script** (no AI tokens). It reads a JSONL log,

@@ -1,5 +1,9 @@
 # Epic Workflow v2 — Behavioural Validation
 
+> Historical scratch note. The Python/orchestrator workflow described here is not the current plan. The old pipeline was removed from the working tree; current workflow development is tracked by GitHub issue #165 and `../wiki/Discovery-Workflow-Design.md`.
+>
+> Do not implement against this file.
+
 ## Flow Diagram
 
 ```mermaid
