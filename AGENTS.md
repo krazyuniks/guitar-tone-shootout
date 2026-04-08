@@ -110,12 +110,21 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Epic Workflow
 
-**Status: Under redesign.** The previous pipeline (`workflow/`, `wf`, `just epic`) has been removed. Code is preserved in git history. See `wiki/Discovery-Workflow-Design.md` for the new design.
+**Discovery** is the first phase of any epic. Two commands:
 
-- **No pipeline commands exist.** Do not reference `just epic`, `/epic brainstorm`, `./wf`, or any `workflow/` module. They have been deleted.
+- **`/epic-discover <N>`** — structured discovery for a specific epic. Reads prior knowledge, researches unknowns, writes `.planning/epics/E<N>/DISCOVERY.md`, enriches the GitHub issue. Two user gates: (1) prior knowledge sufficient? (2) write and enrich?
+- **`/epic-discover-project`** — conversational project-level discovery. Explores the problem space collaboratively, writes findings to `.planning/discovery/`.
+
+**Prerequisites:** `gh` CLI working, WebSearch available. Both validated at invocation — missing infrastructure is a hard error.
+
+**Decision categories in DISCOVERY.md:** Locked (planner commits without re-asking), Deferred (planner treats as scope creep), Discretion (planner decides within boundaries).
+
+**Precedence:** DISCOVERY.md wins for technical decisions/findings. GitHub issue wins for product scope. Conflict = bug to reconcile before planning.
+
+**Design reference:** `wiki/Discovery-Workflow-Design.md`, `.planning/discovery-design/`
+
+- **No old pipeline commands exist.** Do not reference `just epic`, `/epic brainstorm`, `./wf`, or any `workflow/` module. They have been deleted.
 - **GitHub issues are still the source of truth** for all work.
-- **Brainstorming** uses open-source frameworks (Superpowers, GSD, taches) installed ephemerally in worktrees until the new discovery workflow is built.
-- **Implementation** is done directly in code with manual planning until the new workflow is operational.
 
 ## Infrastructure
 
