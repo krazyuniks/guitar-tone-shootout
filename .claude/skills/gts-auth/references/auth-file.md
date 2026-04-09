@@ -33,21 +33,22 @@ ls -la $(dirname $(pwd))/.gts-auth.json
 chmod 600 $(dirname $(pwd))/.gts-auth.json
 ```
 
-## Worktree.py Auth Commands
+## Auth Commands
 
 | Command | Purpose |
 |---------|---------|
-| `./worktree.py auth-status` | Show auth validity and expiration |
-| `./worktree.py auth-login` | Open browser for T3K OAuth |
-| `./worktree.py auth-restore` | Restore session in current worktree |
+| `just t3k-auth` | Canonical auth flow: check status, login if needed, restore session |
+| `just t3k-login` | Headless Chromium magic-link login only |
+| `just t3k-auth-status` | Show auth validity and expiration |
+| `./worktree.py auth-restore` | Low-level restore command used by `just t3k-auth` |
 
 ## Workflow
 
 **Initial Setup (once):**
 1. Start a worktree with backend running
-2. Run `./worktree.py auth-login --port <backend-port>`
-3. Complete OAuth in browser
-4. Tokens saved automatically
+2. Run `just t3k-auth`
+3. Complete the passcode flow if prompted
+4. Tokens are saved and the session is restored automatically
 
 **New Worktree (automatic):**
 1. `./worktree.py setup <issue>` creates worktree
@@ -63,7 +64,7 @@ chmod 600 $(dirname $(pwd))/.gts-auth.json
 
 **Before T3K-dependent work:**
 ```bash
-./worktree.py auth-status
+just t3k-auth-status
 ```
 
 **In code (backend):**
@@ -90,10 +91,10 @@ The auth-check hook runs at session start and will:
 ## Troubleshooting
 
 **"No saved auth data"**
-- Run `./worktree.py auth-login` to authenticate
+- Run `just t3k-auth` to authenticate
 
 **"Tokens expired"**
-- Run `./worktree.py auth-login` to re-authenticate
+- Run `just t3k-auth` to re-authenticate
 
 **"Cannot connect to backend"**
 - Ensure Docker services are running
@@ -101,4 +102,4 @@ The auth-check hook runs at session start and will:
 
 **Auth restore fails after setup**
 - Backend may still be starting up
-- Wait a few seconds and run `./worktree.py auth-restore`
+- Wait a few seconds and run `just t3k-auth`

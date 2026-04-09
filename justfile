@@ -249,6 +249,19 @@ admin *ARGS:
     # Calls scripts/gts-admin (Python module at scripts/gts_admin.py)
     docker compose exec -T webapp python3 -m scripts.gts_admin {{ARGS}}
 
+# T3K auth — canonical entry point (check, login if needed, restore session)
+t3k-auth:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ./worktree.py auth-status --quiet >/dev/null 2>&1; then
+        echo "T3K auth is valid. Restoring session in this worktree..."
+    else
+        echo "T3K auth missing or expired. Starting login flow..."
+        just t3k-login
+    fi
+    ./worktree.py auth-restore
+    ./worktree.py auth-status
+
 # T3K login — authenticate via headless Chromium (runs on host)
 t3k-login:
     #!/usr/bin/env bash
@@ -266,25 +279,7 @@ solve-vercel:
 t3k-auth-status:
     #!/usr/bin/env bash
     set -euo pipefail
-    AUTH_FILE="${GTS_AUTH_FILE:-$(dirname "$(pwd)")/.gts-auth.json}"
-    if [ ! -f "$AUTH_FILE" ]; then
-        echo "Auth file not found: $AUTH_FILE"
-        echo "Run: just t3k-login"
-        exit 1
-    fi
-    python3 -c "
-    import json, sys
-    data = json.load(open('$AUTH_FILE'))
-    status = data.get('auth_status', 'unknown')
-    expires = data.get('expires_at', 'not set')
-    user = data.get('username', 'unknown')
-    print(f'User:       {user}')
-    print(f'Status:     {status}')
-    print(f'Expires:    {expires}')
-    if status == 'login_required':
-        print()
-        print('Run: just t3k-login')
-    "
+    ./worktree.py auth-status
 
 # Open a shell in the backend container
 shell:

@@ -128,7 +128,7 @@ cat >> "$OUTPUT" << 'AUTH_SECTION'
 **Initial authentication (once):**
 ```bash
 ./worktree.py setup 42              # Creates worktree
-./worktree.py auth-login --port 8030  # Login via browser (uses worktree's backend)
+just t3k-auth                       # Login if needed, then restore session
 ```
 
 **After that, all worktrees share the auth:**
@@ -138,7 +138,7 @@ cat >> "$OUTPUT" << 'AUTH_SECTION'
 
 **Check status anytime:**
 ```bash
-./worktree.py auth-status
+just t3k-auth-status
 ```
 
 ---

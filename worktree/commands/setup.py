@@ -746,9 +746,9 @@ def _restore_auth(status, worktree, worktree_path: Path) -> None:
             console.print(f"  [green]✓[/green] Auth restored for {auth_status.username}")
         else:
             print_warning(f"Auth restore failed: {message}")
-            console.print("  [dim]Run 'auth-restore' manually to activate auth.[/dim]")
+            console.print("  [dim]Run 'just t3k-auth' to refresh and restore auth.[/dim]")
     else:
-        console.print("  [dim]No valid auth found. Run 'auth-login' to authenticate.[/dim]")
+        console.print("  [dim]No valid auth found. Run 'just t3k-auth' to authenticate.[/dim]")
 
 
 def _handle_resume_path(

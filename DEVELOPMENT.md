@@ -332,8 +332,8 @@ just up-d
 ### Auth issues
 
 ```bash
-./worktree.py auth-status   # Check token expiry
-./worktree.py auth-login    # Re-authenticate
+just t3k-auth-status        # Check token expiry
+just t3k-auth               # Login if needed, then restore session
 ```
 
 ### Port conflicts

@@ -2,11 +2,11 @@
 # Auth Persistence Check Hook
 #
 # Runs at session start to verify T3K authentication is available.
-# Delegates to worktree.py auth-status for the actual check.
+# Delegates to the canonical just auth status command.
 # Skips if worktree is fresh (< 5 min old) since setup just ran auth restore.
 #
 # Behavior:
-# - Calls worktree.py auth-status to check and display auth state
+# - Calls just t3k-auth-status to check and display auth state
 # - Provides clear instructions if auth is missing/expired
 # - Never blocks session start (exit 0)
 #
@@ -19,7 +19,7 @@
 # Blocking session start on missing auth would prevent developers from doing
 # any non-T3K work, which is the majority of the codebase. The correct pattern
 # is to warn loudly at session start so the developer knows to run
-# `./worktree.py auth-login` if they intend to work on T3K features.
+# `just t3k-auth` if they intend to work on T3K features.
 #
 # If auth were required for ALL operations (e.g., the app wouldn't start without
 # it), then blocking would be correct. That's not the case here.
@@ -38,14 +38,14 @@ if ./worktree.py is-fresh --quiet 2>/dev/null; then
     exit 0
 fi
 
-# Run auth-status - it handles all output and exit codes
+# Run auth status - it handles all output and exit codes
 # Suppress errors to avoid blocking session start
-./worktree.py auth-status 2>/dev/null || {
+just t3k-auth-status 2>/dev/null || {
     # Auth check failed - provide instructions
     echo "# Auth Status: Not Available"
     echo ""
     echo "To authenticate (required for T3K API features):"
-    echo "  ./worktree.py auth-login"
+    echo "  just t3k-auth"
     echo ""
 }
 

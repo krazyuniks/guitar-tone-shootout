@@ -82,36 +82,14 @@ def register_auth_commands(app: typer.Typer) -> None:
             8000, "--port", "-p", help="Webapp port for OAuth callback"
         ),
     ) -> None:
-        """Open browser to login via T3K OAuth.
+        """Deprecated user-facing login entry point.
 
-        This starts the OAuth flow by opening your browser to the T3K login page.
-        After successful authentication, tokens are automatically saved to the
-        shared auth file (.gts-auth.json).
-
-        All worktrees will then be able to use these credentials.
-
-        Args:
-            webapp_port: Port of the webapp to use for OAuth callback.
+        Auth login is now managed through `just t3k-auth` / `just t3k-login`
+        so the project has a single command interface.
         """
-        from ..auth import get_auth_file_path, get_webapp_url_for_worktree, start_login_flow
-
-        webapp_url = get_webapp_url_for_worktree()
-        auth_path = get_auth_file_path()
-
-        console.print("[bold]Starting OAuth login flow...[/bold]")
-        console.print(f"Webapp: {webapp_url}")
-        console.print(f"Auth will be saved to: {auth_path}")
-        console.print()
-
-        if start_login_flow(webapp_url):
-            print_success("Browser opened. Complete login in your browser.")
-            console.print()
-            console.print("[dim]After login, tokens will be saved automatically.[/dim]")
-            console.print("[dim]Then run 'auth-restore' in any worktree to activate.[/dim]")
-        else:
-            print_error("Failed to open browser.")
-            console.print(f"Manually open: {webapp_url}/auth/login/t3k")
-            raise typer.Exit(1)
+        print_error("Deprecated command. Use `just t3k-auth`.")
+        console.print("[dim]`just t3k-auth` checks status, runs login if needed, then restores the session.[/dim]")
+        raise typer.Exit(1)
 
     @app.command("auth-restore")
     def auth_restore_cmd(
@@ -125,7 +103,8 @@ def register_auth_commands(app: typer.Typer) -> None:
         the current worktree's webapp. This is automatically called during
         worktree setup if valid auth exists.
 
-        Run this after 'auth-login' to activate auth in the current worktree.
+        Run this after `just t3k-login` if you need restore without the full
+        `just t3k-auth` wrapper.
         """
         from ..auth import (
             check_auth_status,

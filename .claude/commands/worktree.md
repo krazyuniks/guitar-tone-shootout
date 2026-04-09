@@ -36,7 +36,7 @@ Pass any arguments directly to `worktree.py`:
 
 ### Check auth status
 ```
-/worktree auth-status
+just t3k-auth-status
 ```
 
 ### Start services in current worktree

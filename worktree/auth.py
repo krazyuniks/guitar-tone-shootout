@@ -143,7 +143,7 @@ def check_auth_status() -> AuthStatus:
             username=None,
             expires_at=None,
             expires_in_hours=None,
-            message="No saved auth data. Run `./worktree.py auth-login` to authenticate.",
+            message="No saved auth data. Run `just t3k-auth` to authenticate.",
         )
 
     # Check we have tokens (access_token is the minimum requirement)
@@ -154,7 +154,7 @@ def check_auth_status() -> AuthStatus:
             username=auth_data.get("username"),
             expires_at=None,
             expires_in_hours=None,
-            message="Invalid auth file format. Re-authenticate with `./worktree.py auth-login`.",
+            message="Invalid auth file format. Re-authenticate with `just t3k-auth`.",
         )
 
     # Parse expiration time (field name varies: token_expires_at or expires_at)
@@ -198,7 +198,7 @@ def check_auth_status() -> AuthStatus:
             username=auth_data.get("username"),
             expires_at=expires_at,
             expires_in_hours=0,
-            message="T3K tokens have expired. Run `./worktree.py auth-login` to re-authenticate.",
+            message="T3K tokens have expired. Run `just t3k-auth` to re-authenticate.",
         )
 
     # Calculate hours remaining
@@ -299,9 +299,9 @@ def restore_session(webapp_url: str = "http://localhost:8000") -> tuple[bool, st
                 data = response.json()
                 return True, data.get("message", "Session restored successfully")
             elif response.status_code == 404:
-                return False, "No saved auth data found. Run OAuth login first."
+                return False, "No saved auth data found. Run `just t3k-auth` first."
             elif response.status_code == 401:
-                return False, "Saved tokens have expired. Please login again."
+                return False, "Saved tokens have expired. Run `just t3k-auth` again."
             else:
                 return False, f"Restore failed: {response.status_code}"
 
