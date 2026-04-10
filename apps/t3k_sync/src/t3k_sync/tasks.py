@@ -84,7 +84,7 @@ async def refresh_t3k_token(
 
     status = check_auth_status(auth_file_path)
     if status == SourceAuthStatus.LOGIN_REQUIRED:
-        logger.debug("Auth login_required — skipping refresh (run `just t3k-login`)")
+        logger.debug("Auth login_required — skipping refresh (run `just t3k-auth`)")
         return
     if status == SourceAuthStatus.UNKNOWN and not Path(auth_file_path).exists():
         return
@@ -155,7 +155,7 @@ async def refresh_t3k_token(
         error_msg = str(e)
         if "expired" in error_msg.lower() or "re-authenticate" in error_msg.lower():
             new_status = SourceAuthStatus.LOGIN_REQUIRED
-            logger.error("T3K refresh token expired — run `just t3k-login`")
+            logger.error("T3K refresh token expired — run `just t3k-auth`")
         else:
             new_status = SourceAuthStatus.REFRESH_FAILED
             logger.warning("T3K token refresh failed: %s", error_msg)

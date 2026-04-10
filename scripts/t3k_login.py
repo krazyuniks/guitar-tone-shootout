@@ -7,6 +7,10 @@ Launches headless Chromium, navigates to T3K login page, fills email,
 prompts for 6-digit code, completes auth, saves encrypted tokens to
 .gts-auth.json.
 
+User-facing wrapper: `just t3k-auth` is the canonical entry point.
+This script exists for direct login when status and restore are handled
+separately.
+
 Token extraction: intercepts API responses during the login flow to capture
 the access_token and refresh_token directly from the auth endpoint response.
 """

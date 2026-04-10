@@ -40,5 +40,5 @@ All admin endpoints served by the webapp container:
 gts-admin jobs            # List all jobs
 gts-admin job <id>        # Get job details
 gts-admin t3k-status      # Sync status
-gts-admin auth-status     # T3K auth check
+just t3k-auth-status      # T3K auth check
 ```

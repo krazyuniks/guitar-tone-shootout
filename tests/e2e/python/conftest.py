@@ -109,9 +109,7 @@ async def check_auth_status_or_fail(backend_url: str) -> dict:
         status = data.get("status", "unknown")
         username = data.get("username", "N/A")
         pytest.fail(
-            f"Auth token is not valid (status={status}, username={username}). "
-            "Run: ./worktree.py auth-login (on PC) then "
-            "./worktree.py auth-restore (on server)"
+            f"Auth token is not valid (status={status}, username={username}). Run: just t3k-auth"
         )
 
     return data
@@ -160,7 +158,7 @@ async def auth_context(
     if resp.status_code != 200:
         pytest.fail(
             f"restore-session returned {resp.status_code}: {resp.text}. "
-            "Auth file may be missing. Run: ./worktree.py auth-restore"
+            "Auth may be missing or expired. Run: just t3k-auth"
         )
 
     # Extract gts_session cookie (NOT 'session' — archive had this bug)

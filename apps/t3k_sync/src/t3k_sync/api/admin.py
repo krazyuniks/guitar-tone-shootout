@@ -185,7 +185,7 @@ async def refresh_t3k_token(request: TokenRefreshRequest) -> TokenRefreshRespons
         if "expired" in error_msg.lower() or "re-authenticate" in error_msg.lower():
             return TokenRefreshResponse(
                 auth_status="login_required",
-                message="Refresh token expired — run `just t3k-login`",
+                message="Refresh token expired — run `just t3k-auth`",
             )
         return TokenRefreshResponse(
             auth_status="refresh_failed",

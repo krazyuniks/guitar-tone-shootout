@@ -66,7 +66,7 @@ class SyncHealthTracker:
         if self.state != ServiceState.WAITING_FOR_AUTH:
             self.state = ServiceState.WAITING_FOR_AUTH
             self._state_since = datetime.now(UTC)
-            logger.critical("SYNC_STUCK: auth status is %s — run `just t3k-login`", status.value)
+            logger.critical("SYNC_STUCK: auth status is %s — run `just t3k-auth`", status.value)
 
     def record_auth_healthy(self, status: SourceAuthStatus) -> None:
         """Called when auth status is checked and found healthy."""

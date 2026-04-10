@@ -38,9 +38,8 @@ chmod 600 $(dirname $(pwd))/.gts-auth.json
 | Command | Purpose |
 |---------|---------|
 | `just t3k-auth` | Canonical auth flow: check status, login if needed, restore session |
-| `just t3k-login` | Headless Chromium magic-link login only |
+| `just t3k-login` | Direct headless Chromium magic-link login only |
 | `just t3k-auth-status` | Show auth validity and expiration |
-| `./worktree.py auth-restore` | Low-level restore command used by `just t3k-auth` |
 
 ## Workflow
 
@@ -54,11 +53,6 @@ chmod 600 $(dirname $(pwd))/.gts-auth.json
 1. `./worktree.py setup <issue>` creates worktree
 2. Auth auto-restores if valid tokens exist
 3. Ready to work with T3K API
-
-**Manual Restore (if needed):**
-```bash
-./worktree.py auth-restore
-```
 
 ## Checking Auth Status
 

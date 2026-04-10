@@ -39,7 +39,7 @@ def _check_auth_gate(auth_file_path: str | None = None) -> None:
     if not status.can_proceed():
         msg = f"T3K auth status is {status.value}"
         if status.needs_login():
-            msg += " - run `just t3k-login`"
+            msg += " - run `just t3k-auth`"
         raise RuntimeError(msg)
 
 

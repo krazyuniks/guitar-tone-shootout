@@ -60,7 +60,7 @@ class SyncScheduler:
                 self._tracker.record_auth_failure(status)
             if not was_waiting and not self._alert_sent:
                 await self._send_alert(
-                    f"T3K sync stuck: auth is {status.value} — run `just t3k-login`"
+                    f"T3K sync stuck: auth is {status.value} — run `just t3k-auth`"
                 )
                 self._alert_sent = True
             return

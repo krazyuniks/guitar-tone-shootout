@@ -94,7 +94,7 @@ HEADER
 
 # Generate each command's documentation
 # All commands from worktree.py --help
-COMMANDS="auth-status auth-login auth-restore seed backup db-reset sync prune prune-branches orphans list status health ports merge-pr complete cleanup version hooks check-stale validate is-fresh services-start stop logs start setup sync-start sync-stop teardown cleanup-orphans"
+COMMANDS="seed backup db-reset sync prune prune-branches orphans list status health ports merge-pr complete cleanup version hooks check-stale validate is-fresh services-start stop logs start setup sync-start sync-stop teardown cleanup-orphans"
 
 for cmd in $COMMANDS; do
     echo "  Processing: $cmd"
