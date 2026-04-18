@@ -108,23 +108,16 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 - No SPA navigation. All links are standard `<a href>`. No ClientRouter, View Transitions, or `data-astro-reload`.
 - HTMX for small interactions only (checkboxes, modals, inline updates). Not for page navigation.
 
-## Epic Workflow
+## Workflow
 
-**Discovery** is the first phase of any epic. Two commands:
+**Canonical design:** `wiki/Workflow.md` — principles, architecture, open questions.
+**Evidence base:** `wiki/Workflow-Research.md` — evaluation, E146 lessons, rejected axioms.
 
-- **`/epic-discover <N>`** — structured discovery for a specific epic. Reads prior knowledge, researches unknowns, writes `.planning/epics/E<N>/DISCOVERY.md`, enriches the GitHub issue. Two user gates: (1) prior knowledge sufficient? (2) write and enrich?
-- **`/epic-discover-project`** — conversational project-level discovery. Explores the problem space collaboratively, writes findings to `.planning/discovery/`.
+Workflow is under active redesign. The old pipeline (`just epic`, `wf`, `workflow/`, `scripts/orchestrator.py`) was deleted on 2026-04-05 — code lives in git history only. The 2026-04-08 discovery commands (`/epic-discover`, `/epic-discover-project`) were contaminated by a rejected "no Python" axiom and have been removed. Do not reference either.
 
-**Prerequisites:** `gh` CLI working, WebSearch available. Both validated at invocation — missing infrastructure is a hard error.
+**Current state:** No live workflow pipeline. Work manually from GitHub issues. See `wiki/Workflow.md` Open Questions for v2 design progress.
 
-**Decision categories in DISCOVERY.md:** Locked (planner commits without re-asking), Deferred (planner treats as scope creep), Discretion (planner decides within boundaries).
-
-**Precedence:** DISCOVERY.md wins for technical decisions/findings. GitHub issue wins for product scope. Conflict = bug to reconcile before planning.
-
-**Design reference:** `wiki/Discovery-Workflow-Design.md`, `.planning/discovery-design/`
-
-- **No old pipeline commands exist.** Do not reference `just epic`, `/epic brainstorm`, `./wf`, or any `workflow/` module. They have been deleted.
-- **GitHub issues are still the source of truth** for all work.
+**GitHub issues are the source of truth** for all work.
 
 ## Infrastructure
 
