@@ -29,6 +29,56 @@ if ! echo "$command" | grep -qE "git\s+commit"; then
     exit 0
 fi
 
+# --- Scope: skip the test gate for non-code commits -----------------------
+#
+# The gate enforces "tests must pass before commit" on the GTS Python codebase.
+# It misfires for:
+#   (a) commits in sibling repos (e.g. wiki) with no shared test surface
+#   (b) doc-only commits in the main repo (*.md, AGENTS.md, etc.)
+#
+# Resolve the target repo (parse `git -C <path>` or `cd <path> && git commit`,
+# fall back to the hook's cwd), then apply two skip conditions.
+
+target_dir=""
+if [[ "$command" =~ git[[:space:]]+-C[[:space:]]+([^[:space:]\;\&]+) ]]; then
+    target_dir="${BASH_REMATCH[1]}"
+elif [[ "$command" =~ cd[[:space:]]+([^[:space:]\;\&]+)[[:space:]]*\&\&.*git[[:space:]]+commit ]]; then
+    target_dir="${BASH_REMATCH[1]}"
+else
+    target_dir="$(pwd)"
+fi
+
+toplevel=$(git -C "$target_dir" rev-parse --show-toplevel 2>/dev/null || echo "")
+
+# Skip 1: target repo has no code-project marker → not a code repo.
+if [ -n "$toplevel" ] && \
+   [ ! -f "$toplevel/pyproject.toml" ] && \
+   [ ! -f "$toplevel/package.json" ] && \
+   [ ! -f "$toplevel/Cargo.toml" ] && \
+   [ ! -f "$toplevel/go.mod" ]; then
+    exit 0
+fi
+
+# Skip 2: every file about to be committed is documentation.
+# Combine currently-staged files with explicit `git add <files>` targets
+# parsed out of the same command line (since `add` runs before `commit`).
+candidate_files=""
+if [ -n "$toplevel" ]; then
+    candidate_files=$(git -C "$toplevel" diff --cached --name-only 2>/dev/null || true)
+fi
+add_args=$(echo "$command" | grep -oE 'git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?add[[:space:]]+[^&;|]+' | sed -E 's/^.*add[[:space:]]+//' || true)
+if [ -n "$add_args" ]; then
+    candidate_files=$(printf '%s\n%s\n' "$candidate_files" "$add_args" | tr ' ' '\n' | sed '/^$/d')
+fi
+
+if [ -n "$candidate_files" ]; then
+    non_docs=$(echo "$candidate_files" | grep -vE '\.(md|markdown|rst|txt)$|(^|/)docs/|(^|/)wiki/|(^|/)\.claude/|(^|/)README|(^|/)LICENSE|(^|/)CHANGELOG|(^|/)AGENTS\.md$|(^|/)MEMORY\.md$' || true)
+    if [ -z "$non_docs" ]; then
+        exit 0
+    fi
+fi
+# --- end scope -----------------------------------------------------------
+
 # Check if cache directory exists
 if [ ! -d "$CACHE_DIR" ]; then
     cat << 'EOF'
