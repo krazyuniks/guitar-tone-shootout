@@ -100,6 +100,14 @@ test-unit:
 test-docs:
     uv run pytest tests/unit/backend/docs/ -v
 
+# Run woof CLI tests (on host - requires uv and ajv-cli)
+test-woof:
+    uv run pytest tests/unit/woof/ -v
+
+# Validate woof artefacts against JSON Schemas (on host - requires ajv-cli)
+woof-validate *ARGS:
+    ./woof/bin/woof validate {{ARGS}}
+
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)
 test-regression:

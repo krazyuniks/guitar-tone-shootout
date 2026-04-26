@@ -1,0 +1,25 @@
+# GTS project prerequisites for woof.
+#
+# Schema: woof/schemas/prerequisites.schema.json
+# Validate: just woof-validate .woof/prerequisites.toml
+#
+# Version specifications: "any" = presence-only check.
+# Explicit floors ("X", "X.Y", "X.Y.Z") accepted as equal-or-greater.
+
+[infra]
+docker = "any"
+just = "any"
+git = "any"
+gh = "any"
+
+[wrappers]
+cld = "any"
+cod = "any"
+agent-sync = "any"
+
+[validators]
+ajv = "any"
+ajv-formats = "any"
+
+[github]
+repo = "krazyuniks/guitar-tone-shootout"
