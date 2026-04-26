@@ -5,3 +5,4 @@
 {"event":"story_completed","at":"2026-04-26T15:04:34Z","epic_id":181,"story_id":"S1"}
 {"event":"story_started","at":"2026-04-26T15:07:32Z","epic_id":181,"story_id":"S2"}
 {"event":"story_completed","at":"2026-04-26T15:20:51Z","epic_id":181,"story_id":"S2"}
+{"event":"epic_completed","at":"2026-04-26T15:22:52Z","epic_id":181}
