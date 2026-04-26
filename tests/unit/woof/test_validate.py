@@ -206,6 +206,34 @@ def test_validate_critique_via_path(tmp_path: Path, run_woof) -> None:
     assert "valid (critique)" in proc.stdout
 
 
+GATE_WITH_UNQUOTED_TIMESTAMP = """\
+---
+type: plan_gate
+stage: 4
+story_id: null
+triggered_by:
+  - plan_review
+timestamp: 2026-04-26T10:00:00Z
+---
+
+## Context
+
+PyYAML parses bare ISO-8601 strings as datetime objects; the validator
+must coerce them back to a JSON-serialisable string before piping to ajv.
+"""
+
+
+def test_validate_gate_unquoted_timestamp(tmp_path: Path, run_woof) -> None:
+    """Regression: bare ISO-8601 timestamps in YAML front-matter are parsed
+    as datetime objects by PyYAML. The validator must serialise them via
+    json.dumps(..., default=str) — otherwise it crashes with TypeError."""
+    path = tmp_path / "gate.md"
+    path.write_text(GATE_WITH_UNQUOTED_TIMESTAMP)
+    proc = run_woof("validate", str(path))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "valid (gate)" in proc.stdout
+
+
 # ---------------------------------------------------------------------------
 # JSONL events (per-line)
 # ---------------------------------------------------------------------------
