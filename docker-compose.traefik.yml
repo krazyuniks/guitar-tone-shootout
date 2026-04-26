@@ -7,7 +7,7 @@
 # - SSL termination (Let's Encrypt wildcard cert)
 # - Subdomain routing (*.tone-shootout.com)
 #
-# Environment variables (set in .env.local by worktree.py):
+# Environment variables (set in .env.worktree by worktree.py):
 #   GTS_SUBDOMAIN - Subdomain for this worktree (e.g., "dev", "526", "pr42")
 #   GTS_ROUTER_NAME - Unique router name (e.g., "gts-main", "gts-526")
 

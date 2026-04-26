@@ -1,7 +1,12 @@
 # GTS Justfile - Development Commands
-# All commands run in Docker (except E2E tests and host tooling)
+# All commands run in Docker (except E2E tests and host tooling).
 # Use: just <command>
 # List all: just --list
+#
+# `dc` wraps `docker compose`: it sources env.local.sh, exports
+# USER_UID/USER_GID, and attaches --env-file compose.env --env-file
+# .env.worktree so interpolation is consistent everywhere.
+dc := "./scripts/dc"
 
 # Default recipe - show available commands
 default:
@@ -12,42 +17,42 @@ default:
 # =============================================================================
 
 # Start all services in detached mode
-# Compose files are configured via COMPOSE_FILE in .env (set by worktree.py setup)
+# Compose files are configured via COMPOSE_FILE in .env.worktree (set by worktree.py setup)
 up-d:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Main worktree runs jobs profile (worker + BC workers + redis)
+    # Main worktree runs jobs profile (worker + BC workers)
     PROFILE_ARGS=""
     if [ "$(basename "$(pwd)")" = "main" ]; then
         PROFILE_ARGS="--profile jobs"
     fi
 
-    env UID="$(id -u)" GID="$(id -g)" docker compose $PROFILE_ARGS up -d
+    {{dc}} $PROFILE_ARGS up -d
 
 # Stop all services
 down:
-    docker compose down
+    {{dc}} down
 
 # Restart all services
 restart:
-    docker compose restart
+    {{dc}} restart
 
 # View logs (follow mode)
 logs *ARGS:
-    docker compose logs -f {{ARGS}}
+    {{dc}} logs -f {{ARGS}}
 
 # Show service status
 status:
-    docker compose ps
+    {{dc}} ps
 
 # Check service health (used by worktree.py)
 health:
-    @docker compose ps --format 'table {{{{.Service}}\t{{{{.Status}}' | grep -E 'healthy|running' || echo "No healthy services found"
+    @{{dc}} ps --format 'table {{{{.Service}}\t{{{{.Status}}' | grep -E 'healthy|running' || echo "No healthy services found"
 
 # Rebuild and restart services
 rebuild *ARGS:
-    env UID="$(id -u)" GID="$(id -g)" docker compose up -d --build {{ARGS}}
+    {{dc}} up -d --build {{ARGS}}
 
 # =============================================================================
 # Quality Gates (all run in Docker)
@@ -58,16 +63,16 @@ check: check-lint check-types check-tests check-imports test-quality
 
 # Run type checking (strict on core, TypeScript on video)
 check-types:
-    docker compose exec -T webapp mypy model/gts/ --strict
+    {{dc}} exec -T webapp mypy model/gts/ --strict
     @cd model/video && npx tsc --noEmit
 
 # Run unit tests
 check-tests:
-    docker compose exec -T webapp pytest tests/unit/ -v
+    {{dc}} exec -T webapp pytest tests/unit/ -v
 
 # Check import dependency rules
 check-imports:
-    docker compose exec -T webapp lint-imports
+    {{dc}} exec -T webapp lint-imports
 
 # =============================================================================
 # Linting (all run in Docker)
@@ -75,13 +80,13 @@ check-imports:
 
 # Check lint and formatting (no auto-fix)
 check-lint:
-    docker compose exec -T webapp ruff check model/ infra/ sources/ apps/ tests/
-    docker compose exec -T webapp ruff format --check model/ infra/ sources/ apps/ tests/
+    {{dc}} exec -T webapp ruff check model/ infra/ sources/ apps/ tests/
+    {{dc}} exec -T webapp ruff format --check model/ infra/ sources/ apps/ tests/
 
 # Fix all lint issues (Python + Astro)
 lint:
-    docker compose exec -T webapp ruff check model/ infra/ sources/ apps/ tests/ --fix
-    docker compose exec -T webapp ruff format model/ infra/ sources/ apps/ tests/
+    {{dc}} exec -T webapp ruff check model/ infra/ sources/ apps/ tests/ --fix
+    {{dc}} exec -T webapp ruff format model/ infra/ sources/ apps/ tests/
 
 # =============================================================================
 # Testing
@@ -89,7 +94,7 @@ lint:
 
 # Run unit tests (in Docker, excludes host_only tests like documentation tests)
 test-unit:
-    docker compose exec -T webapp pytest tests/unit/ -v -m "not host_only"
+    {{dc}} exec -T webapp pytest tests/unit/ -v -m "not host_only"
 
 # Run documentation tests (on host - requires AGENTS.md/DEVELOPMENT.md)
 test-docs:
@@ -103,9 +108,9 @@ test-regression:
 
     # Run internal stack tests in Docker
     echo "→ Running internal stack regression tests..."
-    docker compose exec -T webapp pytest tests/regression/ -v --tb=short
+    {{dc}} exec -T webapp pytest tests/regression/ -v --tb=short
 
-    # Source E2E environment (uses PUBLIC_URL from .env.local)
+    # Source E2E environment (uses PUBLIC_URL from .env.worktree)
     source scripts/e2e-env.sh
     echo ""
     echo "→ Testing external endpoint: $E2E_BASE_URL"
@@ -126,7 +131,7 @@ test-regression:
             echo "  ✓ Endpoint responding: $E2E_BASE_URL"
         else
             echo "  ✗ Endpoint not responding: $E2E_BASE_URL"
-            echo "    Check Docker logs: docker compose logs"
+            echo "    Check Docker logs: {{dc}} logs"
             exit 1
         fi
     fi
@@ -136,11 +141,11 @@ test-regression:
 
 # Run integration tests (in Docker)
 test-integration:
-    docker compose exec -T webapp pytest tests/integration/ -v
+    {{dc}} exec -T webapp pytest tests/integration/ -v
 
 # Run all tests except E2E (in Docker)
 test:
-    docker compose exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
+    {{dc}} exec -T webapp pytest tests/unit/ tests/integration/ -v -m "not host_only"
 
 # Run E2E golden path tests (on host, hits Docker containers)
 test-golden-path:
@@ -148,14 +153,14 @@ test-golden-path:
     set -euo pipefail
     source scripts/e2e-env.sh
     AUTH_FILE="${GTS_AUTH_FILE:-/worktrees/.gts-auth.json}"
-    if docker compose exec -T webapp test -f "$AUTH_FILE"; then
+    if {{dc}} exec -T webapp test -f "$AUTH_FILE"; then
         just ensure-auth-user
     fi
     cd tests/e2e/python && uv run pytest tests/ -v
 
 # Run a single test file or test (TDD mode, in Docker)
 tdd PATH *EXTRA_ARGS='':
-    docker compose exec -T webapp pytest {{PATH}} -v --tb=short {{EXTRA_ARGS}}
+    {{dc}} exec -T webapp pytest {{PATH}} -v --tb=short {{EXTRA_ARGS}}
 
 # =============================================================================
 # Database
@@ -176,19 +181,19 @@ db-import file: (db-restore file)
 
 # Run migrations (single gts_core migration chain)
 migrate:
-    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini upgrade head
+    {{dc}} exec -T webapp alembic -c infrastructure/migrations/alembic.ini upgrade head
 
 # Create a new migration
 migration NAME:
-    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini revision --autogenerate -m "{{NAME}}"
+    {{dc}} exec -T webapp alembic -c infrastructure/migrations/alembic.ini revision --autogenerate -m "{{NAME}}"
 
 # Show migration history
 migration-history:
-    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini history
+    {{dc}} exec -T webapp alembic -c infrastructure/migrations/alembic.ini history
 
 # Rollback last migration
 migrate-down:
-    docker compose exec -T webapp alembic -c infrastructure/migrations/alembic.ini downgrade -1
+    {{dc}} exec -T webapp alembic -c infrastructure/migrations/alembic.ini downgrade -1
 
 # =============================================================================
 # Frontend (Astro)
@@ -196,20 +201,20 @@ migrate-down:
 
 # Build Astro frontend (triggers build inside running astro container)
 build-astro:
-    docker compose exec -T astro pnpm build
+    {{dc}} exec -T astro pnpm build
 
 # Watch Astro logs (chokidar auto-rebuilds on source changes)
 watch-astro:
-    docker compose logs -f astro
+    {{dc}} logs -f astro
 
 # Check Astro (lint + type check)
 check-astro:
-    docker compose exec -T astro pnpm check
+    {{dc}} exec -T astro pnpm check
 
 # Verify Astro dist is in sync with source
 verify-astro-sync:
     @echo "Building Astro and checking for uncommitted changes..."
-    docker compose exec -T astro pnpm build
+    {{dc}} exec -T astro pnpm build
     @if [ -n "$(git status --porcelain frontend/astro/dist/)" ]; then \
         echo "ERROR: frontend/astro/dist/ is out of sync with source!"; \
         echo "Run 'just build-astro' and commit the changes."; \
@@ -230,7 +235,7 @@ video-studio:
 
 # Run video tests (Python + TypeScript)
 video-test:
-    docker compose exec -T webapp pytest tests/unit/video/ tests/integration/video/ -v
+    {{dc}} exec -T webapp pytest tests/unit/video/ tests/integration/video/ -v
 
 # Check video types (TypeScript)
 video-types:
@@ -247,7 +252,7 @@ video-types:
 # Usage: just admin source-status t3k, just admin jobs, etc.
 admin *ARGS:
     # Calls scripts/gts-admin (Python module at scripts/gts_admin.py)
-    docker compose exec -T webapp python3 -m scripts.gts_admin {{ARGS}}
+    {{dc}} exec -T webapp python3 -m scripts.gts_admin {{ARGS}}
 
 # T3K auth — canonical entry point (check, login if needed, restore session)
 t3k-auth:
@@ -266,7 +271,7 @@ t3k-auth:
 t3k-login:
     #!/usr/bin/env bash
     set -euo pipefail
-    source .env 2>/dev/null || true
+    [ -f env.local.sh ] && source env.local.sh
     uv run --group host python3 scripts/t3k_login.py
 
 # Solve Vercel Security Checkpoint — saves cookies for worker (runs on host)
@@ -283,19 +288,19 @@ t3k-auth-status:
 
 # Open a shell in the backend container
 shell:
-    docker compose exec webapp bash
+    {{dc}} exec webapp bash
 
 # Open a Python REPL in the backend container
 repl:
-    docker compose exec webapp python
+    {{dc}} exec webapp python
 
 # Open psql to gts_core database
 psql:
-    docker compose exec db psql -U gts -d gts_core
+    {{dc}} exec db psql -U gts -d gts_core
 
 # Open redis-cli
 redis-cli:
-    docker compose exec redis redis-cli
+    {{dc}} exec redis redis-cli
 
 # =============================================================================
 # Cleanup
@@ -314,7 +319,7 @@ clean:
 reset:
     @echo "This will delete all data. Are you sure? (Ctrl+C to cancel)"
     @read -p "Type 'yes' to confirm: " confirm && [ "$$confirm" = "yes" ]
-    docker compose down -v
+    {{dc}} down -v
     just up-d
 
 # =============================================================================
@@ -392,10 +397,10 @@ ensure-auth-user:
     #!/usr/bin/env bash
     set -e
     AUTH_FILE="${GTS_AUTH_FILE:-/worktrees/.gts-auth.json}"
-    USER_ID=$(docker compose exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['user_id'])" 2>/dev/null || true)
-    USERNAME=$(docker compose exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['username'])" 2>/dev/null || true)
+    USER_ID=$({{dc}} exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['user_id'])" 2>/dev/null || true)
+    USERNAME=$({{dc}} exec -T webapp python3 -c "import json; print(json.load(open('$AUTH_FILE'))['username'])" 2>/dev/null || true)
     if [ -n "$USER_ID" ] && [ -n "$USERNAME" ]; then
-        docker compose exec -T db psql -U gts gts_core -c \
+        {{dc}} exec -T db psql -U gts gts_core -c \
             "INSERT INTO core_users (id, username, is_active, created_at, updated_at) VALUES ('$USER_ID', '$USERNAME', true, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET username = EXCLUDED.username, is_active = EXCLUDED.is_active, updated_at = NOW();" \
             > /dev/null 2>&1
         echo "  Auth user ensured: $USERNAME ($USER_ID)"

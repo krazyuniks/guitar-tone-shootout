@@ -8,8 +8,8 @@
 FROM python:3.14.3-slim
 
 # Build args for user mapping (avoids root-owned files on bind mounts)
-ARG UID=1000
-ARG GID=1000
+ARG USER_UID=1000
+ARG USER_GID=1000
 
 # Install Node.js 20 and system dependencies: Chromium for Remotion, build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,8 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user with host UID/GID
-RUN groupadd -g $GID appgroup || true \
-    && useradd -u $UID -g $GID -m -s /bin/bash appuser || true
+RUN groupadd -g $USER_GID appgroup || true \
+    && useradd -u $USER_UID -g $USER_GID -m -s /bin/bash appuser || true
 
 # Install uv (latest for development)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/

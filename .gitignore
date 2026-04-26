@@ -24,6 +24,9 @@ venv/
 .env
 .env.local
 .env.secrets
+.env.worktree
+env.local.sh
+.direnv/
 
 # Docker Compose (Phase 7: worktree.py will generate override, then uncomment below)
 # docker-compose.override.yml

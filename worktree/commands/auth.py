@@ -112,7 +112,7 @@ def register_auth_commands(app: typer.Typer) -> None:
             restore_session,
         )
 
-        # Always use PUBLIC_URL from .env.local (set by worktree.py setup)
+        # Always use PUBLIC_URL from .env.worktree (set by worktree.py setup)
         webapp_url = get_webapp_url_for_worktree()
 
         console.print("[bold]Restoring session...[/bold]")

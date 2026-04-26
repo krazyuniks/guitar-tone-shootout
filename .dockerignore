@@ -15,10 +15,12 @@ __pycache__/
 *.swp
 *.swo
 
-# Environment files (secrets)
+# Environment files (secrets and worktree-local)
 .env
 .env.local
 .env.secrets
+.env.worktree
+env.local.sh
 
 # Node modules (astro has its own Dockerfile)
 node_modules/

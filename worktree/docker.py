@@ -75,13 +75,18 @@ def is_traefik_running() -> bool:
     """Check if Traefik reverse proxy is running.
 
     Returns:
-        True if traefik container is running
+        True if traefik container is running. False if docker CLI is unavailable
+        (e.g. inside a container without docker), since a host without docker
+        cannot have Traefik running.
     """
-    result = subprocess.run(
-        ["docker", "ps", "-q", "-f", "name=traefik"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "-f", "name=traefik"],
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return False
     return bool(result.stdout.strip())
 
 
@@ -95,8 +100,9 @@ def run_compose(
 ) -> subprocess.CompletedProcess[str]:
     """Run a docker compose command.
 
-    Compose files are configured via COMPOSE_FILE in .env (set by worktree.py setup).
-    Docker Compose auto-loads .env when present.
+    Compose files are configured via COMPOSE_FILE in .env.worktree (set by
+    worktree.py setup). Callers must pass --env-file arguments themselves or
+    go through scripts/dc (the justfile wrapper).
 
     Args:
         args: docker compose arguments (without 'docker compose' prefix)
@@ -119,7 +125,13 @@ def run_compose(
     if "up" in args:
         _ensure_bind_mount_dirs(cwd)
 
-    cmd = ["docker", "compose", *args]
+    # Route through scripts/dc so env.local.sh is sourced, USER_UID/USER_GID are
+    # exported, and --env-file compose.env / .env.worktree are attached.
+    dc_wrapper = Path(cwd) / "scripts" / "dc"
+    if dc_wrapper.exists():
+        cmd = [str(dc_wrapper), *args]
+    else:
+        cmd = ["docker", "compose", *args]
 
     full_env = os.environ.copy()
     if env:

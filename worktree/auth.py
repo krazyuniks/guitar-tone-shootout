@@ -371,11 +371,11 @@ def get_webapp_url_for_worktree(worktree_path: Path | None = None) -> str:
     except Exception:
         pass
 
-    # Fallback: try to read from .env
-    env_file = worktree_path / ".env"
+    # Fallback: try to read PUBLIC_URL from .env.worktree
+    env_file = worktree_path / ".env.worktree"
     if env_file.exists():
         for line in env_file.read_text().splitlines():
-            if line.startswith("APP_URL="):
+            if line.startswith("PUBLIC_URL="):
                 return line.split("=", 1)[1].strip()
 
     # Default fallback

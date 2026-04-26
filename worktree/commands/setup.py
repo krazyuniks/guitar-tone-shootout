@@ -308,10 +308,8 @@ def _run_setup(
         if not resuming:
             status.update("[bold green]Checking port availability...")
             port_status = check_ports_available(worktree.ports)
-            # Core services: main needs redis (jobs profile), feature worktrees don't
+            # Core services (redis was removed in Epic #122).
             core_services = ["webapp", "db"]
-            if is_main:
-                core_services.append("redis")
             core_unavailable = [name for name in core_services if not port_status.get(name, True)]
             if core_unavailable:
                 delete_worktree(worktree_name)
@@ -563,14 +561,10 @@ def _start_and_configure_services(
     status.update("[bold green]Cleaning up old containers...")
     cleanup_containers(worktree_path)
 
-    # Step 7: Start database services first
-    # Main worktree needs redis for jobs profile; feature worktrees don't
+    # Step 7: Start the database service first (redis was removed in Epic #122).
     status.update("[bold green]Starting database services...")
     try:
-        db_services = ["db"]
-        if is_main:
-            db_services.append("redis")
-        run_compose(["up", "-d", *db_services], cwd=worktree_path)
+        run_compose(["up", "-d", "db"], cwd=worktree_path)
     except Exception as e:
         print_error(f"Failed to start database services: {e}")
         raise typer.Exit(1) from None
@@ -583,8 +577,7 @@ def _start_and_configure_services(
         if db_status.get("db") == "running":
             check_result = subprocess.run(
                 [
-                    "docker",
-                    "compose",
+                    str(worktree_path / "scripts" / "dc"),
                     "exec",
                     "-T",
                     "db",
@@ -786,10 +779,7 @@ def _handle_resume_path(
     with _timed_step("db-start"):
         status.update("[bold green]Starting database services...")
         try:
-            db_services = ["db"]
-            if is_main:
-                db_services.append("redis")
-            run_compose(["up", "-d", *db_services], cwd=worktree_path)
+            run_compose(["up", "-d", "db"], cwd=worktree_path)
         except Exception as e:
             print_error(f"Failed to start database services: {e}")
             raise typer.Exit(1) from None
@@ -803,8 +793,7 @@ def _handle_resume_path(
             if db_status.get("db") == "running":
                 check_result = subprocess.run(
                     [
-                        "docker",
-                        "compose",
+                        str(worktree_path / "scripts" / "dc"),
                         "exec",
                         "-T",
                         "db",
@@ -901,14 +890,8 @@ def _run_regression_tests(worktree_path: Path, worktree, status) -> bool:
         "E2E_API_URL": f"http://localhost:{worktree.ports.webapp}",
     }
 
-    # Get database password from .env
-    env_file = worktree_path / ".env"
-    db_password = "gts_dev_password"  # Default
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            if line.startswith("DB_PASSWORD="):
-                db_password = line.split("=", 1)[1]
-                break
+    # Get database password from env.local.sh (shell-exported secrets)
+    db_password = get_db_password(worktree_path)
 
     env["E2E_DATABASE_URL"] = (
         f"postgresql+asyncpg://gts:{db_password}@localhost:{worktree.ports.db}/gts_core"
@@ -1035,40 +1018,12 @@ def _display_setup_success(
     console.print("[dim]Start CloudBeaver: docker compose --profile tools up -d cloudbeaver[/dim]")
 
 
-def _ensure_compose_file_includes_traefik(worktree_path: Path) -> None:
-    """Ensure COMPOSE_FILE in .env includes the traefik overlay."""
-    env_file = worktree_path / ".env"
-    traefik_compose = "docker-compose.traefik.yml"
-    expected = "docker-compose.yml:docker-compose.override.yml:docker-compose.traefik.yml"
-
-    if not env_file.exists():
-        return
-
-    content = env_file.read_text()
-    lines = content.splitlines()
-
-    # Check if COMPOSE_FILE already includes traefik
-    for i, line in enumerate(lines):
-        if line.startswith("COMPOSE_FILE="):
-            if traefik_compose in line:
-                return  # Already configured
-            # Update to include traefik
-            lines[i] = f"COMPOSE_FILE={expected}"
-            env_file.write_text("\n".join(lines) + "\n")
-            return
-
-    # COMPOSE_FILE not present, add it
-    with env_file.open("a") as f:
-        f.write(f"COMPOSE_FILE={expected}\n")
-
-
 def _setup_traefik(worktree_path: Path, status) -> None:
     """Set up Traefik integration for server deployments.
 
-    If Traefik is already running (from any location), configure this worktree
-    to use it by:
-    - Ensuring COMPOSE_FILE includes traefik overlay
-    - Ensuring traefik-public network exists
+    If Traefik is already running (from any location), ensure the
+    traefik-public network exists. COMPOSE_FILE is written by
+    templates.write_worktree_configs based on whether Traefik is running.
 
     If Traefik is not running but deploy/traefik/.env exists in the worktree,
     attempt to start it.
@@ -1086,9 +1041,6 @@ def _setup_traefik(worktree_path: Path, status) -> None:
     if traefik_running:
         status.update("[bold green]Configuring Traefik integration...")
 
-        # Ensure COMPOSE_FILE includes traefik overlay
-        _ensure_compose_file_includes_traefik(worktree_path)
-
         # Ensure traefik-public network exists
         with contextlib.suppress(Exception):
             subprocess.run(
@@ -1105,9 +1057,6 @@ def _setup_traefik(worktree_path: Path, status) -> None:
         return  # No Traefik config, nothing to do
 
     status.update("[bold green]Starting Traefik reverse proxy...")
-
-    # Ensure COMPOSE_FILE includes traefik overlay
-    _ensure_compose_file_includes_traefik(worktree_path)
 
     # Ensure traefik-public network exists
     with contextlib.suppress(Exception):

@@ -1,8 +1,14 @@
 # GTS Docker Compose - Base Configuration
-# Worktree-agnostic: no ports, no container names
-# Use with docker-compose.override.yml for local development
+# Worktree-agnostic: no ports, no container names.
+# Use with docker-compose.override.yml for local development.
 #
-# Override pattern:
+# Env model (see also CLAUDE.md / AGENTS.md):
+#   compose.env           - committed static defaults (loaded via --env-file)
+#   .env.worktree         - auto-generated worktree non-secrets (loaded via --env-file)
+#   env.local.sh          - gitignored shell-sourced secrets (exported before compose runs)
+#   USER_UID / USER_GID   - exported from the host via scripts/dc or .envrc
+#
+# Overlay pattern:
 #   docker-compose.yml          - Base config (this file, committed)
 #   docker-compose.override.yml - Worktree-specific (auto-generated, gitignored)
 #   docker-compose.traefik.yml  - Traefik/HTTPS (committed)
@@ -37,25 +43,18 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.dev
       args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
     environment:
       # Webapp only has access to gts_core - NO T3K database access
       # Worker is the bridge between databases via pgmq
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
-      # No REDIS_URL - webapp doesn't need Redis (T3K rate limiting is worker's domain)
       SECRET_KEY: ${SECRET_KEY:-dev_secret_key_change_in_production}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       GTS_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
+      GTS_ADMIN_PASSWORD: ${GTS_ADMIN_PASSWORD:-}
       ENV: ${ENV:-development}
       GTS_STORAGE_ROOT: /app/storage
-    env_file:
-      - path: .env
-        required: false
-      - path: .env.local
-        required: false
-      - path: .env.secrets
-        required: false
     volumes:
       - ./model:/app/model
       - ./infra:/app/infra
@@ -121,20 +120,14 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.t3k-sync
       args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       ENV: ${ENV:-development}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
+      T3K_API_KEY: ${T3K_API_KEY:-}
       GTS_STORAGE_ROOT: /app/storage
-    env_file:
-      - path: .env
-        required: false
-      - path: .env.local
-        required: false
-      - path: .env.secrets
-        required: false
     volumes:
       - ./model:/app/model
       - ./infra:/app/infra
@@ -163,20 +156,13 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.audio-worker
       args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
     environment:
       DATABASE_URL: postgresql+asyncpg://gts:${DB_PASSWORD:-gts_dev_password}@db:5432/gts_core
       ENV: ${ENV:-development}
       GTS_STORAGE_ROOT: /app/storage
       PYTHONPATH: /app/apps/webapp/src:/app/sources/t3k/src
-    env_file:
-      - path: .env
-        required: false
-      - path: .env.local
-        required: false
-      - path: .env.secrets
-        required: false
     volumes:
       - ./model:/app/model
       - ./infra:/app/infra
@@ -205,8 +191,8 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.video
       args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
     command:
       [
         "uvicorn",
@@ -223,13 +209,6 @@ services:
       ENV: ${ENV:-development}
       GTS_STORAGE_ROOT: /app/storage
       PYTHONPATH: /app/apps/webapp/src:/app/sources/t3k/src
-    env_file:
-      - path: .env
-        required: false
-      - path: .env.local
-        required: false
-      - path: .env.secrets
-        required: false
     volumes:
       - ./model/gts:/app/model/gts
       - ./model/video:/app/model/video
@@ -257,8 +236,8 @@ services:
       context: ./frontend/astro
       dockerfile: Dockerfile
       args:
-        UID: ${UID:-1000}
-        GID: ${GID:-1000}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
     environment:
       SHELL: /bin/sh
     volumes:

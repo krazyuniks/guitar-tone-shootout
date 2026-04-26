@@ -3,10 +3,6 @@
 # Worktree: {{ worktree.worktree_name }}
 # Branch: {{ worktree.branch }}
 # Generated: {{ generated_at }}
-#
-# This file overrides docker-compose.yml with worktree-specific ports and volumes.
-#
-# Entry point: http://localhost:{{ worktree.ports.nginx }} (nginx routes to webapp)
 
 services:
   nginx:
@@ -18,26 +14,13 @@ services:
     container_name: {{ worktree.compose_project }}-webapp
     ports:
       - "127.0.0.1:{{ worktree.ports.webapp }}:8000"
-    volumes:
-      # App code (new uv workspace layout)
-      - ./model:/app/model
-      - ./infra:/app/infra
-      - ./apps/webapp:/app/apps/webapp
-      - ./frontend/astro/dist:/app/static
-      - ./sources:/app/sources
-      - ./tests:/app/tests
-      - ./infrastructure/migrations:/app/infrastructure/migrations
-      # Shared storage bind mount
-      - ../gts-storage:/app/storage
-      # Parent dir for shared auth file (.gts-auth.json)
-      - ../:/worktrees
     environment:
-      # All URLs point to nginx for consistent auth cookie handling
-      # Uses Traefik HTTPS URL on server, localhost for local development
       - PUBLIC_URL={{ public_url }}
       - CORS_ORIGINS={{ public_url }}
       - GTS_AUTH_FILE=/worktrees/.gts-auth.json
       - GTS_STORAGE_ROOT=/app/storage
+    volumes:
+      - ../:/worktrees
 
   astro:
     container_name: {{ worktree.compose_project }}-astro
@@ -48,47 +31,18 @@ services:
 
   t3k-sync:
     container_name: {{ worktree.compose_project }}-t3k-sync
-    volumes:
-      - ./model:/app/model
-      - ./infra:/app/infra
-      - ./apps/t3k_sync:/app/apps/t3k_sync
-      - ./apps/webapp:/app/apps/webapp
-      - ./sources:/app/sources
-      # Shared storage bind mount
-      - ../gts-storage:/app/storage
-      # Parent dir for shared auth file (.gts-auth.json)
-      - ../:/worktrees
     environment:
       - GTS_AUTH_FILE=/worktrees/.gts-auth.json
-      - GTS_STORAGE_ROOT=/app/storage
+    volumes:
+      - ../:/worktrees
 
   audio-worker:
     container_name: {{ worktree.compose_project }}-audio-worker
-    volumes:
-      - ./model:/app/model
-      - ./infra:/app/infra
-      - ./apps/audio_worker:/app/apps/audio_worker
-      # Shared storage bind mount
-      - ../gts-storage:/app/storage
-    environment:
-      - GTS_STORAGE_ROOT=/app/storage
-
 
   video-worker:
     container_name: {{ worktree.compose_project }}-video-worker
     ports:
       - "127.0.0.1:{{ worktree.ports.video }}:8002"
-    volumes:
-      - ./model/gts:/app/model/gts
-      - ./model/video:/app/model/video
-      - ./infra/messaging:/app/infra/messaging
-      - ./apps/video_worker:/app/apps/video_worker
-      - ./apps/webapp:/app/apps/webapp
-      - ./sources:/app/sources
-      # Shared storage bind mount
-      - ../gts-storage:/app/storage
-    environment:
-      - GTS_STORAGE_ROOT=/app/storage
 
   db:
     container_name: {{ worktree.compose_project }}-db
@@ -110,8 +64,6 @@ volumes:
   {{ worktree.volumes.postgres }}:
   {{ worktree.volumes.cloudbeaver }}:
 
-# Override subnet to avoid conflicts between worktrees
-# Each worktree gets a unique subnet based on its offset: 10.10.{offset}.0/24
 networks:
   default:
     driver: bridge

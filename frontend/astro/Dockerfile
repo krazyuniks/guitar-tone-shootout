@@ -1,16 +1,16 @@
 FROM node:24.13.1-alpine
 
 # Build args for user mapping (avoids root-owned files on bind mounts)
-ARG UID=1000
-ARG GID=1000
+ARG USER_UID=1000
+ARG USER_GID=1000
 
 # Install pnpm globally
 RUN npm install -g pnpm@10
 
 # Replace default node user (UID 1000) with host UID/GID
 RUN deluser --remove-home node \
-    && addgroup -g $GID appgroup \
-    && adduser -u $UID -G appgroup -D -s /bin/sh appuser
+    && addgroup -g $USER_GID appgroup \
+    && adduser -u $USER_UID -G appgroup -D -s /bin/sh appuser
 
 # Set working directory with correct ownership
 WORKDIR /app
@@ -20,13 +20,13 @@ RUN chown appuser:appgroup /app
 USER appuser
 
 # Copy package files
-COPY --chown=$UID:$GID package.json pnpm-lock.yaml* ./
+COPY --chown=$USER_UID:$USER_GID package.json pnpm-lock.yaml* ./
 
 # Install dependencies (as non-root, so node_modules is owned correctly)
 RUN pnpm install
 
 # Copy source code
-COPY --chown=$UID:$GID . .
+COPY --chown=$USER_UID:$USER_GID . .
 
 # Healthcheck: verify base.html exists (build has run at least once)
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \

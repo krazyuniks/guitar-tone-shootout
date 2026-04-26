@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# scripts/dc — docker compose wrapper
+#
+# Sources env.local.sh into the environment, exports USER_UID/USER_GID from
+# the host, then invokes docker compose with --env-file compose.env and
+# --env-file .env.worktree so interpolation always sees the same values.
+#
+# Use everywhere in place of `docker compose`. The justfile and worktree.py
+# rely on this wrapper so the env model works without requiring direnv.
+
+set -euo pipefail
+
+# Resolve repo root as this script's parent's parent.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source secrets (env.local.sh is a shell file with `export` statements).
+if [ -f "$REPO_ROOT/env.local.sh" ]; then
+    # shellcheck disable=SC1091
+    source "$REPO_ROOT/env.local.sh"
+fi
+
+export USER_UID="$(id -u)"
+export USER_GID="$(id -g)"
+
+# Build --env-file args, skipping any that do not exist.
+ENV_FILE_ARGS=()
+[ -f "$REPO_ROOT/compose.env" ] && ENV_FILE_ARGS+=(--env-file "$REPO_ROOT/compose.env")
+[ -f "$REPO_ROOT/.env.worktree" ] && ENV_FILE_ARGS+=(--env-file "$REPO_ROOT/.env.worktree")
+
+exec docker compose "${ENV_FILE_ARGS[@]}" "$@"

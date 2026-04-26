@@ -87,14 +87,8 @@ def register_info_commands(app: typer.Typer) -> None:
 
         health = check_worktree_health(current_path)
 
-        # Read DB_PASSWORD from .env file for display
-        db_password = "devpassword"  # default
-        env_file = current_path / ".env"
-        if env_file.exists():
-            for line in env_file.read_text().splitlines():
-                if line.startswith("DB_PASSWORD="):
-                    db_password = line.split("=", 1)[1].strip()
-                    break
+        # Read DB_PASSWORD from env.local.sh via shared helper
+        db_password = get_db_password(current_path)
 
         # Check for public URL (Traefik on Linux servers)
         public_url = get_public_url(worktree.branch)

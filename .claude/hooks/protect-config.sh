@@ -20,7 +20,7 @@ BASENAME=$(basename "$FILE_PATH")
 
 # Check against protected files
 case "$BASENAME" in
-    docker-compose.override.yml|.env.local|.env.secrets)
+    docker-compose.override.yml|.env.worktree)
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "  BLOCKED: $BASENAME is auto-generated"

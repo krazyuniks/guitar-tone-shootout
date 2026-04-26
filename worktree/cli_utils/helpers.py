@@ -89,7 +89,7 @@ def get_public_url(branch: str) -> str | None:
 
 
 def get_db_password(worktree_path: Path) -> str:
-    """Read DB_PASSWORD from .env file.
+    """Read DB_PASSWORD from env.local.sh (exported shell format).
 
     Args:
         worktree_path: Path to the worktree directory.
@@ -98,11 +98,16 @@ def get_db_password(worktree_path: Path) -> str:
         The database password, or "devpassword" as default.
     """
     db_password = "devpassword"  # default
-    env_file = worktree_path / ".env"
+    env_file = worktree_path / "env.local.sh"
     if env_file.exists():
-        for line in env_file.read_text().splitlines():
+        for raw in env_file.read_text().splitlines():
+            line = raw.strip()
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
             if line.startswith("DB_PASSWORD="):
-                db_password = line.split("=", 1)[1].strip()
+                value = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if value:
+                    db_password = value
                 break
     return db_password
 

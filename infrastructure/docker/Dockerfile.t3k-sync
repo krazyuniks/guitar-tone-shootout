@@ -3,8 +3,8 @@
 
 FROM python:3.14.3-slim
 
-ARG UID=1000
-ARG GID=1000
+ARG USER_UID=1000
+ARG USER_GID=1000
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
     && echo "deb http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" \
@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
     postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -g $GID appgroup || true \
-    && useradd -u $UID -g $GID -m -s /bin/bash appuser || true
+RUN groupadd -g $USER_GID appgroup || true \
+    && useradd -u $USER_UID -g $USER_GID -m -s /bin/bash appuser || true
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -54,7 +54,7 @@ RUN mkdir -p model/gts/src/gts model/audio/src/audio model/video/src/video \
     && touch apps/audio_worker/src/audio_worker/__init__.py \
     && touch apps/video_worker/src/video_worker/__init__.py
 
-RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=${UID},gid=${GID} \
+RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=${USER_UID},gid=${USER_GID} \
     uv sync --frozen --all-packages
 
 ENV PYTHONUNBUFFERED=1 \

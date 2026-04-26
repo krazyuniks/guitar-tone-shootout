@@ -9,8 +9,6 @@ Tests that the video service is properly integrated into worktree management:
 Uses monkeypatch instead of unittest.mock.
 """
 
-from pathlib import Path
-
 import pytest
 
 from worktree.config import PortConfig, VolumeConfig, calculate_ports
@@ -18,9 +16,8 @@ from worktree.registry import Worktree
 from worktree.resources import (
     check_ports_available,
     format_ports_display,
-    generate_compose_override,
-    generate_env_local,
 )
+from worktree.templates import render_compose_override, render_env_worktree
 
 
 def _make_worktree(**overrides) -> Worktree:
@@ -94,20 +91,18 @@ class TestVideoPortAllocation:
         assert ports_feature.video == ports_main.video + expected_offset
 
 
-class TestEnvLocalGeneration:
-    """Tests for .env.local file generation with video port."""
+class TestEnvWorktreeGeneration:
+    """Tests for .env.worktree file generation with worktree-specific values."""
 
-    def test_env_local_includes_video_port(self, tmp_path: Path):
-        """Generated .env.local should include VIDEO_PORT."""
+    def test_env_worktree_includes_ports(self):
+        """Generated .env.worktree should expose worktree ports."""
         worktree = _make_worktree()
-        env_path = tmp_path / ".env.local"
-        generate_env_local(worktree, env_path)
+        content = render_env_worktree(worktree)
+        assert "NGINX_PORT=9000" in content
+        assert "WEBAPP_PORT=8000" in content
 
-        content = env_path.read_text()
-        assert "VIDEO_PORT=8002" in content
-
-    def test_env_local_video_port_for_feature_worktree(self, tmp_path: Path):
-        """Feature worktree .env.local should have offset video port."""
+    def test_env_worktree_ports_for_feature_worktree(self):
+        """Feature worktree .env.worktree should have offset ports."""
         worktree = _make_worktree(
             id=2,
             worktree_name="42-video-feature",
@@ -141,41 +136,31 @@ class TestEnvLocalGeneration:
             ),
         )
 
-        env_path = tmp_path / ".env.local"
-        generate_env_local(worktree, env_path)
-
-        content = env_path.read_text()
-        assert "VIDEO_PORT=8012" in content
+        content = render_env_worktree(worktree)
+        assert "NGINX_PORT=9010" in content
+        assert "WEBAPP_PORT=8010" in content
+        assert "COMPOSE_PROJECT_NAME=gts-42-video-feature" in content
 
 
 class TestComposeOverrideGeneration:
     """Tests for docker-compose.override.yml generation with video service."""
 
-    def test_compose_override_includes_video_service(self, tmp_path: Path):
+    def test_compose_override_includes_video_service(self):
         """Generated override should include video service configuration."""
         worktree = _make_worktree()
-        override_path = tmp_path / "docker-compose.override.yml"
-        generate_compose_override(worktree, override_path)
-
-        content = override_path.read_text()
+        content = render_compose_override(worktree)
         assert "video-worker:" in content
 
-    def test_compose_override_video_port_mapping(self, tmp_path: Path):
+    def test_compose_override_video_port_mapping(self):
         """Video service should have correct port mapping in override."""
         worktree = _make_worktree()
-        override_path = tmp_path / "docker-compose.override.yml"
-        generate_compose_override(worktree, override_path)
-
-        content = override_path.read_text()
+        content = render_compose_override(worktree)
         assert "127.0.0.1:8002:8002" in content or "8002:8002" in content
 
-    def test_compose_override_video_container_name(self, tmp_path: Path):
+    def test_compose_override_video_container_name(self):
         """Video service should have correct container name in override."""
         worktree = _make_worktree()
-        override_path = tmp_path / "docker-compose.override.yml"
-        generate_compose_override(worktree, override_path)
-
-        content = override_path.read_text()
+        content = render_compose_override(worktree)
         assert "gts-main-video" in content
 
 

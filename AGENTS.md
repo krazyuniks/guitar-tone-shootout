@@ -122,12 +122,25 @@ Workflow is under active redesign. The old pipeline (`just epic`, `wf`, `workflo
 ## Infrastructure
 
 - NEVER run ad-hoc Docker commands. Use `just` + `worktree.py`.
-- NEVER edit `docker-compose.override.yml` or `.env.local` — they are auto-generated.
+- NEVER edit `docker-compose.override.yml` or `.env.worktree` — they are auto-generated.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
 - For ANY infrastructure problem: `./worktree.py setup <name>` (idempotent).
 - **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx.
 - **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main worktree only.
 - **Messaging:** pgmq queues in PostgreSQL. Command queues (point-to-point) and event queues (multi-consumer via offset tracking). See wiki for queue topology.
+
+### Env model
+
+| File | State | Owner |
+|---|---|---|
+| `compose.env` | committed | static non-secret defaults, loaded via `--env-file` |
+| `.env.worktree` | gitignored, auto-generated | per-worktree non-secrets (ports, COMPOSE_FILE, COMPOSE_PROJECT_NAME, PUBLIC_URL, Traefik) — written by `worktree.py` |
+| `env.local.sh` | gitignored, human-managed | shell-sourced secrets (`DB_PASSWORD`, `OAUTH_ENCRYPTION_KEY`, `SECRET_KEY`, `GTS_ADMIN_PASSWORD`, `T3K_API_KEY`) — seeded once on setup, never overwritten |
+| `env.local.sh.example` | committed | template |
+| `.envrc` | committed, optional | direnv — sources `env.local.sh`, exports `USER_UID`/`USER_GID` |
+| `scripts/dc` | committed | `docker compose` wrapper: sources `env.local.sh`, exports `USER_UID`/`USER_GID`, attaches `--env-file compose.env --env-file .env.worktree` |
+
+All `just` recipes route through `scripts/dc`. `USER_UID` / `USER_GID` are derived from `id -u` / `id -g` at runtime — no more shell-reserved `UID`/`GID`. Legacy `.env`, `.env.local`, `.env.secrets` were migrated into the new layout on 2026-04-20 and are no longer used.
 
 ## Git & GitHub
 
