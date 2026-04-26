@@ -3,3 +3,5 @@
 {"event":"plan_gate_resolved","at":"2026-04-26T14:54:21Z","epic_id":181,"decision":"approve","gate_type":"plan_gate","reason":"approved with three pre-execution patches (D1+D5+D4) committed; see commits cb9a8194, 9053041d, 44d75e48"}
 {"event":"story_started","at":"2026-04-26T14:54:59Z","epic_id":181,"story_id":"S1"}
 {"event":"story_completed","at":"2026-04-26T15:04:34Z","epic_id":181,"story_id":"S1"}
+{"event":"story_started","at":"2026-04-26T15:07:32Z","epic_id":181,"story_id":"S2"}
+{"event":"story_completed","at":"2026-04-26T15:20:51Z","epic_id":181,"story_id":"S2"}
