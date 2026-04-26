@@ -47,7 +47,7 @@ Then proceed.
 | 1 | A | Build / lint / type / test green | Run command in `.woof/quality-gates.toml.commands[]`; exit 0 required |
 | 2 | B | Outcome coverage | For each `O<n>` in `story.satisfies[]`, regex-grep the test diff (`marker_regex` per language); ≥1 hit each |
 | 3 | C | Implements completeness | For each CD in `story.implements_contract_decisions[]`, the staged diff must contain the implementing file (`openapi`-decorated route, Pydantic model class, JSON Schema file at the declared path) |
-| 4 | D | Contract artefact validation | Per CD type: `schemathesis run <openapi_ref>` / `python -c "from <module> import <Class>"` / `ajv compile -s <json_schema_ref>` |
+| 4 | D | Contract artefact validation | `./woof/bin/woof check-cd .woof/epics/E<N>/EPIC.md` — verifies every CD's `openapi_ref` / `pydantic_ref` / `json_schema_ref` resolves to a real, parsing artefact. Exit 0 = pass; exit 1 = at least one CD's referenced artefact has drifted. The E146 fixture in `tests/fixtures/woof/e146/` is the regression net for this check. |
 | 5 | E | Scope hygiene | `git diff --staged --name-only` ⊆ `story.paths[]` (pathspec match) PLUS the four allowed `.woof/` files |
 | 6 | F | Dependencies satisfied | For each id in `depends_on[]`, `plan.json.stories[<id>].status == done` |
 | 7 | G | Non-empty diff | `git diff --staged --quiet` returns non-zero. Empty diff opens a `story_gate` with `triggered_by: ["empty_diff_review"]` (during dogfood; relaxes once `story.empty_diff: true` is the explicit spec) |
