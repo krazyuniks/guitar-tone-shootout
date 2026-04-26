@@ -34,3 +34,8 @@ default_minutes = 30
 [review_valve]
 every_n_stories = 5
 end_of_epic = true
+
+[audit]
+enabled = true
+max_bytes = 262144
+redact_patterns = []

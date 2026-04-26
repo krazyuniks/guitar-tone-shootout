@@ -1,0 +1,64 @@
+{
+  "epic_id": 181,
+  "goal": "Teach woof dispatch to redact secrets and cap audit files at 256 KB before they land on disk, with overflow to a gitignored audit/raw/ path and operator-configurable knobs in .woof/agents.toml.",
+  "stories": [
+    {
+      "id": "S1",
+      "title": "Audit policy contract + config loader",
+      "intent": "Land the [audit] block on agents.schema.json and a small loader that surfaces enabled/max_bytes/redact_patterns from .woof/agents.toml as a typed config. This is the contract surface S2 consumes; no behavioural change yet.",
+      "paths": [
+        "woof/schemas/agents.schema.json",
+        "woof/lib/audit_config.py",
+        "tests/unit/woof/test_audit_config.py",
+        ".woof/agents.toml"
+      ],
+      "satisfies": [
+        "O3"
+      ],
+      "implements_contract_decisions": [
+        "CD1"
+      ],
+      "uses_contract_decisions": [],
+      "depends_on": [],
+      "tests": {
+        "count": 4,
+        "types": [
+          "unit"
+        ]
+      },
+      "status": "done"
+    },
+    {
+      "id": "S2",
+      "title": "Redactor + size cap wired into woof dispatch",
+      "intent": "Apply conservative secret redaction and the per-file size cap to every audit artefact written by woof dispatch, overflowing oversized output to a gitignored .woof/epics/E*/audit/raw/ path. Realises end-to-end disk-level redaction and truncation.",
+      "paths": [
+        "woof/lib/audit_filter.py",
+        "woof/bin/woof",
+        "tests/unit/woof/test_audit_filter.py",
+        "tests/unit/woof/test_dispatch.py",
+        ".gitignore"
+      ],
+      "satisfies": [
+        "O1",
+        "O2",
+        "O3"
+      ],
+      "implements_contract_decisions": [],
+      "uses_contract_decisions": [
+        "CD1"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "tests": {
+        "count": 6,
+        "types": [
+          "unit",
+          "integration"
+        ]
+      },
+      "status": "pending"
+    }
+  ]
+}
