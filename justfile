@@ -108,6 +108,30 @@ test-woof:
 woof-validate *ARGS:
     ./woof/bin/woof validate {{ARGS}}
 
+# Drive Stage 5 for an epic (story-by-story dispatch loop). Halts on gate.md.
+wf-run *ARGS:
+    ./scripts/wf-run {{ARGS}}
+
+# Install woof's post-commit cartography hook (idempotent fenced block).
+wf-install-hooks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    hook="$(git rev-parse --git-path hooks/post-commit)"
+    fence_start="# >>> woof-cartography"
+    fence_end="# <<< woof-cartography"
+    block=$(printf '%s\n[ -x ./scripts/refresh-cartography ] && ./scripts/refresh-cartography\n%s\n' "$fence_start" "$fence_end")
+    mkdir -p "$(dirname "$hook")"
+    if [[ -f "$hook" ]] && grep -qF "$fence_start" "$hook"; then
+        echo "wf-install-hooks: fenced block already present in $hook"
+        exit 0
+    fi
+    if [[ ! -f "$hook" ]]; then
+        printf '#!/usr/bin/env bash\nset -euo pipefail\n\n' > "$hook"
+    fi
+    printf '\n%s\n' "$block" >> "$hook"
+    chmod +x "$hook"
+    echo "wf-install-hooks: installed fenced block in $hook"
+
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)
 test-regression:
