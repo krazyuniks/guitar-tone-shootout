@@ -21,5 +21,15 @@ agent-sync = "any"
 ajv = "any"
 ajv-formats = "any"
 
+[indexing]
+ctags = "any"
+
+[indexing.tree-sitter]
+cli = "any"
+grammars = ["python", "typescript"]
+
+[lsp]
+languages = ["python", "typescript"]
+
 [github]
 repo = "krazyuniks/guitar-tone-shootout"

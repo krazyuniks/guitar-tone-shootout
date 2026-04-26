@@ -1,0 +1,36 @@
+# GTS project agent role configuration for woof.
+#
+# Schema: woof/schemas/agents.schema.json
+# Validate: just woof-validate .woof/agents.toml
+#
+# Defaults supplied by woof when a role is missing — declare here only
+# when the project needs a non-default model, MCP set, or extra flags.
+
+[roles.orchestrator]
+harness = "in-session"
+notes = "Drives /wf in the user's interactive Claude Code session."
+
+[roles.planner]
+harness = "cld"
+model = "claude-opus-4-7"
+think = true
+
+[roles.story-executor]
+harness = "cld"
+model = "claude-sonnet-4-6"
+think = true
+
+[roles.critiquer]
+harness = "cod"
+model = "gpt-5.3-codex"
+
+[roles.gate-resolver]
+harness = "in-session"
+notes = "Stage 4 / Stage 6 gate conversations stay with the operator."
+
+[timeouts]
+default_minutes = 30
+
+[review_valve]
+every_n_stories = 5
+end_of_epic = true
