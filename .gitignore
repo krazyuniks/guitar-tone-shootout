@@ -51,3 +51,14 @@ docker-compose.override.yml
 .agents/
 
 .playwright-mcp/
+
+# woof — runtime / per-worktree state
+.woof/.current-epic
+.woof/epics/*/gate.md
+.woof/epics/*/.wf.lock
+.woof/epics/*/.last-sync
+.woof/epics/*/audit/raw/
+.woof/codebase/tags
+.woof/codebase/tree.txt
+.woof/codebase/freshness.json
+.woof/.preflight-*
