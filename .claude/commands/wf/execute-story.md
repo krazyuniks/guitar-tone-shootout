@@ -27,10 +27,11 @@ Then proceed.
 2. **Tests.** Add or modify tests asserting `story.satisfies[]` outcomes. Each `O<n>` in `satisfies[]` must be referenced (literal `O<n>` token, word-boundary anchored) by at least one test in the diff. Per-language test paths and marker regex come from `.woof/test-markers.toml`.
 3. **Refactor.** Tighten only if it doesn't widen the diff beyond `paths[]`.
 4. **Continuous validate.** Run the project quality-gate command (per `.woof/quality-gates.toml`) until it exits 0 — that is the precondition for proceeding.
-5. **Codex critique.** Dispatch:
+5. **Codex critique.** Dispatch using `woof/playbooks/critique/story.md` as the prompt template:
 
    ```
-   ./woof/bin/woof dispatch codex --role critiquer --epic <N> --story <Sk> --prompt-file <stage-5-critique-prompt>
+   ./woof/bin/woof dispatch codex --role critiquer --epic <N> --story <Sk> \
+       --prompt-file woof/playbooks/critique/story.md
    ```
 
    The dispatch tees output to `.woof/epics/E<N>/audit/cod-critiquer-*` and appends `subprocess_returned` to `dispatch.jsonl`. The critique writes `.woof/epics/E<N>/critique/story-S<k>.md`. A `blocker` severity finding is grounds for opening a story_gate; `info` and `minor` accumulate for the periodic-review valve (Check 9).

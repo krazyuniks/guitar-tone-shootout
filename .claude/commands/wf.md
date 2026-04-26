@@ -72,20 +72,24 @@ After Definition closes, outcome IDs and contract-decision IDs are append-only. 
 
 ## Stage 3 — Breakdown
 
-Dispatch the planner role to author `plan.json` against `woof/schemas/plan.schema.json`. The planner must satisfy:
-
-- Every `observable_outcome.id` referenced by ≥1 story (`story.satisfies[]`)
-- Every `contract_decision.id` referenced exactly once via `implements_contract_decisions[]` (one-to-one) or repeatedly via `uses_contract_decisions[]` (consumers, unbounded)
-- Story `paths[]` is a git-pathspec glob list with no overlap between stories
-- `depends_on[]` forms a topological order
-
-Then dispatch the critiquer (Codex) for the plan critique:
+Dispatch the planner via `/wf:plan`:
 
 ```
-./woof/bin/woof dispatch codex --role critiquer --epic <N> --prompt-file <stage-3-critique-prompt>
+./woof/bin/woof dispatch claude --role planner --epic <N> --prompt-file <bootstrap>
 ```
 
-The critique writes to `.woof/epics/E<N>/critique/plan.md`. Self-validate `plan.json` against the schema before dispatching critique; cap internal iteration at 2 attempts; if still invalid, write `gate.md`.
+The bootstrap prompt is short — tell the dispatched cld to read `.woof/.current-epic`, `EPIC.md`, `plan.schema.json`, and CLAUDE.md/AGENTS.md, then invoke `/wf:plan <E<N>>`. The skill body at `.claude/commands/wf/plan.md` carries the planner contract (outcome coverage, scope hygiene, right-sizing, forbidden patterns).
+
+Planner output: `.woof/epics/E<N>/plan.json` validated against `woof/schemas/plan.schema.json`. On planner failure, the dispatched subprocess writes `gate.md` and exits non-zero; you surface the gate.
+
+Then dispatch Codex for the plan critique using `woof/playbooks/critique/plan.md` as the prompt template:
+
+```
+./woof/bin/woof dispatch codex --role critiquer --epic <N> \
+    --prompt-file woof/playbooks/critique/plan.md
+```
+
+The critique writes to `.woof/epics/E<N>/critique/plan.md` (front-matter conforming to `critique.schema.json`).
 
 ## Stage 4 — Plan gate (always opens)
 
