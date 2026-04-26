@@ -1,0 +1,18 @@
+# GTS project quality-gates configuration for woof.
+#
+# Schema: woof/schemas/quality-gates.schema.json
+# Validate: just woof-validate .woof/quality-gates.toml
+#
+# Stage 5 Check 1 runs each gate's command in declaration order. Each
+# must exit 0 or the check fails and a story_gate opens.
+#
+# Scope rationale: woof epics typically touch only woof/ and
+# tests/unit/woof/, so the woof unit suite is the minimum gate. A
+# story whose paths cross into backend code should declare the wider
+# `just test` gate via a story_gate revision rather than running the
+# full backend suite on every dispatch — it's a 30-min Docker round
+# trip that woof-only changes never benefit from.
+
+[gates.test-woof]
+command = "just test-woof"
+timeout_seconds = 300
