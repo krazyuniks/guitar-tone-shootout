@@ -252,10 +252,13 @@ while :; do
     revert_to_pending "$sid"
     cat > "$GATE" <<EOF
 ---
-epic_id: ${EPIC}
-gate_type: story_gate
-triggered_by: ["subprocess_crash"]
-opened_at: $(now_iso)
+type: story_gate
+stage: 6
+story_id: ${sid}
+triggered_by:
+  - subprocess_crash
+timestamp: "$(now_iso)"
+exit_code: ${rc}
 ---
 
 # Story ${sid} — subprocess crash
