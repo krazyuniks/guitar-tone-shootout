@@ -112,6 +112,34 @@ woof-validate *ARGS:
 wf-run *ARGS:
     ./scripts/wf-run {{ARGS}}
 
+# Bundle every Claude Code session transcript referenced from the epic's
+# dispatch.jsonl into .woof/epics/E<N>/audit/claude-code/ for archival.
+# Uses cp (not symlinks) so the bundle survives if ~/.claude/projects/ is
+# pruned. Codex audit files already live under .woof/epics/E<N>/audit/.
+wf-audit-bundle EPIC:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    epic_dir=".woof/epics/E{{EPIC}}"
+    jsonl="$epic_dir/dispatch.jsonl"
+    [[ -f "$jsonl" ]] || { echo "wf-audit-bundle: $jsonl not found" >&2; exit 2; }
+    out="$epic_dir/audit/claude-code"
+    mkdir -p "$out"
+    bundled=0
+    missing=0
+    while IFS= read -r sid; do
+        [[ -n "$sid" ]] || continue
+        src="$(find "$HOME/.claude/projects" -name "${sid}.jsonl" -print -quit 2>/dev/null || true)"
+        if [[ -z "$src" ]]; then
+            echo "wf-audit-bundle: missing CC transcript for session $sid" >&2
+            missing=$((missing+1))
+            continue
+        fi
+        cp "$src" "$out/${sid}.jsonl"
+        bundled=$((bundled+1))
+    done < <(jq -r 'select(.cc_session_id != null) | .cc_session_id' "$jsonl" | sort -u)
+    echo "wf-audit-bundle: bundled $bundled CC transcript(s) into $out"
+    [[ $missing -eq 0 ]] || { echo "wf-audit-bundle: $missing transcript(s) missing — likely pruned" >&2; exit 1; }
+
 # Install woof's post-commit cartography hook (idempotent fenced block).
 wf-install-hooks:
     #!/usr/bin/env bash
