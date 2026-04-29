@@ -1,0 +1,35 @@
+{
+  "harness": "cld",
+  "role": "planner",
+  "epic_id": 181,
+  "story_id": null,
+  "model": "claude-opus-4-7",
+  "mcp": [],
+  "flags": [],
+  "argv": [
+    "timeout",
+    "30m",
+    "cld",
+    "-t",
+    "--",
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    "claude-opus-4-7",
+    "You are executing Stage 3 (Breakdown) for epic E181.\n\nRead in order:\n  1. .woof/.current-epic (verify E181)\n  2. .woof/epics/E181/EPIC.md (front-matter is canonical)\n  3. woof/schemas/plan.schema.json (your output contract)\n  4. CLAUDE.md / AGENTS.md (project conventions)\n  5. .woof/codebase/{tree.txt,freshness.json} (current code map)\n\nThen invoke /wf:plan E181.\n\nExit 0 only after writing a schema-valid plan.json to\n.woof/epics/E181/plan.json. Exit non-zero only after writing gate.md.\n"
+  ],
+  "pid": 1321311,
+  "started_at": "2026-04-26T14:24:05Z",
+  "ended_at": "2026-04-26T14:27:31Z",
+  "duration_ms": 206546,
+  "exit_code": 0,
+  "timed_out": false,
+  "tokens": {
+    "tokens_in": 15,
+    "tokens_out": 14445,
+    "cache_read_tokens": 601745,
+    "cache_write_tokens": 78087
+  },
+  "cc_session_id": "7e75c1ee-1f56-4843-bf39-cc032d8a029b"
+}

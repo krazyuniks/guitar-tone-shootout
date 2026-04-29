@@ -1,0 +1,35 @@
+{
+  "harness": "cld",
+  "role": "story-executor",
+  "epic_id": 181,
+  "story_id": "S2",
+  "model": "claude-sonnet-4-6",
+  "mcp": [],
+  "flags": [],
+  "argv": [
+    "timeout",
+    "30m",
+    "cld",
+    "-t",
+    "--",
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    "claude-sonnet-4-6",
+    "You are executing story S2 in epic E181.\n\nRead in order:\n  1. .woof/.current-epic (verify E181)\n  2. .woof/epics/E181/plan.json (find S2)\n  3. .woof/epics/E181/EPIC.md (front-matter for outcomes / contract decisions)\n  4. CLAUDE.md / AGENTS.md (project conventions)\n\nThen invoke /wf:execute-story with arguments \"E181 S2\".\n\nExit 0 only after the story commit transaction lands. Exit non-zero only after\nwriting .woof/epics/E181/gate.md.\n"
+  ],
+  "pid": 1516996,
+  "started_at": "2026-04-26T15:07:32Z",
+  "ended_at": "2026-04-26T15:22:52Z",
+  "duration_ms": 919979,
+  "exit_code": 0,
+  "timed_out": false,
+  "tokens": {
+    "tokens_in": 71,
+    "tokens_out": 35731,
+    "cache_read_tokens": 5118748,
+    "cache_write_tokens": 93933
+  },
+  "cc_session_id": "db56d5f4-efde-4fea-a386-d0c94b27711f"
+}
