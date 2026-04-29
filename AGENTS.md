@@ -110,14 +110,16 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Workflow
 
-**Canonical design:** `wiki/Workflow.md` — principles, architecture, open questions.
-**Evidence base:** `wiki/Workflow-Research.md` — evaluation, E146 lessons, rejected axioms.
+Woof is an external workflow tool, not GTS source. The source of truth for
+Woof is `krazyuniks/woof`; Ryan's local checkout is `/home/ryan/Work/woof`.
 
-Workflow is under active redesign. The old pipeline (`just epic`, `wf`, `workflow/`, `scripts/orchestrator.py`) was deleted on 2026-04-05 — code lives in git history only. The 2026-04-08 discovery commands (`/epic-discover`, `/epic-discover-project`) were contaminated by a rejected "no Python" axiom and have been removed. Do not reference either.
+GTS only keeps consumer configuration under `.woof/*.toml`. Do not vendor-copy
+Woof source, schemas, playbooks, tests, runtime epics, audit logs, locks, or
+generated codebase maps into this repository. Dogfooding happens by running the
+external Woof checkout/tool against GTS as a consumer repo.
 
-**Current state:** No live workflow pipeline. Work manually from GitHub issues. See `wiki/Workflow.md` Open Questions for v2 design progress.
-
-**GitHub issues are the source of truth** for all work.
+GTS work still starts from GitHub issues. If Woof is unavailable, work manually
+from the issue; do not recreate an in-repo workflow implementation.
 
 ## Infrastructure
 

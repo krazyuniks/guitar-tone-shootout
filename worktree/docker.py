@@ -57,7 +57,7 @@ def _ensure_bind_mount_dirs(cwd: Path) -> None:
                 continue
 
             # Files tracked in git should already exist. Anything missing
-            # is a directory that needs creating (e.g. .planning/).
+            # is a directory that needs creating.
             # Don't create paths that look like files (have an extension
             # in the final component) — those are genuine missing-file errors.
             if "." in resolved.name and not resolved.name.startswith("."):

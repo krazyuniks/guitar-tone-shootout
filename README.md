@@ -30,12 +30,6 @@ Six layers, loaded in order:
 - **For agents**: AGENTS.md + per-context CLAUDE.md + `gts-architecture` skill (13 reference files)
 - AGENTS.md links to wiki for deep dives. No duplication.
 
-### Wiki Indexing
-
-- `.planning/wiki-indexes/` — auto-generated section indexes for agent consumption
-- `just index-wiki` — regenerates indexes
-- `.planning/codebase/` — auto-generated structure, schema, endpoints, imports, tests
-
 ### What We Decided NOT To Do
 
 - **ChromaDB/RAG**: ~1,200 lines of config fits passive context. Not needed yet.

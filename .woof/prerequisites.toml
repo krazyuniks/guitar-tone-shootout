@@ -1,7 +1,7 @@
-# GTS project prerequisites for woof.
+# GTS consumer prerequisites for external Woof.
 #
-# Schema: woof/schemas/prerequisites.schema.json
-# Validate: just woof-validate .woof/prerequisites.toml
+# Woof source: git@github.com:krazyuniks/woof.git
+# Local checkout: /home/ryan/Work/woof
 #
 # Version specifications: "any" = presence-only check.
 # Explicit floors ("X", "X.Y", "X.Y.Z") accepted as equal-or-greater.

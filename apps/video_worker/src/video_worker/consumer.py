@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import ProcessAudioCommand, ShootoutCommand
+from messaging.commands import ProcessAudioCommand, RenderVideoCommand
 from messaging.consumer_base import BaseConsumer
 from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
@@ -117,8 +117,8 @@ async def process_shootout_job(job_id: UUID) -> None:
     await reconcile_parent_after_audio(job_id, database_url)
 
 
-class ShootoutConsumer(BaseConsumer):
-    """Consume shootout_commands queue messages."""
+class RenderVideoConsumer(BaseConsumer):
+    """Consume render-video commands from the shootout orchestration queue."""
 
     def __init__(self, session) -> None:
         super().__init__(
@@ -130,7 +130,7 @@ class ShootoutConsumer(BaseConsumer):
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
         """Handle one shootout command envelope."""
-        command = ShootoutCommand.model_validate(envelope.model_dump(mode="python"))
+        command = RenderVideoCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
         await process_shootout_job(job_id)
 

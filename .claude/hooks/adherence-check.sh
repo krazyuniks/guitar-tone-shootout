@@ -72,7 +72,7 @@ if [ -n "$add_args" ]; then
 fi
 
 if [ -n "$candidate_files" ]; then
-    non_docs=$(echo "$candidate_files" | grep -vE '\.(md|markdown|rst|txt)$|(^|/)docs/|(^|/)wiki/|(^|/)\.claude/|(^|/)woof/|(^|/)\.woof/|(^|/)README|(^|/)LICENSE|(^|/)CHANGELOG|(^|/)AGENTS\.md$|(^|/)MEMORY\.md$' || true)
+    non_docs=$(echo "$candidate_files" | grep -vE '\.(md|markdown|rst|txt)$|(^|/)docs/|(^|/)wiki/|(^|/)\.claude/|(^|/)\.woof/|(^|/)README|(^|/)LICENSE|(^|/)CHANGELOG|(^|/)AGENTS\.md$|(^|/)MEMORY\.md$' || true)
     if [ -z "$non_docs" ]; then
         exit 0
     fi

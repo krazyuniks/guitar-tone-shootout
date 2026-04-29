@@ -53,6 +53,7 @@ health:
 # Rebuild and restart services
 rebuild *ARGS:
     {{dc}} up -d --build {{ARGS}}
+    {{dc}} restart nginx
 
 # =============================================================================
 # Quality Gates (all run in Docker)
@@ -99,66 +100,6 @@ test-unit:
 # Run documentation tests (on host - requires AGENTS.md/DEVELOPMENT.md)
 test-docs:
     uv run pytest tests/unit/backend/docs/ -v
-
-# Run woof CLI tests (on host - requires uv and ajv-cli)
-test-woof:
-    uv run pytest tests/unit/woof/ -v
-
-# Validate woof artefacts against JSON Schemas (on host - requires ajv-cli)
-woof-validate *ARGS:
-    ./woof/bin/woof validate {{ARGS}}
-
-# Drive Stage 5 for an epic (story-by-story dispatch loop). Halts on gate.md.
-wf-run *ARGS:
-    ./scripts/wf-run {{ARGS}}
-
-# Bundle every Claude Code session transcript referenced from the epic's
-# dispatch.jsonl into .woof/epics/E<N>/audit/claude-code/ for archival.
-# Uses cp (not symlinks) so the bundle survives if ~/.claude/projects/ is
-# pruned. Codex audit files already live under .woof/epics/E<N>/audit/.
-wf-audit-bundle EPIC:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    epic_dir=".woof/epics/E{{EPIC}}"
-    jsonl="$epic_dir/dispatch.jsonl"
-    [[ -f "$jsonl" ]] || { echo "wf-audit-bundle: $jsonl not found" >&2; exit 2; }
-    out="$epic_dir/audit/claude-code"
-    mkdir -p "$out"
-    bundled=0
-    missing=0
-    while IFS= read -r sid; do
-        [[ -n "$sid" ]] || continue
-        src="$(find "$HOME/.claude/projects" -name "${sid}.jsonl" -print -quit 2>/dev/null || true)"
-        if [[ -z "$src" ]]; then
-            echo "wf-audit-bundle: missing CC transcript for session $sid" >&2
-            missing=$((missing+1))
-            continue
-        fi
-        cp "$src" "$out/${sid}.jsonl"
-        bundled=$((bundled+1))
-    done < <(jq -r 'select(.cc_session_id != null) | .cc_session_id' "$jsonl" | sort -u)
-    echo "wf-audit-bundle: bundled $bundled CC transcript(s) into $out"
-    [[ $missing -eq 0 ]] || { echo "wf-audit-bundle: $missing transcript(s) missing — likely pruned" >&2; exit 1; }
-
-# Install woof's post-commit cartography hook (idempotent fenced block).
-wf-install-hooks:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    hook="$(git rev-parse --git-path hooks/post-commit)"
-    fence_start="# >>> woof-cartography"
-    fence_end="# <<< woof-cartography"
-    block=$(printf '%s\n[ -x ./scripts/refresh-cartography ] && ./scripts/refresh-cartography\n%s\n' "$fence_start" "$fence_end")
-    mkdir -p "$(dirname "$hook")"
-    if [[ -f "$hook" ]] && grep -qF "$fence_start" "$hook"; then
-        echo "wf-install-hooks: fenced block already present in $hook"
-        exit 0
-    fi
-    if [[ ! -f "$hook" ]]; then
-        printf '#!/usr/bin/env bash\nset -euo pipefail\n\n' > "$hook"
-    fi
-    printf '\n%s\n' "$block" >> "$hook"
-    chmod +x "$hook"
-    echo "wf-install-hooks: installed fenced block in $hook"
 
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)
@@ -212,6 +153,7 @@ test-golden-path:
     #!/usr/bin/env bash
     set -euo pipefail
     source scripts/e2e-env.sh
+    just t3k-auth
     AUTH_FILE="${GTS_AUTH_FILE:-/worktrees/.gts-auth.json}"
     if {{dc}} exec -T webapp test -f "$AUTH_FILE"; then
         just ensure-auth-user

@@ -1,46 +1,79 @@
 #!/usr/bin/env python3
-"""T3K Login — headless Chromium magic-link authentication.
+"""T3K Login — headless Chromium authentication through the GTS callback.
 
 Usage: just t3k-login
 
-Launches headless Chromium, navigates to T3K login page, fills email,
-prompts for 6-digit code, completes auth, saves encrypted tokens to
-.gts-auth.json.
+Launches headless Chromium, navigates through the GTS login endpoint, fills
+email, prompts for the 6-digit code, and lets the GTS callback save encrypted
+tokens to .gts-auth.json.
 
 User-facing wrapper: `just t3k-auth` is the canonical entry point.
 This script exists for direct login when status and restore are handled
 separately.
 
-Token extraction: intercepts API responses during the login flow to capture
-the access_token and refresh_token directly from the auth endpoint response.
+The shared auth file is written by the webapp callback. This keeps token
+exchange in one place and avoids scraping provider-specific browser storage.
 """
 
 import json
 import os
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # Auth file at worktree root (parent of any worktree dir)
 WORKTREE_ROOT = Path(__file__).resolve().parent.parent.parent
 AUTH_FILE = WORKTREE_ROOT / ".gts-auth.json"
 LOGIN_EMAIL = "brewsterbear@gmail.com"
-T3K_BASE_URL = "https://www.tone3000.com"
 
 
-def get_encryption_key() -> str:
-    """Load OAUTH_ENCRYPTION_KEY from .env file."""
-    env_file = Path(__file__).resolve().parent.parent / ".env"
+def get_public_url() -> str:
+    """Read the current worktree's public URL."""
+    env_file = Path(__file__).resolve().parent.parent / ".env.worktree"
     if env_file.exists():
         for line in env_file.read_text().splitlines():
-            if line.startswith("OAUTH_ENCRYPTION_KEY="):
-                return line.split("=", 1)[1].strip().strip('"').strip("'")
-    key = os.getenv("OAUTH_ENCRYPTION_KEY", "")
-    if not key:
-        print("Error: OAUTH_ENCRYPTION_KEY not found in .env or environment")
-        sys.exit(1)
-    return key
+            if line.startswith("PUBLIC_URL="):
+                return line.split("=", 1)[1].strip()
+    return os.getenv("PUBLIC_URL", "http://localhost:9000")
+
+
+def auth_file_is_fresh(started_at: datetime) -> bool:
+    """Return whether the GTS callback wrote a usable auth file."""
+    if not AUTH_FILE.exists():
+        return False
+
+    try:
+        auth_data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return False
+
+    if not auth_data.get("access_token"):
+        return False
+
+    saved_at_raw = auth_data.get("saved_at")
+    if saved_at_raw:
+        try:
+            saved_at = datetime.fromisoformat(saved_at_raw)
+            if saved_at.tzinfo is None:
+                saved_at = saved_at.replace(tzinfo=UTC)
+            if saved_at < started_at - timedelta(seconds=5):
+                return False
+        except (TypeError, ValueError):
+            return False
+
+    expires_at_raw = auth_data.get("token_expires_at") or auth_data.get("expires_at")
+    if not expires_at_raw:
+        return True
+
+    try:
+        expires_at = datetime.fromisoformat(expires_at_raw)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+    except (TypeError, ValueError):
+        return True
+
+    return expires_at > datetime.now(UTC) + timedelta(minutes=5)
 
 
 def main() -> None:
@@ -53,35 +86,14 @@ def main() -> None:
         print("Install: uv sync --group host")
         sys.exit(1)
 
-    encryption_key = get_encryption_key()
-    fernet = Fernet(encryption_key.encode())
-
+    # Import check only: token encryption happens in the webapp callback.
+    _ = Fernet
+    started_at = datetime.now(UTC)
+    public_url = get_public_url()
     print(f"T3K Login — {LOGIN_EMAIL}")
     print(f"Auth file: {AUTH_FILE}")
+    print(f"GTS URL: {public_url}")
     print()
-
-    # Capture tokens from API responses during login
-    captured_tokens: dict[str, str] = {}
-
-    def handle_response(response):
-        """Intercept API responses to capture auth tokens."""
-        url = response.url
-        if response.status not in range(200, 300):
-            return
-        # Look for auth-related API responses
-        if "/api/" not in url or "/auth/" not in url:
-            return
-        try:
-            body = response.json()
-        except Exception:
-            return
-        if "access_token" in body:
-            captured_tokens["access_token"] = body["access_token"]
-            if "refresh_token" in body:
-                captured_tokens["refresh_token"] = body["refresh_token"]
-            if "expires_in" in body:
-                captured_tokens["expires_in"] = body["expires_in"]
-            print(f"  Captured tokens from {url}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -90,11 +102,9 @@ def main() -> None:
             args=["--no-sandbox", "--disable-gpu"],
         )
         page = browser.new_page()
-        page.on("response", handle_response)
 
-        # Navigate to T3K login
-        print("Opening T3K login page...")
-        page.goto(f"{T3K_BASE_URL}/login", wait_until="networkidle")
+        print("Opening GTS login flow...")
+        page.goto(f"{public_url}/auth/login/t3k", wait_until="networkidle")
 
         # Fill email
         print(f"Filling email: {LOGIN_EMAIL}")
@@ -108,7 +118,9 @@ def main() -> None:
 
         # Prompt for verification code
         print()
-        code = input("Enter 6-digit code from email: ").strip()
+        code = os.getenv("T3K_LOGIN_CODE", "").strip()
+        if not code:
+            code = input("Enter 6-digit code from email: ").strip()
         if len(code) != 6 or not code.isdigit():
             print("Error: Expected 6-digit numeric code")
             browser.close()
@@ -123,123 +135,35 @@ def main() -> None:
         submit_button = page.locator('button[type="submit"]')
         submit_button.click()
 
-        # Wait for auth completion — redirect to homepage confirms success
-        print("Waiting for authentication...")
+        # Wait for the GTS callback to exchange the api_key and persist auth.
+        print("Waiting for authentication callback...")
         try:
-            page.wait_for_url("**/", timeout=15000)
+            page.wait_for_url(f"{public_url}/**", timeout=30000)
         except Exception:
-            pass  # Fall through to token extraction — may still have cookies
-        page.wait_for_load_state("networkidle")
-        time.sleep(2)
+            pass
 
-        # Extract tokens from Supabase auth cookie
-        if "access_token" not in captured_tokens:
-            from urllib.parse import unquote
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and not auth_file_is_fresh(started_at):
+            page.wait_for_timeout(1000)
 
-            cookies = page.context.cookies()
-
-            def _extract_from_token_data(token_data: dict, label: str) -> None:
-                """Extract auth tokens from a parsed Supabase token JSON object."""
-                if "access_token" in token_data:
-                    captured_tokens["access_token"] = token_data["access_token"]
-                    print(f"  Extracted access_token from {label}")
-                if "refresh_token" in token_data:
-                    captured_tokens["refresh_token"] = token_data["refresh_token"]
-                    print(f"  Extracted refresh_token from {label}")
-                if "expires_in" in token_data:
-                    captured_tokens["expires_in"] = token_data["expires_in"]
-                elif "expires_at" in token_data:
-                    remaining = int(token_data["expires_at"]) - int(time.time())
-                    if remaining > 0:
-                        captured_tokens["expires_in"] = str(remaining)
-
-            # 1. Single sb-*-auth-token cookie (current T3K/Supabase pattern)
-            for cookie in cookies:
-                if cookie["name"].startswith("sb-") and cookie["name"].endswith("-auth-token"):
-                    try:
-                        token_data = json.loads(unquote(cookie["value"]))
-                        _extract_from_token_data(token_data, f"cookie: {cookie['name']}")
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-
-            # 2. Chunked cookies: sb-<project>-auth-token.0, .1, ...
-            if "access_token" not in captured_tokens:
-                sb_chunks: dict[str, dict[int, str]] = {}
-                for cookie in cookies:
-                    name = cookie["name"]
-                    if name.startswith("sb-") and "-auth-token." in name:
-                        parts = name.rsplit(".", 1)
-                        if len(parts) == 2 and parts[1].isdigit():
-                            base, idx = parts[0], int(parts[1])
-                            sb_chunks.setdefault(base, {})[idx] = cookie["value"]
-
-                for base, chunks in sb_chunks.items():
-                    try:
-                        full_value = "".join(chunks[i] for i in sorted(chunks))
-                        token_data = json.loads(unquote(full_value))
-                        _extract_from_token_data(token_data, f"chunked cookie: {base}.*")
-                    except (json.JSONDecodeError, ValueError, KeyError):
-                        continue
-
-        # Debug: dump what we found if no tokens
-        if "access_token" not in captured_tokens:
+        if not auth_file_is_fresh(started_at):
             print()
+            print("Debug — final URL:")
+            print(f"  {page.url}")
             print("Debug — cookies found:")
             for cookie in page.context.cookies():
                 print(f"  {cookie['name']}: {cookie['value'][:40]}...")
-            print("Debug — localStorage keys:")
-            keys = page.evaluate("() => Object.keys(localStorage)")
-            for k in keys:
-                val = page.evaluate(f"() => localStorage.getItem('{k}')")
-                print(f"  {k}: {val[:40] if val else '(empty)'}...")
-            print("Debug — sessionStorage keys:")
-            keys = page.evaluate("() => Object.keys(sessionStorage)")
-            for k in keys:
-                val = page.evaluate(f"() => sessionStorage.getItem('{k}')")
-                print(f"  {k}: {val[:40] if val else '(empty)'}...")
 
         browser.close()
 
-    access_token = captured_tokens.get("access_token")
-    refresh_token = captured_tokens.get("refresh_token")
-    expires_in = captured_tokens.get("expires_in")
-
-    if not access_token:
+    if not auth_file_is_fresh(started_at):
         print()
-        print("Error: Could not extract access token")
-        print("The login flow may have changed. Check T3K manually.")
+        print("Error: GTS callback did not write a fresh access token")
+        print("Check the final URL/debug output above and rerun `just t3k-auth`.")
         sys.exit(1)
-
-    # Encrypt and save
-    auth_data = {}
-    if AUTH_FILE.exists():
-        import contextlib
-
-        with contextlib.suppress(json.JSONDecodeError):
-            auth_data = json.loads(AUTH_FILE.read_text())
-
-    auth_data["access_token"] = fernet.encrypt(access_token.encode()).decode()
-    if refresh_token:
-        auth_data["refresh_token"] = fernet.encrypt(refresh_token.encode()).decode()
-    if expires_in:
-        expires_at = datetime.now(UTC).timestamp() + int(expires_in)
-        auth_data["expires_at"] = datetime.fromtimestamp(expires_at, tz=UTC).isoformat()
-    else:
-        auth_data["expires_at"] = None
-    auth_data["auth_status"] = "valid"
-    auth_data["saved_at"] = datetime.now(UTC).isoformat()
-
-    AUTH_FILE.write_text(json.dumps(auth_data, indent=2))
-    os.chmod(AUTH_FILE, 0o600)
 
     print()
     print(f"Login successful. Auth saved to {AUTH_FILE}")
-    if refresh_token:
-        print("  Access token + refresh token captured")
-    else:
-        print("  Access token captured (no refresh token)")
-    if expires_in:
-        print(f"  Expires in {expires_in}s")
 
 
 if __name__ == "__main__":

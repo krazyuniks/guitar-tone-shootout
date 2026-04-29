@@ -40,25 +40,15 @@ env.local.sh
 # dynamic ports override
 docker-compose.override.yml
 
-# Epic planning — track plan artefacts, ignore execution noise
-.planning/logs/
-.planning/epics/*/stories/
-.planning/epics/*/CONTEXT.md
-.planning/epics/*/SUMMARY.md
-.planning/epics/*/REPORT.html
-.planning/codebase/
+# Legacy in-repo workflow artefacts
+.planning/
 .gemini/
 .agents/
 
 .playwright-mcp/
 
-# woof — runtime / per-worktree state
+# External Woof — keep only committed .woof/*.toml consumer config
 .woof/.current-epic
-.woof/epics/*/gate.md
-.woof/epics/*/.wf.lock
-.woof/epics/*/.last-sync
-.woof/epics/*/audit/raw/
-.woof/codebase/tags
-.woof/codebase/tree.txt
-.woof/codebase/freshness.json
+.woof/epics/
+.woof/codebase/
 .woof/.preflight-*

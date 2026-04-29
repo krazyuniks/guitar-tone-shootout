@@ -1,18 +1,12 @@
-# GTS project quality-gates configuration for woof.
+# GTS consumer quality-gates configuration for external Woof.
 #
-# Schema: woof/schemas/quality-gates.schema.json
-# Validate: just woof-validate .woof/quality-gates.toml
+# Woof source: git@github.com:krazyuniks/woof.git
+# Local checkout: /home/ryan/Work/woof
 #
-# Stage 5 Check 1 runs each gate's command in declaration order. Each
-# must exit 0 or the check fails and a story_gate opens.
-#
-# Scope rationale: woof epics typically touch only woof/ and
-# tests/unit/woof/, so the woof unit suite is the minimum gate. A
-# story whose paths cross into backend code should declare the wider
-# `just test` gate via a story_gate revision rather than running the
-# full backend suite on every dispatch — it's a 30-min Docker round
-# trip that woof-only changes never benefit from.
+# Stage 5 Check 1 runs each gate's command in declaration order. GTS code
+# changes should use the repo's own quality surface; no Woof source or Woof
+# unit tests live in this repository.
 
-[gates.test-woof]
-command = "just test-woof"
-timeout_seconds = 300
+[gates.check]
+command = "just check"
+timeout_seconds = 1800

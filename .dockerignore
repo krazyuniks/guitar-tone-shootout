@@ -29,8 +29,7 @@ node_modules/
 .playwright-mcp/
 tests/e2e/
 
-# Planning and documentation
-.planning/
+# Agent-local documentation and generated files
 .claude/
 .gemini/
 .agents/

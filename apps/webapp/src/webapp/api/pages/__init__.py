@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from webapp.api.pages import chains, di_tracks, gear, jobs, settings, shootouts, sitemap, workflow
+from webapp.api.pages import chains, di_tracks, gear, jobs, settings, shootouts, sitemap
 from webapp.api.pages.context import (
     format_duration,
     gear_to_browse_context,
@@ -23,7 +23,6 @@ router.include_router(di_tracks.router)
 router.include_router(jobs.router)
 router.include_router(settings.router)
 router.include_router(sitemap.router)
-router.include_router(workflow.router)
 
 # Backward-compat re-exports used by tests for dependency overrides
 # and by other modules that imported helpers from the old pages.py

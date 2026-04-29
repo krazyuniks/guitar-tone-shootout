@@ -140,5 +140,4 @@ grep -rn "\.commit()" apps/webapp/src/webapp/adapters/       # Should be empty
 ## Reference
 
 - **Patterns:** `gts-architecture` skill
-- **GTS Implementation:** `.planning/codebase/ARCHITECTURE.md`
 - **Automated Audit:** `/codebase-review --section=architecture`

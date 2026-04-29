@@ -54,15 +54,6 @@ server {
         try_files /login.html /login/index.html =404;
     }
 
-    # Workflow admin viewer — password-protected (HTTP Basic Auth on backend)
-    location /admin/workflow/ {
-        proxy_pass http://webapp;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
     # Block all other admin routes externally (only accessible via direct backend port)
     location /admin/ {
         return 404;
