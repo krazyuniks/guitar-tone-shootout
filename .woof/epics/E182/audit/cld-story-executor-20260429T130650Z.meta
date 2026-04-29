@@ -1,0 +1,35 @@
+{
+  "harness": "cld",
+  "role": "story-executor",
+  "epic_id": 182,
+  "story_id": "S1",
+  "model": "claude-sonnet-4-6",
+  "mcp": [],
+  "flags": [],
+  "argv": [
+    "timeout",
+    "30m",
+    "cld",
+    "-t",
+    "--",
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    "claude-sonnet-4-6",
+    "You are executing story S1 in epic E182 \u2014 the BOOTSTRAP story for the woof\ndeterministic-checks architecture.\n\nS1 lands the producer/verifier/committer separation; S2-S4 depend on it.\nS1 itself runs under the OLD pipeline (executor commits at end of /wf:execute-story);\nthe NEW pipeline (driver-owned commit, executor stages + writes\nexecutor_result.json) takes effect from S2 onward. Do not apply the new\ncontract to your own execution \u2014 commit at the end as the existing skill\nbody instructs.\n\nRead in order before coding:\n  1. .woof/.current-epic                                  \u2014 verify E182\n  2. .woof/epics/E182/plan.json                           \u2014 your story spec\n  3. .woof/epics/E182/EPIC.md                             \u2014 9 outcomes, 5 CDs, 12 ACs\n  4. .woof/epics/E182/discovery/synthesis/PRINCIPLES.md   \u2014 P1-P6\n  5. .woof/epics/E182/discovery/synthesis/ARCHITECTURE.md \u2014 registry, schemas, 9-check inventory, driver loop\n  6. CLAUDE.md / AGENTS.md                                \u2014 project conventions (auto-loaded)\n\nThen invoke /wf:execute-story with arguments \"E182 S1\".\n\nCHECK-ID CANONICALISATION (orchestrator decision, not in any file):\n  EPIC.md / plan.json / ARCHITECTURE.md use synthesis names:\n  check_1_quality_gates, check_2_outcome_markers, check_3_scope,\n  check_4_contract_refs, check_5_plan_crossrefs, check_6_critique_blocker,\n  check_7_commit_transaction, check_8_docs_drift, check_9_review_valve.\n\n  woof/schemas/gate.schema.json currently uses 6 different LEGACY names\n  (check_1_quality_gate, check_2_spec_coverage, etc.). EPIC.md is\n  post-Definition immutable; CD4 mandates the schema enum is registry-derived.\n  SYNTHESIS NAMES WIN. Apply consistently across registry IDs, schema enum,\n  runner filenames, test names, and prose. Add the executor-protocol triggers\n  (subprocess_crash, executor_aborted, empty_diff_review) per CD4 notes.\n\nNEW EXECUTOR CONTRACT (what you write, not what governs you):\n  The new .claude/commands/wf/execute-story.md MUST NOT contain \"git commit\",\n  \"gate.md\" as a write target, or any enumerated boundary-check list. O9\n  asserts this via static-string test. Executor protocol per CD2: code, test,\n  stage diff, write executor_result.json, exit 0. Driver-side does commit\n  and gate.md.\n\nNEW DRIVER LOOP (scripts/wf-run rewrite):\n  After executor exit 0, read executor_result.json. Branch on outcome:\n    staged_for_verification \u2192 run `woof check stage-5`; if check-result.ok,\n                              git commit; else `woof gate write`.\n    aborted_with_position    \u2192 `woof gate write --triggered-by executor_aborted`.\n    empty_diff               \u2192 `woof gate write --triggered-by empty_diff_review`.\n  Driver \u2014 never executor \u2014 invokes git commit. Driver writes gate.md only\n  via `woof gate write` (never inline YAML).\n\nREGRESSION FIXTURE (O7):\n  tests/fixtures/woof/e181_s2/** uses .woof/epics/E181/critique/story-S2.md\n  (severity: blocker) as input. Assertion: pipeline writes story_gate with\n  check_6_critique_blocker in triggered_by[], no commit lands.\n\nCHECK-6 SEMANTICS:\n  Canonical (per ARCHITECTURE): \"critique/story-S<k>.md exists; schema-valid;\n  top-level severity equals max(findings[].severity); severity != blocker\".\n  NOT the OLD skill prose's \"Dependencies satisfied\" \u2014 that drift is what\n  this epic eliminates.\n\nREGISTRY COMPLETENESS:\n  woof check stage-5 --self-test must enumerate all 9 registry slots and exit\n  non-zero if any runner is unimplemented. In S1 only check_6_critique_blocker\n  is real; checks 1, 2, 3, 4, 5, 7, 8, 9 have placeholder runners that raise\n  NotImplementedError. S2 fills 2/3/5/7; S3 fills 1/4/8/9.\n\nExit 0 only after the story commit transaction lands. Exit non-zero only after\nwriting .woof/epics/E182/gate.md.\n"
+  ],
+  "pid": 800811,
+  "started_at": "2026-04-29T13:06:50Z",
+  "ended_at": "2026-04-29T13:28:21Z",
+  "duration_ms": 1291844,
+  "exit_code": 0,
+  "timed_out": false,
+  "tokens": {
+    "tokens_in": 2436,
+    "tokens_out": 77947,
+    "cache_read_tokens": 8792040,
+    "cache_write_tokens": 214724
+  },
+  "cc_session_id": "d1218ac5-ac7b-483c-973e-764bd988fc25"
+}

@@ -1,0 +1,68 @@
+You are executing story S1 in epic E182 — the BOOTSTRAP story for the woof
+deterministic-checks architecture.
+
+S1 lands the producer/verifier/committer separation; S2-S4 depend on it.
+S1 itself runs under the OLD pipeline (executor commits at end of /wf:execute-story);
+the NEW pipeline (driver-owned commit, executor stages + writes
+executor_result.json) takes effect from S2 onward. Do not apply the new
+contract to your own execution — commit at the end as the existing skill
+body instructs.
+
+Read in order before coding:
+  1. .woof/.current-epic                                  — verify E182
+  2. .woof/epics/E182/plan.json                           — your story spec
+  3. .woof/epics/E182/EPIC.md                             — 9 outcomes, 5 CDs, 12 ACs
+  4. .woof/epics/E182/discovery/synthesis/PRINCIPLES.md   — P1-P6
+  5. .woof/epics/E182/discovery/synthesis/ARCHITECTURE.md — registry, schemas, 9-check inventory, driver loop
+  6. CLAUDE.md / AGENTS.md                                — project conventions (auto-loaded)
+
+Then invoke /wf:execute-story with arguments "E182 S1".
+
+CHECK-ID CANONICALISATION (orchestrator decision, not in any file):
+  EPIC.md / plan.json / ARCHITECTURE.md use synthesis names:
+  check_1_quality_gates, check_2_outcome_markers, check_3_scope,
+  check_4_contract_refs, check_5_plan_crossrefs, check_6_critique_blocker,
+  check_7_commit_transaction, check_8_docs_drift, check_9_review_valve.
+
+  woof/schemas/gate.schema.json currently uses 6 different LEGACY names
+  (check_1_quality_gate, check_2_spec_coverage, etc.). EPIC.md is
+  post-Definition immutable; CD4 mandates the schema enum is registry-derived.
+  SYNTHESIS NAMES WIN. Apply consistently across registry IDs, schema enum,
+  runner filenames, test names, and prose. Add the executor-protocol triggers
+  (subprocess_crash, executor_aborted, empty_diff_review) per CD4 notes.
+
+NEW EXECUTOR CONTRACT (what you write, not what governs you):
+  The new .claude/commands/wf/execute-story.md MUST NOT contain "git commit",
+  "gate.md" as a write target, or any enumerated boundary-check list. O9
+  asserts this via static-string test. Executor protocol per CD2: code, test,
+  stage diff, write executor_result.json, exit 0. Driver-side does commit
+  and gate.md.
+
+NEW DRIVER LOOP (scripts/wf-run rewrite):
+  After executor exit 0, read executor_result.json. Branch on outcome:
+    staged_for_verification → run `woof check stage-5`; if check-result.ok,
+                              git commit; else `woof gate write`.
+    aborted_with_position    → `woof gate write --triggered-by executor_aborted`.
+    empty_diff               → `woof gate write --triggered-by empty_diff_review`.
+  Driver — never executor — invokes git commit. Driver writes gate.md only
+  via `woof gate write` (never inline YAML).
+
+REGRESSION FIXTURE (O7):
+  tests/fixtures/woof/e181_s2/** uses .woof/epics/E181/critique/story-S2.md
+  (severity: blocker) as input. Assertion: pipeline writes story_gate with
+  check_6_critique_blocker in triggered_by[], no commit lands.
+
+CHECK-6 SEMANTICS:
+  Canonical (per ARCHITECTURE): "critique/story-S<k>.md exists; schema-valid;
+  top-level severity equals max(findings[].severity); severity != blocker".
+  NOT the OLD skill prose's "Dependencies satisfied" — that drift is what
+  this epic eliminates.
+
+REGISTRY COMPLETENESS:
+  woof check stage-5 --self-test must enumerate all 9 registry slots and exit
+  non-zero if any runner is unimplemented. In S1 only check_6_critique_blocker
+  is real; checks 1, 2, 3, 4, 5, 7, 8, 9 have placeholder runners that raise
+  NotImplementedError. S2 fills 2/3/5/7; S3 fills 1/4/8/9.
+
+Exit 0 only after the story commit transaction lands. Exit non-zero only after
+writing .woof/epics/E182/gate.md.

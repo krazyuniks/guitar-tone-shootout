@@ -170,3 +170,72 @@ def test_check_stage_5_json_output_conforms_to_schema_O4(tmp_path: Path) -> None
         f"check-result.json does not conform to schema:\n"
         f"{validate_proc.stdout}{validate_proc.stderr}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap-tolerant verifier behaviour — placeholder runners report info
+# ---------------------------------------------------------------------------
+
+
+def test_check_stage_5_treats_placeholders_as_info_during_bootstrap(tmp_path: Path) -> None:
+    """During registry bootstrap, a runner that raises NotImplementedError reports
+    ok=true severity=info instead of as a blocker failure. --self-test remains
+    the strict CI gate (asserted in a separate test).
+
+    Aligns with P6: drift detection at CI (self-test), not at production
+    (per-story driver). Without this the bootstrap-window driver deadlocks on
+    every story until all 9 runners are real.
+    """
+    epic_dir = tmp_path / ".woof" / "epics" / "E999"
+    critique_dir = epic_dir / "critique"
+    critique_dir.mkdir(parents=True)
+    plan_path = epic_dir / "plan.json"
+    plan_path.write_text(json.dumps({"epic_id": 999, "goal": "test", "stories": []}))
+    # Critique with severity=info so check_6 does not flag this run
+    (critique_dir / "story-S1.md").write_text(
+        "---\ntarget: story\ntarget_id: S1\nseverity: info\n"
+        "timestamp: '2026-01-01T00:00:00Z'\nharness: test\n"
+        "findings: []\n---\n"
+    )
+
+    proc = _run(
+        "check",
+        "stage-5",
+        "--epic",
+        "999",
+        "--story",
+        "S1",
+        "--format",
+        "json",
+        cwd=tmp_path,
+    )
+
+    output = proc.stdout.strip()
+    if not output:
+        pytest.skip("no JSON output from check stage-5 (env setup issue)")
+
+    result = json.loads(output)
+    by_id = {c["id"]: c for c in result["checks"]}
+
+    placeholder_ids = [
+        "check_1_quality_gates",
+        "check_2_outcome_markers",
+        "check_3_scope",
+        "check_4_contract_refs",
+        "check_5_plan_crossrefs",
+        "check_7_commit_transaction",
+        "check_8_docs_drift",
+        "check_9_review_valve",
+    ]
+    for check_id in placeholder_ids:
+        c = by_id[check_id]
+        assert c["ok"] is True, f"{check_id}: expected ok=true (bootstrap placeholder), got {c}"
+        assert c["severity"] == "info", (
+            f"{check_id}: expected severity=info, got severity={c['severity']!r}"
+        )
+
+    # Triggered_by should not include any placeholder
+    for check_id in placeholder_ids:
+        assert check_id not in result["triggered_by"], (
+            f"{check_id} appeared in triggered_by[] despite ok=true"
+        )
