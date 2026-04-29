@@ -1,0 +1,35 @@
+{
+  "harness": "cld",
+  "role": "planner",
+  "epic_id": 182,
+  "story_id": null,
+  "model": "claude-opus-4-7",
+  "mcp": [],
+  "flags": [],
+  "argv": [
+    "timeout",
+    "30m",
+    "cld",
+    "-t",
+    "--",
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    "claude-opus-4-7",
+    "You are executing Stage 3 (Breakdown) for epic E182.\n\nRead in order:\n  1. .woof/.current-epic (verify E182)\n  2. .woof/epics/E182/EPIC.md (front-matter is canonical \u2014 9 outcomes, 5 contract decisions, 12 acceptance criteria)\n  3. .woof/epics/E182/discovery/synthesis/{CONCEPT,PRINCIPLES,ARCHITECTURE,OPEN_QUESTIONS}.md (discovery context \u2014 bootstrap risk window, three-role separation, Stage-5 check inventory)\n  4. woof/schemas/plan.schema.json (your output contract)\n  5. CLAUDE.md / AGENTS.md (project conventions)\n  6. .woof/codebase/{tree.txt,freshness.json} (current code map)\n\nThen invoke /wf:plan E182.\n\nCRITICAL bootstrap-order constraint (also encoded in EPIC.md acceptance criteria): the first executable story (S1 in plan.json) MUST land `check_6_critique_blocker` (the registry runner) AND driver-owned `git commit` in `scripts/wf-run`. Until S1 lands, no Check 6 is running yet \u2014 every subsequent E182 story executes under the broken pipeline. A plan that puts Check 6 in S2 or later is a blocker. The planner skill body should reject such plans.\n\nReminder of inputs the planner contract expects you to honour:\n  - Every observable_outcome.id appears in \u22651 story's satisfies[].\n  - Every contract_decision.id is referenced exactly once via implements_contract_decisions[].\n  - story.paths[] is a git-pathspec list with no overlap between stories.\n  - depends_on[] is topologically consistent and acyclic.\n\nExit 0 only after writing a schema-valid plan.json to .woof/epics/E182/plan.json. Exit non-zero only after writing .woof/epics/E182/gate.md.\n"
+  ],
+  "pid": 675970,
+  "started_at": "2026-04-27T05:35:35Z",
+  "ended_at": "2026-04-27T05:42:18Z",
+  "duration_ms": 402567,
+  "exit_code": 0,
+  "timed_out": false,
+  "tokens": {
+    "tokens_in": 22,
+    "tokens_out": 29613,
+    "cache_read_tokens": 1380219,
+    "cache_write_tokens": 116606
+  },
+  "cc_session_id": "71a38a4b-7bee-4ecc-84f4-44bc49bb2690"
+}
