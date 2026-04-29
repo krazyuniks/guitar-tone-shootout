@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # wf-run — woof Stage-5 driver loop.
 #
-# Spawns one /wf:execute-story subprocess per pending story (via
-# `woof dispatch claude --role story-executor`) until either a gate.md
-# appears or every story is `status: done`.
+# Implements the producer/verifier/committer separation (E182):
+#   - Producer: cld story-executor subprocess (writes executor_result.json, exits 0)
+#   - Verifier: this script runs `woof check stage-5` against the staged state
+#   - Committer: this script invokes `git commit` only when check-result.ok == true
 #
 # Exit codes:
 #   0   epic complete (all stories done; no gate)
@@ -44,6 +45,7 @@ GATE="$EPIC_DIR/gate.md"
 LOCK="$EPIC_DIR/.wf.lock"
 JSONL="$EPIC_DIR/dispatch.jsonl"
 EPIC_LOG="$EPIC_DIR/epic.jsonl"
+EXECUTOR_RESULT="$EPIC_DIR/executor_result.json"
 
 [[ -f "$PLAN" ]] || { echo "wf-run: $PLAN not found" >&2; exit 2; }
 [[ -f "$REPO_ROOT/.woof/agents.toml" ]] || { echo "wf-run: .woof/agents.toml not found" >&2; exit 2; }
@@ -119,26 +121,17 @@ all_done() {
     [[ "$n" == "0" ]]
 }
 
-set_in_progress() {
-    local sid="$1" tmp
+set_story_status() {
+    local sid="$1" status="$2" tmp
     tmp="$(mktemp)"
-    jq --arg sid "$sid" \
-        '(.stories[] | select(.id == $sid) | .status) = "in_progress"' \
-        "$PLAN" > "$tmp"
-    mv "$tmp" "$PLAN"
-}
-
-revert_to_pending() {
-    local sid="$1" tmp
-    tmp="$(mktemp)"
-    jq --arg sid "$sid" \
-        '(.stories[] | select(.id == $sid) | .status) = "pending"' \
+    jq --arg sid "$sid" --arg st "$status" \
+        '(.stories[] | select(.id == $sid) | .status) = $st' \
         "$PLAN" > "$tmp"
     mv "$tmp" "$PLAN"
 }
 
 # ---------------------------------------------------------------------------
-# Dispatch one story
+# Dispatch one story — new executor protocol
 # ---------------------------------------------------------------------------
 
 bootstrap_prompt() {
@@ -147,15 +140,14 @@ bootstrap_prompt() {
 You are executing story ${sid} in epic E${EPIC}.
 
 Read in order:
-  1. .woof/.current-epic (verify E${EPIC})
-  2. .woof/epics/E${EPIC}/plan.json (find ${sid})
-  3. .woof/epics/E${EPIC}/EPIC.md (front-matter for outcomes / contract decisions)
-  4. CLAUDE.md / AGENTS.md (project conventions)
+  1. .woof/.current-epic                                  — verify E${EPIC}
+  2. .woof/epics/E${EPIC}/plan.json                       — find ${sid}
+  3. .woof/epics/E${EPIC}/EPIC.md                         — front-matter for outcomes / contract decisions
+  4. CLAUDE.md / AGENTS.md                                — project conventions
 
 Then invoke /wf:execute-story with arguments "E${EPIC} ${sid}".
 
-Exit 0 only after the story commit transaction lands. Exit non-zero only after
-writing .woof/epics/E${EPIC}/gate.md.
+Exit 0 only after writing executor_result.json. Exit non-zero on crash/abort without writing it.
 EOF
 }
 
@@ -164,9 +156,14 @@ dispatch_story() {
     prompt_file="$(mktemp)"
     bootstrap_prompt "$sid" > "$prompt_file"
 
+    # Clean up any stale executor_result from a previous attempt
+    rm -f "$EXECUTOR_RESULT"
+
     append_jsonl "$EPIC_LOG" "$(jq -nc \
         --arg at "$(now_iso)" --argjson eid "$EPIC" --arg sid "$sid" \
         '{event:"story_started", at:$at, epic_id:$eid, story_id:$sid}')"
+
+    set_story_status "$sid" "in_progress"
 
     set +e
     "$WOOF_BIN" dispatch claude \
@@ -175,7 +172,134 @@ dispatch_story() {
     local rc=$?
     set -e
     rm -f "$prompt_file"
-    return "$rc"
+
+    # --- Executor exited ---
+
+    if [[ $rc -ne 0 ]] || [[ ! -f "$EXECUTOR_RESULT" ]]; then
+        # Subprocess crashed or exited without writing executor_result.json
+        emit "wf-run: ${sid} subprocess crashed (rc=${rc}) — writing gate"
+        set_story_status "$sid" "pending"
+        "$WOOF_BIN" gate write \
+            --epic "$EPIC" --story "$sid" \
+            --triggered-by subprocess_crash \
+            --exit-code "$rc"
+        return 1
+    fi
+
+    # Record executor_result
+    local outcome
+    outcome="$(jq -r '.outcome' "$EXECUTOR_RESULT")"
+    append_jsonl "$EPIC_LOG" "$(jq -nc \
+        --arg at "$(now_iso)" --argjson eid "$EPIC" --arg sid "$sid" \
+        --arg outcome "$outcome" --argjson ec "$rc" \
+        '{event:"executor_result_recorded", at:$at, epic_id:$eid, story_id:$sid, outcome:$outcome, exit_code:$ec}')"
+
+    case "$outcome" in
+        aborted_with_position)
+            emit "wf-run: ${sid} executor aborted — writing gate"
+            local pos_file
+            pos_file="$(mktemp)"
+            jq -r '.position // ""' "$EXECUTOR_RESULT" > "$pos_file"
+            set_story_status "$sid" "pending"
+            "$WOOF_BIN" gate write \
+                --epic "$EPIC" --story "$sid" \
+                --triggered-by executor_aborted \
+                --from-position "$pos_file"
+            rm -f "$pos_file" "$EXECUTOR_RESULT"
+            return 1
+            ;;
+
+        empty_diff)
+            emit "wf-run: ${sid} executor reports empty diff — writing gate"
+            local pos_file
+            pos_file="$(mktemp)"
+            jq -r '.position // ""' "$EXECUTOR_RESULT" > "$pos_file"
+            set_story_status "$sid" "pending"
+            "$WOOF_BIN" gate write \
+                --epic "$EPIC" --story "$sid" \
+                --triggered-by empty_diff_review \
+                --from-position "$pos_file"
+            rm -f "$pos_file" "$EXECUTOR_RESULT"
+            return 1
+            ;;
+
+        staged_for_verification)
+            emit "wf-run: ${sid} staged — running woof check stage-5"
+            local check_result_file
+            check_result_file="$(mktemp)"
+
+            set +e
+            "$WOOF_BIN" check stage-5 \
+                --epic "$EPIC" --story "$sid" \
+                --format json > "$check_result_file"
+            local check_rc=$?
+            set -e
+
+            # Record check_run event
+            local check_ok
+            check_ok="$(jq -r '.ok' "$check_result_file" 2>/dev/null || echo "false")"
+            local triggered_by_json
+            triggered_by_json="$(jq -c '.triggered_by // []' "$check_result_file" 2>/dev/null || echo '[]')"
+            append_jsonl "$EPIC_LOG" "$(jq -nc \
+                --arg at "$(now_iso)" --argjson eid "$EPIC" --arg sid "$sid" \
+                --argjson ok "$([ "$check_ok" = "true" ] && echo true || echo false)" \
+                --argjson tb "$triggered_by_json" \
+                '{event:"check_run", at:$at, epic_id:$eid, story_id:$sid, stage:5, ok:$ok, triggered_by:$tb}')"
+
+            if [[ $check_rc -ne 0 ]]; then
+                emit "wf-run: ${sid} check stage-5 failed — writing gate"
+                local pos_file
+                pos_file="$(mktemp)"
+                printf 'Check stage-5 failed for story %s. See check-result for details.\n' "$sid" > "$pos_file"
+                set_story_status "$sid" "pending"
+                "$WOOF_BIN" gate write \
+                    --epic "$EPIC" --story "$sid" \
+                    --from-check-result "$check_result_file" \
+                    --position-file "$pos_file"
+                rm -f "$pos_file" "$check_result_file" "$EXECUTOR_RESULT"
+                return 1
+            fi
+
+            rm -f "$check_result_file"
+
+            # All checks passed — driver commits
+            local story_title
+            story_title="$(jq -r --arg sid "$sid" \
+                '.stories[] | select(.id == $sid) | .title' "$PLAN")"
+            local commit_subject="feat(woof): E${EPIC} ${sid} — ${story_title}"
+            local commit_body
+            commit_body="$(jq -r '.commit_body // ""' "$EXECUTOR_RESULT")"
+
+            if [[ -n "$commit_body" ]]; then
+                git commit -m "$commit_subject" -m "$commit_body"
+            else
+                git commit -m "$commit_subject"
+            fi
+
+            local commit_sha
+            commit_sha="$(git rev-parse HEAD)"
+
+            append_jsonl "$EPIC_LOG" "$(jq -nc \
+                --arg at "$(now_iso)" --argjson eid "$EPIC" --arg sid "$sid" \
+                --arg sha "$commit_sha" \
+                '{event:"story_committed", at:$at, epic_id:$eid, story_id:$sid, commit_sha:$sha}')"
+
+            rm -f "$EXECUTOR_RESULT"
+            emit "wf-run: ${sid} committed (${commit_sha:0:7})"
+            return 0
+            ;;
+
+        *)
+            emit "wf-run: ${sid} unknown outcome '${outcome}' — writing crash gate"
+            set_story_status "$sid" "pending"
+            "$WOOF_BIN" gate write \
+                --epic "$EPIC" --story "$sid" \
+                --triggered-by subprocess_crash \
+                --exit-code 0
+            rm -f "$EXECUTOR_RESULT"
+            return 1
+            ;;
+    esac
 }
 
 # ---------------------------------------------------------------------------
@@ -231,45 +355,13 @@ while :; do
     fi
 
     emit "wf-run: dispatching ${sid}"
-    set_in_progress "$sid"
 
     if dispatch_story "$sid"; then
-        # Subprocess succeeded — /wf:execute-story committed (status now done in plan.json
-        # via the story commit transaction).
-        emit "wf-run: ${sid} committed"
+        # Verifier confirmed ok, driver committed — loop to next story
         continue
     fi
 
-    rc=$?
-    # Subprocess failed. Possibilities:
-    #   - gate.md was written by the executor → Stage 6
-    #   - subprocess crashed (no gate written) → revert + synthesise gate
-    if [[ -f "$GATE" ]]; then
-        emit "wf-run: ${sid} opened gate.md — halting"
-        exit 1
-    fi
-
-    revert_to_pending "$sid"
-    cat > "$GATE" <<EOF
----
-type: story_gate
-stage: 6
-story_id: ${sid}
-triggered_by:
-  - subprocess_crash
-timestamp: "$(now_iso)"
-exit_code: ${rc}
----
-
-# Story ${sid} — subprocess crash
-
-The /wf:execute-story subprocess for ${sid} exited with code ${rc} without
-writing gate.md. plan.json reverted to status=pending.
-
-## Position
-
-Investigate the dispatch.jsonl audit and the harness output before re-dispatching.
-EOF
-    emit "wf-run: ${sid} crashed (rc=${rc}) — synthetic gate.md written"
+    # Gate was written (dispatch_story returned non-zero)
+    emit "wf-run: gate.md written for ${sid} — halting"
     exit 1
 done

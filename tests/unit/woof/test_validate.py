@@ -39,7 +39,7 @@ def test_shipped_schema_compiles(schema_path: Path) -> None:
 
 
 def test_shipped_schema_count() -> None:
-    """Schema directory holds the 11 designed artefact schemas."""
+    """Schema directory holds the 13 designed artefact schemas."""
     expected = {
         "epic.schema.json",
         "plan.schema.json",
@@ -52,6 +52,8 @@ def test_shipped_schema_count() -> None:
         "language-registry.schema.json",
         "quality-gates.schema.json",
         "docs-paths.schema.json",
+        "check-result.schema.json",
+        "executor-result.schema.json",
     }
     assert {p.name for p in SCHEMA_FILES} == expected
 

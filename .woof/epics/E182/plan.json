@@ -32,15 +32,31 @@
         "tests/unit/woof/test_check_stage_5_subcommand.py",
         "tests/fixtures/woof/e181_s2/**"
       ],
-      "satisfies": ["O1", "O2", "O4", "O5", "O7", "O8"],
-      "implements_contract_decisions": ["CD1", "CD2", "CD3", "CD4", "CD5"],
+      "satisfies": [
+        "O1",
+        "O2",
+        "O4",
+        "O5",
+        "O7",
+        "O8"
+      ],
+      "implements_contract_decisions": [
+        "CD1",
+        "CD2",
+        "CD3",
+        "CD4",
+        "CD5"
+      ],
       "uses_contract_decisions": [],
       "depends_on": [],
       "tests": {
         "count": 9,
-        "types": ["unit", "regression"]
+        "types": [
+          "unit",
+          "regression"
+        ]
       },
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "S2",
@@ -56,13 +72,23 @@
         "tests/unit/woof/test_check_5_plan_crossrefs.py",
         "tests/unit/woof/test_check_7_commit_transaction.py"
       ],
-      "satisfies": ["O2", "O8"],
+      "satisfies": [
+        "O2",
+        "O8"
+      ],
       "implements_contract_decisions": [],
-      "uses_contract_decisions": ["CD1", "CD3"],
-      "depends_on": ["S1"],
+      "uses_contract_decisions": [
+        "CD1",
+        "CD3"
+      ],
+      "depends_on": [
+        "S1"
+      ],
       "tests": {
         "count": 8,
-        "types": ["unit"]
+        "types": [
+          "unit"
+        ]
       },
       "status": "pending"
     },
@@ -80,13 +106,23 @@
         "tests/unit/woof/test_check_8_docs_drift.py",
         "tests/unit/woof/test_check_9_review_valve.py"
       ],
-      "satisfies": ["O2"],
+      "satisfies": [
+        "O2"
+      ],
       "implements_contract_decisions": [],
-      "uses_contract_decisions": ["CD1", "CD3"],
-      "depends_on": ["S1"],
+      "uses_contract_decisions": [
+        "CD1",
+        "CD3"
+      ],
+      "depends_on": [
+        "S1"
+      ],
       "tests": {
         "count": 8,
-        "types": ["unit", "regression"]
+        "types": [
+          "unit",
+          "regression"
+        ]
       },
       "status": "pending"
     },
@@ -102,13 +138,23 @@
         "tests/unit/woof/test_skill_prose_drift.py",
         "tests/unit/woof/test_execute_story_purity.py"
       ],
-      "satisfies": ["O3", "O6", "O9"],
+      "satisfies": [
+        "O3",
+        "O6",
+        "O9"
+      ],
       "implements_contract_decisions": [],
-      "uses_contract_decisions": ["CD3"],
-      "depends_on": ["S1"],
+      "uses_contract_decisions": [
+        "CD3"
+      ],
+      "depends_on": [
+        "S1"
+      ],
       "tests": {
         "count": 3,
-        "types": ["unit"]
+        "types": [
+          "unit"
+        ]
       },
       "status": "pending"
     }
