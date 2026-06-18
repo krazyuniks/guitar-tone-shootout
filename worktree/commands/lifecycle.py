@@ -16,7 +16,7 @@ from ..cli_utils import (
     print_warning,
 )
 from ..config import get_worktree_root
-from ..docker import remove_volumes
+from ..docker import remove_containers
 from ..git_ops import (
     GitError,
     delete_branch,
@@ -337,7 +337,7 @@ def _teardown_merged_worktree(pr_branch: str, pr_number: int, main_path: Path) -
                 # Stop and remove Docker resources
                 status.update("[bold red]Stopping Docker services...")
                 try:
-                    remove_volumes(merged_worktree, merged_path)
+                    remove_containers(merged_worktree, merged_path)
                 except Exception as e:
                     print_warning(f"Docker cleanup issue: {e}")
 

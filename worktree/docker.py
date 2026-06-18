@@ -264,12 +264,19 @@ def stop_services_graceful(
     return True
 
 
-def remove_volumes(worktree: Worktree, worktree_path: Path) -> None:
-    """Remove Docker volumes and networks for a worktree.
+def remove_containers(worktree: Worktree, worktree_path: Path) -> None:
+    """Tear down a worktree's containers and networks, PRESERVING its volumes.
 
-    This function properly handles teardown by:
+    Deliberately does NOT pass `-v`. The postgres data volume is a durable named
+    volume; deleting it on teardown silently destroyed user content (DI tracks,
+    shootouts) created inside a worktree DB. Teardown removes containers and
+    networks only; the named volume survives and is reclaimed separately (and
+    visibly) by volume-pruning, never as a side effect of routine teardown.
+
+    This function handles teardown by:
     1. First gracefully stopping services (handles stop_grace_period)
-    2. Then calling `docker compose down -v --remove-orphans` to clean up
+    2. Then calling `docker compose down --remove-orphans` to remove containers
+       and networks
 
     Args:
         worktree: Worktree configuration (unused, kept for API compatibility)
@@ -281,12 +288,12 @@ def remove_volumes(worktree: Worktree, worktree_path: Path) -> None:
     # This prevents timeout issues with services that have long stop_grace_period
     stop_services_graceful(worktree_path, timeout=30, force_timeout=10)
 
-    # Step 2: Use docker compose down -v to remove containers, networks, AND volumes
-    # The --remove-orphans flag handles containers from previous failed teardowns
-    # Use configured timeout for cleanup operations
+    # Step 2: `docker compose down --remove-orphans` removes containers and
+    # networks but NOT named volumes (no `-v`). The --remove-orphans flag handles
+    # containers from previous failed teardowns. Use configured timeout.
     docker_timeout = settings.docker_timeout
     run_compose(
-        ["down", "-v", "--remove-orphans", "--timeout", str(docker_timeout)],
+        ["down", "--remove-orphans", "--timeout", str(docker_timeout)],
         cwd=worktree_path,
         timeout=docker_timeout + 30,  # Allow extra time for cleanup after shutdown
     )

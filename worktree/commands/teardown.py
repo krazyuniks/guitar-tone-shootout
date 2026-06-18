@@ -18,7 +18,7 @@ from ..docker import (
     find_orphaned_containers,
     find_orphaned_networks,
     force_cleanup_project,
-    remove_volumes,
+    remove_containers,
 )
 from ..git_ops import (
     GitError,
@@ -92,7 +92,7 @@ def register_teardown_commands(app: typer.Typer) -> None:
             # Step 1: Stop and remove Docker resources
             status.update("[bold red]Stopping Docker services...")
             try:
-                remove_volumes(worktree, worktree_path)
+                remove_containers(worktree, worktree_path)
             except Exception as e:
                 print_warning(f"Docker cleanup issue: {e}")
                 # Auto-cleanup orphaned containers when graceful shutdown fails

@@ -557,7 +557,7 @@ def atomic_complete(
 
     All steps tracked in state file. On failure, reports what completed.
     """
-    from .docker import remove_volumes
+    from .docker import remove_containers
     from .git_ops import (
         GitError,
         delete_branch,
@@ -650,7 +650,7 @@ def atomic_complete(
                 if worktree_path.exists():
                     # Stop Docker
                     with contextlib.suppress(Exception):
-                        remove_volumes(worktree, worktree_path)
+                        remove_containers(worktree, worktree_path)
 
                     # Remove git worktree
                     with contextlib.suppress(GitError):
