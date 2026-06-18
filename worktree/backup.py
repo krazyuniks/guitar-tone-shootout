@@ -15,10 +15,23 @@ class BackupError(Exception):
     """Raised when a backup or restore operation fails."""
 
 
+def _dc(worktree_path: Path) -> list[str]:
+    """Base docker-compose command, routed through the scripts/dc wrapper.
+
+    scripts/dc attaches `--env-file compose.env --env-file .env.worktree`, so
+    COMPOSE_PROJECT_NAME (e.g. gts-main) and COMPOSE_FILE resolve identically to
+    the justfile and the rest of worktree.py. Calling `docker compose` directly
+    would default the project name to the directory basename ("main") and miss
+    the live stack — which is exactly why scheduled backups silently broke after
+    the main->gts-main project rename.
+    """
+    return [str(worktree_path / "scripts" / "dc")]
+
+
 def _check_db_running(worktree_path: Path) -> None:
     """Verify the db container is running."""
     result = subprocess.run(
-        ["docker", "compose", "ps", "--status", "running", "--format", "{{.Service}}", "db"],
+        [*_dc(worktree_path), "ps", "--status", "running", "--format", "{{.Service}}", "db"],
         cwd=worktree_path,
         capture_output=True,
         text=True,
@@ -38,8 +51,7 @@ def discover_databases(worktree_path: Path) -> list[str]:
     _check_db_running(worktree_path)
     result = subprocess.run(
         [
-            "docker",
-            "compose",
+            *_dc(worktree_path),
             "exec",
             "-T",
             "db",
@@ -107,7 +119,7 @@ def backup_database(worktree_path: Path, db_name: str) -> Path:
 
     with open(backup_file, "wb") as f:
         proc = subprocess.run(
-            ["docker", "compose", "exec", "-T", "db", "pg_dump", "-Fc", "-U", "gts", db_name],
+            [*_dc(worktree_path), "exec", "-T", "db", "pg_dump", "-Fc", "-U", "gts", db_name],
             cwd=worktree_path,
             stdout=f,
             stderr=subprocess.PIPE,
@@ -150,8 +162,7 @@ def restore_database(worktree_path: Path, backup_file: Path, db_name: str) -> No
     # Terminate existing connections
     subprocess.run(
         [
-            "docker",
-            "compose",
+            *_dc(worktree_path),
             "exec",
             "-T",
             "db",
@@ -170,7 +181,7 @@ def restore_database(worktree_path: Path, backup_file: Path, db_name: str) -> No
 
     # Drop database
     result = subprocess.run(
-        ["docker", "compose", "exec", "-T", "db", "dropdb", "-U", "gts", "--if-exists", db_name],
+        [*_dc(worktree_path), "exec", "-T", "db", "dropdb", "-U", "gts", "--if-exists", db_name],
         cwd=worktree_path,
         capture_output=True,
         text=True,
@@ -181,7 +192,7 @@ def restore_database(worktree_path: Path, backup_file: Path, db_name: str) -> No
 
     # Create database
     result = subprocess.run(
-        ["docker", "compose", "exec", "-T", "db", "createdb", "-U", "gts", db_name],
+        [*_dc(worktree_path), "exec", "-T", "db", "createdb", "-U", "gts", db_name],
         cwd=worktree_path,
         capture_output=True,
         text=True,
@@ -194,8 +205,7 @@ def restore_database(worktree_path: Path, backup_file: Path, db_name: str) -> No
     with open(backup_file, "rb") as f:
         proc = subprocess.run(
             [
-                "docker",
-                "compose",
+                *_dc(worktree_path),
                 "exec",
                 "-T",
                 "db",
