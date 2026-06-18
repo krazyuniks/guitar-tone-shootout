@@ -114,12 +114,18 @@ async def _resolve_user_id(session, explicit: str | None) -> UUID:
     )
 
 
-def select_plans(files: list[Path], existing: set[str], report: Report) -> list[Plan]:
+def select_plans(
+    files: list[Path], existing: set[str], report: Report, exclude: list[str] | None = None
+) -> list[Plan]:
     """Decode/validate/dedup files into a recovery plan, recording skip reasons."""
+    exclude = [e.lower() for e in (exclude or [])]
     seen: set[str] = set()
     plans: list[Plan] = []
     for path in files:
         try:
+            if exclude and any(tok in path.name.lower() for tok in exclude):
+                report.skipped["excluded (name filter)"] += 1
+                continue
             if path.stat().st_size < MIN_BYTES:
                 report.skipped["too-small (fixture/stub)"] += 1
                 continue
@@ -219,7 +225,8 @@ async def _main(args: argparse.Namespace) -> int:
         user_id = await _resolve_user_id(session, args.user_id)
         existing = await _existing_checksums(session, user_id)
         files = find_audio(source)
-        plans = select_plans(files, existing, report)
+        exclude = [t.strip() for t in (args.exclude or "").split(",") if t.strip()]
+        plans = select_plans(files, existing, report, exclude)
         report.planned = plans
 
         print(f"source:           {source}")
@@ -257,6 +264,10 @@ def main() -> int:
     parser.add_argument("source", help="Directory of audio files (must be visible in-container)")
     parser.add_argument("--user-id", help="Owner UUID (default: the sole OAuth-identity user)")
     parser.add_argument("--apply", action="store_true", help="Write rows (default: dry run)")
+    parser.add_argument(
+        "--exclude",
+        help="Comma-separated substrings; skip files whose name contains any (e.g. 'render,kemper')",
+    )
     parser.add_argument("--storage-path", help="Override storage dir for recovered copies")
     args = parser.parse_args()
     return asyncio.run(_main(args))
