@@ -12,9 +12,9 @@ Web application for comparing guitar tones through blind A/B listening tests ("s
 
 ## Architecture
 Monorepo with uv workspaces:
-- `libs/core/` — domain models, repositories, services (gts_core)
-- `libs/audio/` — audio processing (gts_audio)
-- `libs/video/` — video composition with Remotion (gts_video)
+- `model/gts/` — domain models, repositories, services (gts_core)
+- `model/audio/` — audio processing (gts_audio)
+- `model/video/` — video composition with Remotion (gts_video)
 - `apps/webapp/` — FastAPI web application (gts_webapp)
 - `apps/t3k-sync/` — T3K data source sync worker (gts_t3k_sync)
 - `apps/audio-worker/` — audio processing worker (gts_audio_worker)
@@ -24,7 +24,7 @@ Monorepo with uv workspaces:
 - `tests/` — all tests (unit, integration, e2e)
 
 ## Key Patterns
-- Hexagonal architecture: domain → repositories → services → handlers
+- Onion architecture: domain → repositories → services → handlers
 - SQLAlchemy relationships use `lazy="raise"`, queries use `joinedload`
 - All dev commands via `just` (Docker-first execution)
 - Git worktrees for parallel feature development

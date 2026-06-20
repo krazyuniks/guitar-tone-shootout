@@ -6,16 +6,16 @@ Persistence and domain patterns used throughout GTS. These implement the pattern
 
 | Pattern | Purpose | Location |
 |---------|---------|----------|
-| **Repository (DDD)** | Aggregate-oriented data access behind protocol interfaces | `core/ports/` -> `webapp/adapters/persistence/repositories/` |
+| **Repository (DDD)** | Aggregate-oriented data access behind protocol interfaces | `gts/ports/` -> `webapp/adapters/persistence/repositories/` |
 | **DataMapper** | Separate ORM models from domain entities; repositories translate between them | `webapp/adapters/persistence/repositories/*` (`_to_entity()` methods) |
 | **Unit of Work** | Transaction boundaries managed by session; explicit commit semantics | `webapp/adapters/persistence/unit_of_work.py` |
-| **DTO** | Models for data crossing boundaries (sync records, API payloads) | `core/records/`, `webapp/schemas/` |
+| **DTO** | Models for data crossing boundaries (sync records, API payloads) | `gts/records/`, `webapp/schemas/` |
 
 ## Repository Pattern
 
 Aggregate-oriented data access behind protocol interfaces. Presents collection semantics ("in-memory collection of aggregates"). One repository per aggregate root.
 
-**Ports (Domain Layer):** `libs/core/src/core/ports/repositories.py`
+**Ports (Domain Layer):** `model/gts/src/gts/ports/repositories.py`
 
 | Repository | Aggregate | Purpose |
 |------------|-----------|---------|
@@ -43,7 +43,7 @@ Aggregate-oriented data access behind protocol interfaces. Presents collection s
 
 Domain entities are persistence-ignorant. ORM models and domain entities are **always separate classes**. Repositories handle translation between them.
 
-**Domain entities** (`libs/core/src/core/domain/entities/`):
+**Domain entities** (`model/gts/src/gts/domain/entities/`):
 - Pure Python dataclasses, no framework imports
 - Identity-based equality (`__eq__` compares IDs)
 - Business methods that enforce invariants
@@ -117,9 +117,9 @@ Models for data crossing system boundaries. Validated at the edge, immutable in 
 
 | DTO Type | Location | Purpose |
 |----------|----------|---------|
-| Sync records | `libs/core/src/core/records/` | Gear sync messages between source adapters and core consumer |
+| Sync records | `model/gts/src/gts/records/` | Gear sync messages between source adapters and core consumer |
 | API schemas | `apps/webapp/src/webapp/schemas/` | HTTP request/response validation (Pydantic) |
-| Value objects | `libs/core/src/core/domain/value_objects/` | Immutable domain concepts (AudioResult, ToneConfig, etc.) |
+| Value objects | `model/gts/src/gts/domain/value_objects/` | Immutable domain concepts (AudioResult, ToneConfig, etc.) |
 
 **Sync records** are owned by core and imported by source adapters (Conformist pattern). Source adapters must construct valid `GearSyncRecord` instances -- core rejects invalid records.
 
@@ -127,7 +127,7 @@ Models for data crossing system boundaries. Validated at the edge, immutable in 
 
 Pure business logic with zero framework dependencies.
 
-**Location:** `libs/core/src/core/services/`
+**Location:** `model/gts/src/gts/services/`
 
 | Service | Purpose |
 |---------|---------|
@@ -147,7 +147,7 @@ These patterns are explicitly prohibited.
 | Anti-Pattern | Description | Violation Example |
 |--------------|-------------|-------------------|
 | **DAO masquerading as Repository** | Table-oriented CRUD instead of aggregate-oriented access | `get_all_rows()`, `find_by_column()` without aggregate context |
-| **Active Record** | Domain entities coupled to persistence (`entity.save()`) | Adding SQLAlchemy imports to `libs/core/` |
+| **Active Record** | Domain entities coupled to persistence (`entity.save()`) | Adding SQLAlchemy imports to `model/gts/` |
 | **Exposing ORM outside service layer** | ORM models leaked to API routes or templates | Returning `UserModel` from a route handler instead of a schema |
 | **Business logic in persistence** | Validation or rules in repository or ORM model | Computing signal chain validity inside a repository query |
 | **Multiple queries per aggregate** | Using `selectinload`/`subqueryload` instead of `joinedload` | `.options(selectinload(Gear.models))` fires a second query |

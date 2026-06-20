@@ -19,8 +19,8 @@ class TestTypeScriptCompilation:
 
     @pytest.fixture
     def video_root(self) -> Path:
-        """Path to libs/video/ directory."""
-        return Path("libs/video")
+        """Path to model/video/ directory."""
+        return Path("model/video")
 
     def test_typescript_compiles_without_errors(self, video_root: Path) -> None:
         """TypeScript compiles without errors using npx tsc --noEmit."""
@@ -80,8 +80,8 @@ class TestRemotionStudioLaunch:
 
     @pytest.fixture
     def video_root(self) -> Path:
-        """Path to libs/video/ directory."""
-        return Path("libs/video")
+        """Path to model/video/ directory."""
+        return Path("model/video")
 
     def test_remotion_config_exists(self, video_root: Path) -> None:
         """Remotion configuration file exists."""
@@ -149,8 +149,8 @@ class TestRemotionComponentImports:
 
     @pytest.fixture
     def video_root(self) -> Path:
-        """Path to libs/video/ directory."""
-        return Path("libs/video")
+        """Path to model/video/ directory."""
+        return Path("model/video")
 
     def test_compositions_can_be_imported(self, video_root: Path) -> None:
         """All composition files can be imported by TypeScript."""

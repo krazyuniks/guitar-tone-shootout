@@ -1,6 +1,6 @@
 # Architecture Layers
 
-Hexagonal architecture with domain at centre. Dependencies point inward -- adapters depend on domain, never reverse.
+Onion Architecture with the domain at the centre. Dependencies point inward -- adapters depend on domain, never the reverse. Ports (Protocol interfaces) live at the I/O edge as the Dependency Inversion Principle mechanism; import-linter enforces the inward dependency rule.
 
 ## Technology Stack
 
@@ -65,21 +65,31 @@ Hexagonal architecture with domain at centre. Dependencies point inward -- adapt
 ```
 gts/
 ├── pyproject.toml              # Workspace root
-├── libs/
-│   ├── core/                   # Core domain (source-agnostic)
+├── model/                      # Shared libraries (workspace members)
+│   ├── gts/                    # Core domain (package gts-domain, import root gts)
 │   │   ├── pyproject.toml
-│   │   └── src/core/
+│   │   └── src/gts/
 │   │       ├── domain/         # Entities, aggregates, value objects
 │   │       ├── ports/          # Interfaces (Protocols)
-│   │       ├── records/        # Sync record schemas (owned by core)
+│   │       ├── records/        # Sync record schemas (owned by gts)
 │   │       └── services/       # Domain services
 │   │
-│   └── audio/                  # Audio/video processing
+│   ├── audio/                  # Audio processing (package gts-audio, import root audio)
+│   │   ├── pyproject.toml
+│   │   └── src/audio/
+│   │       ├── processing/     # Signal chain execution (Pedalboard, NAM)
+│   │       └── analysis/       # Loudness measurement, waveform extraction
+│   │
+│   └── video/                  # Video composition (package gts-video, import root video)
 │       ├── pyproject.toml
-│       └── src/audio/
-│           ├── processing/     # Signal chain execution (Pedalboard, NAM)
-│           ├── video/          # FFmpeg composition
-│           └── analysis/       # Loudness measurement, waveform extraction
+│       └── src/video/
+│           ├── remotion/       # Remotion compositions (React/TypeScript)
+│           ├── api.py          # Video BC API surface
+│           ├── client.py       # HttpVideoRenderClient (VideoRenderClient impl)
+│           └── schemas.py      # Pydantic schemas
+│
+├── infra/                      # Messaging workspace package (package gts-messaging, import root messaging)
+│   └── messaging/              # pgmq client, envelope, commands, events, bus - imported by application code
 │
 ├── sources/
 │   └── {source}/               # One per data source (e.g., t3k)
@@ -127,7 +137,7 @@ gts/
 │       │   └── styles/         # Tailwind, design tokens
 │       └── dist/               # Build output (committed)
 │
-├── infrastructure/
+├── infrastructure/             # Deployment/ops config only (NOT a workspace package; mypy-excluded). Distinct from infra/ (the messaging package).
 │   ├── docker/                 # Dockerfiles, init scripts
 │   │   ├── Dockerfile.dev     # Development (bind mounts, uv installed)
 │   │   ├── Dockerfile.backend # Production webapp (multi-stage, no uv)
@@ -148,7 +158,7 @@ gts/
 │
 ├── tests/
 │   ├── regression/             # Stack connectivity tests (<1s)
-│   ├── unit/                   # Unit tests (core, audio, webapp)
+│   ├── unit/                   # Unit tests (gts, audio, webapp)
 │   ├── integration/            # Integration tests (real DB, pgmq)
 │   └── e2e/python/             # E2E tests (Playwright, isolated workspace)
 │
@@ -162,9 +172,13 @@ gts/
 # pyproject.toml (workspace root)
 [tool.uv.workspace]
 members = [
-    "libs/*",
+    "model/*",
+    "infra/*",
     "sources/*",
-    "apps/*",
+    "apps/webapp",
+    "apps/t3k_sync",
+    "apps/audio_worker",
+    "apps/video_worker",
 ]
 ```
 
@@ -172,31 +186,34 @@ members = [
 
 | Module | Can depend on | Cannot depend on |
 |--------|---------------|------------------|
-| `core` | (none) | audio, video, sources, apps |
-| `audio` | core | video, sources, apps |
-| `video` | core, audio | sources, apps |
-| `source_*` | core | audio, video, other sources, apps |
-| `webapp` | core, audio, video, messaging | sources |
-| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
-| `audio-worker` | core, audio, messaging | video, sources, webapp |
-| `video-worker` | core, video, messaging | audio, sources, webapp |
+| `gts` | (none) | audio, video, sources, apps |
+| `audio` | gts | video, sources, apps |
+| `video` | gts | audio, sources, apps |
+| `source_*` | gts | audio, video, other sources, apps |
+| `webapp` | gts, audio, video, messaging | sources |
+| `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | gts, audio, messaging | video, sources, webapp |
+| `video-worker` | gts, video, messaging | audio, sources, webapp |
 
 Enforced via import-linter in CI.
 
-**Video layer:** `libs/video/` sits above core and audio. It composes domain models and audio segments into videos using Remotion (React-based video framework). Must NOT depend on application-specific concerns (webapp, BC containers) or data sources (T3K).
+**Video layer:** `model/video/` sits above the gts domain, composing domain models into videos using Remotion (React-based video framework). Must NOT depend on application-specific concerns (webapp, BC containers) or data sources (T3K).
 
 ### Directory Purposes
 
 | Directory | Purpose |
 |-----------|---------|
-| `libs/` | Shared libraries used by multiple apps |
+| `model/` | Shared libraries used by multiple apps (workspace members: gts, audio, video) |
+| `infra/` | Messaging workspace package (gts-messaging, import root messaging) - pgmq client, envelope, commands, events, bus; imported by application code |
 | `sources/` | Data source adapters (one per external system) |
 | `apps/` | Deployable applications |
 | `frontend/` | Build-time assets (Astro compiles to static files) |
-| `infrastructure/` | Deployment configuration |
+| `infrastructure/` | Deployment/ops configuration only (docker, nginx, alembic migrations); NOT a workspace package, mypy-excluded. Do not confuse with `infra/` (the messaging package). |
 | `scripts/` | Developer tooling and setup |
 
 ## Layer Diagram
+
+Onion Architecture: concentric rings with the Domain at the centre. Each ring may only depend on rings inside it. Ports (Protocol interfaces) are declared in the Domain ring and implemented by the Adapters ring at the I/O edge -- this is the Dependency Inversion that keeps the Domain free of framework concerns.
 
 ```
       ┌────────────────────────────────────────────────────────────┐
@@ -207,39 +224,41 @@ Enforced via import-linter in CI.
       ┌──────────────────────────────┼─────────────────────────────┐
       │                              ▼                             │
       │  ┌───────────────────────────────────────────────────────┐ │
-      │  │                   Adapters Layer                       │ │
-      │  │  HTTP endpoints │ Repositories │ Source clients        │ │
+      │  │                Adapters Ring (outermost)               │ │
+      │  │  Implements Domain ports. HTTP, persistence, sources.  │ │
       │  │  apps/*/api/    │ apps/*/adapters/ │ sources/*/        │ │
       │  └─────────────────────────┬─────────────────────────────┘ │
       │                            │                               │
       │  ┌─────────────────────────▼─────────────────────────────┐ │
-      │  │                 Application Layer                      │ │
+      │  │                 Application Ring                       │ │
       │  │                                                        │ │
       │  │   ┌─────────────────┐      ┌───────────────────────┐  │ │
       │  │   │  Shared Libs    │      │   App Services        │  │ │
-      │  │   │  libs/audio/    │ ◀─── │   apps/*/services/    │  │ │
+      │  │   │  model/audio/   │ ◀─── │   apps/*/services/    │  │ │
       │  │   │  (standalone)   │      │   (use case orch.)    │  │ │
       │  │   └────────┬────────┘      └───────────────────────┘  │ │
       │  │            │                                           │ │
       │  └────────────┼───────────────────────────────────────────┘ │
       │               │                                             │
       │  ┌────────────▼───────────────────────────────────────────┐ │
-      │  │                   Domain Layer                          │ │
-      │  │                     libs/core/                          │ │
+      │  │              Domain Ring (centre)                       │ │
+      │  │   model/gts/ -- entities, value objects, services,      │ │
+      │  │   and the ports (Protocols) that adapters implement.    │ │
       │  └─────────────────────────────────────────────────────────┘ │
       └──────────────────────────────────────────────────────────────┘
-                           Dependencies flow inward
+                  Dependencies flow inward (Adapters -> Application -> Domain)
 ```
 
 ## Workspace to Layer Mapping
 
 | Layer | Location | Contents |
 |-------|----------|----------|
-| **Domain** | `libs/core/src/core/domain/` | Entities, aggregates, value objects |
-| | `libs/core/src/core/ports/` | Protocol interfaces (repository contracts) |
-| | `libs/core/src/core/services/` | Domain services (pure business logic) |
-| | `libs/core/src/core/records/` | Sync record schemas (DTOs owned by core) |
-| **Application** | `libs/audio/src/audio/` | Audio/video processing (standalone library) |
+| **Domain** | `model/gts/src/gts/domain/` | Entities, aggregates, value objects |
+| | `model/gts/src/gts/ports/` | Protocol interfaces (repository contracts) |
+| | `model/gts/src/gts/services/` | Domain services (pure business logic) |
+| | `model/gts/src/gts/records/` | Sync record schemas (DTOs owned by gts) |
+| **Application** | `model/audio/src/audio/` | Audio processing (standalone library) |
+| | `model/video/src/video/` | Video composition (standalone library) |
 | | `apps/webapp/src/webapp/services/` | Use case orchestration |
 | | `apps/*/src/*/consumers/` | pgmq message handlers (BC containers) |
 | **Adapters** | `apps/webapp/src/webapp/api/` | HTTP endpoints (inbound) |
@@ -250,33 +269,34 @@ Enforced via import-linter in CI.
 
 ## Layer Responsibilities
 
-**Domain Layer** (`libs/core/`)
+**Domain Ring** (`model/gts/`)
 - Defines ubiquitous language (entities, value objects)
 - Declares ports (Protocol interfaces) for external dependencies
 - Contains pure business logic (domain services)
 - Zero framework dependencies, persistence-agnostic
 
-**Application Layer** (`libs/audio/`, `apps/*/services/`)
-- Shared libraries (`libs/`) are standalone, callable from any context
+**Application Ring** (`model/audio/`, `model/video/`, `apps/*/services/`)
+- Shared libraries (`model/`) are standalone, callable from any context
 - App services orchestrate use cases and manage transaction boundaries
-- `libs/audio/` coordinates domain models with DSP libraries (Pedalboard, NAM, FFmpeg)
+- `model/audio/` coordinates domain models with DSP libraries (Pedalboard, NAM, FFmpeg)
+- `model/video/` composes audio segments and domain models into videos via Remotion
 
-**Adapters Layer** (`apps/*/api/`, `apps/*/adapters/`, `sources/*/`)
+**Adapters Ring** (`apps/*/api/`, `apps/*/adapters/`, `sources/*/`)
 - HTTP endpoints (FastAPI routes)
-- Persistence (SQLAlchemy repositories implementing core ports)
+- Persistence (SQLAlchemy repositories implementing gts ports)
 - External API clients (T3K API, OAuth providers)
 - Queue publishers and consumers
 
 ## Shared Libraries Are Decoupled
 
-`libs/` are shared libraries, not tied to any application. They can be called from:
+`model/` are shared libraries, not tied to any application. They can be called from:
 - Web application services
 - BC container consumers (t3k-sync, audio-worker, video-worker)
 - CLI scripts
 - Bulk import scripts
 - Tests
 
-This is enforced by dependency rules -- `libs/audio/` depends only on `libs/core/`, never on `apps/` or `sources/`.
+This is enforced by dependency rules -- `model/audio/` depends only on `model/gts/`, never on `apps/` or `sources/`.
 
 ## Context Map
 
@@ -314,4 +334,4 @@ DDD context map showing bounded context relationships.
 
 ### Schema Ownership
 
-Core owns all synchronisation record schemas (`libs/core/src/core/records/`). Source adapters import and conform to these schemas. Schema changes are validated in CI -- all source adapters must pass against the current core schema before merge.
+Core owns all synchronisation record schemas (`model/gts/src/gts/records/`). Source adapters import and conform to these schemas. Schema changes are validated in CI -- all source adapters must pass against the current core schema before merge.

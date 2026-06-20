@@ -348,7 +348,7 @@ class TestProductionSanitisation:
             # Should NOT contain internal file paths
             assert "/home/" not in response_str
             assert "/apps/webapp" not in response_str
-            assert "/libs/core" not in response_str
+            assert "/model/gts" not in response_str
 
 
 class TestDevelopmentMode:

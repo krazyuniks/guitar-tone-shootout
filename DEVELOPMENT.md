@@ -42,24 +42,28 @@ just up-d                   # Start services (existing worktree)
 ```
 gts/
 ├── pyproject.toml              # Workspace root (uv workspaces)
-├── libs/
-│   ├── core/                   # Domain (zero framework deps)
-│   │   └── src/core/
+├── model/                      # Shared libraries (workspace members)
+│   ├── gts/                    # Domain (package gts-domain, import root gts)
+│   │   └── src/gts/
 │   │       ├── domain/
 │   │       │   ├── entities/   # User, Gear, SignalChain, Shootout, Job
 │   │       │   └── value_objects/  # Enums, frozen dataclasses
 │   │       ├── ports/          # Repository protocols, processor protocols
 │   │       ├── records/        # Sync record schemas (GearSyncRecord)
 │   │       └── services/       # Domain services (validation, calculation)
-│   ├── audio/                  # Audio processing
+│   ├── audio/                  # Audio processing (package gts-audio, import root audio)
 │   │   └── src/audio/
 │   │       ├── processing/     # NAM, IR, pedalboard processing
 │   │       └── analysis/       # Audio analysis (loudness, waveform)
-│   └── video/                  # Video composition
+│   └── video/                  # Video composition (package gts-video, import root video)
 │       └── src/video/
-│           ├── composition/    # Remotion components
-│           ├── rendering/      # Video rendering pipeline
-│           └── effects/        # Video effects and transitions
+│           ├── remotion/       # Remotion compositions (React/TypeScript)
+│           ├── api.py          # Video BC API surface
+│           ├── client.py       # HttpVideoRenderClient (VideoRenderClient impl)
+│           ├── props.py        # Domain-to-Remotion prop serialisation
+│           └── schemas.py      # Pydantic schemas
+├── infra/                      # Messaging workspace package (package gts-messaging, import root messaging)
+│   └── messaging/              # pgmq client, envelope, commands, events, bus - imported by application code
 ├── sources/
 │   └── t3k/                    # T3K source adapter
 │       └── src/source_t3k/
@@ -95,7 +99,7 @@ gts/
 │       │   ├── styles/         # Tailwind, design tokens
 │       │   └── components/     # React islands
 │       └── dist/               # Build output (COMMITTED TO GIT)
-├── infrastructure/
+├── infrastructure/             # Deployment/ops config only (NOT a workspace package; mypy-excluded)
 │   ├── docker/                 # Dockerfiles, init scripts
 │   ├── migrations/             # Alembic migrations (gts_core)
 │   └── nginx/                  # nginx.conf.template
@@ -123,24 +127,26 @@ gts/
 
 ## Architecture
 
-### Hexagonal (Ports/Adapters)
+### Onion Architecture
 
-- **Domain** (`libs/core/`) - Pure business logic, no framework dependencies
-- **Ports** (`libs/core/ports/`) - Interfaces (protocols) for external systems
+Onion Architecture with the domain at the centre. Dependencies point inward: adapters depend on domain, never the reverse. Ports (Protocol interfaces) sit at the I/O edge as the Dependency Inversion mechanism; import-linter enforces the inward rule.
+
+- **Domain** (`model/gts/`) - Pure business logic, no framework dependencies
+- **Ports** (`model/gts/src/gts/ports/`) - Interfaces (protocols) for external systems
 - **Adapters** (`apps/webapp/adapters/`) - Implementations (SQLAlchemy, pgmq, etc.)
 
 ### Dependency Rules
 
 | Module | Can depend on | Cannot depend on |
 |--------|---------------|------------------|
-| `core` | (none) | audio, video, sources, apps |
-| `audio` | core | video, sources, apps |
-| `video` | core, audio | sources, apps |
-| `source_*` | core | audio, video, other sources, apps |
-| `webapp` | core, audio, video, messaging | sources |
-| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
-| `audio-worker` | core, audio, messaging | video, sources, webapp |
-| `video-worker` | core, video, messaging | audio, sources, webapp |
+| `gts` | (none) | audio, video, sources, apps |
+| `audio` | gts | video, sources, apps |
+| `video` | gts | audio, sources, apps |
+| `source_*` | gts | audio, video, other sources, apps |
+| `webapp` | gts, audio, video, messaging | sources |
+| `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | gts, audio, messaging | video, sources, webapp |
+| `video-worker` | gts, video, messaging | audio, sources, webapp |
 
 **Enforcement:** import-linter contracts in root `pyproject.toml`.
 

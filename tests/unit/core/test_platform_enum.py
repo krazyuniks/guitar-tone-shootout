@@ -1,7 +1,7 @@
 """Unit tests for Platform enum in dedicated module.
 
 This test verifies that Platform enum exists in its own module at
-libs/core/src/core/domain/value_objects/platform.py as specified
+model/gts/src/gts/domain/value_objects/platform.py as specified
 in the task requirements.
 """
 

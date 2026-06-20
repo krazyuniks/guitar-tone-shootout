@@ -110,14 +110,14 @@ API Layer → Service Layer → Domain Layer
 ## Verification Commands
 
 ```bash
-# Core isolation (libs/core should have no framework imports)
-grep -r "sqlalchemy\|fastapi" libs/core/
+# Core isolation (model/gts should have no framework imports)
+grep -r "sqlalchemy\|fastapi" model/gts/
 
 # Import boundary violations (use import-linter for full check)
 uv run lint-imports
 
 # Aggregate identity equality
-grep -n "__eq__\|__hash__" libs/core/src/core/domain/entities/*.py
+grep -n "__eq__\|__hash__" model/gts/src/gts/domain/entities/*.py
 
 # Transaction ownership in webapp services
 grep -rn "session.begin()" apps/webapp/src/webapp/services/  # Should exist
@@ -131,7 +131,7 @@ grep -rn "\.commit()" apps/webapp/src/webapp/adapters/       # Should be empty
 ```bash
 /arch-review                    # Review recent changes
 /arch-review apps/webapp/       # Review specific directory
-/arch-review libs/core/         # Review core domain
+/arch-review model/gts/         # Review core domain
 /arch-review --full             # Full project review
 ```
 

@@ -16,7 +16,7 @@ class AudioProcessor(Protocol):
 
     This port defines the interface that the domain layer expects
     from audio processing implementations. The actual implementation
-    lives in libs/audio.
+    lives in model/audio.
     """
 
     async def process_di_track(

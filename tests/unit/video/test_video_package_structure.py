@@ -44,10 +44,8 @@ class TestVideoPackageStructure:
         assert "[project]" in content, "pyproject.toml must have [project] section"
         assert 'name = "gts-video"' in content, "project name must be gts-video"
 
-        # Must depend on a gts workspace package
-        assert "gts-domain" in content or "gts-core" in content, (
-            "gts-video must depend on a gts workspace package (gts-domain or gts-core)"
-        )
+        # Must depend on the gts-domain workspace package
+        assert "gts-domain" in content, "gts-video must depend on the gts-domain workspace package"
 
         # Must have workspace source config
         assert "[tool.uv.sources]" in content, "must have [tool.uv.sources] section"

@@ -42,7 +42,7 @@ class TestRootWorkspaceConfig:
         assert '"video"' in content or "'video'" in content, "root_packages must include video"
 
     def test_import_linter_video_isolation_contract(self, root_pyproject: Path) -> None:
-        """Import-linter contract enforces video can only depend on core."""
+        """Import-linter contract enforces video can only depend on gts."""
         content = root_pyproject.read_text()
 
         # Look for video-dependencies contract (similar to audio-dependencies)
@@ -73,7 +73,7 @@ class TestRootWorkspaceConfig:
                 # Look for forbidden_modules
                 if "forbidden_modules" in line:
                     # Should forbid: audio, source_t3k, webapp, worker, scheduler
-                    # (video can only depend on core)
+                    # (video can only depend on gts)
                     next_line_idx = i + 1
                     # Collect the full forbidden_modules list (may span multiple lines)
                     forbidden_block = line

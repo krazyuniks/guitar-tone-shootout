@@ -4,12 +4,12 @@ Tone3000 source adapter. OAuth authentication, gear sync, model downloading.
 
 ## Dependencies
 
-Can import: core
+Can import: gts
 Cannot import: audio, video, other sources, apps
 
 ## Key Patterns
 
-- Hexagonal architecture: inbound adapters (API client, OAuth) → domain → outbound adapters (models, pgmq publisher)
+- Onion architecture: inbound adapters (API client, OAuth) → domain → outbound adapters (models, pgmq publisher)
 - Single database (`gts_core`) — BC isolation via table naming (`t3k_*`) and import-linter contracts
 - Circuit breaker + rate limiter for external API resilience
 - OAuth tokens encrypted at rest (Fernet via `OAUTH_ENCRYPTION_KEY`)

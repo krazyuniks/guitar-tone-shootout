@@ -19,7 +19,7 @@ Six layers, loaded in order:
 |-------|------|--------|---------|
 | Global preferences | `~/.claude/CLAUDE.md` | Always | British English, conventional commits, foundational principles |
 | Project rules | `AGENTS.md` | Always | All GTS rules in one file |
-| Bounded context | `libs/*/CLAUDE.md`, `apps/*/CLAUDE.md` | When in subdir | Dependencies, key patterns, key files |
+| Bounded context | `model/*/CLAUDE.md`, `apps/*/CLAUDE.md` | When in subdir | Dependencies, key patterns, key files |
 | Hooks | `.claude/hooks/` | On tool use | Deterministic enforcement (mock-gate, protect-config, infra-block) |
 | Skills | `.claude/skills/` (7 project, 5 global) | On invocation | GTS-specific domain knowledge only |
 | Memory | `~/.claude/projects/.../memory/MEMORY.md` | Always | Session-learned facts |

@@ -6,22 +6,22 @@ This guide shows exactly what needs to be added to make the failing tests pass.
 
 ### 1. test_development_md.py::test_project_structure_shows_libs_video
 
-**Current state:** DEVELOPMENT.md project structure doesn't show `libs/video/`
+**Current state:** DEVELOPMENT.md project structure doesn't show `model/video/`
 
-**Required fix:** Add `libs/video/` to the project structure tree in DEVELOPMENT.md
+**Required fix:** Add `model/video/` to the project structure tree in DEVELOPMENT.md
 
 **Example addition:**
 ```
 gts/
 ├── pyproject.toml
-├── libs/
-│   ├── core/                   # Domain (zero framework deps)
+├── model/
+│   ├── gts/                    # Domain (zero framework deps)
 │   ├── audio/                  # Audio processing
 │   └── video/                  # Video composition and rendering ← ADD THIS
 │       └── src/video/
-│           ├── composition/    # Video composition logic
-│           ├── rendering/      # Remotion integration
-│           └── models/         # Video-specific models
+│           ├── remotion/       # Remotion compositions
+│           ├── api.py          # Video BC API
+│           └── schemas.py      # Pydantic schemas
 ```
 
 ### 2. test_development_md.py::test_project_structure_shows_video_subdirectories
@@ -32,9 +32,9 @@ gts/
 
 ### 3. test_agents_md.py::test_project_structure_shows_libs_video
 
-**Current state:** AGENTS.md project structure doesn't show `libs/video/`
+**Current state:** AGENTS.md project structure doesn't show `model/video/`
 
-**Required fix:** Add `libs/video/` to the project structure tree in AGENTS.md (same as DEVELOPMENT.md)
+**Required fix:** Add `model/video/` to the project structure tree in AGENTS.md (same as DEVELOPMENT.md)
 
 **Note:** Keep both structure trees consistent - they should match exactly.
 
@@ -47,7 +47,7 @@ gts/
 **Wiki pages to check:**
 1. `GTS-Technical-Architecture.md` - Add video BC to bounded context diagram
 2. `GTS-Remotion-Architecture.md` - Verify all issue numbers reference valid GitHub issues
-3. Both pages - Search for `contexts/video` and replace with `libs/video/`
+3. Both pages - Search for `contexts/video` and replace with `model/video/`
 4. Both pages - Verify no Cloudflare references exist
 
 ## What's Already Correct (9 passing tests)
@@ -60,8 +60,8 @@ gts/
 
 ## Quick Implementation Checklist
 
-- [ ] Update DEVELOPMENT.md project structure to include `libs/video/` with subdirs
-- [ ] Update AGENTS.md project structure to include `libs/video/` with subdirs
+- [ ] Update DEVELOPMENT.md project structure to include `model/video/` with subdirs
+- [ ] Update AGENTS.md project structure to include `model/video/` with subdirs
 - [ ] Verify both structure trees are identical
 - [ ] Update wiki GTS-Technical-Architecture.md (or skip if out of scope)
 - [ ] Update wiki GTS-Remotion-Architecture.md issue numbers (or skip if out of scope)

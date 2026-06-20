@@ -22,9 +22,9 @@ class TestGtsArchitectureSkillVideoUpdates:
     def test_skill_documents_video_dependency_rule(self, skill_file: Path) -> None:
         """Verify gts-architecture documents video layer dependency constraints."""
         content = skill_file.read_text()
-        # Should mention that video can depend on core + audio
-        assert any(keyword in content for keyword in ["video", "dependency", "audio", "core"]), (
-            "gts-architecture must document video dependency rule (video → core + audio)"
+        # Video depends on gts only (import-linter forbids audio for video)
+        assert any(keyword in content for keyword in ["video", "dependency", "gts"]), (
+            "gts-architecture must document video dependency rule (video -> gts)"
         )
 
 

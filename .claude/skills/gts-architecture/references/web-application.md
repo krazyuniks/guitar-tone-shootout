@@ -1,6 +1,6 @@
 # Web Application
 
-The webapp workspace member. Depends on core, NOT on sources.
+The webapp workspace member. Depends on gts, NOT on sources.
 
 ## Services
 

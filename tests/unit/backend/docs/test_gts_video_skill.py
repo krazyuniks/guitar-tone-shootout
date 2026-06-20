@@ -36,10 +36,10 @@ class TestGtsVideoSkillDocumentation:
         assert "name: gts-video" in frontmatter, "Skill frontmatter must include 'name: gts-video'"
         assert "description:" in frontmatter, "Skill frontmatter must include 'description:' field"
 
-    def test_skill_covers_libs_video_structure(self, skill_file: Path) -> None:
-        """Verify skill documents libs/video/ structure (not contexts/video/)."""
+    def test_skill_covers_model_video_structure(self, skill_file: Path) -> None:
+        """Verify skill documents model/video/ structure (not contexts/video/)."""
         content = skill_file.read_text()
-        assert "libs/video/" in content, "Skill must document libs/video/ location"
+        assert "model/video/" in content, "Skill must document model/video/ location"
         assert "contexts/video/" not in content, "Skill must NOT reference old contexts/video/ path"
 
     def test_skill_covers_video_api_patterns(self, skill_file: Path) -> None:
@@ -83,9 +83,9 @@ class TestGtsVideoSkillDocumentation:
     def test_skill_covers_dependency_rules(self, skill_file: Path) -> None:
         """Verify skill documents video layer dependency constraints."""
         content = skill_file.read_text()
-        assert any(
-            keyword in content for keyword in ["dependency", "core", "audio", "import-linter"]
-        ), "Skill must document video dependency rules (video can depend on core + audio)"
+        assert any(keyword in content for keyword in ["dependency", "gts", "import-linter"]), (
+            "Skill must document video dependency rules (video depends on gts only)"
+        )
 
     def test_skill_covers_testing_patterns(self, skill_file: Path) -> None:
         """Verify skill documents video test locations and patterns."""

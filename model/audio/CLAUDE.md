@@ -4,7 +4,7 @@ Audio processing pipeline: NAM model loading, IR loading, pedalboard chain execu
 
 ## Dependencies
 
-Can import: core
+Can import: gts
 Cannot import: video, sources, apps
 
 ## Key Patterns

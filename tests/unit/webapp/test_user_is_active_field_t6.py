@@ -27,7 +27,7 @@ def test_user_model_has_is_active_column() -> None:
     # This will fail with AssertionError (not TypeError) if column doesn't exist
     assert "is_active" in column_names, (
         "User model is missing is_active field. "
-        "Domain model defines is_active: bool = True (line 52 of libs/core/src/core/domain/entities/user.py). "
+        "Domain model defines is_active: bool = True (line 52 of model/gts/src/gts/domain/entities/user.py). "
         "ORM model must have matching field."
     )
 

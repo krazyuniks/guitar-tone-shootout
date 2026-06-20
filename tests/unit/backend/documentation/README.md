@@ -21,7 +21,7 @@ uv run pytest tests/unit/backend/documentation/test_wiki_documentation.py -v
 ### test_development_md.py
 Verifies DEVELOPMENT.md includes:
 - ✓ Video in stack table (already present)
-- ✗ libs/video/ in project structure tree (MISSING - needs implementation)
+- ✗ model/video/ in project structure tree (MISSING - needs implementation)
 - ✗ src/video/ subdirectory layout (MISSING - needs implementation)
 - ✓ Video in dependency rules (already present)
 - ✓ No Cloudflare references (already correct)
@@ -30,7 +30,7 @@ Verifies DEVELOPMENT.md includes:
 ### test_agents_md.py
 Verifies AGENTS.md includes:
 - ✓ Video in stack table (already present)
-- ✗ libs/video/ in project structure tree (MISSING - needs implementation)
+- ✗ model/video/ in project structure tree (MISSING - needs implementation)
 - ✓ Video in dependency rules (already present)
 - ✓ No Cloudflare references (already correct)
 - ✓ No stale contexts/video/ references (already correct)
@@ -48,8 +48,8 @@ Documents requirements for wiki pages (manual verification):
 **9 tests passing** - Documentation already includes video in stack/dependency tables and has no stale references.
 
 **7 tests failing** - Documentation missing:
-1. libs/video/ in DEVELOPMENT.md project structure
-2. libs/video/ in AGENTS.md project structure
+1. model/video/ in DEVELOPMENT.md project structure
+2. model/video/ in AGENTS.md project structure
 3. src/video/ subdirectory layout in DEVELOPMENT.md
 4. Wiki updates (4 manual verification tests)
 
@@ -57,9 +57,9 @@ Documents requirements for wiki pages (manual verification):
 
 The implementer needs to:
 
-1. Update DEVELOPMENT.md project structure tree to show libs/video/
-2. Update DEVELOPMENT.md to show video BC subdirectory structure (src/video/composition, src/video/rendering, etc.)
-3. Update AGENTS.md project structure tree to show libs/video/
+1. Update DEVELOPMENT.md project structure tree to show model/video/
+2. Update DEVELOPMENT.md to show video BC subdirectory structure (src/video/remotion, src/video/api.py, etc.)
+3. Update AGENTS.md project structure tree to show model/video/
 4. Update wiki pages (or document why they're not in scope)
 
 The stack tables and dependency rules already mention video processing, so those are complete.

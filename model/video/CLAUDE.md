@@ -4,8 +4,8 @@ Remotion-based video composition and rendering. Image preparation, composition p
 
 ## Dependencies
 
-Can import: core, audio
-Cannot import: sources, apps
+Can import: gts
+Cannot import: audio, sources, apps
 
 ## Key Patterns
 

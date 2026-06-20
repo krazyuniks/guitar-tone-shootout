@@ -134,7 +134,7 @@ E2E tests live in `tests/e2e/python/tests/` and run on **HOST only** via `just t
 ### Key Constraints
 
 - Uses Playwright (not available in Docker)
-- CANNOT import internal packages (`webapp`, `core`, `audio`) -- use raw SQL via `text()`
+- CANNOT import internal packages (`webapp`, `gts`, `audio`) -- use raw SQL via `text()`
 - Regression gate for the project
 
 ---

@@ -20,7 +20,7 @@ Video rendering runs as a standalone Bounded Context (BC) service:
 
 ## Dependencies
 
-- `gts-core` - Core domain models
+- `gts-domain` - Core domain models
 
 ## Development
 

@@ -62,7 +62,7 @@ rebuild *ARGS:
 # Run all quality checks
 check: check-lint check-types check-tests check-imports test-quality
 
-# Run type checking (strict on core, TypeScript on video)
+# Run type checking (strict on gts, TypeScript on video)
 check-types:
     {{dc}} exec -T webapp mypy model/gts/ --strict
     @cd model/video && npx tsc --noEmit

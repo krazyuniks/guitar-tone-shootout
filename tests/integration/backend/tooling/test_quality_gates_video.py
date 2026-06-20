@@ -1,6 +1,6 @@
 """Tests for quality gate commands including video package.
 
-Verifies that just check, lint, and type checking commands include libs/video in their scope.
+Verifies that just check, lint, and type checking commands include model/video in their scope.
 """
 
 from pathlib import Path
@@ -10,7 +10,7 @@ class TestQualityGatesIncludeVideo:
     """Test that quality gates include video package."""
 
     def test_lint_command_includes_video(self) -> None:
-        """Verify lint command includes libs/video in scope."""
+        """Verify lint command includes model/video in scope."""
         justfile = Path("/app/justfile")
         content = justfile.read_text()
 
@@ -31,22 +31,17 @@ class TestQualityGatesIncludeVideo:
         justfile = Path("/app/justfile")
         content = justfile.read_text()
 
-        # The check-types command currently only checks libs/core/ --strict
-        # For video (TypeScript), we need a separate type check command
-        # Check if there's a video-specific type check or if check-types was updated
+        # The check-types recipe must run BOTH type-checkers: mypy --strict over
+        # model/gts (the domain) AND tsc over model/video (the TypeScript video
+        # package). Scope the assertion to the check-types recipe body so it
+        # cannot pass on the mypy line alone if the video tsc step is removed.
+        start = content.find("check-types:")
+        assert start != -1, "check-types command not found in justfile"
+        section = content[start : start + 400]
 
-        # Look for type checking of video
-        # This might be a new command like check-types-video or an update to check-types
-        has_video_type_check = (
-            "mypy libs/video" in content
-            or "tsc" in content
-            or "check-types-video" in content
-            or "check-video" in content
-        )
-
-        assert has_video_type_check, (
-            "No type checking found for video package. "
-            "Video is TypeScript/Python so should use tsc or mypy."
+        assert "mypy model/gts/" in section, "check-types missing mypy --strict over model/gts"
+        assert "tsc" in section and "model/video" in section, (
+            "check-types missing tsc type-check over model/video"
         )
 
     def test_check_tests_includes_video(self) -> None:

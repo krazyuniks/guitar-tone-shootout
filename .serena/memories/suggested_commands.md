@@ -19,7 +19,7 @@ All project commands run through `just` (which wraps Docker). Never run raw pyte
 ## Quality Checks
 - `just check` — run ALL quality checks (lint + types + tests)
 - `just check-lint` — lint and formatting only
-- `just check-types` — type checking (mypy strict on core)
+- `just check-types` — type checking (mypy strict on gts)
 - `just check-tests` — unit tests only
 - `just check-imports` — import dependency rules
 - `just check-astro` — Astro lint + type check

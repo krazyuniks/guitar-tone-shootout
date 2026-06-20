@@ -4,7 +4,7 @@ User-facing FastAPI web application. Port 8000. Jinja2 SSR + HTMX + Alpine.js fr
 
 ## Dependencies
 
-Can import: core, audio, video
+Can import: gts, audio, video, messaging
 Cannot import: sources (worker bridges this gap)
 
 ## Key Patterns
@@ -14,7 +14,7 @@ Cannot import: sources (worker bridges this gap)
 - Jinja2 templates extend `layouts/base.html` (built by Astro)
 - HTMX for small interactions only — not for page navigation
 - All interactive elements need `data-testid` for Playwright
-- Services → Repositories → ORM models (hexagonal layers)
+- Services → Repositories → ORM models (onion layers)
 - `joinedload` only, `.unique()` on collection results, `lazy="raise"` everywhere
 
 ## Key Files

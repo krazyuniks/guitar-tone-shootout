@@ -1,6 +1,6 @@
 # Audio & Video Processing
 
-Audio processing transforms DI tracks through signal chains to produce audio segments. Implemented in `libs/audio/`.
+Audio processing transforms DI tracks through signal chains to produce audio segments. Implemented in `model/audio/`.
 
 ## Output
 
@@ -181,7 +181,7 @@ Total permutations = product of all block option counts. Validated before proces
 
 ## Video Generation
 
-Video composition combines audio segments into comparison videos. Implemented in `libs/audio/video/`.
+Video composition combines audio segments into comparison videos. Implemented in `model/video/`.
 
 ### Purpose
 

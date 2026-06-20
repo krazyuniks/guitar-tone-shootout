@@ -40,7 +40,7 @@ The `session` fixture (alias for `db_session`) provides SAVEPOINT isolation — 
 Just import it. If the file does not exist, pytest collection fails -- that IS the red phase. No special existence checks needed.
 
 ```python
-from core.domain.value_objects.gear_type import GearType
+from gts.domain.value_objects.gear_type import GearType
 
 def test_gear_type_has_expected_values():
     assert GearType.AMP.value == "amp"
@@ -50,7 +50,7 @@ def test_gear_type_has_expected_values():
 ## Verifying Enum Values
 
 ```python
-from core.domain.value_objects.platform import Platform
+from gts.domain.value_objects.platform import Platform
 
 def test_platform_enum_has_required_values():
     expected = {"nam", "ir", "aida_x"}
@@ -93,7 +93,7 @@ class TestSomeService:
 
 E2E tests go in `tests/e2e/python/tests/`. They run on HOST via `just test-golden-path`, NOT in Docker.
 
-**CRITICAL: E2E tests CANNOT import internal packages.** The host does not have `webapp`, `core`, `audio`, etc. installed. Use raw SQL via `text()` for database queries:
+**CRITICAL: E2E tests CANNOT import internal packages.** The host does not have `webapp`, `gts`, `audio`, etc. installed. Use raw SQL via `text()` for database queries:
 
 ```python
 # CORRECT -- raw SQL for E2E database verification
@@ -102,5 +102,5 @@ result = await db_session.execute(text("SELECT id, slug FROM gear WHERE is_publi
 
 # BANNED -- internal packages not available on host
 from webapp.adapters.persistence.models.gear import Gear  # ModuleNotFoundError
-from core.domain.entities.user import User                # ModuleNotFoundError
+from gts.domain.entities.user import User                # ModuleNotFoundError
 ```

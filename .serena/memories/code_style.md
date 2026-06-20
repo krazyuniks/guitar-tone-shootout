@@ -18,7 +18,7 @@
 ## Architecture Patterns
 - Repository pattern for data access (SQLAlchemy)
 - Service layer for business logic coordination
-- Hexagonal architecture: core has no dependencies on apps
+- Onion architecture: gts has no dependencies on apps
 - `lazy="raise"` on all SQLAlchemy relationships
 - `joinedload` for eager loading (never selectinload/subqueryload)
 - One query per service method
@@ -33,9 +33,9 @@
 - No CDN resources, no inline styles, no SPA navigation
 
 ## Dependency Rules
-- core → (nothing)
-- audio → core
-- video → core, audio
-- sources → core only
-- webapp → core, audio, video (NOT sources)
-- worker → core, audio, video (bridges sources)
+- gts → (nothing)
+- audio → gts
+- video → gts
+- sources → gts only
+- webapp → gts, audio, video (NOT sources)
+- worker → gts, audio, video (bridges sources)

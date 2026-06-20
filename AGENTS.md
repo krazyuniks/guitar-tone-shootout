@@ -46,14 +46,14 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 | Module | Can depend on | Cannot depend on |
 |--------|---------------|------------------|
-| `core` | (none) | audio, video, sources, apps |
-| `audio` | core | video, sources, apps |
-| `video` | core, audio | sources, apps |
-| `source_*` | core | audio, video, other sources, apps |
-| `webapp` | core, audio, video, messaging | sources |
-| `t3k-sync` | core, source_t3k, messaging | audio, video, webapp |
-| `audio-worker` | core, audio, messaging | video, sources, webapp |
-| `video-worker` | core, video, messaging | audio, sources, webapp |
+| `gts` | (none) | audio, video, sources, apps |
+| `audio` | gts | video, sources, apps |
+| `video` | gts | audio, sources, apps |
+| `source_*` | gts | audio, video, other sources, apps |
+| `webapp` | gts, audio, video, messaging | sources |
+| `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
+| `audio-worker` | gts, audio, messaging | video, sources, webapp |
+| `video-worker` | gts, video, messaging | audio, sources, webapp |
 
 **Single database:** All BCs share one PostgreSQL instance (`gts_core`). BC separation via `import-linter` + table naming (`core_*`, `t3k_*`).
 

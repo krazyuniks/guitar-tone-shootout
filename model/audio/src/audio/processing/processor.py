@@ -34,9 +34,9 @@ class ProcessingError(Exception):
 class PedalboardAudioProcessor:
     """Audio processor implementation using Pedalboard and PyLoudnorm.
 
-    This class implements the AudioProcessor protocol defined in libs/core/ports/
-    using the Pedalboard library for effects processing and PyLoudnorm for
-    loudness measurement.
+    This class implements the AudioProcessor protocol defined in
+    model/gts/src/gts/ports/audio_processor.py using the Pedalboard library
+    for effects processing and PyLoudnorm for loudness measurement.
 
     All methods are async to support potential future async operations
     (e.g., GPU processing, distributed processing).

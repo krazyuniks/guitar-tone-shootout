@@ -11,7 +11,7 @@ class TestVideoRenderClientProtocol:
     """Tests for VideoRenderClient protocol definition."""
 
     def test_protocol_exists(self) -> None:
-        """VideoRenderClient protocol is defined in core.ports."""
+        """VideoRenderClient protocol is defined in gts.ports."""
         assert VideoRenderClient is not None
 
     def test_protocol_has_submit_render_method(self) -> None:

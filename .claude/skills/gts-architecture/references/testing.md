@@ -73,7 +73,7 @@ just test-golden-path # Golden path tests (MANDATORY before story completion)
 
 ## Contract Tests
 
-Core schemas (`libs/core/records/`) are treated as contracts between bounded contexts:
+Core schemas (`model/gts/src/gts/records/`) are treated as contracts between bounded contexts:
 
 - All source adapters validate output against current core schemas in CI.
 - Compatibility checks ensure new schema versions meet backward-compatibility requirements.

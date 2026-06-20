@@ -1,7 +1,7 @@
 """Unit tests for GearType enum in dedicated module.
 
 This test verifies that GearType enum exists in its own module at
-libs/core/src/core/domain/value_objects/gear_type.py as specified
+model/gts/src/gts/domain/value_objects/gear_type.py as specified
 in the task requirements.
 """
 

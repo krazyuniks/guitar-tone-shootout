@@ -6,7 +6,7 @@ user-invocable: false
 
 # GTS Video Development Guide
 
-Video composition layer for GTS, built on Remotion (React-based video framework). Located in `libs/video/`.
+Video composition layer for GTS, built on Remotion (React-based video framework). Located in `model/video/`.
 
 ## Quick Reference
 
@@ -20,7 +20,7 @@ Video composition layer for GTS, built on Remotion (React-based video framework)
 ## Project Structure
 
 ```
-libs/video/
+model/video/
 ├── pyproject.toml              # Python package config
 ├── package.json                # Node.js dependencies (Remotion)
 ├── tsconfig.json               # TypeScript config
@@ -49,11 +49,11 @@ libs/video/
 
 | Module | Can depend on | Cannot depend on |
 |--------|---------------|------------------|
-| `video` | core, audio | sources, apps |
+| `video` | gts | audio, sources, apps |
 
 Enforced via `import-linter` in root `pyproject.toml`.
 
-**Rationale:** Video layer sits above core and audio, composing domain models and audio segments into videos. It must NOT depend on application-specific concerns (webapp, worker) or data sources (T3K).
+**Rationale:** Video layer sits above the gts domain, composing domain models into videos. It must NOT depend on application-specific concerns (webapp, worker) or data sources (T3K).
 
 ### Layer Responsibilities
 
@@ -67,7 +67,7 @@ Enforced via `import-linter` in root `pyproject.toml`.
 ### FastAPI Endpoints
 
 ```python
-# libs/video/src/video/api.py
+# model/video/src/video/api.py
 
 from fastapi import FastAPI
 from video.schemas import RenderRequest, RenderResponse, StatusResponse
@@ -93,7 +93,7 @@ async def health() -> HealthResponse:
 ### Request/Response Schemas
 
 ```python
-# libs/video/src/video/schemas.py
+# model/video/src/video/schemas.py
 
 from pydantic import BaseModel
 
@@ -116,7 +116,7 @@ class StatusResponse(BaseModel):
 ### Composition Registration
 
 ```tsx
-// libs/video/src/video/remotion/index.ts
+// model/video/src/video/remotion/index.ts
 
 import { Composition } from "remotion";
 import { ShootoutVideo } from "./compositions/ShootoutVideo";
@@ -140,7 +140,7 @@ export const RemotionRoot: React.FC = () => {
 ### Main Composition
 
 ```tsx
-// libs/video/src/video/remotion/compositions/ShootoutVideo.tsx
+// model/video/src/video/remotion/compositions/ShootoutVideo.tsx
 
 import { AbsoluteFill, Audio, Sequence } from "remotion";
 import { SignalChainSegment } from "./SignalChainSegment";
@@ -168,9 +168,9 @@ export const ShootoutVideo: React.FC<ShootoutVideoProps> = ({ segments }) => {
 Domain entities (core models) cannot be passed directly to Remotion (React). Convert via `props.py`:
 
 ```python
-# libs/video/src/video/props.py
+# model/video/src/video/props.py
 
-from core.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.composition_spec import CompositionSpec
 
 def serialize_composition_props(spec: CompositionSpec) -> dict[str, Any]:
     """Convert domain model → Remotion JSON props."""
@@ -195,7 +195,7 @@ def deserialize_composition_props(props: dict[str, Any]) -> CompositionSpec:
 Gear images must be preprocessed before use in Remotion compositions:
 
 ```python
-# libs/video/src/video/image_prep.py
+# model/video/src/video/image_prep.py
 
 from PIL import Image
 
@@ -233,8 +233,8 @@ services:
     build:
       dockerfile: infrastructure/docker/Dockerfile.video
     volumes:
-      - ./libs/core:/app/libs/core:ro
-      - ./libs/video:/app/libs/video
+      - ./model/gts:/app/model/gts:ro
+      - ./model/video:/app/model/video
       - ../gts-storage:/app/storage
 ```
 
@@ -256,7 +256,7 @@ RUN apk add --no-cache \
     ffmpeg chromium
 
 # Install Python + Node packages
-COPY libs/video/package.json ./
+COPY model/video/package.json ./
 RUN npm install
 
 # Remotion render command
@@ -318,7 +318,7 @@ tests/
 # tests/unit/video/test_props.py
 
 from video.props import serialize_composition_props
-from core.domain.value_objects.composition_spec import CompositionSpec
+from gts.domain.value_objects.composition_spec import CompositionSpec
 
 def test_serialize_composition_props():
     spec = CompositionSpec(
@@ -364,7 +364,7 @@ def test_render_endpoint_returns_job_id(client):
 just video-studio
 
 # Equivalent to:
-cd libs/video && npx remotion studio src/video/remotion/index.ts
+cd model/video && npx remotion studio src/video/remotion/index.ts
 ```
 
 **Studio features:**
@@ -392,17 +392,17 @@ just remotion render ShootoutVideo output.mp4 --width=1920 --height=1080 --fps=3
 
 ### Adding a New Composition
 
-1. Create React component in `libs/video/src/video/remotion/compositions/`
-2. Register in `libs/video/src/video/remotion/index.ts`
+1. Create React component in `model/video/src/video/remotion/compositions/`
+2. Register in `model/video/src/video/remotion/index.ts`
 3. Add TypeScript types for props
 4. Create unit test in `tests/unit/video/`
 5. Test in Remotion Studio: `just video-studio`
 
 ### Updating Props Schema
 
-1. Modify domain model in `libs/core/src/core/domain/`
-2. Update serialisation in `libs/video/src/video/props.py`
-3. Update Pydantic schema in `libs/video/src/video/schemas.py`
+1. Modify domain model in `model/gts/src/gts/domain/`
+2. Update serialisation in `model/video/src/video/props.py`
+3. Update Pydantic schema in `model/video/src/video/schemas.py`
 4. Update React component props in `.tsx` file
 5. Run tests: `just video-test`
 
@@ -418,21 +418,21 @@ just remotion render ShootoutVideo output.mp4 --width=1920 --height=1080 --fps=3
 ### Python
 
 ```toml
-# libs/video/pyproject.toml
+# model/video/pyproject.toml
 
 [project]
 dependencies = [
     "fastapi",
     "pydantic",
     "pillow",         # Image preprocessing
-    "core @ file:///app/libs/core",  # Domain models
+    "gts-domain @ file:///app/model/gts",  # Domain models
 ]
 ```
 
 ### Node.js
 
 ```json
-// libs/video/package.json
+// model/video/package.json
 
 {
   "dependencies": {
@@ -467,4 +467,4 @@ dependencies = [
 
 - Remotion docs: https://www.remotion.dev/docs
 - Video architecture: `.claude/skills/gts-architecture/references/audio-video.md`
-- Composition examples: `libs/video/src/video/remotion/compositions/`
+- Composition examples: `model/video/src/video/remotion/compositions/`
