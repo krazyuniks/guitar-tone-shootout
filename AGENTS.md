@@ -55,6 +55,8 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 | `audio-worker` | gts, audio, messaging | video, sources, webapp |
 | `video-worker` | gts, video, messaging | audio, sources, webapp |
 
+**Core bounded context = `gts`.** The domain BC is conceptually "Core" (the DDD core domain) and is realised as the `gts` package (import root `gts`). Prose that says "Core" - the `model/gts/CLAUDE.md` title `# Core Bounded Context`, context-map references like "Sources -> Core", "Core owns the record schemas" - is intentional and correct. Only the package, path, and import root were renamed from `core` to `gts`. Do not flag "Core" references as stale. (`gts_core` is the database name; `core_*` are table names; `core_engine` is a pytest fixture - all unrelated and also correct.)
+
 **Single database:** All BCs share one PostgreSQL instance (`gts_core`). BC separation via `import-linter` + table naming (`core_*`, `t3k_*`).
 
 **BC table isolation:** Each BC's ORM models MUST only reference their own BC's tables.
