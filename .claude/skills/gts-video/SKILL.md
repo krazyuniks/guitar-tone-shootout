@@ -461,7 +461,6 @@ dependencies = [
 - **gts-architecture**: Dependency rules, layer responsibilities
 - **gts-security**: Container hardening, secret handling, and security checks for video services
 - **gts-testing**: Video test patterns, test locations
-- **expertise/python**: Python service patterns used by FastAPI video endpoints
 
 ## References
 
