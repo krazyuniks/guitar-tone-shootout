@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from gts.domain.entities.gear import Gear
-    from gts.domain.value_objects.signal_chain_enums import GearType
+    from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
 class GearService:
@@ -39,8 +39,10 @@ class GearService:
         *,
         query: str | None = None,
         gear_type: GearType | None = None,
+        platform: Platform | None = None,
         manufacturer: str | None = None,
         tags: list[str] | None = None,
+        is_public: bool | None = None,
         sort: str = "newest",
         limit: int = 50,
         offset: int = 0,
@@ -48,8 +50,10 @@ class GearService:
         return await self.repository.search(
             query=query,
             gear_type=gear_type,
+            platform=platform,
             manufacturer=manufacturer,
             tags=tags,
+            is_public=is_public,
             sort=sort,
             limit=limit,
             offset=offset,
@@ -60,14 +64,18 @@ class GearService:
         *,
         query: str | None = None,
         gear_type: GearType | None = None,
+        platform: Platform | None = None,
         manufacturer: str | None = None,
         tags: list[str] | None = None,
+        is_public: bool | None = None,
     ) -> int:
         return await self.repository.count(
             query=query,
             gear_type=gear_type,
+            platform=platform,
             manufacturer=manufacturer,
             tags=tags,
+            is_public=is_public,
         )
 
     async def save(self, gear: Gear) -> None:

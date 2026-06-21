@@ -136,7 +136,7 @@ function gearItemToTone(item: {
   };
 
   return {
-    id: item.tone3000_tone_id ?? 0,
+    id: item.tone3000_tone_id?.toString() ?? '0',
     title: item.display_name ?? item.model_name ?? 'Unknown Model',
     description: null,
     gear: gearMap[item.gear_type] ?? 'amp',

@@ -10,7 +10,7 @@
 
 import { getErrorMessage, extractErrorCode } from './error-handling';
 
-const API_BASE = '/api/v1';
+const API_BASE = '/api';
 
 /**
  * Shape of error responses from the API.
@@ -211,7 +211,7 @@ export interface Creator {
 }
 
 export interface Tone {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
   gear: Gear;
@@ -224,7 +224,7 @@ export interface Tone {
   models_count: number;
   downloads_count: number;
   favorites_count: number;
-  license: License;
+  license: License | null;
   creator: Creator | null;
   created_at?: string | null;
   updated_at: string | null;

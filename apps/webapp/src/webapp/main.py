@@ -25,6 +25,7 @@ from webapp.api.v1 import (
     signal_chain_groups,
     signal_chains,
     test,
+    tones,
 )
 from webapp.auth.dependencies import RedirectToLogin
 from webapp.dependencies import get_db, init_db
@@ -117,6 +118,7 @@ def create_app() -> FastAPI:
     app.include_router(signal_chains.router)
     app.include_router(signal_chain_groups.router)
     app.include_router(di_tracks.router)
+    app.include_router(tones.router)
     app.include_router(admin.router)
 
     # Include page routers

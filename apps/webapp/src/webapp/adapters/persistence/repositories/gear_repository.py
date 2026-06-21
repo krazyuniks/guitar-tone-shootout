@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from gts.domain.value_objects.signal_chain_enums import GearType
+    from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
 def _slugify(text: str, manufacturer: str | None = None) -> str:
@@ -181,8 +181,10 @@ class SQLAlchemyGearRepository:
         *,
         query: str | None = None,
         gear_type: GearType | None = None,
+        platform: Platform | None = None,
         manufacturer: str | None = None,
         tags: list[str] | None = None,
+        is_public: bool | None = None,
         sort: str = "newest",
         limit: int = 50,
         offset: int = 0,
@@ -198,8 +200,10 @@ class SQLAlchemyGearRepository:
         Args:
             query: Optional text search on name/description
             gear_type: Optional filter by gear type
+            platform: Optional filter for gear with a model on this platform
             manufacturer: Optional filter by manufacturer
             tags: Optional filter by tags (AND logic)
+            is_public: Optional filter by public visibility
             sort: Sort order (newest, oldest, name)
             limit: Maximum number of results
             offset: Number of results to skip
@@ -227,8 +231,15 @@ class SQLAlchemyGearRepository:
         if gear_type:
             conditions.append(Gear.gear_type == gear_type)
 
+        if platform:
+            platform_gear_ids = select(GearModel.gear_id).where(GearModel.platform == platform)
+            conditions.append(Gear.id.in_(platform_gear_ids))
+
         if manufacturer:
             conditions.append(Gear.manufacturer == manufacturer)
+
+        if is_public is not None:
+            conditions.append(Gear.is_public == is_public)
 
         if tags:
             # AND logic for tags - gear must have all specified tags
@@ -279,16 +290,20 @@ class SQLAlchemyGearRepository:
         *,
         query: str | None = None,
         gear_type: GearType | None = None,
+        platform: Platform | None = None,
         manufacturer: str | None = None,
         tags: list[str] | None = None,
+        is_public: bool | None = None,
     ) -> int:
         """Count gear matching filters.
 
         Args:
             query: Optional text search
             gear_type: Optional filter by gear type
+            platform: Optional filter for gear with a model on this platform
             manufacturer: Optional filter by manufacturer
             tags: Optional filter by tags
+            is_public: Optional filter by public visibility
 
         Returns:
             Count of matching gear
@@ -310,8 +325,15 @@ class SQLAlchemyGearRepository:
         if gear_type:
             conditions.append(Gear.gear_type == gear_type)
 
+        if platform:
+            platform_gear_ids = select(GearModel.gear_id).where(GearModel.platform == platform)
+            conditions.append(Gear.id.in_(platform_gear_ids))
+
         if manufacturer:
             conditions.append(Gear.manufacturer == manufacturer)
+
+        if is_public is not None:
+            conditions.append(Gear.is_public == is_public)
 
         if tags:
             # AND logic for tags - same subquery approach as search
