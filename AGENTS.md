@@ -102,7 +102,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Frontend
 
-- `astro/dist/` is committed to git. Chokidar auto-rebuilds. Commit both `astro/src/` and `astro/dist/`.
+- `frontend/astro/dist/` is generated and gitignored. Commit source only; `pnpm build` and `just build-astro` build Astro, inject the CSS hash, then build React islands into `dist/islands/`.
 - All interactive elements MUST have `data-testid` attributes for Playwright testing.
 - No CDN Tailwind. All styles pre-compiled by Astro at `/_astro/*.css`.
 - Jinja2 templates extend `layouts/base.html` (built by Astro, provides CSS + scripts).

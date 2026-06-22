@@ -263,12 +263,14 @@ just test-golden-path # Golden path tests (host, requires running containers)
 
 ### Pre-Bundled Astro
 
-`frontend/astro/dist/` is committed to git. No Vite dev server at runtime.
+`frontend/astro/dist/` is generated and gitignored. No Vite dev server runs at runtime.
 
 **Workflow:**
 1. Edit source in `frontend/astro/src/`
 2. Run `just build-astro` (or `just watch-astro` for auto-rebuild)
-3. Commit both `frontend/astro/src/` and `frontend/astro/dist/`
+3. Commit source changes only
+
+The Astro package `build` script runs `astro build`, injects the CSS hash used by Jinja templates, then runs `build:islands` so React island bundles are present after every build.
 
 ### Route Types
 

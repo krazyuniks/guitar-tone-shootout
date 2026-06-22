@@ -47,9 +47,22 @@ services:
     # Port binding is handled by docker-compose.override.yml
     # Only override environment vars for public domain URLs
     environment:
+      ENV: production
       # Update URLs for public domain
-      - PUBLIC_URL=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
-      - CORS_ORIGINS=https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
+      PUBLIC_URL: https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
+      CORS_ORIGINS: https://${GTS_SUBDOMAIN:-dev}.tone-shootout.com
+
+  t3k-sync:
+    environment:
+      ENV: production
+
+  audio-worker:
+    environment:
+      ENV: production
+
+  video-worker:
+    environment:
+      ENV: production
 
 networks:
   traefik-public:

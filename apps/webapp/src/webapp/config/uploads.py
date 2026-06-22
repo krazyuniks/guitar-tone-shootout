@@ -6,6 +6,8 @@ Provides configurable upload paths and secret keys for testing and production.
 import os
 from pathlib import Path
 
+from webapp.config.secrets import get_app_secret_key
+
 # Module-level overrides for testing
 _upload_base_override: Path | None = None
 _secret_key_override: str | None = None
@@ -47,12 +49,11 @@ def set_secret_key_override(key: str | None) -> None:
 def get_secret_key() -> str:
     """Get the secret key for HMAC signing.
 
-    Returns test override if set, otherwise environment variable,
-    otherwise dev default.
+    Returns test override if set, otherwise the application secret key.
 
     Returns:
         Secret key string
     """
     if _secret_key_override is not None:
         return _secret_key_override
-    return os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+    return get_app_secret_key()

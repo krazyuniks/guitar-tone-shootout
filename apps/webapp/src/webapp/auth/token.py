@@ -4,11 +4,12 @@ Creates and validates JWT tokens used in httponly cookies for
 stateless authentication.
 """
 
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import jwt
+
+from webapp.config.secrets import get_app_secret_key
 
 JWT_ALGORITHM = "HS256"
 JWT_COOKIE_NAME = "gts_session"
@@ -16,7 +17,7 @@ JWT_EXPIRY_DAYS = 7
 
 
 def _get_secret_key() -> str:
-    return os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
+    return get_app_secret_key()
 
 
 def create_access_token(user_id: uuid.UUID) -> str:
