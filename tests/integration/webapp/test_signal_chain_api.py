@@ -8,10 +8,13 @@ from uuid import uuid4
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.models.user_gear import UserGear
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncGenerator, Callable, Coroutine
+    from typing import Any
 
     from sqlalchemy.ext.asyncio import AsyncSession
 from webapp.auth.dependencies import set_session_override, set_user_override
@@ -26,6 +29,32 @@ async def other_user(session: AsyncSession) -> User:
     session.add(user)
     await session.commit()
     return user
+
+
+@pytest.fixture
+def make_saved_user_gear(
+    session: AsyncSession,
+    make_gear: Callable[..., Coroutine[Any, Any, Any]],
+) -> Callable[..., Coroutine[Any, Any, UserGear]]:
+    """Create a saved UserGear row backed by real gear."""
+
+    async def _make(
+        user: User,
+        gear_type: GearType = GearType.FULL_RIG,
+    ) -> UserGear:
+        gear = await make_gear(gear_type, Platform.NAM, models=1)
+        await session.refresh(gear, ["models"])
+        user_gear = UserGear(
+            id=uuid4(),
+            user_id=user.id,
+            gear_model_id=gear.models[0].id,
+        )
+        session.add(user_gear)
+        await session.flush()
+        await session.refresh(user_gear)
+        return user_gear
+
+    return _make
 
 
 @pytest.fixture
@@ -61,9 +90,11 @@ class TestListSignalChains:
         self,
         client: AsyncClient,
         test_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test listing returns only current user's chains."""
         # Arrange - create a chain via API
+        user_gear = await make_saved_user_gear(test_user)
         create_response = await client.post(
             "/api/signal-chains/",
             json={
@@ -71,8 +102,7 @@ class TestListSignalChains:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -95,9 +125,11 @@ class TestListSignalChains:
         session: AsyncSession,
         test_user: User,
         other_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test that listing only returns current user's chains."""
         # Arrange - create chain for other_user by switching override
+        other_user_gear = await make_saved_user_gear(other_user)
         set_user_override(other_user)
         await client.post(
             "/api/signal-chains/",
@@ -106,8 +138,7 @@ class TestListSignalChains:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(other_user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -132,8 +163,11 @@ class TestCreateSignalChain:
         self,
         client: AsyncClient,
         test_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test creating a valid signal chain."""
+        user_gear = await make_saved_user_gear(test_user)
+
         # Act
         response = await client.post(
             "/api/signal-chains/",
@@ -143,8 +177,7 @@ class TestCreateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -158,13 +191,18 @@ class TestCreateSignalChain:
         assert data["description"] == "Test description"
         assert data["platform"] == "nam"
         assert len(data["blocks"]) == 1
+        assert data["blocks"][0]["gear_type"] == "full_rig"
         assert "id" in data
 
     async def test_create_invalid_chain_returns_422(
         self,
         client: AsyncClient,
+        test_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test creating invalid chain returns 422 validation error."""
+        user_gear = await make_saved_user_gear(test_user, GearType.PEDAL)
+
         # Act - chain with pedal only (no amp)
         response = await client.post(
             "/api/signal-chains/",
@@ -173,8 +211,7 @@ class TestCreateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "pedal",
+                        "user_gear_id": str(user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -187,6 +224,31 @@ class TestCreateSignalChain:
         assert "error_code" in data or "detail" in data
         # Should contain validation error details
         assert "NO_AMP" in str(data)
+
+    async def test_create_rejects_other_user_gear(
+        self,
+        client: AsyncClient,
+        other_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
+    ) -> None:
+        """Test that blocks cannot reference another user's saved gear."""
+        other_user_gear = await make_saved_user_gear(other_user)
+
+        response = await client.post(
+            "/api/signal-chains/",
+            json={
+                "name": "Cross User Chain",
+                "platform": "nam",
+                "blocks": [
+                    {
+                        "user_gear_id": str(other_user_gear.id),
+                        "position": 0,
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 404
 
     async def test_create_requires_authentication(self) -> None:
         """Test that create endpoint requires authentication."""
@@ -214,9 +276,12 @@ class TestUpdateSignalChain:
     async def test_update_chain_name(
         self,
         client: AsyncClient,
+        test_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test updating a chain's name."""
         # Arrange - create chain
+        user_gear = await make_saved_user_gear(test_user)
         create_response = await client.post(
             "/api/signal-chains/",
             json={
@@ -224,8 +289,7 @@ class TestUpdateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -241,8 +305,7 @@ class TestUpdateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -268,7 +331,6 @@ class TestUpdateSignalChain:
                 "blocks": [
                     {
                         "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
                         "position": 0,
                     }
                 ],
@@ -281,9 +343,13 @@ class TestUpdateSignalChain:
     async def test_update_to_invalid_state_returns_422(
         self,
         client: AsyncClient,
+        test_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test updating to invalid state returns 422."""
         # Arrange - create valid chain
+        full_rig_user_gear = await make_saved_user_gear(test_user)
+        pedal_user_gear = await make_saved_user_gear(test_user, GearType.PEDAL)
         create_response = await client.post(
             "/api/signal-chains/",
             json={
@@ -291,8 +357,7 @@ class TestUpdateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(full_rig_user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -308,8 +373,7 @@ class TestUpdateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "pedal",
+                        "user_gear_id": str(pedal_user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -325,9 +389,11 @@ class TestUpdateSignalChain:
         session: AsyncSession,
         test_user: User,
         other_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test that updating another user's chain returns 404."""
         # Arrange - create chain as other_user
+        other_user_gear = await make_saved_user_gear(other_user)
         set_user_override(other_user)
         create_response = await client.post(
             "/api/signal-chains/",
@@ -336,8 +402,7 @@ class TestUpdateSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(other_user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -357,7 +422,6 @@ class TestUpdateSignalChain:
                 "blocks": [
                     {
                         "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
                         "position": 0,
                     }
                 ],
@@ -374,9 +438,12 @@ class TestDeleteSignalChain:
     async def test_delete_existing_chain(
         self,
         client: AsyncClient,
+        test_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test deleting an existing chain."""
         # Arrange - create chain
+        user_gear = await make_saved_user_gear(test_user)
         create_response = await client.post(
             "/api/signal-chains/",
             json={
@@ -384,8 +451,7 @@ class TestDeleteSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(user_gear.id),
                         "position": 0,
                     }
                 ],
@@ -420,9 +486,11 @@ class TestDeleteSignalChain:
         session: AsyncSession,
         test_user: User,
         other_user: User,
+        make_saved_user_gear: Callable[..., Coroutine[Any, Any, UserGear]],
     ) -> None:
         """Test that deleting another user's chain returns 404."""
         # Arrange - create chain as other_user
+        other_user_gear = await make_saved_user_gear(other_user)
         set_user_override(other_user)
         create_response = await client.post(
             "/api/signal-chains/",
@@ -431,8 +499,7 @@ class TestDeleteSignalChain:
                 "platform": "nam",
                 "blocks": [
                     {
-                        "user_gear_id": str(uuid4()),
-                        "gear_type": "full_rig",
+                        "user_gear_id": str(other_user_gear.id),
                         "position": 0,
                     }
                 ],

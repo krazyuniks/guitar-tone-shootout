@@ -11,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.repositories.user_gear_repository import (
+    SQLAlchemyUserGearRepository,
+)
 from webapp.api.v1.schemas.signal_chain import (
+    BlockRequest,
     SignalChainCreateRequest,
     SignalChainResponse,
     SignalChainUpdateRequest,
@@ -28,6 +32,41 @@ from webapp.services.signal_chain_service import (
 )
 
 router = APIRouter(prefix="/api/signal-chains", tags=["signal-chains"])
+
+
+async def _gear_types_for_blocks(
+    db: AsyncSession,
+    user_id: UUID,
+    blocks: list[BlockRequest],
+) -> dict[UUID, GearType]:
+    repository = SQLAlchemyUserGearRepository(db)
+    requested_ids = [block.user_gear_id for block in blocks]
+    gear_types = await repository.gear_types_by_user_gear_ids(user_id, requested_ids)
+
+    if any(user_gear_id not in gear_types for user_gear_id in requested_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User gear item not found",
+        )
+
+    return gear_types
+
+
+def _blocks_from_request(
+    chain_id: UUID,
+    request_blocks: list[BlockRequest],
+    gear_types: dict[UUID, GearType],
+) -> list[SignalChainBlock]:
+    return [
+        SignalChainBlock(
+            id=uuid4(),
+            signal_chain_id=chain_id,
+            position=block.position,
+            user_gear_id=block.user_gear_id,
+            gear_type=gear_types[block.user_gear_id],
+        )
+        for block in request_blocks
+    ]
 
 
 @router.get("/", response_model=list[SignalChainResponse])
@@ -98,17 +137,8 @@ async def create_signal_chain(
     # Generate ID for new chain
     chain_id = uuid4()
 
-    # Convert request to domain entity
-    blocks = [
-        SignalChainBlock(
-            id=uuid4(),
-            signal_chain_id=chain_id,
-            position=block.position,
-            user_gear_id=block.user_gear_id,
-            gear_type=GearType(block.gear_type),
-        )
-        for block in request.blocks
-    ]
+    gear_types = await _gear_types_for_blocks(db, current_user.id, request.blocks)
+    blocks = _blocks_from_request(chain_id, request.blocks, gear_types)
 
     chain = SignalChain(
         id=chain_id,
@@ -184,17 +214,8 @@ async def update_signal_chain(
             detail="Signal chain not found",
         )
 
-    # Convert request to domain entity
-    blocks = [
-        SignalChainBlock(
-            id=uuid4(),
-            signal_chain_id=chain_id,
-            position=block.position,
-            user_gear_id=block.user_gear_id,
-            gear_type=GearType(block.gear_type),
-        )
-        for block in request.blocks
-    ]
+    gear_types = await _gear_types_for_blocks(db, current_user.id, request.blocks)
+    blocks = _blocks_from_request(chain_id, request.blocks, gear_types)
 
     updated_chain = SignalChain(
         id=chain_id,

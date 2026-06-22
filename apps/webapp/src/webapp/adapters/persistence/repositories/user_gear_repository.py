@@ -2,17 +2,32 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import joinedload
 
 from gts.domain.entities.gear import UserGear as UserGearEntity
+from webapp.adapters.persistence.models.gear import Gear
+from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.user_gear import UserGear
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from gts.domain.value_objects.signal_chain_enums import GearType
+
+
+@dataclass(frozen=True, slots=True)
+class UserGearListItemProjection:
+    """Joined user-gear row for API list projections."""
+
+    user_gear: UserGear
+    gear: Gear
+    gear_model: GearModel
 
 
 class SQLAlchemyUserGearRepository:
@@ -108,6 +123,61 @@ class SQLAlchemyUserGearRepository:
         result = await self.session.execute(stmt)
         user_gear_items = result.scalars().all()
         return [self._to_entity(ug) for ug in user_gear_items]
+
+    async def list_items_by_user(
+        self,
+        user_id: UUID,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[UserGearListItemProjection]:
+        """List joined user-gear rows for the API item projection."""
+        stmt = (
+            select(UserGear, Gear, GearModel)
+            .join(GearModel, UserGear.gear_model_id == GearModel.id)
+            .join(Gear, GearModel.gear_id == Gear.id)
+            .where(UserGear.user_id == user_id)
+            .options(
+                joinedload(Gear.models),
+                joinedload(Gear.source),
+                joinedload(Gear.tags),
+            )
+            .order_by(UserGear.created_at.desc(), UserGear.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(stmt)
+        return [
+            UserGearListItemProjection(user_gear=user_gear, gear=gear, gear_model=gear_model)
+            for user_gear, gear, gear_model in result.unique().all()
+        ]
+
+    async def gear_types_by_user_gear_ids(
+        self,
+        user_id: UUID,
+        user_gear_ids: list[UUID],
+    ) -> dict[UUID, GearType]:
+        """Return gear types for user-gear IDs owned by the given user."""
+        if not user_gear_ids:
+            return {}
+
+        stmt = (
+            select(UserGear.id, Gear.gear_type)
+            .join(GearModel, UserGear.gear_model_id == GearModel.id)
+            .join(Gear, GearModel.gear_id == Gear.id)
+            .where(UserGear.user_id == user_id, UserGear.id.in_(user_gear_ids))
+        )
+        result = await self.session.execute(stmt)
+        return dict(result.all())
+
+    async def get_gear_type_for_user_gear(
+        self,
+        user_id: UUID,
+        user_gear_id: UUID,
+    ) -> GearType | None:
+        """Return the gear type for one user-gear row owned by the given user."""
+        gear_types = await self.gear_types_by_user_gear_ids(user_id, [user_gear_id])
+        return gear_types.get(user_gear_id)
 
     async def count_by_user(self, user_id: UUID) -> int:
         """Count items in user's library.

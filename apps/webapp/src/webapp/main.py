@@ -18,6 +18,7 @@ from webapp.api.v1 import (
     block_types,
     di_tracks,
     files,
+    gear_items,
     health,
     jobs,
     metrics,
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(signal_chain_groups.router)
     app.include_router(di_tracks.router)
     app.include_router(tones.router)
+    app.include_router(gear_items.router)
     app.include_router(admin.router)
 
     # Include page routers

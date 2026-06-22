@@ -21,13 +21,11 @@ class TestBlockRequest:
         # Act
         block = BlockRequest(
             user_gear_id=uuid4(),
-            gear_type="amp",
             position=0,
         )
 
         # Assert
         assert block.user_gear_id is not None
-        assert block.gear_type == "amp"
         assert block.position == 0
 
     def test_block_request_requires_user_gear_id(self) -> None:
@@ -35,16 +33,6 @@ class TestBlockRequest:
         # Act & Assert
         with pytest.raises(ValidationError):
             BlockRequest(
-                gear_type="amp",
-                position=0,
-            )
-
-    def test_block_request_requires_gear_type(self) -> None:
-        """Test that gear_type is required."""
-        # Act & Assert
-        with pytest.raises(ValidationError):
-            BlockRequest(
-                user_gear_id=uuid4(),
                 position=0,
             )
 
@@ -54,7 +42,6 @@ class TestBlockRequest:
         with pytest.raises(ValidationError):
             BlockRequest(
                 user_gear_id=uuid4(),
-                gear_type="amp",
             )
 
 
@@ -71,7 +58,6 @@ class TestSignalChainCreateRequest:
             blocks=[
                 BlockRequest(
                     user_gear_id=uuid4(),
-                    gear_type="full_rig",
                     position=0,
                 )
             ],
@@ -135,7 +121,6 @@ class TestSignalChainUpdateRequest:
             blocks=[
                 BlockRequest(
                     user_gear_id=uuid4(),
-                    gear_type="full_rig",
                     position=0,
                 )
             ],

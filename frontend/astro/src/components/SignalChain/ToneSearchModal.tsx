@@ -104,13 +104,13 @@ function useSearchTones(
   });
 }
 
-/** Hook to fetch user's gear library — stub, endpoint not yet implemented */
-function useGearLibrary(_enabled: boolean) {
+/** Hook to fetch user's gear library */
+function useGearLibrary(enabled: boolean) {
   return useQuery({
     queryKey: ['gear-items'],
-    queryFn: () => Promise.resolve({ gear_items: [], total: 0, page: 1, page_size: 100 } as GearItemListResponse),
+    queryFn: () => api.get<GearItemListResponse>('/gear-items'),
     staleTime: 30000,
-    enabled: false,
+    enabled,
   });
 }
 

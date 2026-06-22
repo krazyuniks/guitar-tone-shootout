@@ -13,7 +13,6 @@ class BlockRequest(BaseModel):
     """Request schema for a signal chain block."""
 
     user_gear_id: UUID
-    gear_type: Literal["pedal", "amp", "full_rig", "ir", "post_effect", "outboard"]
     position: int
 
 
