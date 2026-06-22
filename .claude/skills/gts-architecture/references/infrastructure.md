@@ -62,7 +62,7 @@ Task runner with commands for development workflow. Use `just --list` for discov
 | **Quality** | `check`, `lint`, `check-types`, `check-imports` |
 | **Testing** | `tdd`, `test-regression`, `test`, `test-unit`, `test-integration`, `test-golden-path` |
 | **Database** | `migrate`, `db-export`, `db-import`, `psql` |
-| **Frontend** | `build-astro`, `watch-astro`, `check-astro`, `verify-astro-sync` |
+| **Frontend** | `build-astro`, `watch-astro`, `check-astro`, `verify-astro-build` |
 | **Git Hooks** | `install-hooks`, `run-hooks`, `uninstall-hooks` |
 | **Infrastructure** | `infra` (host setup), `clean` |
 

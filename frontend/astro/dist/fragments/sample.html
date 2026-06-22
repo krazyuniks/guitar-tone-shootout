@@ -1,9 +1,0 @@
-<!-- Sample fragment for testing HTMX infrastructure -->
-<div id="sample-fragment" data-testid="sample-fragment">
-    <p>Sample fragment loaded successfully.</p>
-    {% if is_htmx_request %}
-    <p data-htmx="true">This is an HTMX request.</p>
-    {% else %}
-    <p data-htmx="false">This is a regular request.</p>
-    {% endif %}
-</div>

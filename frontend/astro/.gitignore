@@ -1,5 +1,6 @@
-# build output — committed to git, but ignore during dev
-# dist/
+# build output — built at container start / deploy by `pnpm build`
+# (astro build + css-hash inject + island bundle), never committed
+dist/
 
 # generated types
 .astro/

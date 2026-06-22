@@ -4,7 +4,7 @@ Before considering any task complete:
 
 1. **Run quality gates**: `just check` (lint + types + tests)
 2. **Run golden path** (if behaviour changed): `just test-golden-path`
-3. **Verify Astro sync** (if frontend changed): `just verify-astro-sync`
+3. **Verify Astro build** (if frontend changed): `just verify-astro-build`
 4. **Check import rules**: `just check-imports`
 5. **Commit with conventional format**: `type(scope): description`
 6. **Push to remote**: `git push` (MANDATORY — work isn't done until pushed)

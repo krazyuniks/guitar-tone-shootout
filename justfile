@@ -22,6 +22,12 @@ up-d:
     #!/usr/bin/env bash
     set -euo pipefail
 
+    # dist/ is not committed (built by the astro container's watch:build --initial).
+    # Pre-create it host-side so Docker does not auto-create the webapp/nginx bind
+    # source as a root-owned empty dir, which would block the appuser(uid1000)
+    # astro build from writing into it.
+    mkdir -p frontend/astro/dist
+
     # Main worktree runs jobs profile (worker + BC workers)
     PROFILE_ARGS=""
     if [ "$(basename "$(pwd)")" = "main" ]; then
@@ -213,16 +219,26 @@ watch-astro:
 check-astro:
     {{dc}} exec -T astro pnpm check
 
-# Verify Astro dist is in sync with source
-verify-astro-sync:
-    @echo "Building Astro and checking for uncommitted changes..."
+# Verify the Astro build (incl. island bundle) produces the key artefacts
+verify-astro-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building Astro (astro build + css-hash + islands)..."
     {{dc}} exec -T astro pnpm build
-    @if [ -n "$(git status --porcelain frontend/astro/dist/)" ]; then \
-        echo "ERROR: frontend/astro/dist/ is out of sync with source!"; \
-        echo "Run 'just build-astro' and commit the changes."; \
-        exit 1; \
+    missing=0
+    if [ ! -f frontend/astro/dist/layouts/base.html ]; then
+        echo "ERROR: frontend/astro/dist/layouts/base.html missing (healthcheck target)."
+        missing=1
     fi
-    @echo "Astro dist is in sync."
+    if ! ls frontend/astro/dist/islands/* >/dev/null 2>&1; then
+        echo "ERROR: no island bundle under frontend/astro/dist/islands/ (build:islands did not run)."
+        missing=1
+    fi
+    if [ "$missing" -ne 0 ]; then
+        echo "Astro build is incomplete. Check the 'build' script chains 'pnpm build:islands'."
+        exit 1
+    fi
+    echo "Astro build OK: base.html and island bundle present."
 
 # =============================================================================
 # Video Development (model/video - Remotion)

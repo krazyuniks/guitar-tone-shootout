@@ -314,7 +314,7 @@ just psql              # Connect to gts_core
 ```bash
 just build-astro       # Build Astro frontend
 just watch-astro       # Watch and auto-rebuild
-just verify-astro-sync # Verify dist is in sync with source
+just verify-astro-build # Verify the build (astro + islands) produces key artefacts
 ```
 
 ---

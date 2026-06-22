@@ -1,9 +1,0 @@
-<!-- Ping/pong fragment for testing HTMX connectivity -->
-{% if is_htmx_request %}
-<span id="ping-response" data-testid="ping-htmx">pong (htmx)</span>
-{% else %}
-<div id="ping-response" data-testid="ping-normal">
-    <p>Ping endpoint is working.</p>
-    <p>Send request with <code>HX-Request: true</code> header to get HTMX response.</p>
-</div>
-{% endif %}
