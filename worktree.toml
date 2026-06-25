@@ -1,0 +1,86 @@
+# GTS per-worktree engine manifest (read from main by `worktree provision`).
+#
+# Declares the per-worktree dev stack the engine brings up for a feature
+# worktree: the FastAPI webapp and its Postgres (pgmq) database. nginx, astro,
+# the jobs-profile workers, and cloudbeaver are deliberately not declared -
+# they are not on the gate path (the gate execs lint/type/test inside webapp).
+# Host ports are derived as declared_port + offset * stride; main is offset 0.
+
+project = "gts"
+
+[baseline]
+port_base = 8000
+stride = 10
+
+# --- webapp: FastAPI app and the gate exec target -------------------------
+[services.webapp]
+scope = "per-worktree"
+
+[[services.webapp.ports]]
+name = "http"
+container = 8000
+host = 8000
+
+[services.webapp.health_check]
+# webapp's first provision builds the image and boots the app; give it a
+# generous budget. /health is a liveness probe (no DB, no secrets).
+command = ["curl", "-sf", "http://localhost:8000/health"]
+interval_seconds = 5
+retries = 36
+
+# --- db: Postgres 18 + pgmq, single gts_core database ---------------------
+[services.db]
+scope = "per-worktree"
+
+[[services.db.ports]]
+name = "db"
+container = 5432
+host = 5432
+
+# --- astro: frontend builder; builds and serves the dist the gate asserts on
+[services.astro]
+scope = "per-worktree"
+
+[services.astro.health_check]
+# astro runs `watch:build --initial` on start; provision waits until that first
+# build has produced dist, so the frontend-template unit tests have their
+# artefacts. Mirrors astro's own image HEALTHCHECK.
+command = ["sh", "-c", "test -f /app/dist/layouts/base.html"]
+interval_seconds = 5
+retries = 48
+
+[gate]
+# The CLI gate verb takes its command after `--`; GTS's `just check` composes
+# the full multi-step gate. This representative command is the DB-touching core.
+command = ["pytest", "tests/unit/", "-v"]
+exec_target = "webapp"
+
+# The database migration runs inside webapp at bring-up. A fresh per-worktree
+# volume starts empty; the gate's pytest fixtures build their own schema, so
+# main's data is not seeded (the DB seed RESTORE stays deferred).
+[database]
+engine = "postgres"
+name = "gts_core"
+migration_command = [
+    "alembic",
+    "-c",
+    "infrastructure/migrations/alembic.ini",
+    "upgrade",
+    "head",
+]
+
+# Per-worktree Postgres data volume, uniquely named so it never collides with
+# main's gts-postgres-main. Deleted on teardown: the gate builds its own schema and
+# needs no persisted data (OQ1), and a preserved volume would keep its init-time
+# password while the password source (env.local.sh present or absent) can differ
+# between runs, so a fresh volume each run keeps db and webapp consistent.
+[volumes.postgres_data]
+teardown_policy = "delete_on_teardown"
+
+[host_access.APP_PORT]
+service = "webapp"
+port = "http"
+
+[host_access.POSTGRES_PORT]
+service = "db"
+port = "db"

@@ -65,8 +65,54 @@ rebuild *ARGS:
 # Quality Gates (all run in Docker)
 # =============================================================================
 
-# Run all quality checks
-check: check-lint check-types check-tests check-imports test-quality
+# Run all quality checks in a fresh per-worktree stack via the worktree engine.
+# Provisions this worktree's stack (webapp + db + astro), runs the checks inside
+# it, then tears it down. This replaces the old assumption that a stack was already
+# up via `just up-d`; the engine is the gate's bring-up. For fast iteration against
+# a long-running stack, use the check-* sub-recipes directly.
+# Requires the `worktree` CLI on PATH: `uv tool install ~/Work/worktree`.
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    WT="$(pwd)"
+    # This gate provisions and tears down a FEATURE-worktree stack. The compose
+    # project is derived from the worktree directory name, so in the `main`
+    # worktree it resolves to gts-main and the teardown would stop the running main
+    # dev stack. Refuse when the directory name is `main` (keyed on the same input
+    # the project name derives from, so a feature/detached branch cannot slip past).
+    # Iterate against a running main stack with the check-* sub-recipes instead.
+    if [ "$(basename "$WT")" = "main" ]; then
+        echo "error: 'just check' runs in a feature worktree, not the main worktree (it would tear down the main stack); use the check-* sub-recipes against your running main stack." >&2
+        exit 1
+    fi
+    # Parity with scripts/dc: secrets and host identity reach the engine's compose up.
+    [ -f env.local.sh ] && source env.local.sh
+    # A fresh worktree (e.g. a VaultForeman lane) has no gitignored env.local.sh.
+    # The gate's encryption tests only need a valid Fernet key for in-run round
+    # trips, so mint an ephemeral one when none was sourced. DB_PASSWORD is left to
+    # the compose default, consistent across db and webapp.
+    export OAUTH_ENCRYPTION_KEY="${OAUTH_ENCRYPTION_KEY:-$(python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')}"
+    export USER_UID="$(id -u)" USER_GID="$(id -g)"
+    # Pre-create the astro dist bind source as the host user so Docker does not
+    # auto-create it root-owned and block the astro build (matches up-d).
+    mkdir -p frontend/astro/dist
+    # Arm teardown before provisioning: teardown is idempotent and non-raising, so
+    # a provision that fails after taking a registry lease or starting containers
+    # still gets cleaned up on exit. Capture the triggering status and re-exit with
+    # it so teardown's own exit code never masks a real provision/gate failure.
+    trap 'rc=$?; worktree teardown "$WT" || true; exit $rc' EXIT
+    worktree provision "$WT"
+    # In-container checks run through the engine gate (same compose project as provision).
+    worktree gate "$WT" -- ruff check model/ infra/ sources/ apps/ tests/
+    worktree gate "$WT" -- ruff format --check model/ infra/ sources/ apps/ tests/
+    worktree gate "$WT" -- mypy model/gts/ --strict
+    worktree gate "$WT" -- pytest tests/unit/ -v
+    worktree gate "$WT" -- lint-imports
+    # Host-side checks (no container): TypeScript on the video model, test quality.
+    # Run the project-pinned tsc directly (needs `npm ci` in model/video and node
+    # on PATH); avoids depending on `npx`, which volta does not shim here.
+    (cd model/video && node_modules/.bin/tsc --noEmit)
+    python scripts/test_quality_check.py tests/
 
 # Run type checking (strict on gts, TypeScript on video)
 check-types:
