@@ -28,7 +28,7 @@ just up-d                   # Start services (existing worktree)
 |-------|------------|
 | **Package Management** | uv workspaces (monorepo) |
 | **Backend** | FastAPI, SQLAlchemy 2.0, PostgreSQL, pgmq |
-| **Frontend** | Astro SSG (pre-bundled), Jinja2 SSR, HTMX, Alpine.js, Tailwind |
+| **Frontend** | Public surface: Astro SSG + Jinja2 SSR + HTMX/Alpine for small interactions; app surface: Vite + React SPA under `/app/*` (TanStack Router, design-system Dense family, vendored `gts` theme) |
 | **Audio Processing** | NAM, IR convolution, pedalboard |
 | **Video Processing** | Remotion (React-based video composition) |
 | **Testing** | pytest, Playwright |
@@ -261,9 +261,14 @@ just test-golden-path # Golden path tests (host, requires running containers)
 
 ## Frontend Architecture
 
-### Pre-Bundled Astro
+Two surfaces share one design system (ADR-0001).
 
-`frontend/astro/dist/` is generated and gitignored. No Vite dev server runs at runtime.
+- Public surface: Astro SSG/SSR for `/`, `/shootouts`, `/shootouts/:id`, `/gear/*`, SEO, AdSense, and the public comparison-player island. Anyone can read it.
+- App surface: Vite + React SPA under `/app/*`, behind auth. `/app/build` is the signal-chain builder; `/app/shootouts` is the user's own job-aware shootouts stack; `/app/library` is My DIs and My Gear. Client-side routing is expected.
+
+### Public Surface: Pre-Bundled Astro
+
+`frontend/astro/dist/` is generated and gitignored. No Vite dev server runs at runtime for the public surface.
 
 **Workflow:**
 1. Edit source in `frontend/astro/src/`
@@ -272,13 +277,21 @@ just test-golden-path # Golden path tests (host, requires running containers)
 
 The Astro package `build` script runs `astro build`, injects the CSS hash used by Jinja templates, then runs `build:islands` so React island bundles are present after every build.
 
-### Route Types
+### App Surface: SPA
 
-| Route Type | Technology | Example |
-|------------|------------|---------|
-| Static pages | Astro SSG (pre-built) + nginx | `/`, `/about`, `/login` |
-| Dynamic pages | Jinja2 + FastAPI | `/library/*`, `/shootouts`, `/gear/*` |
-| Complex UI | React island | `/library/chains/build` |
+The `/app/*` SPA is scaffolded by the frontend-reshape epic. Build and serve recipes land with the scaffold.
+
+### Route Model
+
+| Surface | Route | Served by | Auth |
+|---------|-------|-----------|------|
+| Public | `/` | Astro SSG + nginx | none |
+| Public | `/shootouts`, `/shootouts/:id` | Astro SSG + comparison-player island | none |
+| Public | `/gear/*` | Astro SSG/SSR category and detail pages | none |
+| App | `/app` | Vite + React SPA | required |
+| App | `/app/build` | Vite + React SPA (builder) | required |
+| App | `/app/shootouts` | Vite + React SPA (own job-aware shootouts) | required |
+| App | `/app/library` | Vite + React SPA (My DIs + My Gear) | required |
 
 ---
 

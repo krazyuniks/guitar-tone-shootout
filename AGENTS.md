@@ -26,7 +26,7 @@ Never guess at commands. Before constructing any ad-hoc Docker, uv, or pnpm comm
 
 ## Stack
 
-FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.js | Docker. See [DEVELOPMENT.md](./DEVELOPMENT.md).
+FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR + HTMX/Alpine for small interactions | App frontend: Vite + React SPA under `/app/*` | Docker. See [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## Principles
 
@@ -102,13 +102,26 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Astro SSG + Jinja2 SSR + HTMX + Alpine.j
 
 ## Frontend
 
+Two surfaces, one design system (ADR-0001):
+
+- Public surface: Astro SSG/SSR for `/`, `/shootouts`, `/gear/*`, SEO/AdSense content, and public comparison-player embeds. Anyone can read it.
+- App surface: Vite + React SPA under `/app/*` for the logged-in workspace (builder, Gear Browser, own shootouts, library). Client-side routing is expected there.
+- All interactive elements, including Astro islands and SPA components, MUST have `data-testid` attributes for Playwright testing.
+
+### Public Surface
+
 - `frontend/astro/dist/` is generated and gitignored. Commit source only; `pnpm build` and `just build-astro` build Astro, inject the CSS hash, then build React islands into `dist/islands/`.
-- All interactive elements MUST have `data-testid` attributes for Playwright testing.
-- No CDN Tailwind. All styles pre-compiled by Astro at `/_astro/*.css`.
 - Jinja2 templates extend `layouts/base.html` (built by Astro, provides CSS + scripts).
+- No CDN Tailwind. All styles pre-compiled by Astro at `/_astro/*.css`.
 - No inline styles. Use Tailwind utility classes with design tokens from `astro/src/styles/global.css`.
-- No SPA navigation. All links are standard `<a href>`. No ClientRouter, View Transitions, or `data-astro-reload`.
-- HTMX for small interactions only (checkboxes, modals, inline updates). Not for page navigation.
+- Standard navigation only: links are `<a href>`. No Astro ClientRouter, View Transitions, or `data-astro-reload`. The former blanket "No SPA navigation" rule applies to this surface only.
+- HTMX is for small interactions only (checkboxes, modals, inline updates), not page navigation.
+
+### App Surface
+
+- Client-side routing is the norm under `/app/*`, using Vite + React and TanStack Router.
+- Build on the design-system Dense family and the vendored `gts` theme tokens. Vendor/copy design-system files into this repo; do not use `file:` dependencies to the design-system checkout.
+- Scaffold and build recipes land with the frontend-reshape epic.
 
 ## Workflow
 
