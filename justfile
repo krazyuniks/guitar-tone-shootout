@@ -145,13 +145,13 @@ lint:
 # Testing
 # =============================================================================
 
-# Run unit tests (in Docker, excludes host_only tests like documentation tests)
+# Run unit tests (in Docker, excludes tests explicitly marked host_only)
 test-unit:
     {{dc}} exec -T webapp pytest tests/unit/ -v -m "not host_only"
 
-# Run documentation tests (on host - requires AGENTS.md/DEVELOPMENT.md)
+# Run documentation tests in Docker
 test-docs:
-    uv run pytest tests/unit/backend/docs/ -v
+    {{dc}} exec -T webapp pytest tests/unit/backend/docs/ -v
 
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)

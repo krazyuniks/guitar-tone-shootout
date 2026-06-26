@@ -329,7 +329,7 @@ markers = [
     "integration: marks tests as integration tests",
     "e2e: marks tests as end-to-end tests",
     "smoke: marks tests as smoke tests",
-    "host_only: marks tests that must run on host, not in Docker (e.g., documentation tests)",
+    "host_only: marks tests that must run on host, not in Docker",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

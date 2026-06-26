@@ -22,7 +22,7 @@ Never guess at commands. Before constructing any ad-hoc Docker, uv, or pnpm comm
 - Use `just` commands. Never raw Docker, uv, pytest, ruff, mypy, or pnpm on host.
 - Astro runs as a persistent service (chokidar auto-rebuilds). Use `just build-astro` or `just watch-astro`.
 - Never restart containers for code changes. Uvicorn `--reload` with WatchFiles detects edits automatically.
-- The ONLY `uv run` on host is in `tests/e2e/python/` for E2E tests.
+- Host `uv run` is limited to host-only tooling: `worktree.py` (PEP 723 script) and `tests/e2e/python/` for E2E tests.
 
 ## Stack
 
