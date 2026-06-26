@@ -300,7 +300,33 @@ The Astro package `build` script runs `astro build`, injects the CSS hash used b
 
 ### App Surface: SPA
 
-The `/app/*` SPA is scaffolded by the frontend-reshape epic. Build and serve recipes land with the scaffold.
+The SPA lives under `frontend/app/` and is served by the `app` Docker service (Vite dev server, port 5173 internal). nginx proxies `/app/*` to the Vite dev service in development; in production (slice A4), a `vite build` produces static files served directly by nginx.
+
+**Workflow:**
+
+```bash
+just watch-app       # Tail the Vite dev server logs
+just logs app        # Same, alternative
+just build-app       # Production build to frontend/app/dist/ (slice A4)
+```
+
+**Serve topology:**
+
+- Dev: browser → nginx (port 9000) → `app:5173` (Vite dev server with HMR). `/api/*` and `/auth/*` are handled by nginx before reaching the app location.
+- Prod: `vite build` → `frontend/app/dist/` → nginx `location /app/` serves static files with SPA fallback.
+
+**Stack:** Vite + React 19 + TanStack Router + Tailwind v4 (vendored `gts` theme tokens).
+
+**Routes:**
+
+| URL | Component |
+|-----|-----------|
+| `/app` | `routes/index.tsx` |
+| `/app/build` | `routes/build.tsx` |
+| `/app/shootouts` | `routes/shootouts.tsx` |
+| `/app/library` | `routes/library.tsx` |
+
+Auth guard runs in `rootRoute.beforeLoad` — calls `GET /auth/me`; redirects to `/login?next=<current-path>` on 401.
 
 ### Route Model
 

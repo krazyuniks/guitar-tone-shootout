@@ -100,6 +100,8 @@ services:
       WEBAPP_HOST: webapp
       WEBAPP_PORT: 8000
       NGINX_PORT: ${NGINX_PORT:-9000}
+      APP_HOST: app
+      APP_PORT: 5173
     volumes:
       - ./infrastructure/nginx/nginx.conf.template:/etc/nginx/templates/default.conf.template
       - ./frontend/astro/dist:/usr/share/nginx/html/static
@@ -109,6 +111,29 @@ services:
         condition: service_healthy
       astro:
         condition: service_healthy
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ==========================================================================
+  # App SPA - Vite dev server for /app/* (frontend-reshape slice A3)
+  # ==========================================================================
+  app:
+    build:
+      context: ./frontend/app
+      dockerfile: Dockerfile
+      args:
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    environment:
+      SHELL: /bin/sh
+      # Tell the Vite HMR client to connect on the nginx port so websocket
+      # upgrades work through the reverse proxy.
+      VITE_HMR_CLIENT_PORT: ${NGINX_PORT:-9000}
+    volumes:
+      - ./frontend/app:/app
+      - /app/node_modules
+    working_dir: /app
     restart: unless-stopped
 
   # ==========================================================================

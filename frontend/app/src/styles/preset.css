@@ -1,0 +1,42 @@
+/* GTS Tailwind v4 preset — maps vendored theme tokens to Tailwind utilities.
+ * Uses @theme inline so utilities resolve at runtime via CSS custom properties
+ * set in foundation.css and themes/gts.css. */
+
+@import "tailwindcss";
+
+@theme inline {
+  /* Typography */
+  --font-family-sans: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+
+  /* Border radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* Background layers */
+  --color-bg-base: var(--color-bg-base);
+  --color-bg-surface: var(--color-bg-surface);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-secondary: var(--color-bg-secondary);
+
+  /* Text */
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+
+  /* Accent */
+  --color-accent-primary: var(--color-accent-primary);
+  --color-accent-secondary: var(--color-accent-secondary);
+  --color-accent-success: var(--color-accent-success);
+  --color-accent-warning: var(--color-accent-warning);
+  --color-accent-error: var(--color-accent-error);
+
+  /* Signal chain blocks */
+  --color-block-di: var(--color-block-di);
+  --color-block-amp: var(--color-block-amp);
+  --color-block-cab: var(--color-block-cab);
+  --color-block-effect: var(--color-block-effect);
+  --color-block-post-effect: var(--color-block-post-effect);
+}
