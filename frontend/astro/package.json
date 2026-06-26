@@ -11,7 +11,7 @@
     "dev": "astro dev",
     "build": "astro build && node scripts/inject-css-hash.js && pnpm build:islands",
     "build:islands": "vite build --config vite.config.island.ts",
-    "watch:build": "chokidar 'src/**/*.{ts,tsx,astro,css}' -c 'pnpm build' --initial --debounce 1000",
+    "watch:build": "chokidar 'src/**/*.{ts,tsx,astro,css}' astro.config.mjs tailwind.config.mjs vite.config.island.ts tsconfig.json components.json -c 'pnpm build' --initial --debounce 1000",
     "preview": "astro preview",
     "astro": "astro",
     "check": "astro check"
