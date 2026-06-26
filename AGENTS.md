@@ -40,7 +40,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR 
 
 **Conversation UX.** One question at a time. Context adjacent to question. Build iteratively. Summarise periodically. No scroll-dependent layouts.
 
-**MCP required for UI.** UI work REQUIRES Chrome DevTools MCP. E2E test authoring REQUIRES Playwright MCP. If MCP is unavailable: STOP, report "MCP server required but not available", wait for user to restart with MCP enabled.
+**Browser automation.** Playwright CLI for agent-driven work; Playwright Python or Playwright TypeScript for E2E tests.
 
 ## Architecture
 
@@ -95,7 +95,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR 
 - Test against real services. No mocking. `unittest.mock` imports are banned (enforced by quality gate).
 - `just test-golden-path` is MANDATORY before completing feature work. Failures BLOCK completion.
 - Tests are regression nets written AFTER the product works, not the definition of done.
-- NEVER use `curl`/`wget`/`httpie` as validation. Only: `just test-golden-path`, `just tdd`, Chrome DevTools MCP.
+- Validate via `just test-golden-path`, `just tdd`, the Playwright CLI, or Playwright E2E tests (Python or TypeScript).
 - E2E tests run on HOST, not Docker. Cannot import internal packages. Use Playwright + raw SQL via `text()`.
 - E2E tests MUST: use `page.goto()` for navigation, assert DOM visibility, verify database state.
 - NEVER mock internal services or APIs in any test.
