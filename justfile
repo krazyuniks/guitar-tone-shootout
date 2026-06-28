@@ -109,8 +109,16 @@ check:
     worktree gate "$WT" -- pytest tests/unit/ -v
     worktree gate "$WT" -- lint-imports
     # Host-side checks (no container): TypeScript on the video model, test quality.
-    # Run the project-pinned tsc directly (needs `npm ci` in model/video and node
-    # on PATH); avoids depending on `npx`, which volta does not shim here.
+    # A fresh feature worktree (e.g. a VaultForeman lane) has no model/video/
+    # node_modules, so install the pinned deps from the lockfile before running
+    # the project-pinned tsc. The guard keeps a repeat gate cheap (skips when tsc
+    # is already present) and uses `npm ci` (deterministic, lockfile-driven), not
+    # `npx`/global TypeScript, which volta does not shim here. npm ci's audit
+    # summary is advisory and never fails the gate; dependency updates are
+    # separate maintenance, not this gate's concern.
+    if [ ! -x model/video/node_modules/.bin/tsc ]; then
+        (cd model/video && npm ci)
+    fi
     (cd model/video && node_modules/.bin/tsc --noEmit)
     python scripts/test_quality_check.py tests/
 
