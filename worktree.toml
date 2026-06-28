@@ -84,3 +84,35 @@ port = "http"
 [host_access.POSTGRES_PORT]
 service = "db"
 port = "db"
+
+# Per-worktree storage decomposition. The base compose whole-mounts ../gts-storage
+# at /app/storage; these per-subpath binds shadow it so each feature worktree gets
+# its own empty runtime trees (uploads/videos/logs/source_downloads) while the
+# large read-only data (models ~25G, audio) stays shared read-only - never copied
+# per worktree and never writable from a feature stack. Only webapp consumes the
+# storage root; db and astro are not over-mounted. The ../gts-storage source paths
+# are relative to the worktree dir, so they resolve to the shared store for every
+# GTS worktree.
+[storage_root]
+container_path = "/app/storage"
+services = ["webapp"]
+
+[storage_root.entries.uploads]
+mount_class = "empty"
+
+[storage_root.entries.videos]
+mount_class = "empty"
+
+[storage_root.entries.logs]
+mount_class = "empty"
+
+[storage_root.entries.source_downloads]
+mount_class = "empty"
+
+[storage_root.entries.models]
+mount_class = "readonly"
+source = "../gts-storage/models"
+
+[storage_root.entries.audio]
+mount_class = "readonly"
+source = "../gts-storage/audio"
