@@ -39,6 +39,9 @@ env.local.sh
 # dynamic ports override
 docker-compose.override.yml
 
+# worktree-engine per-run artefacts (provision's override + empty storage trees)
+.worktree-run/
+
 # Legacy in-repo workflow artefacts
 .planning/
 .gemini/
