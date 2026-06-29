@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Restore a database from a pg_dump custom-format file. Derives the database name
+# from the filename prefix ({db}.<timestamp>.dump). Standalone.
+# Usage: scripts/db-restore path/to/gts_core.20260217_1200.dump
+set -euo pipefail
+
+FILE="${1:?usage: db-restore <path/to/db.timestamp.dump>}"
+[ -f "$FILE" ] || { echo "error: not a file: $FILE" >&2; exit 1; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DC="$SCRIPT_DIR/dc"
+
+# db name = everything before the first dot (gts_core.20260217_1200.dump -> gts_core).
+db="$(basename "$FILE")"
+db="${db%%.*}"
+
+echo "restoring $db from $FILE"
+# Terminate connections, drop, recreate, restore. pg_restore warns on missing
+# roles etc.; only a FATAL is a real failure (parity with the prior backup module).
+"$DC" exec -T db psql -U gts -d postgres -c \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='$db' AND pid <> pg_backend_pid();" >/dev/null
+"$DC" exec -T db dropdb -U gts --if-exists "$db"
+"$DC" exec -T db createdb -U gts "$db"
+"$DC" exec -T db pg_restore -U gts -d "$db" --no-owner --no-privileges < "$FILE"
+echo "restored $db"

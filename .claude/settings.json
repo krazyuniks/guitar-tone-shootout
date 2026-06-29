@@ -33,9 +33,7 @@
     "SessionStart": [
       {
         "hooks": [
-          {"type": "command", "command": ".claude/hooks/sync-start.sh"},
           {"type": "command", "command": ".claude/hooks/auth-check.sh"},
-          {"type": "command", "command": ".claude/hooks/infrastructure-check.sh"},
           {"type": "command", "command": ".claude/hooks/log-monitor-start.sh"}
         ]
       }

@@ -40,6 +40,19 @@ up-d:
 down:
     {{dc}} down
 
+# Expose the current worktree at a <slot|branch>.tone-shootout.com URL on demand
+# (applies the Traefik overlay; provision adds no automatic subdomain).
+preview:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+    eval "$(./scripts/worktree/current-env 2>/dev/null || true)"
+    # Subdomain: the engine slot for a feature worktree, else a sanitised branch.
+    SUBDOMAIN="${GTS_WORKTREE:-$(echo "$BRANCH" | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//' | cut -c1-20)}"
+    export GTS_SUBDOMAIN="$SUBDOMAIN" GTS_ROUTER_NAME="gts-${SUBDOMAIN}"
+    ./scripts/dc -f docker-compose.traefik.yml up -d
+    echo "preview: https://${SUBDOMAIN}.tone-shootout.com"
+
 # Restart all services
 restart:
     {{dc}} restart
@@ -52,9 +65,21 @@ logs *ARGS:
 status:
     {{dc}} ps
 
-# Check service health (used by worktree.py)
+# Show service health for the current stack (container status + webapp liveness).
 health:
-    @{{dc}} ps --format 'table {{{{.Service}}\t{{{{.Status}}' | grep -E 'healthy|running' || echo "No healthy services found"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{dc}} ps --format 'table {{{{.Service}}\t{{{{.Status}}'
+    # Webapp liveness probed inside the container (no host curl).
+    if {{dc}} exec -T webapp curl -sf http://localhost:8000/health >/dev/null 2>&1; then
+        echo "webapp /health: ok"
+    else
+        echo "webapp /health: not responding"
+    fi
+
+# Check host development requirements (Playwright, Chrome, MCP servers)
+check-requirements:
+    uv run --group host python3 scripts/check_dev_requirements.py
 
 # Rebuild and restart services
 rebuild *ARGS:
@@ -193,12 +218,12 @@ tdd PATH *EXTRA_ARGS='':
 
 # Back up all databases to ../backups/
 db-backup:
-    ./worktree.py backup
+    ./scripts/db-backup
 
 # Restore a database from a dump file
 # Usage: just db-restore path/to/gts_core.20260217_1200.dump
 db-restore file:
-    ./worktree.py restore {{file}}
+    ./scripts/db-restore {{file}}
 
 # Legacy aliases
 db-export: db-backup
@@ -293,20 +318,24 @@ admin *ARGS:
 t3k-auth:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ./worktree.py auth-status --quiet >/dev/null 2>&1; then
-        echo "T3K auth is valid. Restoring session in this worktree..."
+    # Target the current stack's webapp (main default; a feature reads its port
+    # from the engine registry via current-env).
+    eval "$(./scripts/worktree/current-env 2>/dev/null || true)"
+    if uv run --group host python3 scripts/t3k_auth.py status --quiet; then
+        echo "T3K auth is valid. Restoring session..."
     else
         echo "T3K auth missing or expired. Starting login flow..."
         just t3k-login
     fi
-    ./worktree.py auth-restore
-    ./worktree.py auth-status
+    uv run --group host python3 scripts/t3k_auth.py restore
+    uv run --group host python3 scripts/t3k_auth.py status
 
 # T3K login — authenticate via headless Chromium (runs on host)
 t3k-login:
     #!/usr/bin/env bash
     set -euo pipefail
     [ -f env.local.sh ] && source env.local.sh
+    eval "$(./scripts/worktree/current-env 2>/dev/null || true)"
     uv run --group host python3 scripts/t3k_login.py
 
 # Solve Vercel Security Checkpoint — saves cookies for worker (runs on host)
@@ -319,7 +348,7 @@ solve-vercel:
 t3k-auth-status:
     #!/usr/bin/env bash
     set -euo pipefail
-    ./worktree.py auth-status
+    uv run --group host python3 scripts/t3k_auth.py status
 
 # Open a shell in the backend container
 shell:
@@ -407,7 +436,7 @@ install-hooks:
     #!/usr/bin/env bash
     set -euo pipefail
     HOOKS_DIR="$(git rev-parse --git-common-dir)/hooks"
-    cp worktree/hooks/pre-commit "$HOOKS_DIR/pre-commit"
+    cp scripts/hooks/pre-commit "$HOOKS_DIR/pre-commit"
     chmod +x "$HOOKS_DIR/pre-commit"
     echo "✓ pre-commit hook installed (ruff auto-fix)"
 

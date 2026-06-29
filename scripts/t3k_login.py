@@ -29,12 +29,11 @@ LOGIN_EMAIL = "brewsterbear@gmail.com"
 
 
 def get_public_url() -> str:
-    """Read the current worktree's public URL."""
-    env_file = Path(__file__).resolve().parent.parent / ".env.worktree"
-    if env_file.exists():
-        for line in env_file.read_text().splitlines():
-            if line.startswith("PUBLIC_URL="):
-                return line.split("=", 1)[1].strip()
+    """The current worktree's public URL.
+
+    Set by scripts/worktree/current-env (sourced in the just t3k-login recipe);
+    falls back to the main nginx entry point.
+    """
     return os.getenv("PUBLIC_URL", "http://localhost:9000")
 
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Block Ad-Hoc Infrastructure Commands (PreToolUse on Bash)
 #
-# PRINCIPLE: Use ./worktree.py setup - it's idempotent and handles everything.
+# PRINCIPLE: Use the worktree engine + just - they own the stack lifecycle.
 # Never run ad-hoc Docker commands for infrastructure management.
 #
 # This hook blocks:
@@ -11,7 +11,8 @@
 # - Compose down with -v flag (volume deletion)
 #
 # CORRECT approach for ANY infrastructure issue:
-#   ./worktree.py setup main
+#   worktree up gts <branch>     # bring a feature stack up (idempotent)
+#   just up-d / just down        # start/stop the main stack
 #
 # If destructive cleanup is truly needed:
 #   Ask the user to run the command manually
@@ -87,8 +88,8 @@ check_patterns() {
             echo "  ┌─────────────────────────────────────────────────────────────┐"
             echo "  │  USE THE PROVIDED TOOLING:                                  │"
             echo "  │                                                             │"
-            echo "  │    ./worktree.py setup main   # Fixes most issues           │"
-            echo "  │    just up-d / just down      # Start/stop services         │"
+            echo "  │    worktree up gts <branch>   # Bring a feature stack up    │"
+            echo "  │    just up-d / just down      # Start/stop the main stack   │"
             echo "  │                                                             │"
             echo "  │  For destructive ops: ASK USER to run command manually.     │"
             echo "  └─────────────────────────────────────────────────────────────┘"

@@ -30,14 +30,6 @@ set -euo pipefail
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$GIT_ROOT"
 
-# Only run if worktree.py exists
-[ -f "./worktree.py" ] || exit 0
-
-# Skip if worktree is fresh (just created, auth was restored during setup)
-if ./worktree.py is-fresh --quiet 2>/dev/null; then
-    exit 0
-fi
-
 # Run auth status - it handles all output and exit codes
 # Suppress errors to avoid blocking session start
 just t3k-auth-status 2>/dev/null || {

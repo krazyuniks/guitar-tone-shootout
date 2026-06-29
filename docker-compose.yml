@@ -2,11 +2,13 @@
 # Worktree-agnostic: no ports, no container names.
 # Use with docker-compose.override.yml for local development.
 #
-# Env model (see also CLAUDE.md / AGENTS.md):
+# Env model (see DEVELOPMENT.md):
 #   compose.env           - committed static defaults (loaded via --env-file)
-#   .env.worktree         - auto-generated worktree non-secrets (loaded via --env-file)
 #   env.local.sh          - gitignored shell-sourced secrets (exported before compose runs)
-#   USER_UID / USER_GID   - exported from the host via scripts/dc or .envrc
+#   USER_UID / USER_GID   - exported from the host via scripts/dc
+# Per-worktree project name and ports come from the worktree engine via
+# scripts/dc (scripts/worktree/current-env); provision's per-worktree override
+# lives in .worktree-run/docker-compose.override.yml (gitignored).
 #
 # Overlay pattern:
 #   docker-compose.yml          - Base config (this file, committed)

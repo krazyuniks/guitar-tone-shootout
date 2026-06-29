@@ -1,8 +1,8 @@
 #!/usr/bin/env zsh
 # scripts/cron-backup.sh — scheduled GTS database backup.
 #
-# Runs `./worktree.py backup` (pg_dump -Fc of every live database into
-# ../backups/) and prunes old auto-dumps to a retention window. Wire into cron:
+# Runs scripts/db-backup (pg_dump -Fc of every live database into ../backups/)
+# and prunes old auto-dumps to a retention window. Wire into cron:
 #
 #   30 3 * * * /home/ryan/Work/guitar-tone-worktrees/main/scripts/cron-backup.sh >> /tmp/gts-db-backup.log 2>&1
 #
@@ -13,8 +13,7 @@
 
 set -euo pipefail
 
-# Cron runs with a minimal PATH; worktree.py is a `uv run --script` shebang and
-# the backup shells out to docker, so make both reachable.
+# Cron runs with a minimal PATH; db-backup shells out to docker, so make it reachable.
 export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 MAIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,7 +23,7 @@ MAX_BACKUPS="${GTS_MAX_BACKUPS:-14}"
 cd "$MAIN_DIR"
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') Starting GTS backup"
-./worktree.py backup
+./scripts/db-backup
 
 # Prune only strict-timestamp auto-dumps ({db}.YYYYMMDD_HHMM.dump), keeping the
 # newest MAX_BACKUPS per database. Labelled snapshots (e.g. *.pre-restore.dump)

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Back up every application database from the running stack's Postgres to
+# ../backups/ as pg_dump custom-format files. Discovers databases from the
+# pg_catalog (no hardcoded names). Standalone - the worktree package is gone.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DC="$SCRIPT_DIR/dc"
+BACKUPS_DIR="$(cd "$REPO_ROOT/.." && pwd)/backups"
+mkdir -p "$BACKUPS_DIR"
+
+# Keep dumps out of git.
+if [ ! -f "$BACKUPS_DIR/.gitignore" ]; then
+    cat > "$BACKUPS_DIR/.gitignore" <<'EOF'
+*.dump
+*.sql.gz
+*.sql
+!.gitignore
+EOF
+fi
+
+# The db container must be running.
+"$DC" ps --status running --format '{{.Service}}' | grep -qx db || {
+    echo "error: db container is not running" >&2
+    exit 1
+}
+
+# Discover application databases (exclude templates and the default postgres db).
+DBS="$("$DC" exec -T db psql -U gts -d postgres -t -A -c \
+    "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres' ORDER BY datname")"
+[ -n "$DBS" ] || { echo "error: no application databases found" >&2; exit 1; }
+
+ts="$(date +%Y%m%d_%H%M)"
+for db in $DBS; do
+    out="$BACKUPS_DIR/${db}.${ts}.dump"
+    "$DC" exec -T db pg_dump -Fc -U gts "$db" > "$out"
+    size=$(stat -c%s "$out" 2>/dev/null || stat -f%z "$out")
+    if [ "${size:-0}" -lt 100 ]; then
+        rm -f "$out"
+        echo "error: backup too small for $db (database may be empty)" >&2
+        exit 1
+    fi
+    echo "backed up $db -> $out ($size bytes)"
+done

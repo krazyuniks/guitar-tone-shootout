@@ -169,7 +169,7 @@ All project code executes in Docker containers. The host environment is only for
 | Python REPL | Docker | `just repl` |
 | E2E tests | **Host** | `just test-golden-path` |
 | Git, GitHub CLI | Host | `git`, `gh` |
-| Worktree management | Host | `./worktree.py` |
+| Worktree management | Host | `worktree` engine (`worktree up gts <branch>`) |
 
 **Why Docker-First:**
 - Consistent environment across all machines

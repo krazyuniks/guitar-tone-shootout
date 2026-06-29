@@ -50,7 +50,7 @@ Onion Architecture with the domain at the centre. Dependencies point inward -- a
 | Containerisation | Docker Compose | Service orchestration, isolated environments |
 | Local reverse proxy | nginx | Static file serving, backend proxy (local dev) |
 | Production SSL/routing | Traefik | SSL termination, host-based routing (dev server + production) |
-| Worktree management | worktree.py | Parallel development, port allocation, Docker isolation |
+| Worktree management | `worktree` engine | Parallel development, port allocation, Docker isolation |
 
 ### Testing
 
@@ -162,7 +162,6 @@ gts/
 │   ├── integration/            # Integration tests (real DB, pgmq)
 │   └── e2e/python/             # E2E tests (Playwright, isolated workspace)
 │
-├── worktree.py                 # Worktree management CLI entry point
 └── justfile                    # Task runner commands (always use just)
 ```
 

@@ -255,40 +255,9 @@ else
     REPO_DIR="$(pwd)"
 fi
 
-# Check if we're in a worktree structure or standard repo
-if [[ -f "$REPO_DIR/worktree.py" ]] || [[ -L "$REPO_DIR/worktree.py" ]]; then
-    log_info "Worktree structure detected"
-    WORKTREE_SETUP=true
-elif [[ -d "$REPO_DIR/.git" ]]; then
-    log_warn "Standard git repository detected"
-    WORKTREE_SETUP=false
-    echo ""
-    echo "This project uses a worktree-based development structure."
-    echo "Would you like to convert to the worktree structure? (recommended)"
-    echo ""
-    read -p "Convert to worktree structure? [Y/n] " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        log_info "Skipping conversion. You can convert later with:"
-        echo "       ./scripts/convert-to-bare-repo.sh"
-    else
-        log_step "Converting to worktree structure..."
-        if [[ -x "$REPO_DIR/scripts/convert-to-bare-repo.sh" ]]; then
-            "$REPO_DIR/scripts/convert-to-bare-repo.sh"
-            # After conversion, we're in a new location
-            WORKTREE_ROOT="$(dirname "$REPO_DIR")/guitar-tone-shootout-worktrees"
-            if [[ -d "$WORKTREE_ROOT/main" ]]; then
-                cd "$WORKTREE_ROOT/main"
-                REPO_DIR="$WORKTREE_ROOT/main"
-                WORKTREE_SETUP=true
-                log_info "Switched to: $REPO_DIR"
-            fi
-        else
-            log_error "convert-to-bare-repo.sh not found"
-            exit 1
-        fi
-    fi
-else
+# Must be inside the GTS repository (the main checkout). The bare-repo + main
+# layout is already established; there is no longer a conversion step.
+if ! git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     log_error "Not in a Guitar Tone Shootout repository"
     echo ""
     echo "Clone the repository first:"
@@ -301,18 +270,31 @@ fi
 cd "$REPO_DIR"
 
 # ============================================
-# Step 4: Run Infrastructure Setup
+# Step 4: host development dependencies (prek, Playwright, etc.)
 # ============================================
 log_step "Installing development dependencies..."
-
 just infra
 
 # ============================================
-# Step 5: Setup Main Worktree
+# Step 5: ensure secrets, then bring up the main dev stack
 # ============================================
-log_step "Setting up main worktree..."
+# Mint env.local.sh on first run (the engine seeds feature worktrees per-run,
+# but the long-running main stack reads env.local.sh directly). Existing values
+# are never overwritten.
+if [[ ! -f env.local.sh ]]; then
+    log_step "Generating env.local.sh (gitignored secrets)..."
+    cat > env.local.sh <<EOF
+export DB_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+export OAUTH_ENCRYPTION_KEY="$(python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
+export SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+export GTS_ADMIN_PASSWORD=""
+export T3K_API_KEY=""
+EOF
+    chmod 600 env.local.sh
+fi
 
-./worktree.py setup main
+log_step "Starting the main stack..."
+just up-d
 
 # ============================================
 # Success!
@@ -322,28 +304,18 @@ echo -e "${GREEN}=========================================${NC}"
 echo -e "${GREEN}  Setup Complete!${NC}"
 echo -e "${GREEN}=========================================${NC}"
 echo ""
-
-# Get port from docker-compose.override.yml or default
-if [[ -f "docker-compose.override.yml" ]]; then
-    NGINX_PORT=$(grep -A3 'nginx:' docker-compose.override.yml 2>/dev/null | grep '127\.0\.0\.1:' | sed 's/.*127\.0\.0\.1:\([0-9]*\):.*/\1/' | head -1)
-fi
-NGINX_PORT=${NGINX_PORT:-9000}
-
-echo -e "  ${BOLD}Open the app:${NC}  http://localhost:${NGINX_PORT}"
+echo -e "  ${BOLD}Open the app:${NC}  http://localhost:9000"
 echo ""
 echo -e "  ${BOLD}Quick commands:${NC}"
-echo "    just up-d             Start services"
+echo "    just up-d             Start the main stack"
 echo "    just watch-astro      Auto-rebuild templates"
-echo "    just check            Run all quality checks"
-echo "    just tdd <test>       Run specific test"
+echo "    just check            Run all quality checks (in a feature worktree)"
+echo "    just tdd <test>       Run a specific test"
 echo "    just logs             View service logs"
 echo ""
-echo -e "  ${BOLD}Working on a feature:${NC}"
-echo "    ./worktree.py setup <issue>    Create worktree from GitHub issue"
-echo "    ./worktree.py status           Show current worktree details"
+echo -e "  ${BOLD}Working on a feature (engine-driven):${NC}"
+echo "    worktree up gts <branch>    Create + provision a feature worktree"
+echo "    worktree gate gts <branch>  Run the gate in it"
+echo "    worktree down gts <branch>  Tear it down"
 echo ""
-if [[ "$WORKTREE_SETUP" == false ]]; then
-    echo -e "  ${YELLOW}Note:${NC} Consider converting to worktree structure for better isolation:"
-    echo "    ./scripts/convert-to-bare-repo.sh"
-    echo ""
 fi

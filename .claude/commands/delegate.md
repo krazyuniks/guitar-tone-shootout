@@ -1,6 +1,6 @@
 ---
 description: Execute a task using orchestrator workflow with sub-agent delegation.
-allowed-tools: Bash(gh:*), Bash(./worktree.py:*), Task
+allowed-tools: Bash(gh:*), Bash(worktree:*), Task
 argument-hint: "<issue-number>"
 context: fork
 ---
@@ -32,7 +32,7 @@ gh issue view $ARGUMENTS --repo krazyuniks/guitar-tone-shootout
 
 ### Phase 2: Setup
 ```bash
-./worktree.py setup $ARGUMENTS
+worktree up gts $ARGUMENTS
 ```
 
 ### Phase 3: Delegate Implementation
@@ -90,7 +90,7 @@ gh pr view <pr_number> --repo krazyuniks/guitar-tone-shootout --json state,statu
 | Orchestrator (you) | Sub-Agent (delegated) |
 |--------------------|----------------------|
 | `gh issue view` | Read/understand code |
-| `./worktree.py setup` | Write implementation |
+| `worktree up gts <branch>` | Provision a feature worktree |
 | `/merge` | Write tests |
 | Poll CI | Browser testing |
 | (auto teardown) | Fix issues |

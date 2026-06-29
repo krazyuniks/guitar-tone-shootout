@@ -33,7 +33,8 @@ All project commands run through `just` (which wraps Docker). Never run raw pyte
 - `just test-regression` — regression tests
 
 ## Infrastructure
-- `./worktree.py setup main` — first-time setup (idempotent)
+- `just up-d` — start the main stack
+- `worktree up gts <branch>` — create + provision a feature worktree
 - `just rebuild` — rebuild and restart containers
 - `just db-export` — export database backup
 - `just db-import FILE` — import database backup

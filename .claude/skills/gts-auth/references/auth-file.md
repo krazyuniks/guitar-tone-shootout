@@ -50,7 +50,7 @@ chmod 600 $(dirname $(pwd))/.gts-auth.json
 4. Tokens are saved and the session is restored automatically
 
 **New Worktree (automatic):**
-1. `./worktree.py setup <issue>` creates worktree
+1. `worktree up gts <branch>` creates + provisions the feature worktree
 2. Auth auto-restores if valid tokens exist
 3. Ready to work with T3K API
 

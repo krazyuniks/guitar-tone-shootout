@@ -116,7 +116,7 @@ Example: Branch `250/feature-name` → Issue is `#250`
 **Automatic.** The `merge-teardown` hook detects MERGED state and:
 1. Closes the GitHub issue
 2. Switches to main worktree
-3. Runs `./worktree.py teardown`
+3. Runs `worktree down gts <branch>`
 
 No manual cleanup required.
 
