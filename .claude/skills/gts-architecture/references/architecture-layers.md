@@ -148,13 +148,7 @@ gts/
 ├── scripts/
 │   ├── first-time-setup.sh     # First-time setup (prerequisites, Playwright)
 │   ├── e2e-env.sh              # E2E test environment setup
-│   └── orchestrator.py          # V2 epic workflow orchestrator
-│
-├── worktree/                   # Worktree CLI infrastructure (PEP 723 inline deps)
-│   ├── auth.py                 # T3K OAuth token management
-│   ├── docker.py               # Docker Compose overlay generation
-│   ├── lifecycle.py            # Worktree creation/teardown
-│   └── git_ops.py              # Git operations
+│   └── worktree/               # Worktree-engine hooks and derived env helpers
 │
 ├── tests/
 │   ├── regression/             # Stack connectivity tests (<1s)

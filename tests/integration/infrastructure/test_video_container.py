@@ -191,54 +191,25 @@ class TestVideoServiceStartup:
         assert "EXPOSE" in instructions, "Dockerfile must EXPOSE a port"
 
 
-class TestVideoDockerComposeOverride:
-    """Test video service appears in docker-compose.override.yml.j2 template."""
+class TestVideoWorkerGateIsolation:
+    """Test video-worker stays off the feature-worktree gate path."""
 
-    def test_override_template_has_video_service(self):
-        """docker-compose.override.yml.j2 must include video-worker service configuration."""
-        template_file = Path("/app/worktree/templates/docker-compose.override.yml.j2")
-        content = template_file.read_text()
+    @pytest.fixture
+    def video_service(self) -> dict:
+        """Load video-worker config from the base compose file."""
+        compose_file = Path("/app/docker-compose.yml")
+        with compose_file.open() as f:
+            config = yaml.safe_load(f)
+        return config["services"]["video-worker"]
 
-        assert "video-worker:" in content, "override template must include video-worker service"
+    def test_video_worker_is_jobs_profile_only(self, video_service: dict):
+        """Feature worktrees do not start BC workers during the deterministic gate."""
+        assert video_service.get("profiles") == ["jobs"], (
+            "video-worker must stay on the jobs profile, not the default gate path"
+        )
 
-    def test_override_template_video_has_container_name(self):
-        """Override template must set container_name for video-worker service."""
-        template_file = Path("/app/worktree/templates/docker-compose.override.yml.j2")
-        content = template_file.read_text()
-
-        lines = content.split("\n")
-        in_video_section = False
-        has_container_name = False
-
-        for line in lines:
-            if line.strip() == "video-worker:":
-                in_video_section = True
-            elif in_video_section:
-                if line.strip().startswith("container_name:"):
-                    has_container_name = True
-                    break
-                elif line.strip() and not line.startswith(" "):
-                    break
-
-        assert has_container_name, "video-worker in override template must have container_name"
-
-    def test_override_template_video_has_port_mapping(self):
-        """Override template must expose video-worker port to host."""
-        template_file = Path("/app/worktree/templates/docker-compose.override.yml.j2")
-        content = template_file.read_text()
-
-        lines = content.split("\n")
-        in_video_section = False
-        has_ports = False
-
-        for line in lines:
-            if line.strip() == "video-worker:":
-                in_video_section = True
-            elif in_video_section:
-                if "ports:" in line:
-                    has_ports = True
-                    break
-                elif line.strip() and not line.startswith(" "):
-                    break
-
-        assert has_ports, "video-worker in override template must have ports configuration"
+    def test_video_worker_has_no_host_port_mapping(self, video_service: dict):
+        """The worktree engine allocates host ports only for webapp and db."""
+        assert "ports" not in video_service, (
+            "video-worker must not publish a host port in feature worktrees"
+        )

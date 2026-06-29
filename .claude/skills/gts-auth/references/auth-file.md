@@ -18,7 +18,7 @@ This file contains:
 ## File Permissions
 
 - File is created with mode 0600 (owner read/write only)
-- `worktree/auth.py` validates permissions on every read
+- `scripts/t3k_auth.py` reads the shared auth file for status and restore
 - Insecure permissions are auto-fixed when possible
 - Permissions checked each time auth file is read
 - Warning printed to stderr if permissions cannot be fixed
@@ -51,7 +51,7 @@ chmod 600 $(dirname $(pwd))/.gts-auth.json
 
 **New Worktree (automatic):**
 1. `worktree up gts <branch>` creates + provisions the feature worktree
-2. Auth auto-restores if valid tokens exist
+2. `just t3k-auth` restores the saved auth into the running webapp when valid tokens exist
 3. Ready to work with T3K API
 
 ## Checking Auth Status
