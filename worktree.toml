@@ -1,118 +1,31 @@
-# GTS per-worktree engine manifest (read from main by `worktree provision`).
+# GTS engine manifest (ADR-0010 thin contract).
 #
-# Declares the per-worktree dev stack the engine brings up for a feature
-# worktree: the FastAPI webapp and its Postgres (pgmq) database. nginx, astro,
-# the jobs-profile workers, and cloudbeaver are deliberately not declared -
-# they are not on the gate path (the gate execs lint/type/test inside webapp).
-# Host ports are derived as declared_port + offset * stride; main is offset 0.
+# The standalone worktree engine (~/Work/worktree) reads this to allocate a
+# globally-unique slot and non-colliding host ports per feature worktree, then
+# runs the project's own provision/gate/teardown hooks in scripts/worktree/.
+# The engine knows nothing of Docker, compose, storage, migrations, volumes, or
+# secrets - every one of those concerns lives inside the three hooks, driven by
+# WORKTREE_SLOT and the WORKTREE_PORT_* values the engine injects. The full
+# derivation (compose project, container names, postgres volume, subnet, storage
+# binds, migrations, secrets) is specified in the vault planning doc
+# records/radianit/projects/guitar-tone-shootout/planning/worktree-engine-consumption.md.
+#
+# Services declare only what the engine allocates a host port for: the FastAPI
+# webapp (WORKTREE_PORT_WEBAPP) and its Postgres (WORKTREE_PORT_DB). nginx, astro,
+# the workers, and cloudbeaver are not on the gate path and carry no host port;
+# astro's build artefact is asserted inside the gate hook, not exposed as a port.
 
 project = "gts"
 
-[baseline]
-port_base = 8000
-stride = 10
+[[service]]
+name = "webapp"
+default_port = 8000
 
-# --- webapp: FastAPI app and the gate exec target -------------------------
-[services.webapp]
-scope = "per-worktree"
-
-[[services.webapp.ports]]
-name = "http"
-container = 8000
-host = 8000
-
-[services.webapp.health_check]
-# webapp's first provision builds the image and boots the app; give it a
-# generous budget. /health is a liveness probe (no DB, no secrets).
-command = ["curl", "-sf", "http://localhost:8000/health"]
-interval_seconds = 5
-retries = 36
-
-# --- db: Postgres 18 + pgmq, single gts_core database ---------------------
-[services.db]
-scope = "per-worktree"
-
-[[services.db.ports]]
+[[service]]
 name = "db"
-container = 5432
-host = 5432
+default_port = 5432
 
-# --- astro: frontend builder; builds and serves the dist the gate asserts on
-[services.astro]
-scope = "per-worktree"
-
-[services.astro.health_check]
-# astro runs `watch:build --initial` on start; provision waits until that first
-# build has produced dist, so the frontend-template unit tests have their
-# artefacts. Mirrors astro's own image HEALTHCHECK.
-command = ["sh", "-c", "test -f /app/dist/layouts/base.html"]
-interval_seconds = 5
-retries = 48
-
-[gate]
-# The CLI gate verb takes its command after `--`; GTS's `just check` composes
-# the full multi-step gate. This representative command is the DB-touching core.
-command = ["pytest", "tests/unit/", "-v"]
-exec_target = "webapp"
-
-# The database migration runs inside webapp at bring-up. A fresh per-worktree
-# volume starts empty; the gate's pytest fixtures build their own schema, so
-# main's data is not seeded (the DB seed RESTORE stays deferred).
-[database]
-engine = "postgres"
-name = "gts_core"
-migration_command = [
-    "alembic",
-    "-c",
-    "infrastructure/migrations/alembic.ini",
-    "upgrade",
-    "head",
-]
-
-# Per-worktree Postgres data volume, uniquely named so it never collides with
-# main's gts-postgres-main. Deleted on teardown: the gate builds its own schema and
-# needs no persisted data (OQ1), and a preserved volume would keep its init-time
-# password while the password source (env.local.sh present or absent) can differ
-# between runs, so a fresh volume each run keeps db and webapp consistent.
-[volumes.postgres_data]
-teardown_policy = "delete_on_teardown"
-
-[host_access.APP_PORT]
-service = "webapp"
-port = "http"
-
-[host_access.POSTGRES_PORT]
-service = "db"
-port = "db"
-
-# Per-worktree storage decomposition. The base compose whole-mounts ../gts-storage
-# at /app/storage; these per-subpath binds shadow it so each feature worktree gets
-# its own empty runtime trees (uploads/videos/logs/source_downloads) while the
-# large read-only data (models ~25G, audio) stays shared read-only - never copied
-# per worktree and never writable from a feature stack. Only webapp consumes the
-# storage root; db and astro are not over-mounted. The ../gts-storage source paths
-# are relative to the worktree dir, so they resolve to the shared store for every
-# GTS worktree.
-[storage_root]
-container_path = "/app/storage"
-services = ["webapp"]
-
-[storage_root.entries.uploads]
-mount_class = "empty"
-
-[storage_root.entries.videos]
-mount_class = "empty"
-
-[storage_root.entries.logs]
-mount_class = "empty"
-
-[storage_root.entries.source_downloads]
-mount_class = "empty"
-
-[storage_root.entries.models]
-mount_class = "readonly"
-source = "../gts-storage/models"
-
-[storage_root.entries.audio]
-mount_class = "readonly"
-source = "../gts-storage/audio"
+[command]
+provision = ["bash", "scripts/worktree/provision.sh"]
+gate      = ["bash", "scripts/worktree/gate.sh"]
+teardown  = ["bash", "scripts/worktree/teardown.sh"]
