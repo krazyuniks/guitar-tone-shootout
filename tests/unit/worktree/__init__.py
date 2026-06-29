@@ -1,1 +1,0 @@
-"""Worktree CLI unit tests."""
