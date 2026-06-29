@@ -5,9 +5,9 @@
 ## Quick Start
 
 ```bash
-./worktree.py setup main     # First-time setup (idempotent)
-just up-d                    # Start services
-just build-astro             # Build frontend (if changed)
+./scripts/first-time-setup.sh   # First-time: host deps + mint env.local.sh + just up-d
+just up-d                       # Start the main stack (existing checkout)
+just build-astro                # Build frontend (if changed)
 ```
 
 **Entry point:** http://localhost:9000
@@ -18,11 +18,11 @@ just build-astro             # Build frontend (if changed)
 
 Never guess at commands. Before constructing any ad-hoc Docker, uv, or pnpm command, check if `just` already provides it.
 
-- All project code runs in Docker. Host exceptions: E2E tests, `worktree.py`, git/gh.
+- All project code runs in Docker. Host exceptions: E2E tests, the `worktree` engine CLI, git/gh.
 - Use `just` commands. Never raw Docker, uv, pytest, ruff, mypy, or pnpm on host.
 - Astro runs as a persistent service (chokidar auto-rebuilds). Use `just build-astro` or `just watch-astro`.
 - Never restart containers for code changes. Uvicorn `--reload` with WatchFiles detects edits automatically.
-- Host `uv run` is limited to host-only tooling: `worktree.py` (PEP 723 script) and `tests/e2e/python/` for E2E tests.
+- Host `uv run` is limited to host-only tooling: `scripts/t3k_auth.py` and `tests/e2e/python/` for E2E tests.
 
 ## Stack
 
@@ -138,12 +138,12 @@ from the issue; do not recreate an in-repo workflow implementation.
 
 ## Infrastructure
 
-- NEVER run ad-hoc Docker commands. Use `just` + `worktree.py`.
-- NEVER edit `docker-compose.override.yml` or `.env.worktree` — they are auto-generated.
+- NEVER run ad-hoc Docker commands. Use `just` + the `worktree` engine.
+- NEVER edit `.worktree-run/docker-compose.override.yml` — it is provision-generated.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
-- For ANY infrastructure problem: `./worktree.py setup <name>` (idempotent).
+- For ANY infrastructure problem: `worktree up gts <branch>` (feature) or `just up-d` (main).
 - **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx.
-- **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main worktree only.
+- **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main stack only.
 - **Messaging:** pgmq queues in PostgreSQL. Command queues (point-to-point) and event queues (multi-consumer via offset tracking). See wiki for queue topology.
 
 ### Env model
@@ -151,19 +151,19 @@ from the issue; do not recreate an in-repo workflow implementation.
 | File | State | Owner |
 |---|---|---|
 | `compose.env` | committed | static non-secret defaults, loaded via `--env-file` |
-| `.env.worktree` | gitignored, auto-generated | per-worktree non-secrets (ports, COMPOSE_FILE, COMPOSE_PROJECT_NAME, PUBLIC_URL, Traefik) — written by `worktree.py` |
-| `env.local.sh` | gitignored, human-managed | shell-sourced secrets (`DB_PASSWORD`, `OAUTH_ENCRYPTION_KEY`, `SECRET_KEY`, `GTS_ADMIN_PASSWORD`, `T3K_API_KEY`) — seeded once on setup, never overwritten |
+| `env.local.sh` | gitignored, human-managed | shell-sourced secrets (`DB_PASSWORD`, `OAUTH_ENCRYPTION_KEY`, `SECRET_KEY`, `GTS_ADMIN_PASSWORD`, `T3K_API_KEY`) — seeded once on first-time setup, never overwritten |
 | `env.local.sh.example` | committed | template |
 | `.envrc` | committed, optional | direnv — sources `env.local.sh`, exports `USER_UID`/`USER_GID` |
-| `scripts/dc` | committed | `docker compose` wrapper: sources `env.local.sh`, exports `USER_UID`/`USER_GID`, attaches `--env-file compose.env --env-file .env.worktree` |
+| `scripts/dc` | committed | `docker compose` wrapper: sources `env.local.sh`, derives compose project + ports from the engine (`scripts/worktree/current-env`), attaches `--env-file compose.env`, layers provision's override |
+| `.worktree-run/` | gitignored, provision-generated | the per-worktree `docker-compose.override.yml` + empty storage trees (written by `scripts/worktree/_derive.sh`) |
 
-All `just` recipes route through `scripts/dc`. `USER_UID` / `USER_GID` are derived from `id -u` / `id -g` at runtime — no more shell-reserved `UID`/`GID`. Legacy `.env`, `.env.local`, `.env.secrets` were migrated into the new layout on 2026-04-20 and are no longer used.
+All `just` recipes route through `scripts/dc`. The per-worktree project name, ports, and override come from the worktree engine; there is no `.env.worktree`. `USER_UID` / `USER_GID` are derived from `id -u` / `id -g` at runtime.
 
 ## Git & GitHub
 
 **GitHub issues are the source of truth.** All work traces back to a GitHub issue.
 
-**No branches on main worktree.** The `main` worktree commits directly to `main`. NEVER create feature branches in it. Each worktree IS a branch — use `./worktree.py setup <name>` for feature work. Creating branches within a worktree causes staging area race conditions when multiple sessions commit concurrently.
+**No branches on the main checkout.** The `main` checkout commits directly to `main`. NEVER create feature branches in it. Each feature worktree IS a branch — create + provision it with `worktree up gts <branch>`. Creating branches within a worktree causes staging area race conditions when multiple sessions commit concurrently.
 
 ## Session Context Management
 

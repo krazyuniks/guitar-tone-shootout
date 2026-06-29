@@ -3,7 +3,7 @@
 # PreToolUse hook: Validate CLI commands before execution
 #
 # Catches common mistakes with just commands and direct tool invocations that
-# violate container-first rules. (The retired worktree.py command checks are
+# violate container-first rules. (The retired in-repo CLI's command checks are
 # gone; the standalone worktree engine + scripts/worktree/teardown.sh own
 # worktree lifecycle safety now.)
 #

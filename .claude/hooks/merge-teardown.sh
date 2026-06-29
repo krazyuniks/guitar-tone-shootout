@@ -63,7 +63,7 @@ if [ ! -d "$MAIN_WORKTREE" ]; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "Main worktree not found at: $MAIN_WORKTREE"
-    echo "Run manually: ./worktree.py teardown $CURRENT_BRANCH"
+    echo "Run manually: worktree down gts $CURRENT_BRANCH"
     echo ""
     exit 0
 fi
@@ -106,11 +106,11 @@ echo ""
 echo "→ Tearing down worktree: $CURRENT_BRANCH"
 echo ""
 
-# Run teardown (force since branch is already merged/deleted on remote)
-./worktree.py teardown "$CURRENT_BRANCH" --force 2>&1 || {
+# Tear the feature worktree down (engine runs the snapshotted teardown + releases).
+worktree down gts "$CURRENT_BRANCH" 2>&1 || {
     echo ""
     echo "⚠️  Teardown had issues. Run manually if needed:"
-    echo "   cd $MAIN_WORKTREE && ./worktree.py teardown $CURRENT_BRANCH --force"
+    echo "   cd $MAIN_WORKTREE && worktree down gts $CURRENT_BRANCH"
 }
 
 echo ""
@@ -124,7 +124,7 @@ echo "Run this to continue:"
 echo "  cd $MAIN_WORKTREE"
 echo ""
 echo "To start new work:"
-echo "  ./worktree.py setup <issue-number>"
+echo "  worktree up gts <branch>"
 echo ""
 
 exit 0

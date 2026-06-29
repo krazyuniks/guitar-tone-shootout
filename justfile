@@ -3,9 +3,10 @@
 # Use: just <command>
 # List all: just --list
 #
-# `dc` wraps `docker compose`: it sources env.local.sh, exports
-# USER_UID/USER_GID, and attaches --env-file compose.env --env-file
-# .env.worktree so interpolation is consistent everywhere.
+# `dc` wraps `docker compose`: it sources env.local.sh, exports USER_UID/USER_GID,
+# derives the compose project + ports from the engine (scripts/worktree/current-env),
+# and attaches --env-file compose.env. Provision's per-worktree override is layered
+# in when .worktree-run/docker-compose.override.yml is present.
 dc := "./scripts/dc"
 
 # Default recipe - show available commands
@@ -17,7 +18,7 @@ default:
 # =============================================================================
 
 # Start all services in detached mode
-# Compose files are configured via COMPOSE_FILE in .env.worktree (set by worktree.py setup)
+# Compose files + project come from scripts/dc (base + provision's override); no .env.worktree.
 up-d:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -159,7 +160,7 @@ test-regression:
     echo "→ Running internal stack regression tests..."
     {{dc}} exec -T webapp pytest tests/regression/ -v --tb=short
 
-    # Source E2E environment (uses PUBLIC_URL from .env.worktree)
+    # Source E2E environment (derives PUBLIC_URL from the engine via current-env)
     source scripts/e2e-env.sh
     echo ""
     echo "→ Testing external endpoint: $E2E_BASE_URL"

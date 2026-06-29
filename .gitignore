@@ -27,7 +27,8 @@ venv/
 env.local.sh
 .direnv/
 
-# Docker Compose (Phase 7: worktree.py will generate override, then uncomment below)
+# Docker Compose (provision generates .worktree-run/docker-compose.override.yml;
+# a stray top-level override from older tooling is also ignored here)
 # docker-compose.override.yml
 
 # Ralph Hybrid

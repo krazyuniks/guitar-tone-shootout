@@ -8,7 +8,7 @@
 #   1. Installs tier-0 prereqs (just, uv, Python)
 #   2. Converts to worktree structure if needed
 #   3. Runs `just infra` to install remaining prereqs
-#   4. Runs `./worktree.py setup main` to start services
+#   4. Starts the main stack via `just up-d`
 #
 # Tier-0 prereqs (installed by this script):
 #   - just (task runner) - via cargo/brew/apt

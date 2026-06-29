@@ -11,12 +11,23 @@ Technical documentation for GTS development.
 
 ## Quick Start
 
+First time (the long-running main stack):
+
 ```bash
-./worktree.py setup main    # First-time: set up main worktree
-just up-d                   # Start services (existing worktree)
+./scripts/first-time-setup.sh   # Host deps + mint env.local.sh + just up-d
 ```
 
-**Entry point:** http://localhost:9000
+Feature work (engine-driven, isolated per-branch stack):
+
+```bash
+worktree up gts <branch>     # Create + provision a feature worktree
+cd ~/Work/guitar-tone-worktrees/<branch>
+# ... edit, iterate ...
+just check                   # worktree up (idempotent) + worktree gate
+worktree down gts <branch>   # Tear it down
+```
+
+**Main entry point:** http://localhost:9000
 
 **Discover commands:** `just --list`
 
@@ -103,11 +114,7 @@ gts/
 │   ├── docker/                 # Dockerfiles, init scripts
 │   ├── migrations/             # Alembic migrations (gts_core)
 │   └── nginx/                  # nginx.conf.template
-├── worktree/                   # Worktree management (standalone)
-│   ├── cli.py                  # Typer CLI
-│   ├── registry.py             # SQLite registry
-│   ├── config.py               # Port allocation
-│   └── templates/              # Jinja2 for docker-compose.override
+├── scripts/worktree/           # Engine hooks: provision/gate/teardown (+ _derive.sh, current-env)
 └── tests/
     ├── regression/             # Stack connectivity tests (SQLite)
     ├── unit/
@@ -202,35 +209,49 @@ docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
 
 ## Worktree System
 
-Parallel development with isolated Docker environments.
+Parallel development with isolated per-branch stacks, driven by the standalone
+worktree engine (`~/Work/worktree`). The engine allocates a globally-unique slot
+and non-colliding host ports per feature worktree, creates the git worktree, and
+runs GTS's own provision/gate/teardown hooks. It knows nothing of Docker, the
+SDLC, or issues; GTS owns the stack and the engine owns host resources.
 
-### Commands
+### Dev loop
 
 ```bash
-./worktree.py setup <issue>    # Create worktree from GitHub issue
-./worktree.py setup main       # Set up main worktree (idempotent)
-./worktree.py list             # List all worktrees
-./worktree.py status           # Show current worktree status
-./worktree.py ports            # Show port allocations
-./worktree.py teardown <name>  # Remove worktree
+worktree up gts <branch>     # create the worktree, allocate slot + ports, provision
+cd ~/Work/guitar-tone-worktrees/<branch>
+# ... edit, iterate ...
+just check                   # worktree up (idempotent) + worktree gate
+worktree down gts <branch>   # teardown + release slot/ports; reclaim volume + storage
+worktree recover --all       # clear dirty leases left by an interrupted run
 ```
 
-### Port Allocation
+The host catalogue (`~/.worktree/projects.toml`) and the thin manifest
+(`worktree.toml`) are the engine's inputs; the three hooks under
+`scripts/worktree/` derive the stack from the injected `WORKTREE_SLOT` and
+`WORKTREE_PORT_*`.
 
-| Service | Main (offset 0) | Feature (offset 1) | Formula |
-|---------|-----------------|-------------------|---------|
-| nginx | 9000 | 9010 | 9000 + (offset * 10) |
-| webapp | 8000 | 8010 | 8000 + (offset * 10) |
-| PostgreSQL | 5432 | 5433 | 5432 + (offset * 1) |
-| Astro | 4321 | 4331 | 4321 + (offset * 10) |
+### Derivation (slot -> stack)
 
-### Shared Resources
+| Concern | Derived from | Form |
+|---|---|---|
+| Compose project | `WORKTREE_SLOT` | `gts-<slot>` (container names `gts-<slot>-<svc>`) |
+| Postgres volume | `WORKTREE_SLOT` | `gts-postgres-<slot>` (base compose interpolates `GTS_WORKTREE`) |
+| Host ports | `WORKTREE_PORT_*` | webapp from `WORKTREE_PORT_WEBAPP`, db from `WORKTREE_PORT_DB` |
+| Storage | per-worktree | empty `uploads/videos/logs/source_downloads`; shared read-only `models/audio` |
+| Migrations | provision | `alembic -c infrastructure/migrations/alembic.ini upgrade head` (in webapp) |
+| Network | compose default | each project gets its own `<project>_default` bridge |
+
+Slots are integers in [1, 256); slot 0 is the reserved baseline (main, never
+engine-provisioned). The feature DB starts empty and migrates; the gate's pytest
+fixtures build their own schema, so no dump is imported.
+
+### Shared resources
 
 | Resource | Location | Purpose |
-|----------|----------|---------|
-| Registry | `../.worktree/registry.db` | Worktree state |
-| Auth | `../.gts-auth.json` | OAuth tokens (mode 0600) |
-| Storage | `../gts-storage/` | Models, uploads, audio |
+|---|---|---|
+| Auth | `../.gts-auth.json` | T3K OAuth tokens (mode 0600), shared by main and features |
+| Storage | `../gts-storage/` | models/audio shared read-only; writes are per-worktree |
 
 ---
 
@@ -346,8 +367,12 @@ just up-d
 
 ### Permission issues
 
+Provision pre-creates the storage bind-mount dirs as the host user, so root-owned
+orphans should not recur. If a stale root-owned dir remains, remove it manually,
+then re-provision:
+
 ```bash
-./worktree.py setup main  # Re-run setup (idempotent, fixes permissions)
+worktree down gts <branch> && worktree up gts <branch>
 ```
 
 ### Auth issues
@@ -359,16 +384,18 @@ just t3k-auth               # Login if needed, then restore session
 
 ### Port conflicts
 
+The engine reserves non-colliding host ports per slot. If a port is stuck held by
+a crashed run, recover the lease:
+
 ```bash
-./worktree.py ports         # Check what's allocated
-lsof -i :9000               # Find what's using port 9000
+worktree recover --all      # release dirty leases whose ports are free
+lsof -i :9000               # find what is holding a port
 ```
 
 ### Stale worktrees
 
 ```bash
-./worktree.py prune         # Remove stale registry entries
-./worktree.py cleanup       # Clean up merged branches and orphaned Docker resources
+worktree recover --all      # verify dirty leases' resources are gone and release them
 ```
 
 ---
@@ -385,11 +412,11 @@ Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
 
 ### PR Process
 
-1. Create branch from GitHub issue: `./worktree.py setup <issue>`
+1. Create + provision a feature worktree: `worktree up gts <branch>`
 2. Implement changes
 3. Run quality gates: `just check`
 4. Push and create PR
-5. After merge: `./worktree.py complete <pr>`
+5. After merge: `worktree down gts <branch>`
 
 ### Code Style
 
