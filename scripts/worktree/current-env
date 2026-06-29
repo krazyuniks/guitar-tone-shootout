@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Emit the engine-derived env for the current GTS checkout, as sourcable exports.
+# Sourced (via eval) by scripts/dc and scripts/e2e-env.sh.
+#
+# Main uses the baseline (nginx 9000, webapp 8000, db 5432). A feature worktree
+# the engine provisioned reads its leased slot and ports from the engine registry
+# (~/.worktree/registry.db) - the authoritative owner of slot -> worktree_path and
+# slot -> ports. Exits non-zero (no output) when this checkout is neither main nor
+# an engine worktree, so the caller can fall back.
+set -euo pipefail
+
+python3 - <<'PY'
+import os, pathlib, sqlite3, sys
+
+cwd = os.getcwd()
+name = pathlib.Path(cwd).name
+db = pathlib.Path.home() / ".worktree" / "registry.db"
+
+slot = None
+ports: dict[str, int] = {}
+if db.exists():
+    con = sqlite3.connect(str(db))
+    for path in (cwd, str(pathlib.Path(cwd).resolve())):
+        row = con.execute(
+            "SELECT slot FROM worktrees WHERE worktree_path=?", (path,)
+        ).fetchone()
+        if row:
+            slot = row[0]
+            ports = {
+                sn: ap
+                for sn, ap in con.execute(
+                    "SELECT service_name, assigned_port FROM port_reservations "
+                    "WHERE slot=?",
+                    (slot,),
+                )
+            }
+            break
+
+def emit(project, worktree, webapp, db_port):
+    print(f"export COMPOSE_PROJECT_NAME={project}")
+    print(f"export GTS_WORKTREE={worktree}")
+    print(f"export WEBAPP_PORT={webapp}")
+    print(f"export DB_PORT={db_port}")
+    print(f"export PUBLIC_URL=http://localhost:{webapp}")
+
+if name == "main" and slot is None:
+    emit("gts-main", "main", 8000, 5432)
+elif slot is not None:
+    emit(f"gts-{slot}", str(slot), ports.get("webapp", 8000), ports.get("db", 5432))
+else:
+    sys.exit(1)
+PY

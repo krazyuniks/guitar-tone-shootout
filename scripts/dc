@@ -1,31 +1,40 @@
 #!/usr/bin/env bash
-# scripts/dc — docker compose wrapper
+# scripts/dc - docker compose wrapper for the current GTS checkout.
 #
-# Sources env.local.sh into the environment, exports USER_UID/USER_GID from
-# the host, then invokes docker compose with --env-file compose.env and
-# --env-file .env.worktree so interpolation always sees the same values.
-#
-# Use everywhere in place of `docker compose`. The justfile and worktree.py
-# rely on this wrapper so the env model works without requiring direnv.
-
+# Targets the stack for this checkout: main's gts-main stack or a feature
+# worktree's gts-<slot> stack. The compose project and ports come from the engine
+# registry via scripts/worktree/current-env; secrets come from env.local.sh, host
+# identity from the host, and static defaults from compose.env. Provision's
+# per-worktree override is layered in when present. No .env.worktree.
 set -euo pipefail
 
-# Resolve repo root as this script's parent's parent.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
-# Source secrets (env.local.sh is a shell file with `export` statements).
-if [ -f "$REPO_ROOT/env.local.sh" ]; then
+if [ -f env.local.sh ]; then
     # shellcheck disable=SC1091
-    source "$REPO_ROOT/env.local.sh"
+    source env.local.sh
+fi
+export USER_UID="$(id -u)" USER_GID="$(id -g)"
+
+# Compose project + worktree key for this checkout. Main defaults to gts-main; a
+# feature worktree reads its leased slot from the engine registry.
+ENV_OUT="$("$SCRIPT_DIR/worktree/current-env" 2>/dev/null || true)"
+if [ -n "$ENV_OUT" ]; then
+    eval "$ENV_OUT"
+else
+    export COMPOSE_PROJECT_NAME="gts-main"
+    export GTS_WORKTREE="main"
 fi
 
-export USER_UID="$(id -u)"
-export USER_GID="$(id -g)"
+# Base always; provision's per-worktree override when present.
+COMPOSE_FILES=(-f docker-compose.yml)
+if [ -f "$REPO_ROOT/.worktree-run/docker-compose.override.yml" ]; then
+    COMPOSE_FILES+=(-f "$REPO_ROOT/.worktree-run/docker-compose.override.yml")
+fi
 
-# Build --env-file args, skipping any that do not exist.
 ENV_FILE_ARGS=()
 [ -f "$REPO_ROOT/compose.env" ] && ENV_FILE_ARGS+=(--env-file "$REPO_ROOT/compose.env")
-[ -f "$REPO_ROOT/.env.worktree" ] && ENV_FILE_ARGS+=(--env-file "$REPO_ROOT/.env.worktree")
 
-exec docker compose "${ENV_FILE_ARGS[@]}" "$@"
+exec docker compose "${COMPOSE_FILES[@]}" "${ENV_FILE_ARGS[@]}" "$@"
