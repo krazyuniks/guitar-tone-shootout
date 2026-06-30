@@ -131,7 +131,7 @@ class TestShootoutCommentRepositoryListByShootout:
         session.add_all([comment1, comment2])
         await session.commit()
 
-        comments = await repository.list_by_shootout(shootout.id)
+        comments = await repository.list_by_shootout(shootout.id, user.id)
 
         assert len(comments) == 2
         # Newest first means second comment appears first
@@ -142,10 +142,11 @@ class TestShootoutCommentRepositoryListByShootout:
     async def test_list_by_shootout_returns_empty_for_no_comments(
         self,
         repository: ShootoutCommentRepository,
+        user: User,
         shootout: Shootout,
     ) -> None:
         """Repository.list_by_shootout returns empty list when no comments exist."""
-        comments = await repository.list_by_shootout(shootout.id)
+        comments = await repository.list_by_shootout(shootout.id, user.id)
         assert comments == []
 
     @pytest.mark.asyncio
@@ -193,10 +194,55 @@ class TestShootoutCommentRepositoryListByShootout:
         session.add_all([other_comment, our_comment])
         await session.commit()
 
-        comments = await repository.list_by_shootout(shootout.id)
+        comments = await repository.list_by_shootout(shootout.id, user.id)
 
         assert len(comments) == 1
         assert comments[0].content == "Our shootout comment"
+
+    @pytest.mark.asyncio
+    async def test_list_by_shootout_never_leaks_another_owners_comments(
+        self,
+        repository: ShootoutCommentRepository,
+        session: AsyncSession,
+        user: User,
+        other_user: User,
+    ) -> None:
+        """list_by_shootout returns nothing when user_id is not the shootout
+        owner - comments never cross the owner boundary (query-level ownership)."""
+        di_track = DITrack(
+            user_id=other_user.id,
+            name="Other owner DI",
+            file_path="/path/to/other-owner.wav",
+            original_filename="other-owner.wav",
+            duration_seconds=20.0,
+            sample_rate=48000,
+        )
+        session.add(di_track)
+        await session.commit()
+
+        other_shootout = Shootout(
+            user_id=other_user.id,
+            di_track_id=di_track.id,
+            name="Other owner shootout",
+            status=ShootoutStatus.PENDING,
+        )
+        session.add(other_shootout)
+        await session.commit()
+
+        # A comment exists on the other owner's shootout (even authored by `user`).
+        session.add(
+            ShootoutComment(
+                shootout_id=other_shootout.id,
+                user_id=user.id,
+                content="should not leak to non-owner",
+            )
+        )
+        await session.commit()
+
+        # `user` does not own other_shootout, so the ownership-scoped read
+        # returns nothing despite the comment existing on it.
+        comments = await repository.list_by_shootout(other_shootout.id, user.id)
+        assert comments == []
 
     @pytest.mark.asyncio
     async def test_list_by_shootout_supports_pagination(
@@ -217,11 +263,11 @@ class TestShootoutCommentRepositoryListByShootout:
         await session.commit()
 
         # Get first page
-        page1 = await repository.list_by_shootout(shootout.id, limit=2, offset=0)
+        page1 = await repository.list_by_shootout(shootout.id, user.id, limit=2, offset=0)
         assert len(page1) == 2
 
         # Get second page
-        page2 = await repository.list_by_shootout(shootout.id, limit=2, offset=2)
+        page2 = await repository.list_by_shootout(shootout.id, user.id, limit=2, offset=2)
         assert len(page2) == 2
 
         # Ensure no overlap
@@ -246,7 +292,7 @@ class TestShootoutCommentRepositoryListByShootout:
         session.add(comment)
         await session.commit()
 
-        comments = await repository.list_by_shootout(shootout.id)
+        comments = await repository.list_by_shootout(shootout.id, user.id)
 
         assert len(comments) == 1
         # Should be able to access user without lazy loading error

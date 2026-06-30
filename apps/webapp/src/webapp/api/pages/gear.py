@@ -59,17 +59,18 @@ async def gear_browse_page(
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
 
     offset = (page - 1) * page_size
-    total = await service.count(query=search, gear_type=gt_filter, tags=tag_list)
+    total = await service.count(query=search, gear_type=gt_filter, tags=tag_list, is_public=True)
     gear_items = await service.search(
         query=search,
         gear_type=gt_filter,
         tags=tag_list,
+        is_public=True,
         sort=sort,
         limit=page_size,
         offset=offset,
     )
 
-    packs = [gear_to_browse_context(g) for g in gear_items if g.is_public]
+    packs = [gear_to_browse_context(g) for g in gear_items]
     total_pages = max(1, ceil(total / page_size))
 
     def build_url(**overrides: object) -> str:
@@ -128,17 +129,19 @@ async def gear_search_fragment(
         query=query,
         gear_type=gear_type,
         manufacturer=manufacturer,
+        is_public=True,
     )
 
     all_gear = await service.search(
         query=query,
         gear_type=gear_type,
         manufacturer=manufacturer,
+        is_public=True,
         limit=limit,
         offset=offset,
     )
 
-    gear_items = [gear for gear in all_gear if gear.is_public]
+    gear_items = list(all_gear)
 
     return templates.TemplateResponse(
         request,

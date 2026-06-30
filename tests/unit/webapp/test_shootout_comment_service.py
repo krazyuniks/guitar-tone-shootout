@@ -220,7 +220,7 @@ class TestShootoutCommentServiceListByShootout:
         session.add_all([comment1, comment2])
         await session.commit()
 
-        comments = await service.list_by_shootout(shootout.id)
+        comments = await service.list_by_shootout(shootout.id, user.id)
 
         assert len(comments) == 2
 
@@ -246,7 +246,7 @@ class TestShootoutCommentServiceListByShootout:
         session.add_all([comment1, comment2])
         await session.commit()
 
-        comments = await service.list_by_shootout(shootout.id)
+        comments = await service.list_by_shootout(shootout.id, user.id)
 
         assert comments[0].content == "Newer"
         assert comments[1].content == "Older"
@@ -255,10 +255,36 @@ class TestShootoutCommentServiceListByShootout:
     async def test_list_by_shootout_raises_for_nonexistent_shootout(
         self,
         service: ShootoutCommentService,
+        user: User,
     ) -> None:
         """Service.list_by_shootout raises ValueError when shootout doesn't exist."""
         with pytest.raises(ValueError, match="[Ss]hootout"):
-            await service.list_by_shootout(uuid4())
+            await service.list_by_shootout(uuid4(), user.id)
+
+    @pytest.mark.asyncio
+    async def test_list_by_shootout_raises_when_user_is_not_owner(
+        self,
+        service: ShootoutCommentService,
+        session: AsyncSession,
+        user: User,
+        other_user: User,
+        shootout: Shootout,
+    ) -> None:
+        """Service.list_by_shootout raises ValueError when user_id is not the
+        shootout owner - ownership enforced at query level, not by caller filtering."""
+        # A comment exists on `shootout` (owned by `user`).
+        session.add(
+            ShootoutComment(
+                shootout_id=shootout.id,
+                user_id=user.id,
+                content="owner-only",
+            )
+        )
+        await session.commit()
+
+        # other_user does not own the shootout -> ValueError (404 at the API).
+        with pytest.raises(ValueError, match="[Ss]hootout"):
+            await service.list_by_shootout(shootout.id, other_user.id)
 
 
 class TestShootoutCommentServiceDelete:

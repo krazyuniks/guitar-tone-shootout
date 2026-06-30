@@ -493,6 +493,7 @@ async def list_comments(
     try:
         comments = await service.list_by_shootout(
             shootout_id=shootout_id,
+            user_id=current_user.id,
             limit=limit,
             offset=offset,
         )
@@ -542,11 +543,15 @@ async def delete_comment(
     Raises:
         HTTPException: 404 if shootout or comment not found or not owned by user
     """
-    # Verify shootout exists
+    # Verify shootout exists (existence only). Comment-author ownership is
+    # enforced separately by service.delete below; do NOT reuse the
+    # ownership-scoped list_by_shootout here, or a comment author who does not
+    # own the shootout would be wrongly 404'd.
     service = ShootoutCommentService(db)
-    try:
-        await service.list_by_shootout(shootout_id=shootout_id, limit=1)
-    except ValueError:
+    shootout_exists = (
+        await db.execute(select(ShootoutModel.id).where(ShootoutModel.id == shootout_id))
+    ).scalar_one_or_none()
+    if not shootout_exists:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",

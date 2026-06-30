@@ -73,13 +73,15 @@ class ShootoutCommentService:
     async def list_by_shootout(
         self,
         shootout_id: UUID,
+        user_id: UUID,
         limit: int = 50,
         offset: int = 0,
     ) -> list[ShootoutComment]:
-        """List comments for a shootout, newest first.
+        """List comments for a shootout owned by ``user_id``, newest first.
 
         Args:
             shootout_id: ID of the shootout
+            user_id: The requesting user's UUID; must own the shootout
             limit: Maximum number of comments to return
             offset: Number of comments to skip
 
@@ -87,10 +89,14 @@ class ShootoutCommentService:
             List of comments with user relationship loaded
 
         Raises:
-            ValueError: If shootout doesn't exist
+            ValueError: If shootout doesn't exist or is not owned by user_id
         """
-        # Verify shootout exists
-        stmt = select(Shootout).where(Shootout.id == shootout_id)
+        # Verify the shootout exists AND is owned by the requesting user
+        # (ownership enforced at query level, not a caller-side filter).
+        stmt = select(Shootout).where(
+            Shootout.id == shootout_id,
+            Shootout.user_id == user_id,
+        )
         result = await self.session.execute(stmt)
         shootout = result.scalar_one_or_none()
         if not shootout:
@@ -98,6 +104,7 @@ class ShootoutCommentService:
 
         return await self.repository.list_by_shootout(
             shootout_id=shootout_id,
+            user_id=user_id,
             limit=limit,
             offset=offset,
         )

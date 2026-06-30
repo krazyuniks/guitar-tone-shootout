@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from webapp.adapters.persistence.models.shootout import Shootout
 from webapp.adapters.persistence.models.shootout_comment import ShootoutComment
 
 
@@ -56,13 +57,20 @@ class ShootoutCommentRepository:
     async def list_by_shootout(
         self,
         shootout_id: UUID,
+        user_id: UUID,
         limit: int = 50,
         offset: int = 0,
     ) -> list[ShootoutComment]:
-        """List comments for a shootout, newest first.
+        """List comments for a shootout owned by ``user_id``, newest first.
+
+        Ownership is enforced in SQL by joining to Shootout and filtering on
+        Shootout.user_id, so comments never cross the owner boundary regardless
+        of how callers are wired.
 
         Args:
             shootout_id: ID of the shootout
+            user_id: The requesting user's UUID; only the shootout owner's
+                comments are returned
             limit: Maximum number of comments to return
             offset: Number of comments to skip
 
@@ -71,7 +79,9 @@ class ShootoutCommentRepository:
         """
         stmt = (
             select(ShootoutComment)
+            .join(Shootout, ShootoutComment.shootout_id == Shootout.id)
             .where(ShootoutComment.shootout_id == shootout_id)
+            .where(Shootout.user_id == user_id)
             .options(joinedload(ShootoutComment.user))
             .order_by(ShootoutComment.created_at.desc())
             .limit(limit)

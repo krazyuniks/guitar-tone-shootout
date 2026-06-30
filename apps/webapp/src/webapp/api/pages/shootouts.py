@@ -409,7 +409,13 @@ async def shootout_comments_fragment(
 ) -> HTMLResponse:
     """Render shootout comments section with real data."""
     comment_repo = ShootoutCommentRepository(db)
-    comments_orm = await comment_repo.list_by_shootout(shootout_id)
+    if current_user is None:
+        # Anonymous requests have no owner to scope by. Public shootout
+        # visibility is introduced by DOM-shootout-visibility; until then
+        # return nothing rather than leak another user's comments.
+        comments_orm: list = []
+    else:
+        comments_orm = await comment_repo.list_by_shootout(shootout_id, current_user.id)
 
     comments = [comment_to_context(c, current_user) for c in comments_orm]
 
