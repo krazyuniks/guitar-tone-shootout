@@ -142,6 +142,7 @@ from the issue; do not recreate an in-repo workflow implementation.
 - NEVER edit `.worktree-run/docker-compose.override.yml` — it is provision-generated.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
 - For ANY infrastructure problem: `worktree up gts <branch>` (feature) or `just up-d` (main).
+- Inside a driver-provisioned slice (VaultForeman/Woof) you are already in a feature worktree the driver provisioned, with its stack up and the webapp serving `/openapi.json`. Use that running stack (codegen runs in-container against `http://webapp:8000/openapi.json`), commit your change, and stop — the driver runs the gate and the review. The driver owns the worktree lifecycle and the stack: do NOT run `worktree up/down/recover` or `just up-d`/`just down`/`just rebuild` from inside a slice. `worktree recover` deletes a dirty checkout (your uncommitted work goes with it), and the plain stack recipes boot with a blank `OAUTH_ENCRYPTION_KEY` (they read the human-only `env.local.sh` a fresh worktree lacks, whereas the gate mints an ephemeral key) so a hand-started stack fails the auth-encryption tests.
 - **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx.
 - **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main stack only.
 - **Messaging:** pgmq queues in PostgreSQL. Command queues (point-to-point) and event queues (multi-consumer via offset tracking). See wiki for queue topology.
