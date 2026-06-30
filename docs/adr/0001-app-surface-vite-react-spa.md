@@ -31,5 +31,5 @@ The logged-in app surface is a Vite + React single-page application served under
 - The public Astro surface is unchanged and remains the SEO/AdSense surface.
 - The logged-in builder, Gear Browser, and app shootouts area move away from the Astro-island/Jinja/HTMX/Alpine composition model.
 - Next.js remains parked; the app stack is Vite + React unless a future ADR reverses that.
-- Slice A3 of the frontend-reshape epic scaffolds the SPA under `/app/*`; slice A4 adds build/typecheck and spacing enforcement.
+- Slice A3 of the frontend-reshape epic scaffolds the SPA under `/app/*`; slice A4 adds build/typecheck enforcement. Spacing enforcement and the production static-serving cutover are separate later slices.
 - `docs/adr/` is now the in-repo home for GTS architecture decision records. Deferred decisions, including the dependency-injection composition-root decision, use later ADR numbers.

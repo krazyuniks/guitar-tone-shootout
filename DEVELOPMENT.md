@@ -301,7 +301,7 @@ The SPA lives under `frontend/app/` and is served by the `app` Docker service (V
 ```bash
 just watch-app       # Tail the Vite dev server logs
 just logs app        # Same, alternative
-just build-app       # Production build to frontend/app/dist/ (slice A4)
+just build-app       # Production build to frontend/app/dist/ (prod-static serving is a later slice)
 just gen-app-api     # Regenerate frontend/app/src/api/schema.d.ts from webapp /openapi.json
 just check-app-api   # Fail if frontend/app/src/api/schema.d.ts is stale
 ```
