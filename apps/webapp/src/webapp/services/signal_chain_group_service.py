@@ -152,7 +152,10 @@ class SignalChainGroupService:
         # Look up base chain platform (default to NAM)
         platform_value = Platform.NAM.value
         if group.base_chain_id:
-            stmt = select(SignalChainModel).where(SignalChainModel.id == group.base_chain_id)
+            stmt = select(SignalChainModel).where(
+                SignalChainModel.id == group.base_chain_id,
+                SignalChainModel.user_id == group.user_id,
+            )
             result = await self.session.execute(stmt)
             base_chain = result.scalar_one_or_none()
             if base_chain and base_chain.platform:

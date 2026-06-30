@@ -100,7 +100,7 @@ class TestShootoutCommentRoundTrip:
         await db_session.commit()
 
         # Retrieve and verify
-        retrieved = await comment_repo.get_by_id(comment.id)
+        retrieved = await comment_repo.get_by_id(comment.id, user.id)
         assert retrieved is not None
         assert retrieved.id == comment.id
         assert retrieved.shootout_id == shootout.id
