@@ -25,6 +25,9 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://gts:gts_ci@localhost:5432/gts_core
+      # Match the local gate's webapp container: a dev environment so the
+      # fail-closed secrets guard accepts the default dev SECRET_KEY.
+      ENV: development
     steps:
       - uses: actions/checkout@v4
 
