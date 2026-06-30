@@ -1,7 +1,8 @@
 """FastAPI application for video rendering service."""
 
 import uuid
-from typing import Any
+from dataclasses import dataclass
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 
@@ -12,9 +13,20 @@ from video.schemas import (
     StatusResponse,
 )
 
+
+@dataclass(frozen=True)
+class RenderJob:
+    job_id: str
+    status: Literal["pending", "rendering", "complete", "failed"]
+    composition_type: str
+    data: dict[str, object]
+    output_path: str | None = None
+    error_message: str | None = None
+
+
 # In-memory job storage for MVP
 # TODO: Replace with persistent storage (Redis, database)
-_jobs: dict[str, dict[str, Any]] = {}
+_jobs: dict[str, RenderJob] = {}
 
 
 def create_app() -> FastAPI:
@@ -34,14 +46,12 @@ def create_app() -> FastAPI:
         job_id = str(uuid.uuid4())
 
         # Store job in memory
-        _jobs[job_id] = {
-            "job_id": job_id,
-            "status": "pending",
-            "composition_type": request.composition_type,
-            "data": request.data,
-            "output_path": None,
-            "error_message": None,
-        }
+        _jobs[job_id] = RenderJob(
+            job_id=job_id,
+            status="pending",
+            composition_type=request.composition_type,
+            data=request.data,
+        )
 
         return RenderResponse(job_id=job_id)
 
@@ -56,10 +66,11 @@ def create_app() -> FastAPI:
 
         job = _jobs[job_id]
         return StatusResponse(
-            job_id=job["job_id"],
-            status=job["status"],
-            output_path=job["output_path"],
-            error_message=job["error_message"],
+            job_id=job.job_id,
+            status=job.status,
+            output_path=job.output_path,
+            error_message=job.error_message,
+            progress=None,
         )
 
     @app.get("/health", response_model=HealthResponse)

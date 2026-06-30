@@ -4,20 +4,20 @@ import { SignalChainSegment } from './SignalChainSegment';
 import { MetadataOverlay } from './MetadataOverlay';
 import { SlideTransition } from './SlideTransition';
 
-interface GearItem {
+interface GearItem extends Record<string, unknown> {
   name: string;
   imageUrl?: string;
   type: string;
 }
 
-interface ChainSegment {
+interface ChainSegment extends Record<string, unknown> {
   chainName: string;
   gearItems: GearItem[];
   audioUrl: string;
   durationInFrames: number;
 }
 
-interface ShootoutVideoProps {
+interface ShootoutVideoProps extends Record<string, unknown> {
   title: string;
   date?: string;
   attribution?: string;

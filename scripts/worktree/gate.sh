@@ -14,17 +14,22 @@ echo "[gate] project=$COMPOSE_PROJECT_NAME slot=$SLOT"
 # --- In-container checks (run inside the provisioned webapp) ---
 wt_dc exec -T webapp ruff check model/ infra/ sources/ apps/ tests/
 wt_dc exec -T webapp ruff format --check model/ infra/ sources/ apps/ tests/
-wt_dc exec -T webapp mypy model/gts/ --strict
+wt_dc exec -T webapp mypy model/gts/ model/video/ --strict
 wt_dc exec -T webapp pytest tests/unit/ -v
 wt_dc exec -T webapp lint-imports
 
+# --- Astro checks (noImplicitAny via astro check; no-explicit-any via eslint-plugin-astro) ---
+wt_dc exec -T astro pnpm check
+wt_dc exec -T astro pnpm lint
+
 # --- Host-side checks (no container) ---
 # A fresh feature worktree has no model/video/node_modules (gitignored); install
-# the pinned deps once, then run the project-pinned tsc (not npx/global).
+# the pinned deps once, then run the project-pinned tsc and eslint (not npx/global).
 if [ ! -x model/video/node_modules/.bin/tsc ]; then
     (cd model/video && npm ci)
 fi
 (cd model/video && node_modules/.bin/tsc --noEmit)
+(cd model/video && node_modules/.bin/eslint .)
 python scripts/test_quality_check.py tests/
 
 echo "[gate] passed"

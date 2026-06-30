@@ -3,12 +3,10 @@
 Converts GTS domain entities (CompositionSpec) to Remotion-compatible JSON props.
 """
 
-from typing import Any
-
 from gts.domain.value_objects.composition_spec import CompositionSpec
 
 
-def serialize_composition_props(spec: CompositionSpec) -> dict[str, Any]:
+def serialize_composition_props(spec: CompositionSpec) -> dict[str, object]:
     """Serialize CompositionSpec to Remotion props.
 
     Args:
@@ -27,7 +25,7 @@ def serialize_composition_props(spec: CompositionSpec) -> dict[str, Any]:
     }
 
 
-def validate_remotion_props(props: dict[str, Any]) -> bool:
+def validate_remotion_props(props: dict[str, object]) -> bool:
     """Validate Remotion props structure.
 
     Args:
@@ -36,9 +34,6 @@ def validate_remotion_props(props: dict[str, Any]) -> bool:
     Returns:
         True if props has required structure, False otherwise
     """
-    if not isinstance(props, dict):
-        return False
-
     if "compositionType" not in props:
         return False
 
@@ -48,7 +43,7 @@ def validate_remotion_props(props: dict[str, Any]) -> bool:
     return isinstance(props["data"], dict)
 
 
-def deserialize_composition_props(props: dict[str, Any]) -> CompositionSpec:
+def deserialize_composition_props(props: dict[str, object]) -> CompositionSpec:
     """Deserialize Remotion props to CompositionSpec.
 
     Args:
@@ -63,9 +58,16 @@ def deserialize_composition_props(props: dict[str, Any]) -> CompositionSpec:
     if not validate_remotion_props(props):
         raise ValueError("Invalid Remotion props structure")
 
+    composition_type = props["compositionType"]
+    data = props["data"]
+    if not isinstance(composition_type, str):
+        raise ValueError("compositionType must be a string")
+    if not isinstance(data, dict):
+        raise ValueError("data must be a dict")
+
     return CompositionSpec(
-        composition_type=props["compositionType"],
-        data=props["data"],
+        composition_type=composition_type,
+        data=data,
     )
 
 

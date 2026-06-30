@@ -4,8 +4,6 @@ These schemas define the request/response contracts for the HTTP client
 that communicates with the video BC worker service.
 """
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 from gts.domain.value_objects.composition_spec import CompositionSpec
@@ -22,7 +20,7 @@ class SubmitRenderRequest(BaseModel):
         ...,
         description="Type of composition to render (e.g., 'shootout')",
     )
-    data: dict[str, Any] = Field(
+    data: dict[str, object] = Field(
         ...,
         description="Composition-specific data payload",
     )

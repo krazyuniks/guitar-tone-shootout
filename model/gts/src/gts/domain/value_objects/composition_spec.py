@@ -5,7 +5,6 @@ composition types like shootouts.
 """
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,4 +17,4 @@ class CompositionSpec:
     """
 
     composition_type: str
-    data: dict[str, Any]
+    data: dict[str, object]
