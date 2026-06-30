@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: "3.14"
 
-      - run: uv sync
+      - run: uv sync --frozen --all-packages
 
       - name: Initialise pgmq schema
         env:
