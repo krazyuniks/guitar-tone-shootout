@@ -1,0 +1,54 @@
+/* GTS theme — dark amp-inspired colour palette, vendored for app surface.
+ * Applied on top of Dense foundation. Mirrors the public Astro surface token set
+ * so both surfaces share the same visual language. */
+
+:root {
+  /* Background layers — three-tier depth system */
+  --color-bg-base: #0a0a0a;
+  --color-bg-surface: #141414;
+  --color-bg-elevated: #1f1f1f;
+  --color-bg-secondary: #1a1a1a;
+
+  /* Text */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a1a1a1;
+  --color-text-muted: #666666;
+
+  /* Accent */
+  --color-accent-primary: #3b82f6;
+  --color-accent-primary-hover: #2563eb;
+  --color-accent-secondary: #60a5fa;
+  --color-accent-success: #22c55e;
+  --color-accent-warning: #f59e0b;
+  --color-accent-error: #ef4444;
+
+  /* Signal chain block types */
+  --color-block-di: #3b82f6;
+  --color-block-amp: #f59e0b;
+  --color-block-cab: #22c55e;
+  --color-block-effect: #a855f7;
+  --color-block-post-effect: #06b6d4;
+
+  /* shadcn/ui compatibility layer */
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.269 0 0);
+  --border-hover: #444444;
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.556 0 0);
+  --radius: var(--radius-md);
+}

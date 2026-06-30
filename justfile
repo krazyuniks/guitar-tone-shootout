@@ -284,6 +284,18 @@ verify-astro-build:
     echo "Astro build OK: base.html and island bundle present."
 
 # =============================================================================
+# Frontend (App SPA — Vite + React)
+# =============================================================================
+
+# Build App SPA for production (output: frontend/app/dist/)
+build-app:
+    {{dc}} exec -T app pnpm build
+
+# Watch App SPA dev server logs
+watch-app:
+    {{dc}} logs -f app
+
+# =============================================================================
 # Video Development (model/video - Remotion)
 # =============================================================================
 

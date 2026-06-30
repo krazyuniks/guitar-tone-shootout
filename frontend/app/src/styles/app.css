@@ -1,0 +1,52 @@
+/* App surface entry stylesheet.
+ * Import order: foundation (structural) → theme (colours) → preset (Tailwind). */
+
+@import "./foundation.css";
+@import "./themes/gts.css";
+@import "./preset.css";
+
+/* Base resets */
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+}
+
+/* Scrollbar */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 5px;
+  border: 2px solid var(--color-bg-surface);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6a6a6a;
+}
+
+* {
+  scrollbar-width: auto;
+  scrollbar-color: #4a4a4a var(--color-bg-surface);
+}
