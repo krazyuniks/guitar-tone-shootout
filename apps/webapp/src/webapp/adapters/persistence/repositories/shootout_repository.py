@@ -36,18 +36,19 @@ class SQLAlchemyShootoutRepository:
         """
         self.session = session
 
-    async def get_by_id(self, shootout_id: UUID) -> ShootoutEntity | None:
-        """Get a shootout by its ID.
+    async def get_by_id(self, shootout_id: UUID, user_id: UUID) -> ShootoutEntity | None:
+        """Get a shootout by ID, scoped to the owning user.
 
         Args:
             shootout_id: The shootout's UUID
+            user_id: The requesting user's UUID — included in the WHERE clause
 
         Returns:
-            The Shootout entity with all chains loaded, or None
+            The Shootout entity with all chains loaded, or None if not found or not owned
         """
         stmt = (
             select(Shootout)
-            .where(Shootout.id == shootout_id)
+            .where(Shootout.id == shootout_id, Shootout.user_id == user_id)
             .options(
                 joinedload(Shootout.di_track),
                 joinedload(Shootout.chains),

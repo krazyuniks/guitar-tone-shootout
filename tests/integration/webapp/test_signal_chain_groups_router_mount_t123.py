@@ -313,7 +313,7 @@ class TestSignalChainGroupsRouterMount:
         assert response.status_code == 204
 
         # Verify deletion
-        retrieved = await service.get_by_id(group.id)
+        retrieved = await service.get_by_id(group.id, group.user_id)
         assert retrieved is None
 
     async def test_generate_endpoint_requires_authentication(

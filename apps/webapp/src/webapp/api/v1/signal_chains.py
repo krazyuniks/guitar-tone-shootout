@@ -206,9 +206,9 @@ async def update_signal_chain(
     """
     service = SignalChainService(db)
 
-    # Get existing chain
-    existing = await service.get_by_id(chain_id)
-    if not existing or existing.user_id != current_user.id:
+    # Get existing chain, scoped to the owning user
+    existing = await service.get_by_id(chain_id, current_user.id)
+    if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal chain not found",
@@ -278,9 +278,9 @@ async def delete_signal_chain(
     """
     service = SignalChainService(db)
 
-    # Get existing chain
-    existing = await service.get_by_id(chain_id)
-    if not existing or existing.user_id != current_user.id:
+    # Get existing chain, scoped to the owning user
+    existing = await service.get_by_id(chain_id, current_user.id)
+    if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal chain not found",

@@ -61,7 +61,7 @@ async def test_save_new_chain(
     await session.commit()
 
     # Verify it was saved
-    retrieved = await repo.get_by_id(sample_chain.id)
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
     assert retrieved is not None
     assert retrieved.id == sample_chain.id
     assert retrieved.name == "Test Chain"
@@ -101,7 +101,7 @@ async def test_save_update_chain(
     session.expire_all()
 
     # Verify the update
-    retrieved = await repo.get_by_id(sample_chain.id)
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
     assert retrieved is not None
     assert retrieved.name == "Updated Chain"
     assert retrieved.description == "Updated description"
@@ -143,7 +143,7 @@ async def test_save_with_multiple_blocks(
     await session.commit()
 
     # Verify all blocks were saved
-    retrieved = await repo.get_by_id(sample_chain.id)
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
     assert retrieved is not None
     assert len(retrieved.blocks) == 3
     assert retrieved.blocks[0].position == 0
@@ -205,7 +205,7 @@ async def test_update_blocks(
     session.expire_all()
 
     # Verify blocks were updated
-    retrieved = await repo.get_by_id(sample_chain.id)
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
     assert retrieved is not None
     assert len(retrieved.blocks) == 2
     assert retrieved.blocks[0].id == block1.id
@@ -329,7 +329,7 @@ async def test_delete_chain(
     await session.commit()
 
     # Verify it was deleted
-    retrieved = await repo.get_by_id(sample_chain.id)
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
     assert retrieved is None
 
 
@@ -347,7 +347,7 @@ async def test_get_nonexistent_chain(session: AsyncSession) -> None:
     repo = SQLAlchemySignalChainRepository(session)
 
     # Get nonexistent chain
-    retrieved = await repo.get_by_id(uuid.uuid4())
+    retrieved = await repo.get_by_id(uuid.uuid4(), uuid.uuid4())
     assert retrieved is None
 
 
@@ -387,7 +387,7 @@ async def test_blocks_sorted_by_position(
     await session.commit()
 
     # Verify blocks are sorted by position
-    retrieved = await repo.get_by_id(sample_chain.id)
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
     assert retrieved is not None
     assert len(retrieved.blocks) == 3
     assert retrieved.blocks[0].position == 0

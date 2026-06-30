@@ -44,16 +44,17 @@ class ShootoutService:
         await self.session.flush()
         return shootout
 
-    async def get_by_id(self, shootout_id: UUID) -> Shootout | None:
-        """Get a shootout by ID.
+    async def get_by_id(self, shootout_id: UUID, user_id: UUID) -> Shootout | None:
+        """Get a shootout by ID, scoped to the owning user.
 
         Args:
             shootout_id: Shootout ID to retrieve
+            user_id: The requesting user's UUID — filters at the query level
 
         Returns:
-            Shootout entity if found, None otherwise
+            Shootout entity if found and owned, None otherwise
         """
-        return await self.repository.get_by_id(shootout_id)
+        return await self.repository.get_by_id(shootout_id, user_id)
 
     async def get_by_user_id(
         self,

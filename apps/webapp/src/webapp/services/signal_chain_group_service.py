@@ -53,16 +53,17 @@ class SignalChainGroupService:
         await self.session.flush()
         return group
 
-    async def get_by_id(self, group_id: UUID) -> SignalChainGroup | None:
-        """Get a signal chain group by ID.
+    async def get_by_id(self, group_id: UUID, user_id: UUID) -> SignalChainGroup | None:
+        """Get a signal chain group by ID, scoped to the owning user.
 
         Args:
             group_id: Group ID to retrieve
+            user_id: The requesting user's UUID — filters at the query level
 
         Returns:
-            SignalChainGroup entity if found, None otherwise
+            SignalChainGroup entity if found and owned, None otherwise
         """
-        return await self.repository.get_by_id(group_id)
+        return await self.repository.get_by_id(group_id, user_id)
 
     async def get_by_user_id(
         self,
@@ -109,7 +110,7 @@ class SignalChainGroupService:
         await self.repository.delete(group_id)
         await self.session.flush()
 
-    async def generate_permutations(self, group_id: UUID) -> list[str]:
+    async def generate_permutations(self, group_id: UUID, user_id: UUID) -> list[str]:
         """Generate signal chain permutations from a group's gear options.
 
         Computes the cartesian product of gear options across slots, then
@@ -117,6 +118,7 @@ class SignalChainGroupService:
 
         Args:
             group_id: ID of the group to generate permutations for
+            user_id: The requesting user's UUID — scopes the group lookup
 
         Returns:
             List of created chain IDs as strings
@@ -124,7 +126,7 @@ class SignalChainGroupService:
         Raises:
             ValueError: If group not found or exceeds max_permutations
         """
-        group = await self.repository.get_by_id(group_id)
+        group = await self.repository.get_by_id(group_id, user_id)
         if group is None:
             raise ValueError(f"Group not found: {group_id}")
 
@@ -150,7 +152,10 @@ class SignalChainGroupService:
         # Look up base chain platform (default to NAM)
         platform_value = Platform.NAM.value
         if group.base_chain_id:
-            stmt = select(SignalChainModel).where(SignalChainModel.id == group.base_chain_id)
+            stmt = select(SignalChainModel).where(
+                SignalChainModel.id == group.base_chain_id,
+                SignalChainModel.user_id == group.user_id,
+            )
             result = await self.session.execute(stmt)
             base_chain = result.scalar_one_or_none()
             if base_chain and base_chain.platform:

@@ -85,7 +85,7 @@ async def test_get_shootout_by_id_returns_entity(
         await service.create(shootout)
 
     # Retrieve shootout
-    retrieved = await service.get_by_id(shootout.id)
+    retrieved = await service.get_by_id(shootout.id, shootout.user_id)
 
     assert retrieved is not None
     assert retrieved.id == shootout.id
@@ -100,7 +100,7 @@ async def test_get_shootout_by_id_returns_none_for_missing(
     """Test retrieving a non-existent shootout returns None."""
     service = ShootoutService(db_session)
 
-    result = await service.get_by_id(uuid4())
+    result = await service.get_by_id(uuid4(), uuid4())
 
     assert result is None
 
@@ -194,7 +194,7 @@ async def test_update_shootout_persists_changes(
     assert updated.description == "New description"
 
     # Verify persisted
-    retrieved = await service.get_by_id(shootout.id)
+    retrieved = await service.get_by_id(shootout.id, shootout.user_id)
     assert retrieved is not None
     assert retrieved.name == "Updated Name"
 
@@ -225,7 +225,7 @@ async def test_delete_shootout_removes_from_database(
         await service.delete(shootout_id)
 
     # Verify deletion
-    result = await service.get_by_id(shootout_id)
+    result = await service.get_by_id(shootout_id, test_user.id)
     assert result is None
 
 
@@ -263,7 +263,7 @@ async def test_add_chain_to_shootout_persists_association(
         await service.update(shootout)
 
     # Verify chain persisted
-    retrieved = await service.get_by_id(shootout.id)
+    retrieved = await service.get_by_id(shootout.id, shootout.user_id)
     assert retrieved is not None
     assert len(retrieved.chains) == 1
     assert retrieved.chains[0].signal_chain_id == test_signal_chain.id
@@ -295,7 +295,7 @@ async def test_mark_processed_updates_status(
         await service.update(shootout)
 
     # Verify processed status
-    retrieved = await service.get_by_id(shootout.id)
+    retrieved = await service.get_by_id(shootout.id, shootout.user_id)
     assert retrieved is not None
     assert retrieved.is_processed is True
     assert retrieved.output_path == "/path/to/video.mp4"

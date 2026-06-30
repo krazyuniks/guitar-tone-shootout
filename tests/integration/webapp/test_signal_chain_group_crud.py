@@ -134,7 +134,7 @@ class TestSignalChainGroupService:
         async with db_session.begin():
             await service.create(group)
 
-        retrieved = await service.get_by_id(group.id)
+        retrieved = await service.get_by_id(group.id, group.user_id)
 
         assert retrieved is not None
         assert retrieved.id == group.id
@@ -148,7 +148,7 @@ class TestSignalChainGroupService:
         """Test get_by_id returns None for non-existent group."""
         service = SignalChainGroupService(db_session)
 
-        result = await service.get_by_id(uuid4())
+        result = await service.get_by_id(uuid4(), uuid4())
 
         assert result is None
 
@@ -217,7 +217,7 @@ class TestSignalChainGroupService:
         assert updated.description == "Updated description"
 
         # Verify persistence
-        retrieved = await service.get_by_id(group.id)
+        retrieved = await service.get_by_id(group.id, group.user_id)
         assert retrieved is not None
         assert retrieved.name == "Updated Name"
         assert retrieved.description == "Updated description"
@@ -243,14 +243,14 @@ class TestSignalChainGroupService:
             await service.create(group)
 
         # Verify it exists
-        assert await service.get_by_id(group.id) is not None
+        assert await service.get_by_id(group.id, group.user_id) is not None
 
         # Delete
         async with db_session.begin():
             await service.delete(group.id)
 
         # Verify deletion
-        assert await service.get_by_id(group.id) is None
+        assert await service.get_by_id(group.id, group.user_id) is None
 
 
 # API Tests
@@ -489,7 +489,7 @@ class TestSignalChainGroupAPI:
         assert response.status_code == 204
 
         # Verify deletion
-        retrieved = await service.get_by_id(group.id)
+        retrieved = await service.get_by_id(group.id, group.user_id)
         assert retrieved is None
 
     async def test_delete_group_ownership_check(
@@ -518,7 +518,7 @@ class TestSignalChainGroupAPI:
         assert response.status_code == 404
 
         # Verify group still exists
-        retrieved = await service.get_by_id(group.id)
+        retrieved = await service.get_by_id(group.id, group.user_id)
         assert retrieved is not None
 
     async def test_create_requires_authentication(

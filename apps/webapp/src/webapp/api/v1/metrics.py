@@ -51,11 +51,15 @@ async def _get_shootout_for_user(
             joinedload(ShootoutModel.chains).joinedload(ShootoutChainModel.signal_chain),
         )
 
-    stmt = select(ShootoutModel).where(ShootoutModel.id == shootout_id).options(*options)
+    stmt = (
+        select(ShootoutModel)
+        .where(ShootoutModel.id == shootout_id, ShootoutModel.user_id == user_id)
+        .options(*options)
+    )
     result = await db.execute(stmt)
     shootout = result.unique().scalar_one_or_none()
 
-    if not shootout or shootout.user_id != user_id:
+    if shootout is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
 
     return shootout

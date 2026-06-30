@@ -50,7 +50,7 @@ async def test_get_job_by_id_returns_job(
         await repo.save(job)
 
     # Retrieve job
-    retrieved = await service.get_by_id(job.id)
+    retrieved = await service.get_by_id(job.id, job.user_id)
 
     assert retrieved is not None
     assert retrieved.id == job.id
@@ -65,7 +65,7 @@ async def test_get_job_by_id_returns_none_for_missing(
     """Test getting a non-existent job returns None."""
     service = JobService(db_session)
 
-    result = await service.get_by_id(uuid4())
+    result = await service.get_by_id(uuid4(), uuid4())
 
     assert result is None
 

@@ -220,7 +220,7 @@ class TestShootoutCommentServiceListByShootout:
         session.add_all([comment1, comment2])
         await session.commit()
 
-        comments = await service.list_by_shootout(shootout.id)
+        comments = await service.list_by_shootout(shootout.id, user.id)
 
         assert len(comments) == 2
 
@@ -246,7 +246,7 @@ class TestShootoutCommentServiceListByShootout:
         session.add_all([comment1, comment2])
         await session.commit()
 
-        comments = await service.list_by_shootout(shootout.id)
+        comments = await service.list_by_shootout(shootout.id, user.id)
 
         assert comments[0].content == "Newer"
         assert comments[1].content == "Older"
@@ -255,10 +255,36 @@ class TestShootoutCommentServiceListByShootout:
     async def test_list_by_shootout_raises_for_nonexistent_shootout(
         self,
         service: ShootoutCommentService,
+        user: User,
     ) -> None:
         """Service.list_by_shootout raises ValueError when shootout doesn't exist."""
         with pytest.raises(ValueError, match="[Ss]hootout"):
-            await service.list_by_shootout(uuid4())
+            await service.list_by_shootout(uuid4(), user.id)
+
+    @pytest.mark.asyncio
+    async def test_list_by_shootout_raises_when_user_is_not_owner(
+        self,
+        service: ShootoutCommentService,
+        session: AsyncSession,
+        user: User,
+        other_user: User,
+        shootout: Shootout,
+    ) -> None:
+        """Service.list_by_shootout raises ValueError when user_id is not the
+        shootout owner - ownership enforced at query level, not by caller filtering."""
+        # A comment exists on `shootout` (owned by `user`).
+        session.add(
+            ShootoutComment(
+                shootout_id=shootout.id,
+                user_id=user.id,
+                content="owner-only",
+            )
+        )
+        await session.commit()
+
+        # other_user does not own the shootout -> ValueError (404 at the API).
+        with pytest.raises(ValueError, match="[Ss]hootout"):
+            await service.list_by_shootout(shootout.id, other_user.id)
 
 
 class TestShootoutCommentServiceDelete:
@@ -307,17 +333,19 @@ class TestShootoutCommentServiceDelete:
         other_user: User,
         shootout: Shootout,
     ) -> None:
-        """Service.delete raises PermissionError when user is not the comment author."""
+        """Service.delete raises ValueError when user is not the comment author (ownership enforced at query level)."""
         comment = ShootoutComment(
             shootout_id=shootout.id,
             user_id=user.id,
             content="Not yours to delete",
         )
         session.add(comment)
+        await session.flush()
+        comment_id = comment.id
         await session.commit()
 
-        with pytest.raises(PermissionError):
-            await service.delete(comment_id=comment.id, user_id=other_user.id)
+        with pytest.raises(ValueError):
+            await service.delete(comment_id=comment_id, user_id=other_user.id)
 
     @pytest.mark.asyncio
     async def test_delete_does_not_remove_other_users_comment(
@@ -335,10 +363,11 @@ class TestShootoutCommentServiceDelete:
             content="Still here",
         )
         session.add(comment)
-        await session.commit()
+        await session.flush()
         comment_id = comment.id
+        await session.commit()
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ValueError):
             await service.delete(comment_id=comment_id, user_id=other_user.id)
 
         # Verify comment still exists

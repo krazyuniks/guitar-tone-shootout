@@ -187,7 +187,7 @@ async def test_get_by_id_returns_entity_with_chains(
     await db_session.commit()
 
     # Retrieve entity
-    retrieved = await repo.get_by_id(shootout.id)
+    retrieved = await repo.get_by_id(shootout.id, shootout.user_id)
 
     assert retrieved is not None
     assert retrieved.id == shootout.id
@@ -204,7 +204,7 @@ async def test_get_by_id_returns_none_for_missing(
     """Test retrieving a non-existent shootout returns None."""
     repo = SQLAlchemyShootoutRepository(db_session)
 
-    result = await repo.get_by_id(uuid4())
+    result = await repo.get_by_id(uuid4(), uuid4())
 
     assert result is None
 
@@ -428,7 +428,7 @@ async def test_delete_removes_shootout(
     await db_session.commit()
 
     # Verify deletion
-    result = await repo.get_by_id(shootout_id)
+    result = await repo.get_by_id(shootout_id, test_user.id)
     assert result is None
 
 
@@ -576,7 +576,7 @@ async def test_entity_mapping_preserves_processed_status(
     await db_session.commit()
 
     # Retrieve and verify
-    retrieved = await repo.get_by_id(shootout.id)
+    retrieved = await repo.get_by_id(shootout.id, shootout.user_id)
 
     assert retrieved is not None
     assert retrieved.is_processed is True
@@ -602,7 +602,7 @@ async def test_entity_mapping_sets_default_output_format(
     await repo.save(shootout)
     await db_session.commit()
 
-    retrieved = await repo.get_by_id(shootout.id)
+    retrieved = await repo.get_by_id(shootout.id, shootout.user_id)
 
     assert retrieved is not None
     assert retrieved.output_format == "mp4"

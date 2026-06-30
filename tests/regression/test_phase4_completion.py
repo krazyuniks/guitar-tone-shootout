@@ -100,7 +100,7 @@ class TestShootoutCommentRoundTrip:
         await db_session.commit()
 
         # Retrieve and verify
-        retrieved = await comment_repo.get_by_id(comment.id)
+        retrieved = await comment_repo.get_by_id(comment.id, user.id)
         assert retrieved is not None
         assert retrieved.id == comment.id
         assert retrieved.shootout_id == shootout.id
@@ -134,8 +134,8 @@ class TestShootoutCommentRoundTrip:
         )
         await db_session.commit()
 
-        # List comments
-        comments = await comment_repo.list_by_shootout(shootout.id)
+        # List comments (scoped to the owning user)
+        comments = await comment_repo.list_by_shootout(shootout.id, user.id)
         assert len(comments) == 2
         # Newest first
         assert comments[0].content == "Second comment"

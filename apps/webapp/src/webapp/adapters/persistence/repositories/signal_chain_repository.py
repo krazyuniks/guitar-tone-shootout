@@ -37,18 +37,19 @@ class SQLAlchemySignalChainRepository:
         """
         self.session = session
 
-    async def get_by_id(self, chain_id: UUID) -> SignalChainEntity | None:
-        """Get a signal chain by its ID.
+    async def get_by_id(self, chain_id: UUID, user_id: UUID) -> SignalChainEntity | None:
+        """Get a signal chain by ID, scoped to the owning user.
 
         Args:
             chain_id: The chain's UUID
+            user_id: The requesting user's UUID — included in the WHERE clause
 
         Returns:
-            The SignalChain with all blocks loaded, or None
+            The SignalChain with all blocks loaded, or None if not found or not owned
         """
         stmt = (
             select(SignalChain)
-            .where(SignalChain.id == chain_id)
+            .where(SignalChain.id == chain_id, SignalChain.user_id == user_id)
             .options(joinedload(SignalChain.blocks))
         )
         result = await self.session.execute(stmt)

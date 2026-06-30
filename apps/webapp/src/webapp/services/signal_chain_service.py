@@ -73,16 +73,17 @@ class SignalChainService:
 
         return chain
 
-    async def get_by_id(self, chain_id: UUID) -> SignalChain | None:
-        """Get a signal chain by ID.
+    async def get_by_id(self, chain_id: UUID, user_id: UUID) -> SignalChain | None:
+        """Get a signal chain by ID, scoped to the owning user.
 
         Args:
             chain_id: Chain ID to retrieve
+            user_id: The requesting user's UUID — filters at the query level
 
         Returns:
-            SignalChain entity if found, None otherwise
+            SignalChain entity if found and owned, None otherwise
         """
-        return await self.repository.get_by_id(chain_id)
+        return await self.repository.get_by_id(chain_id, user_id)
 
     async def get_by_user_id(
         self, user_id: UUID, limit: int | None = None, offset: int = 0

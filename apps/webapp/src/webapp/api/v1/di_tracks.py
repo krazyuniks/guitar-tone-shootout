@@ -142,11 +142,11 @@ async def get_di_track(
     """
     from sqlalchemy import select
 
-    stmt = select(DITrack).where(DITrack.id == track_id)
+    stmt = select(DITrack).where(DITrack.id == track_id, DITrack.user_id == current_user.id)
     result = await db.execute(stmt)
     track = result.scalar_one_or_none()
 
-    if not track or track.user_id != current_user.id:
+    if track is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Track not found",
@@ -166,9 +166,9 @@ async def delete_di_track(
     Returns 404 if track not found or not owned by user (avoids leaking existence).
     """
     repo = SQLAlchemyDITrackRepository(db)
-    track = await repo.get_by_id(track_id)
+    track = await repo.get_by_id(track_id, current_user.id)
 
-    if not track or track.user_id != current_user.id:
+    if track is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Track not found",
@@ -201,11 +201,11 @@ async def stream_di_track(
     """
     from sqlalchemy import select
 
-    stmt = select(DITrack).where(DITrack.id == track_id)
+    stmt = select(DITrack).where(DITrack.id == track_id, DITrack.user_id == current_user.id)
     result = await db.execute(stmt)
     track = result.scalar_one_or_none()
 
-    if not track or track.user_id != current_user.id:
+    if track is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Track not found",

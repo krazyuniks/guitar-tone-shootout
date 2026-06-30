@@ -32,16 +32,17 @@ class JobService:
         self.session = session
         self.repository = SQLAlchemyJobRepository(session)
 
-    async def get_by_id(self, job_id: UUID) -> Job | None:
-        """Get a job by ID.
+    async def get_by_id(self, job_id: UUID, user_id: UUID) -> Job | None:
+        """Get a job by ID, scoped to the owning user.
 
         Args:
             job_id: Job ID to retrieve
+            user_id: The requesting user's UUID — filters at the query level
 
         Returns:
-            Job entity if found, None otherwise
+            Job entity if found and owned, None otherwise
         """
-        return await self.repository.get_by_id(job_id)
+        return await self.repository.get_by_id(job_id, user_id)
 
     async def get_by_user_id(
         self,

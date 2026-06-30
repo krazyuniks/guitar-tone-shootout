@@ -224,7 +224,7 @@ async def test_create_shootout_persists_to_database(
     service = ShootoutService(db_session)
     from uuid import UUID
 
-    saved = await service.get_by_id(UUID(shootout_id))
+    saved = await service.get_by_id(UUID(shootout_id), test_user.id)
     assert saved is not None
     assert saved.name == "New Shootout"
 

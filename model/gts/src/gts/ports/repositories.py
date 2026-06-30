@@ -191,14 +191,15 @@ class GearRepository(Protocol):
 class DITrackRepository(Protocol):
     """Protocol for DI track persistence operations."""
 
-    async def get_by_id(self, track_id: UUID) -> DITrack | None:
-        """Get a DI track by its ID.
+    async def get_by_id(self, track_id: UUID, user_id: UUID) -> DITrack | None:
+        """Get a DI track by its ID, scoped to the owning user.
 
         Args:
             track_id: The track's UUID
+            user_id: The owner's UUID — enforced in the WHERE clause
 
         Returns:
-            The DITrack if found, None otherwise
+            The DITrack if found and owned by user_id, None otherwise
         """
         ...
 
@@ -252,11 +253,12 @@ class DITrackRepository(Protocol):
 class SignalChainRepository(Protocol):
     """Protocol for signal chain persistence operations."""
 
-    async def get_by_id(self, chain_id: UUID) -> SignalChain | None:
-        """Get a signal chain by its ID.
+    async def get_by_id(self, chain_id: UUID, user_id: UUID) -> SignalChain | None:
+        """Get a signal chain by its ID, scoped to the owning user.
 
         Args:
             chain_id: The chain's UUID
+            user_id: The owner's UUID — enforced in the WHERE clause
 
         Returns:
             The SignalChain with all blocks loaded, or None
@@ -317,14 +319,15 @@ class SignalChainRepository(Protocol):
 class SignalChainGroupRepository(Protocol):
     """Protocol for signal chain group persistence operations."""
 
-    async def get_by_id(self, group_id: UUID) -> SignalChainGroup | None:
-        """Get a group by its ID.
+    async def get_by_id(self, group_id: UUID, user_id: UUID) -> SignalChainGroup | None:
+        """Get a group by its ID, scoped to the owning user.
 
         Args:
             group_id: The group's UUID
+            user_id: The owner's UUID — enforced in the WHERE clause
 
         Returns:
-            The SignalChainGroup if found, None otherwise
+            The SignalChainGroup if found and owned by user_id, None otherwise
         """
         ...
 
@@ -367,11 +370,12 @@ class SignalChainGroupRepository(Protocol):
 class ShootoutRepository(Protocol):
     """Protocol for shootout persistence operations."""
 
-    async def get_by_id(self, shootout_id: UUID) -> Shootout | None:
-        """Get a shootout by its ID.
+    async def get_by_id(self, shootout_id: UUID, user_id: UUID) -> Shootout | None:
+        """Get a shootout by its ID, scoped to the owning user.
 
         Args:
             shootout_id: The shootout's UUID
+            user_id: The owner's UUID — enforced in the WHERE clause
 
         Returns:
             The Shootout with all chains loaded, or None
@@ -457,14 +461,15 @@ class ShootoutRepository(Protocol):
 class JobRepository(Protocol):
     """Protocol for job persistence operations."""
 
-    async def get_by_id(self, job_id: UUID) -> Job | None:
-        """Get a job by its ID.
+    async def get_by_id(self, job_id: UUID, user_id: UUID) -> Job | None:
+        """Get a job by its ID, scoped to the owning user.
 
         Args:
             job_id: The job's UUID
+            user_id: The owner's UUID — enforced in the WHERE clause
 
         Returns:
-            The Job if found, None otherwise
+            The Job if found and owned by user_id, None otherwise
         """
         ...
 
