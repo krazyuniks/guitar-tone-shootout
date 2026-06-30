@@ -24,8 +24,6 @@ from t3k_sync.tasks import (
     dispatch_pending_jobs,
     monitor_stale_jobs,
     process_pending_retries,
-    purge_old_jobs,
-    purge_pgmq_archives,
     refresh_t3k_token,
 )
 
@@ -74,8 +72,6 @@ async def lifespan(_: FastAPI):
             ("process_pending_retries", process_pending_retries, 120.0),
             ("dispatch_pending_jobs", dispatch_pending_jobs, 120.0),
             ("backup_all_databases", backup_all_databases, 43200.0),
-            ("purge_pgmq_archives", purge_pgmq_archives, 86400.0),
-            ("purge_old_jobs", purge_old_jobs, 86400.0),
         ]
 
         shutdown = asyncio.Event()

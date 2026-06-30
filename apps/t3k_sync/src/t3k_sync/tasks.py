@@ -517,7 +517,12 @@ def _cleanup_old_backups(retention_days: int) -> None:
 
 
 async def backup_all_databases() -> None:
-    """Discover and back up all application databases."""
+    """Discover and back up all application databases.
+
+    On full success, runs retention purges (pgmq archives and terminal jobs)
+    so they are always sequenced after a confirmed backup, never before or
+    concurrently with it.
+    """
     host, user, password = _parse_db_connection()
     databases = await _discover_databases(host, user, password)
 
@@ -529,6 +534,7 @@ async def backup_all_databases() -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     env = {**os.environ, "PGPASSWORD": password}
 
+    failed: list[str] = []
     for db_name in databases:
         backup_file = _BACKUPS_DIR / f"{db_name}.{timestamp}.dump"
         try:
@@ -552,17 +558,20 @@ async def backup_all_databases() -> None:
                     await proc.wait()
                     backup_file.unlink(missing_ok=True)
                     logger.error("pg_dump timed out for %s", db_name)
+                    failed.append(db_name)
                     continue
 
             if proc.returncode != 0:
                 backup_file.unlink(missing_ok=True)
                 logger.error("pg_dump failed for %s: %s", db_name, stderr_data.decode().strip())
+                failed.append(db_name)
                 continue
 
             size = backup_file.stat().st_size
             if size < 100:
                 backup_file.unlink(missing_ok=True)
                 logger.error("Backup too small for %s — database may be empty", db_name)
+                failed.append(db_name)
                 continue
 
             logger.info("Backed up %s: %s (%.1f MB)", db_name, backup_file.name, size / 1024 / 1024)
@@ -570,6 +579,18 @@ async def backup_all_databases() -> None:
         except Exception:
             backup_file.unlink(missing_ok=True)
             logger.exception("Failed to back up %s", db_name)
+            failed.append(db_name)
 
     retention_days = int(os.getenv("BACKUP_RETENTION_DAYS", "7"))
     _cleanup_old_backups(retention_days)
+
+    if failed:
+        logger.warning(
+            "Skipping retention purge — %d database backup(s) failed: %s",
+            len(failed),
+            ", ".join(failed),
+        )
+        return
+
+    await purge_pgmq_archives()
+    await purge_old_jobs()
