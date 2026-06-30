@@ -22,6 +22,12 @@ wt_dc exec -T webapp lint-imports
 wt_dc exec -T astro pnpm check
 wt_dc exec -T astro pnpm lint
 
+# --- App SPA checks (Vite + React under /app/*) ---
+# frontend/app carries no host port and is not on the provisioned stack, so run a
+# one-off container off the app image (its deps were installed with
+# --frozen-lockfile at build time). Typecheck (tsc --noEmit) then production build.
+wt_dc run --rm --no-deps -T app sh -c "pnpm typecheck && pnpm build"
+
 # --- Host-side checks (no container) ---
 # A fresh feature worktree has no model/video/node_modules (gitignored); install
 # the pinned deps once, then run the project-pinned tsc and eslint (not npx/global).
