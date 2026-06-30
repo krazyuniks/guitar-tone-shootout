@@ -18,6 +18,9 @@ wt_dc exec -T webapp mypy model/gts/ --strict
 wt_dc exec -T webapp pytest tests/unit/ -v
 wt_dc exec -T webapp lint-imports
 
+# --- Astro TypeScript check (enforces noImplicitAny + no-explicit-any for .ts/.tsx/.astro) ---
+wt_dc exec -T astro pnpm check
+
 # --- Host-side checks (no container) ---
 # A fresh feature worktree has no model/video/node_modules (gitignored); install
 # the pinned deps once, then run the project-pinned tsc and eslint (not npx/global).
