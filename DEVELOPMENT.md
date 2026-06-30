@@ -294,7 +294,7 @@ The Astro package `build` script runs `astro build`, injects the CSS hash used b
 
 ### App Surface: SPA
 
-The SPA lives under `frontend/app/` and is served by the `app` Docker service (Vite dev server, port 5173 internal). nginx proxies `/app/*` to the Vite dev service in development; in production (slice A4), a `vite build` produces static files served directly by nginx.
+The SPA lives under `frontend/app/` and is served by the `app` Docker service (Vite dev server, port 5173 internal). nginx proxies `/app/*` to the Vite dev service in development. In production a `vite build` will produce static files served directly by nginx; that prod-static cutover is a later slice (not yet built), distinct from slice A4, which only added the gate/CI typecheck+build floor.
 
 **Workflow:**
 
