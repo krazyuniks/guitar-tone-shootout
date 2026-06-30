@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: ghcr.io/pgmq/pg18-pgmq:v1.10.0
+        env:
+          POSTGRES_USER: gts
+          POSTGRES_PASSWORD: gts_ci
+          POSTGRES_DB: gts_core
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gts -d gts_core"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://gts:gts_ci@localhost:5432/gts_core
+      # Match the local gate's webapp container: a dev environment so the
+      # fail-closed secrets guard accepts the default dev SECRET_KEY.
+      ENV: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - run: uv sync --frozen --all-packages
+
+      - name: Initialise pgmq schema
+        env:
+          PGPASSWORD: gts_ci
+        run: |
+          psql -h localhost -U gts -d gts_core <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS pgmq;
+          SELECT pgmq.create('audio_commands');
+          SELECT pgmq.create('audio_events');
+          SELECT pgmq.create('video_commands');
+          SELECT pgmq.create('video_events');
+          SELECT pgmq.create('source_events');
+          SELECT pgmq.create('dead_letter');
+          GRANT ALL ON ALL TABLES IN SCHEMA pgmq TO gts;
+          GRANT ALL ON ALL SEQUENCES IN SCHEMA pgmq TO gts;
+          GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pgmq TO gts;
+          SQL
+
+      - name: Apply migrations
+        run: uv run alembic -c infrastructure/migrations/alembic.ini upgrade head
+
+      # Some tests/unit/frontend tests assert the built Astro dist exists, so the
+      # gate builds the astro service before pytest (provision.sh). Mirror that.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/astro/pnpm-lock.yaml
+
+      - name: Build Astro dist
+        working-directory: frontend/astro
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: pytest
+        run: uv run pytest tests/unit/ -q
+
+      - name: import-linter
+        run: uv run lint-imports
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/astro
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/astro/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - run: pnpm check
