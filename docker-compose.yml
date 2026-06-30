@@ -129,6 +129,11 @@ services:
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY}
       T3K_API_KEY: ${T3K_API_KEY:-}
       GTS_STORAGE_ROOT: /app/storage
+      # Retention windows for the periodic backup/purge task (t3k_sync.tasks).
+      # Defaults match the code; override per-deployment via the host env.
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      PGMQ_ARCHIVE_RETENTION_DAYS: ${PGMQ_ARCHIVE_RETENTION_DAYS:-30}
+      JOB_RETENTION_DAYS: ${JOB_RETENTION_DAYS:-90}
     volumes:
       - ./model:/app/model
       - ./infra:/app/infra

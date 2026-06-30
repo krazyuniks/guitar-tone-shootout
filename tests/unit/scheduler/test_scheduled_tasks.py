@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from gts.domain.entities.job import Job
 from gts.domain.value_objects.job_status import JobStatus, JobType
@@ -254,3 +255,213 @@ class TestProcessPendingRetries:
 
         await session.refresh(job_model)
         assert job_model.status == JobStatus.COMPLETED.value
+
+
+class TestPurgePgmqArchives:
+    """Test purge_pgmq_archives scheduled task."""
+
+    async def test_deletes_old_archive_rows(self, session: AsyncSession) -> None:
+        """Archive rows older than the retention window are deleted."""
+        from t3k_sync.tasks import purge_pgmq_archives
+
+        # Create a dedicated test queue (transactional DDL — rolled back after test).
+        await session.execute(text("SELECT pgmq.create('purge_test_q')"))
+        await session.execute(text("SELECT pgmq.send('purge_test_q', '{}'::jsonb)"))
+        msg_result = await session.execute(
+            text("SELECT msg_id FROM pgmq.read('purge_test_q', 30, 1)")
+        )
+        msg_id = msg_result.scalar_one()
+        await session.execute(
+            text("SELECT pgmq.archive('purge_test_q', CAST(:msg_id AS bigint))"),
+            {"msg_id": msg_id},
+        )
+        # Backdate to 31 days ago (beyond the 30-day default window).
+        await session.execute(
+            text("UPDATE pgmq.a_purge_test_q SET archived_at = :old_time"),
+            {"old_time": datetime.now(UTC) - timedelta(days=31)},
+        )
+
+        prev_env = os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+        try:
+            os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = "30"
+            await purge_pgmq_archives()
+        finally:
+            if prev_env is None:
+                os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+            else:
+                os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = prev_env
+
+        count = await session.execute(text("SELECT COUNT(*) FROM pgmq.a_purge_test_q"))
+        assert count.scalar_one() == 0
+
+    async def test_keeps_recent_archive_rows(self, session: AsyncSession) -> None:
+        """Archive rows within the retention window are not deleted."""
+        from t3k_sync.tasks import purge_pgmq_archives
+
+        await session.execute(text("SELECT pgmq.create('purge_recent_q')"))
+        await session.execute(text("SELECT pgmq.send('purge_recent_q', '{}'::jsonb)"))
+        msg_result = await session.execute(
+            text("SELECT msg_id FROM pgmq.read('purge_recent_q', 30, 1)")
+        )
+        msg_id = msg_result.scalar_one()
+        await session.execute(
+            text("SELECT pgmq.archive('purge_recent_q', CAST(:msg_id AS bigint))"),
+            {"msg_id": msg_id},
+        )
+        # archived_at defaults to now() — well within 30-day window.
+
+        prev_env = os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+        try:
+            os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = "30"
+            await purge_pgmq_archives()
+        finally:
+            if prev_env is None:
+                os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+            else:
+                os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = prev_env
+
+        count = await session.execute(text("SELECT COUNT(*) FROM pgmq.a_purge_recent_q"))
+        assert count.scalar_one() == 1
+
+    async def test_no_error_when_no_archive_tables(self, session: AsyncSession) -> None:
+        """Function completes without error when no pgmq archive tables exist."""
+        from t3k_sync.tasks import purge_pgmq_archives
+
+        # Rely on the fact that whatever tables exist will have no rows old enough
+        # with a very short retention — just verify it doesn't raise.
+        prev_env = os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+        try:
+            os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = "36500"  # 100 years — deletes nothing
+            await purge_pgmq_archives()
+        finally:
+            if prev_env is None:
+                os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+            else:
+                os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = prev_env
+
+
+class TestPurgeOldJobs:
+    """Test purge_old_jobs scheduled task."""
+
+    async def test_deletes_old_terminal_jobs(self, session: AsyncSession) -> None:
+        """Completed/failed/dead-lettered jobs older than the retention window are deleted."""
+        from t3k_sync.tasks import purge_old_jobs
+        from webapp.adapters.persistence.models.job import Job as JobModel
+
+        old_time = datetime.now(UTC) - timedelta(days=91)
+        job_ids = []
+        for status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.DEAD_LETTERED):
+            entity = Job(
+                id=uuid4(),
+                user_id=None,
+                job_type=JobType.AUDIO_PROCESSING,
+                status=status,
+                completed_at=old_time,
+            )
+            job_ids.append(entity.id)
+            session.add(JobModel.from_entity(entity))
+        await session.commit()
+
+        prev_env = os.environ.pop("JOB_RETENTION_DAYS", None)
+        try:
+            os.environ["JOB_RETENTION_DAYS"] = "90"
+            await purge_old_jobs()
+        finally:
+            if prev_env is None:
+                os.environ.pop("JOB_RETENTION_DAYS", None)
+            else:
+                os.environ["JOB_RETENTION_DAYS"] = prev_env
+
+        result = await session.execute(select(JobModel).where(JobModel.id.in_(job_ids)))
+        assert result.scalars().all() == []
+
+    async def test_keeps_recent_terminal_jobs(self, session: AsyncSession) -> None:
+        """Terminal jobs within the retention window are not deleted."""
+        from t3k_sync.tasks import purge_old_jobs
+        from webapp.adapters.persistence.models.job import Job as JobModel
+
+        recent_time = datetime.now(UTC) - timedelta(days=10)
+        entity = Job(
+            id=uuid4(),
+            user_id=None,
+            job_type=JobType.AUDIO_PROCESSING,
+            status=JobStatus.COMPLETED,
+            completed_at=recent_time,
+        )
+        model = JobModel.from_entity(entity)
+        session.add(model)
+        await session.commit()
+
+        prev_env = os.environ.pop("JOB_RETENTION_DAYS", None)
+        try:
+            os.environ["JOB_RETENTION_DAYS"] = "90"
+            await purge_old_jobs()
+        finally:
+            if prev_env is None:
+                os.environ.pop("JOB_RETENTION_DAYS", None)
+            else:
+                os.environ["JOB_RETENTION_DAYS"] = prev_env
+
+        await session.refresh(model)
+        assert model.status == JobStatus.COMPLETED.value
+
+    async def test_does_not_delete_active_jobs(self, session: AsyncSession) -> None:
+        """PENDING and RUNNING jobs are never deleted regardless of age."""
+        from t3k_sync.tasks import purge_old_jobs
+        from webapp.adapters.persistence.models.job import Job as JobModel
+
+        old_time = datetime.now(UTC) - timedelta(days=91)
+        job_ids = []
+        for status in (JobStatus.PENDING, JobStatus.RUNNING):
+            entity = Job(
+                id=uuid4(),
+                user_id=None,
+                job_type=JobType.AUDIO_PROCESSING,
+                status=status,
+                completed_at=old_time,
+            )
+            job_ids.append(entity.id)
+            session.add(JobModel.from_entity(entity))
+        await session.commit()
+
+        prev_env = os.environ.pop("JOB_RETENTION_DAYS", None)
+        try:
+            os.environ["JOB_RETENTION_DAYS"] = "90"
+            await purge_old_jobs()
+        finally:
+            if prev_env is None:
+                os.environ.pop("JOB_RETENTION_DAYS", None)
+            else:
+                os.environ["JOB_RETENTION_DAYS"] = prev_env
+
+        result = await session.execute(select(JobModel).where(JobModel.id.in_(job_ids)))
+        assert len(result.scalars().all()) == 2
+
+    async def test_does_not_delete_jobs_without_completed_at(self, session: AsyncSession) -> None:
+        """Terminal jobs with NULL completed_at are not deleted."""
+        from t3k_sync.tasks import purge_old_jobs
+        from webapp.adapters.persistence.models.job import Job as JobModel
+
+        entity = Job(
+            id=uuid4(),
+            user_id=None,
+            job_type=JobType.AUDIO_PROCESSING,
+            status=JobStatus.COMPLETED,
+            completed_at=None,
+        )
+        model = JobModel.from_entity(entity)
+        session.add(model)
+        await session.commit()
+
+        prev_env = os.environ.pop("JOB_RETENTION_DAYS", None)
+        try:
+            os.environ["JOB_RETENTION_DAYS"] = "0"
+            await purge_old_jobs()
+        finally:
+            if prev_env is None:
+                os.environ.pop("JOB_RETENTION_DAYS", None)
+            else:
+                os.environ["JOB_RETENTION_DAYS"] = prev_env
+
+        await session.refresh(model)
+        assert model.status == JobStatus.COMPLETED.value

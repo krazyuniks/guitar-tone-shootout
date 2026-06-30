@@ -6,13 +6,14 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import column, delete, table, text
 
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus
@@ -34,6 +35,8 @@ _FALLBACK_REFRESH_SECONDS = 1800
 _BACKUPS_DIR = Path("/app/backups")
 _DISPATCH_MAX_FAILURES = 3
 _DISPATCH_COOLDOWN = timedelta(minutes=30)
+# pgmq archive table names are a_ + alphanumeric/underscore (from system catalog, not user input).
+_PGMQ_ARCHIVE_TABLE_RE = re.compile(r"^a_[a-z][a-z0-9_]*$")
 
 # Test hook: set by tests to inject the test session into DB tasks.
 # Allows task functions to share the test's SAVEPOINT-isolated session.
@@ -382,6 +385,79 @@ async def dispatch_pending_jobs() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Retention / purge
+# ---------------------------------------------------------------------------
+
+
+async def purge_pgmq_archives() -> None:
+    """Delete pgmq archive rows older than PGMQ_ARCHIVE_RETENTION_DAYS (default: 30)."""
+    retention_days = int(os.getenv("PGMQ_ARCHIVE_RETENTION_DAYS", "30"))
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+
+    discover_stmt = text(
+        "SELECT table_name FROM information_schema.tables"
+        " WHERE table_schema = 'pgmq' AND table_name LIKE 'a_%' AND table_type = 'BASE TABLE'"
+    )
+
+    async def _purge(session: AsyncSession) -> int:
+        result = await session.execute(discover_stmt)
+        table_names = [row[0] for row in result.fetchall()]
+        total = 0
+        for table_name in table_names:
+            if not _PGMQ_ARCHIVE_TABLE_RE.match(table_name):
+                logger.warning("Skipping unexpected pgmq archive table: %r", table_name)
+                continue
+            # Use SQLAlchemy's structured expression API so the table identifier
+            # is quoted by the dialect rather than interpolated into a raw SQL string.
+            archive_tbl = table(table_name, column("archived_at"), schema="pgmq")
+            del_result = await session.execute(
+                delete(archive_tbl).where(archive_tbl.c.archived_at < cutoff)
+            )
+            total += del_result.rowcount
+        return total
+
+    if _test_session is not None:
+        deleted = await _purge(_test_session)
+    else:
+        async with get_core_session() as session:
+            deleted = await _purge(session)
+            await session.commit()
+
+    if deleted:
+        logger.info("Purged %d rows from pgmq archives (cutoff: %s)", deleted, cutoff.date())
+
+
+async def purge_old_jobs() -> None:
+    """Delete terminal core_jobs older than JOB_RETENTION_DAYS (default: 90)."""
+    retention_days = int(os.getenv("JOB_RETENTION_DAYS", "90"))
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+    terminal = [
+        JobStatus.COMPLETED.value,
+        JobStatus.FAILED.value,
+        JobStatus.DEAD_LETTERED.value,
+    ]
+    stmt = text(
+        "DELETE FROM core_jobs"
+        " WHERE status = ANY(:statuses)"
+        " AND completed_at IS NOT NULL"
+        " AND completed_at < :cutoff"
+    )
+    params: dict[str, object] = {"statuses": terminal, "cutoff": cutoff}
+
+    if _test_session is not None:
+        result = await _test_session.execute(stmt, params)
+        deleted = result.rowcount
+    else:
+        async with get_core_session() as session:
+            result = await session.execute(stmt, params)
+            await session.commit()
+            deleted = result.rowcount
+
+    if deleted:
+        logger.info("Purged %d terminal jobs (cutoff: %s)", deleted, cutoff.date())
+
+
+# ---------------------------------------------------------------------------
 # Database backup
 # ---------------------------------------------------------------------------
 
@@ -441,7 +517,12 @@ def _cleanup_old_backups(retention_days: int) -> None:
 
 
 async def backup_all_databases() -> None:
-    """Discover and back up all application databases."""
+    """Discover and back up all application databases.
+
+    On full success, runs retention purges (pgmq archives and terminal jobs)
+    so they are always sequenced after a confirmed backup, never before or
+    concurrently with it.
+    """
     host, user, password = _parse_db_connection()
     databases = await _discover_databases(host, user, password)
 
@@ -453,6 +534,7 @@ async def backup_all_databases() -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     env = {**os.environ, "PGPASSWORD": password}
 
+    failed: list[str] = []
     for db_name in databases:
         backup_file = _BACKUPS_DIR / f"{db_name}.{timestamp}.dump"
         try:
@@ -476,17 +558,20 @@ async def backup_all_databases() -> None:
                     await proc.wait()
                     backup_file.unlink(missing_ok=True)
                     logger.error("pg_dump timed out for %s", db_name)
+                    failed.append(db_name)
                     continue
 
             if proc.returncode != 0:
                 backup_file.unlink(missing_ok=True)
                 logger.error("pg_dump failed for %s: %s", db_name, stderr_data.decode().strip())
+                failed.append(db_name)
                 continue
 
             size = backup_file.stat().st_size
             if size < 100:
                 backup_file.unlink(missing_ok=True)
                 logger.error("Backup too small for %s — database may be empty", db_name)
+                failed.append(db_name)
                 continue
 
             logger.info("Backed up %s: %s (%.1f MB)", db_name, backup_file.name, size / 1024 / 1024)
@@ -494,6 +579,18 @@ async def backup_all_databases() -> None:
         except Exception:
             backup_file.unlink(missing_ok=True)
             logger.exception("Failed to back up %s", db_name)
+            failed.append(db_name)
 
     retention_days = int(os.getenv("BACKUP_RETENTION_DAYS", "7"))
     _cleanup_old_backups(retention_days)
+
+    if failed:
+        logger.warning(
+            "Skipping retention purge — %d database backup(s) failed: %s",
+            len(failed),
+            ", ".join(failed),
+        )
+        return
+
+    await purge_pgmq_archives()
+    await purge_old_jobs()
