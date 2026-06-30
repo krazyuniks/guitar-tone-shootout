@@ -20,11 +20,12 @@ wt_dc exec -T webapp lint-imports
 
 # --- Host-side checks (no container) ---
 # A fresh feature worktree has no model/video/node_modules (gitignored); install
-# the pinned deps once, then run the project-pinned tsc (not npx/global).
+# the pinned deps once, then run the project-pinned tsc and eslint (not npx/global).
 if [ ! -x model/video/node_modules/.bin/tsc ]; then
     (cd model/video && npm ci)
 fi
 (cd model/video && node_modules/.bin/tsc --noEmit)
+(cd model/video && node_modules/.bin/eslint .)
 python scripts/test_quality_check.py tests/
 
 echo "[gate] passed"

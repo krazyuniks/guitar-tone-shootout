@@ -35,7 +35,7 @@ const Root: React.FC = () => {
     <>
       <Composition
         id="ShootoutVideo"
-        component={ShootoutVideo as React.ComponentType<any>}
+        component={ShootoutVideo}
         durationInFrames={300}
         fps={30}
         width={1920}

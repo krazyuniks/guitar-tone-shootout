@@ -1,6 +1,6 @@
 """Pydantic schemas for video service API."""
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -11,7 +11,7 @@ class RenderRequest(BaseModel):
     """Request schema for POST /render endpoint."""
 
     composition_type: str = Field(..., description="Type of composition to render")
-    data: dict[str, Any] = Field(..., description="Composition-specific data")
+    data: dict[str, object] = Field(..., description="Composition-specific data")
 
     def to_composition_spec(self) -> CompositionSpec:
         """Convert to core domain CompositionSpec.

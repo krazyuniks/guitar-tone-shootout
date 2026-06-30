@@ -20,7 +20,7 @@ import { Player, type PlayerRef } from '@remotion/player';
 
 export interface RemotionPlayerProps {
   /** The Remotion composition component to render */
-  component: React.ComponentType<any>;
+  component: React.ComponentType<Record<string, unknown>>;
   /** Duration of the composition in frames */
   durationInFrames: number;
   /** Width of the composition canvas */
@@ -30,7 +30,7 @@ export interface RemotionPlayerProps {
   /** Frames per second */
   fps: number;
   /** Input props to pass to the composition */
-  inputProps?: Record<string, any>;
+  inputProps?: Record<string, unknown>;
   /** Show player controls */
   controls?: boolean;
   /** Autoplay the composition */
