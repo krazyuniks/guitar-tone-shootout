@@ -302,12 +302,16 @@ The SPA lives under `frontend/app/` and is served by the `app` Docker service (V
 just watch-app       # Tail the Vite dev server logs
 just logs app        # Same, alternative
 just build-app       # Production build to frontend/app/dist/ (slice A4)
+just gen-app-api     # Regenerate frontend/app/src/api/schema.d.ts from webapp /openapi.json
+just check-app-api   # Fail if frontend/app/src/api/schema.d.ts is stale
 ```
 
 **Serve topology:**
 
 - Dev: browser → nginx (port 9000) → `app:5173` (Vite dev server with HMR). `/api/*` and `/auth/*` are handled by nginx before reaching the app location.
 - Prod: `vite build` → `frontend/app/dist/` → nginx `location /app/` serves static files with SPA fallback.
+
+**API client:** `frontend/app/src/api/schema.d.ts` is generated from the webapp OpenAPI document served at `/openapi.json` by `openapi-typescript`. The app wrapper in `frontend/app/src/api/client.ts` uses `openapi-fetch` with `credentials: 'include'` for the httpOnly session cookie. Regenerate with `just gen-app-api`; `just check-app-api` and the worktree gate detect stale generated types.
 
 **Stack:** Vite + React 19 + TanStack Router + Tailwind v4 (vendored `gts` theme tokens).
 
@@ -372,6 +376,8 @@ just build-astro       # Build Astro frontend
 just watch-astro       # Watch and auto-rebuild
 just verify-astro-build # Verify the build (astro + islands) produces key artefacts
 just build-app         # Build the Vite + React app SPA
+just gen-app-api       # Regenerate App SPA OpenAPI types
+just check-app-api     # Check generated App SPA OpenAPI types for drift
 just watch-app         # Tail the app SPA dev server logs
 ```
 

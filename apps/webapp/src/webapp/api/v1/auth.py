@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from webapp.adapters.persistence.repositories.audit_repository import (
     SQLAlchemyAuditRepository,
 )
+from webapp.api.v1.schemas.auth import AuthMeResponse
 from webapp.auth.dependencies import (
     CurrentUser,
     CurrentUserOptional,
@@ -279,18 +280,18 @@ async def callback(
 # --- User info ---
 
 
-@router.get("/me")
-async def get_me(current_user: CurrentUserOptional) -> dict:
+@router.get("/me", response_model=AuthMeResponse)
+async def get_me(current_user: CurrentUserOptional) -> AuthMeResponse:
     """Return current user info, or 401 if not authenticated."""
     if current_user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    return {
-        "id": str(current_user.id),
-        "username": current_user.username,
-        "email": current_user.email,
-        "avatar_url": current_user.avatar_url,
-    }
+    return AuthMeResponse(
+        id=str(current_user.id),
+        username=current_user.username,
+        email=current_user.email,
+        avatar_url=current_user.avatar_url,
+    )
 
 
 # --- Logout ---

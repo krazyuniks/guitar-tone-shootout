@@ -291,6 +291,14 @@ verify-astro-build:
 build-app:
     {{dc}} exec -T app pnpm build
 
+# Regenerate App SPA OpenAPI types from the running webapp schema.
+gen-app-api:
+    {{dc}} run --rm --no-deps -T app pnpm gen:api
+
+# Fail if App SPA OpenAPI types are stale.
+check-app-api:
+    {{dc}} run --rm --no-deps -T app pnpm check:api
+
 # Watch App SPA dev server logs
 watch-app:
     {{dc}} logs -f app
