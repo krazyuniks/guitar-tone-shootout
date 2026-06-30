@@ -14,8 +14,8 @@ RUN chown appuser:appgroup /app
 
 USER appuser
 
-COPY --chown=$USER_UID:$USER_GID package.json pnpm-lock.yaml* ./
-RUN pnpm install
+COPY --chown=$USER_UID:$USER_GID package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 COPY --chown=$USER_UID:$USER_GID . .
 
