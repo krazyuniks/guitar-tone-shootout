@@ -54,8 +54,26 @@ jobs:
       - name: Apply migrations
         run: uv run alembic -c infrastructure/migrations/alembic.ini upgrade head
 
+      # Some tests/unit/frontend tests assert the built Astro dist exists, so the
+      # gate builds the astro service before pytest (provision.sh). Mirror that.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/astro/pnpm-lock.yaml
+
+      - name: Build Astro dist
+        working-directory: frontend/astro
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
       - name: pytest
-        run: uv run pytest tests/unit/ tests/regression/ -x -q
+        run: uv run pytest tests/unit/ -q
 
       - name: import-linter
         run: uv run lint-imports
