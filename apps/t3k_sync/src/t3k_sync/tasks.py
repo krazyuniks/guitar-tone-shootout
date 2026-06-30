@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import httpx
-from sqlalchemy import text
+from sqlalchemy import column, delete, table, text
 
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus
@@ -407,9 +407,11 @@ async def purge_pgmq_archives() -> None:
             if not _PGMQ_ARCHIVE_TABLE_RE.match(table_name):
                 logger.warning("Skipping unexpected pgmq archive table: %r", table_name)
                 continue
+            # Use SQLAlchemy's structured expression API so the table identifier
+            # is quoted by the dialect rather than interpolated into a raw SQL string.
+            archive_tbl = table(table_name, column("archived_at"), schema="pgmq")
             del_result = await session.execute(
-                text(f"DELETE FROM pgmq.{table_name} WHERE archived_at < :cutoff"),
-                {"cutoff": cutoff},
+                delete(archive_tbl).where(archive_tbl.c.archived_at < cutoff)
             )
             total += del_result.rowcount
         return total
