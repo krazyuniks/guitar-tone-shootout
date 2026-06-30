@@ -51,6 +51,9 @@ jobs:
           GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA pgmq TO gts;
           SQL
 
+      - name: Apply migrations
+        run: uv run alembic -c infrastructure/migrations/alembic.ini upgrade head
+
       - name: pytest
         run: uv run pytest tests/unit/ tests/regression/ -x -q
 
