@@ -103,13 +103,14 @@ gts/
 │       └── src/video_worker/
 │           └── consumers/     # Video command handlers
 ├── frontend/
-│   └── astro/                  # Build system (pre-bundled)
-│       ├── src/
-│       │   ├── pages/          # Template sources (.html.ts, .astro)
-│       │   ├── layouts/        # Base layout wrapper
-│       │   ├── styles/         # Tailwind, design tokens
-│       │   └── components/     # React islands
-│       └── dist/               # Build output (COMMITTED TO GIT)
+│   ├── astro/                  # Public/SEO surface (Astro + React islands)
+│   │   ├── src/
+│   │   │   ├── pages/          # Template sources (.html.ts, .astro)
+│   │   │   ├── layouts/        # Base layout wrapper
+│   │   │   ├── styles/         # Tailwind, design tokens
+│   │   │   └── components/     # React islands
+│   │   └── dist/               # Generated build output (gitignored)
+│   └── app/                    # Logged-in app SPA (Vite + React, /app/*)
 ├── infrastructure/             # Deployment/ops config only (NOT a workspace package; mypy-excluded)
 │   ├── docker/                 # Dockerfiles, init scripts
 │   ├── migrations/             # Alembic migrations (gts_core)
@@ -189,20 +190,13 @@ just watch-astro        # Starts astro, watches for changes
 | File | Purpose |
 |------|---------|
 | `docker-compose.yml` | Base config (no ports, no worktree-specific values) |
-| `docker-compose.override.yml` | Worktree-specific ports, container names |
+| `docker-compose.override.yml` | Generated/ignored worktree-specific ports and container names |
 | `docker-compose.traefik.yml` | Traefik integration for HTTPS/subdomain routing |
-| `docker-compose.ci.yml` | CI ephemeral volumes, isolation |
 
 **Usage:**
 ```bash
-# Local development (auto-loads override)
-docker compose up -d
-
-# With Traefik (public deployment)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.traefik.yml up -d
-
-# CI
-docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+just up-d      # Local development, routed through scripts/dc
+just preview   # Add the Traefik overlay for an on-demand preview subdomain
 ```
 
 ---
@@ -377,6 +371,8 @@ just psql              # Connect to gts_core
 just build-astro       # Build Astro frontend
 just watch-astro       # Watch and auto-rebuild
 just verify-astro-build # Verify the build (astro + islands) produces key artefacts
+just build-app         # Build the Vite + React app SPA
+just watch-app         # Tail the app SPA dev server logs
 ```
 
 ---
@@ -387,7 +383,6 @@ just verify-astro-build # Verify the build (astro + islands) produces key artefa
 
 ```bash
 just down
-docker compose down -v  # Remove volumes (WARNING: deletes data)
 just up-d
 ```
 
@@ -441,7 +436,7 @@ Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
 1. Create + provision a feature worktree: `worktree up gts <branch>`
 2. Implement changes
 3. Run quality gates: `just check`
-4. Push and create PR
+4. Push and create a reviewed PR, or let VF publish a `vf-ready` PR for a drain slice
 5. After merge: `worktree down gts <branch>`
 
 ### Code Style

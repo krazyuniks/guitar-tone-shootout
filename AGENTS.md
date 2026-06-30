@@ -36,7 +36,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR 
 
 **No defensive parsing.** If the upstream is deterministic, trust it. Read the one field where the data lives. If something fails, fail with a clear error — do not silently try another extraction path. Three lines, not twenty.
 
-**Wait for instructions.** Do ONLY what the user explicitly asks. NEVER chain into the next logical step without being asked.
+**Autonomy boundary.** Execute the user's requested task end to end, but do not chain into unrelated follow-on work without being asked.
 
 **Conversation UX.** One question at a time. Context adjacent to question. Build iteratively. Summarise periodically. No scroll-dependent layouts.
 
