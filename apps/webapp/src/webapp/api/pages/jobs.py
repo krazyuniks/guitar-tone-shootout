@@ -58,9 +58,9 @@ async def job_detail_page(
     from webapp.services.job_service import JobService
 
     service = JobService(db)
-    job = await service.get_by_id(UUID(job_id))
+    job = await service.get_by_id(UUID(job_id), current_user.id)
 
-    if not job or job.user_id != current_user.id:
+    if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found",
@@ -83,11 +83,11 @@ async def job_status_fragment(
     current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Render an HTMX fragment with current job status for the owner."""
-    stmt = select(Job).where(Job.id == job_id)
+    stmt = select(Job).where(Job.id == job_id, Job.user_id == current_user.id)
     result = await db.execute(stmt)
     job = result.scalar_one_or_none()
 
-    if job is None or job.user_id != current_user.id:
+    if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 
     status_value = job.status.value if hasattr(job.status, "value") else str(job.status)

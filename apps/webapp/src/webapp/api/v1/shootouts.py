@@ -185,11 +185,9 @@ async def get_shootout(
         HTTPException: 404 if shootout not found or not owned by user
     """
     service = ShootoutService(db)
-    shootout = await service.get_by_id(shootout_id)
+    shootout = await service.get_by_id(shootout_id, current_user.id)
 
-    # Return 404 if shootout not found or not owned by user
-    # (Return 404 instead of 403 to avoid leaking existence)
-    if not shootout or shootout.user_id != current_user.id:
+    if shootout is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",
@@ -220,9 +218,9 @@ async def delete_shootout(
     Returns 404 if shootout not found or not owned by user.
     """
     service = ShootoutService(db)
-    shootout = await service.get_by_id(shootout_id)
+    shootout = await service.get_by_id(shootout_id, current_user.id)
 
-    if not shootout or shootout.user_id != current_user.id:
+    if shootout is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",
@@ -255,17 +253,16 @@ async def process_shootout(
         HTTPException: 404 if shootout not found or not owned by user
         HTTPException: 400 if shootout has no chains or is not in DRAFT status
     """
-    # Query shootout with chains
+    # Query shootout with chains, scoped to the owning user
     stmt = (
         select(ShootoutModel)
-        .where(ShootoutModel.id == shootout_id)
+        .where(ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id)
         .options(joinedload(ShootoutModel.chains))
     )
     result = await db.execute(stmt)
     shootout = result.unique().scalar_one_or_none()
 
-    # Return 404 if shootout not found or not owned by user
-    if not shootout or shootout.user_id != current_user.id:
+    if shootout is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",
@@ -324,11 +321,13 @@ async def stream_master_audio(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> FileResponse:
     """Stream the master FLAC audio file for a completed shootout."""
-    stmt = select(ShootoutModel).where(ShootoutModel.id == shootout_id)
+    stmt = select(ShootoutModel).where(
+        ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id
+    )
     result = await db.execute(stmt)
     shootout = result.scalar_one_or_none()
 
-    if not shootout or shootout.user_id != current_user.id:
+    if shootout is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shootout not found")
 
     if not shootout.output_path:
@@ -370,6 +369,9 @@ async def stream_chain_audio(
         .where(
             ShootoutChainModel.id == chain_id,
             ShootoutChainModel.shootout_id == shootout_id,
+            select(ShootoutModel.id)
+            .where(ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id)
+            .exists(),
         )
         .options(
             joinedload(ShootoutChainModel.shootout),
@@ -379,7 +381,7 @@ async def stream_chain_audio(
     result = await db.execute(stmt)
     chain = result.unique().scalar_one_or_none()
 
-    if not chain or chain.shootout.user_id != current_user.id:
+    if chain is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chain not found")
 
     if not chain.segments:
@@ -538,8 +540,7 @@ async def delete_comment(
         current_user: Currently authenticated user
 
     Raises:
-        HTTPException: 404 if shootout or comment not found
-        HTTPException: 403 if user is not the comment author
+        HTTPException: 404 if shootout or comment not found or not owned by user
     """
     # Verify shootout exists
     service = ShootoutCommentService(db)
@@ -551,16 +552,11 @@ async def delete_comment(
             detail="Shootout not found",
         )
 
-    # Delete the comment
+    # Delete the comment (ownership enforced at query level)
     try:
         await service.delete(comment_id=comment_id, user_id=current_user.id)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comment not found",
-        )
-    except PermissionError:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the comment author can delete the comment",
         )

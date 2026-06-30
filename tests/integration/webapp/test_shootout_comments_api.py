@@ -379,7 +379,7 @@ class TestDeleteComment:
 
         assert response.status_code == 404
 
-    async def test_delete_comment_returns_403_for_non_author(
+    async def test_delete_comment_returns_404_for_non_author(
         self,
         app: FastAPI,
         db_session: AsyncSession,
@@ -387,7 +387,7 @@ class TestDeleteComment:
         other_user: User,
         test_shootout: Shootout,
     ) -> None:
-        """DELETE returns 403 when user is not the comment author."""
+        """DELETE returns 404 when user is not the comment author (ownership enforced at query level)."""
         comment = ShootoutComment(
             shootout_id=test_shootout.id,
             user_id=test_user.id,
@@ -408,7 +408,7 @@ class TestDeleteComment:
         set_session_override(None)
         set_user_override(None)
 
-        assert response.status_code == 403
+        assert response.status_code == 404
 
     async def test_delete_comment_returns_404_for_missing_shootout(
         self,

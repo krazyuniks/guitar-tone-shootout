@@ -81,16 +81,19 @@ class ShootoutCommentRepository:
         result = await self.session.execute(stmt)
         return list(result.unique().scalars().all())
 
-    async def get_by_id(self, comment_id: UUID) -> ShootoutComment | None:
-        """Get a comment by ID.
+    async def get_by_id(self, comment_id: UUID, user_id: UUID) -> ShootoutComment | None:
+        """Get a comment by ID, scoped to the owning user.
 
         Args:
             comment_id: ID of the comment
+            user_id: The requesting user's UUID — included in the WHERE clause
 
         Returns:
-            Comment if found, None otherwise
+            Comment if found and owned, None otherwise
         """
-        stmt = select(ShootoutComment).where(ShootoutComment.id == comment_id)
+        stmt = select(ShootoutComment).where(
+            ShootoutComment.id == comment_id, ShootoutComment.user_id == user_id
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

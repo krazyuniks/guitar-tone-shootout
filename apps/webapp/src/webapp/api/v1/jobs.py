@@ -141,11 +141,9 @@ async def get_job(
     """
     service = JobService(db)
 
-    job = await service.get_by_id(job_id)
+    job = await service.get_by_id(job_id, current_user.id)
 
-    # Return 404 if job not found or not owned by user
-    # (Return 404 instead of 403 to avoid leaking existence)
-    if not job or job.user_id != current_user.id:
+    if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found",
@@ -190,11 +188,11 @@ async def retry_job(
         HTTPException: 404 if job not found or not owned by user
         HTTPException: 409 if job is not in FAILED status
     """
-    stmt = select(JobModel).where(JobModel.id == job_id)
+    stmt = select(JobModel).where(JobModel.id == job_id, JobModel.user_id == current_user.id)
     result = await db.execute(stmt)
     job_model = result.scalar_one_or_none()
 
-    if not job_model or job_model.user_id != current_user.id:
+    if job_model is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found",

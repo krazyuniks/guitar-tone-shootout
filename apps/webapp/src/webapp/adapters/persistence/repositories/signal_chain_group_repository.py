@@ -32,16 +32,19 @@ class SQLAlchemySignalChainGroupRepository:
         """
         self.session = session
 
-    async def get_by_id(self, group_id: UUID) -> SignalChainGroupEntity | None:
-        """Get a group by its ID.
+    async def get_by_id(self, group_id: UUID, user_id: UUID) -> SignalChainGroupEntity | None:
+        """Get a group by ID, scoped to the owning user.
 
         Args:
             group_id: The group's UUID
+            user_id: The requesting user's UUID — included in the WHERE clause
 
         Returns:
-            The SignalChainGroup entity if found, None otherwise
+            The SignalChainGroup entity if found and owned, None otherwise
         """
-        stmt = select(SignalChainGroup).where(SignalChainGroup.id == group_id)
+        stmt = select(SignalChainGroup).where(
+            SignalChainGroup.id == group_id, SignalChainGroup.user_id == user_id
+        )
         result = await self.session.execute(stmt)
         group = result.scalar_one_or_none()
 

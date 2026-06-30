@@ -31,16 +31,17 @@ class SQLAlchemyJobRepository:
         """
         self.session = session
 
-    async def get_by_id(self, job_id: UUID) -> JobEntity | None:
-        """Get a job by its ID.
+    async def get_by_id(self, job_id: UUID, user_id: UUID) -> JobEntity | None:
+        """Get a job by ID, scoped to the owning user.
 
         Args:
             job_id: The job's UUID
+            user_id: The requesting user's UUID — included in the WHERE clause
 
         Returns:
-            The Job entity if found, None otherwise
+            The Job entity if found and owned, None otherwise
         """
-        stmt = select(Job).where(Job.id == job_id)
+        stmt = select(Job).where(Job.id == job_id, Job.user_id == user_id)
         result = await self.session.execute(stmt)
         job = result.scalar_one_or_none()
 

@@ -294,7 +294,7 @@ class TestSignalChainGroupPermutations:
         service = SignalChainGroupService(db_session)
 
         async with db_session.begin():
-            result = await service.generate_permutations(group_with_2x2.id)
+            result = await service.generate_permutations(group_with_2x2.id, group_with_2x2.user_id)
 
         # Should return 4 chain IDs (2 amps × 2 IRs)
         assert len(result) == 4
@@ -320,7 +320,9 @@ class TestSignalChainGroupPermutations:
         service = SignalChainGroupService(db_session)
 
         async with db_session.begin():
-            chain_ids = await service.generate_permutations(group_with_2x2.id)
+            chain_ids = await service.generate_permutations(
+                group_with_2x2.id, group_with_2x2.user_id
+            )
 
         # Verify chain names contain the group name
         stmt = select(SignalChain).where(
@@ -385,7 +387,7 @@ class TestSignalChainGroupPermutations:
         # Should raise error or return error result
         async with db_session.begin():
             with pytest.raises(Exception) as exc_info:
-                await service.generate_permutations(group.id)
+                await service.generate_permutations(group.id, group.user_id)
 
             # Error should mention max permutations
             assert (
@@ -443,7 +445,7 @@ class TestSignalChainGroupPermutations:
         service = SignalChainGroupService(db_session)
 
         async with db_session.begin():
-            chain_ids = await service.generate_permutations(group.id)
+            chain_ids = await service.generate_permutations(group.id, group.user_id)
 
         # Should create 2 chains (2 amps × 1 null option for slot 1)
         assert len(chain_ids) == 2
@@ -458,7 +460,9 @@ class TestSignalChainGroupPermutations:
         service = SignalChainGroupService(db_session)
 
         async with db_session.begin():
-            chain_ids = await service.generate_permutations(group_with_2x2.id)
+            chain_ids = await service.generate_permutations(
+                group_with_2x2.id, group_with_2x2.user_id
+            )
 
         # Verify chains exist and are valid
         stmt = select(SignalChain).where(

@@ -307,17 +307,19 @@ class TestShootoutCommentServiceDelete:
         other_user: User,
         shootout: Shootout,
     ) -> None:
-        """Service.delete raises PermissionError when user is not the comment author."""
+        """Service.delete raises ValueError when user is not the comment author (ownership enforced at query level)."""
         comment = ShootoutComment(
             shootout_id=shootout.id,
             user_id=user.id,
             content="Not yours to delete",
         )
         session.add(comment)
+        await session.flush()
+        comment_id = comment.id
         await session.commit()
 
-        with pytest.raises(PermissionError):
-            await service.delete(comment_id=comment.id, user_id=other_user.id)
+        with pytest.raises(ValueError):
+            await service.delete(comment_id=comment_id, user_id=other_user.id)
 
     @pytest.mark.asyncio
     async def test_delete_does_not_remove_other_users_comment(
@@ -335,10 +337,11 @@ class TestShootoutCommentServiceDelete:
             content="Still here",
         )
         session.add(comment)
-        await session.commit()
+        await session.flush()
         comment_id = comment.id
+        await session.commit()
 
-        with pytest.raises(PermissionError):
+        with pytest.raises(ValueError):
             await service.delete(comment_id=comment_id, user_id=other_user.id)
 
         # Verify comment still exists

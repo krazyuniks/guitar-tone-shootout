@@ -297,9 +297,12 @@ class TestShootoutCommentRepositoryDelete:
             content="Find me",
         )
         session.add(comment)
+        await session.flush()
+        comment_id = comment.id
+        owner_user_id = comment.user_id
         await session.commit()
 
-        found = await repository.get_by_id(comment.id)
+        found = await repository.get_by_id(comment_id, owner_user_id)
 
         assert found is not None
         assert found.id == comment.id
@@ -311,5 +314,5 @@ class TestShootoutCommentRepositoryDelete:
         repository: ShootoutCommentRepository,
     ) -> None:
         """Repository.get_by_id returns None for non-existent comment."""
-        found = await repository.get_by_id(uuid4())
+        found = await repository.get_by_id(uuid4(), uuid4())
         assert found is None

@@ -109,17 +109,13 @@ class ShootoutCommentService:
 
         Args:
             comment_id: ID of the comment to delete
-            user_id: ID of the user attempting deletion
+            user_id: ID of the user attempting deletion — scopes the lookup
 
         Raises:
-            ValueError: If comment doesn't exist
-            PermissionError: If user is not the comment author
+            ValueError: If comment not found or not owned by user
         """
-        comment = await self.repository.get_by_id(comment_id)
+        comment = await self.repository.get_by_id(comment_id, user_id)
         if not comment:
             raise ValueError("Comment not found")
-
-        if comment.user_id != user_id:
-            raise PermissionError("Only the comment author can delete the comment")
 
         await self.repository.delete(comment_id)

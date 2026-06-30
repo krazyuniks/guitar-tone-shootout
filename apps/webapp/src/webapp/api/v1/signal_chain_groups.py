@@ -136,11 +136,9 @@ async def get_signal_chain_group(
         HTTPException: 404 if group not found or not owned by user
     """
     service = SignalChainGroupService(db)
-    group = await service.get_by_id(group_id)
+    group = await service.get_by_id(group_id, current_user.id)
 
-    # Return 404 if group not found or not owned by user
-    # (Return 404 instead of 403 to avoid leaking existence)
-    if not group or group.user_id != current_user.id:
+    if group is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal chain group not found",
@@ -185,10 +183,9 @@ async def update_signal_chain_group(
         HTTPException: 404 if group not found or not owned by user
     """
     service = SignalChainGroupService(db)
-    group = await service.get_by_id(group_id)
+    group = await service.get_by_id(group_id, current_user.id)
 
-    # Check ownership
-    if not group or group.user_id != current_user.id:
+    if group is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal chain group not found",
@@ -249,9 +246,9 @@ async def generate_permutations(
         HTTPException: 400 if too many permutations
     """
     service = SignalChainGroupService(db)
-    group = await service.get_by_id(group_id)
+    group = await service.get_by_id(group_id, current_user.id)
 
-    if not group or group.user_id != current_user.id:
+    if group is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal chain group not found",
@@ -259,7 +256,7 @@ async def generate_permutations(
 
     try:
         async with db.begin():
-            chain_ids = await service.generate_permutations(group_id)
+            chain_ids = await service.generate_permutations(group_id, current_user.id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -281,9 +278,9 @@ async def delete_signal_chain_group(
     Returns 404 if group not found or not owned by user.
     """
     service = SignalChainGroupService(db)
-    group = await service.get_by_id(group_id)
+    group = await service.get_by_id(group_id, current_user.id)
 
-    if not group or group.user_id != current_user.id:
+    if group is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Signal chain group not found",

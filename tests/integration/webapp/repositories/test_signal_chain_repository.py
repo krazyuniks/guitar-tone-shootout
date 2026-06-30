@@ -145,9 +145,11 @@ async def test_signal_chain_get_by_id_single_query(
     # Expire all objects to force fresh query
     db_session.expire_all()
 
-    # Count queries during get_by_id
+    # Count queries during get_by_id (with owner's user_id)
     with QueryCounter(db_engine) as counter:
-        result = await signal_chain_repository.get_by_id(sample_signal_chain_with_blocks.id)
+        result = await signal_chain_repository.get_by_id(
+            sample_signal_chain_with_blocks.id, sample_signal_chain_with_blocks.user_id
+        )
 
     # Verify chain loaded
     assert result is not None
@@ -186,8 +188,10 @@ async def test_signal_chain_get_by_id_uses_unique(
     # Expire all objects
     db_session.expire_all()
 
-    # Execute get_by_id
-    result = await signal_chain_repository.get_by_id(sample_signal_chain_with_blocks.id)
+    # Execute get_by_id (with owner's user_id)
+    result = await signal_chain_repository.get_by_id(
+        sample_signal_chain_with_blocks.id, sample_signal_chain_with_blocks.user_id
+    )
 
     # Verify no duplicates: should return single entity, not multiple
     assert result is not None

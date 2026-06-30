@@ -151,19 +151,23 @@ async def test_shootout_get_by_id_single_query(
     await shootout_repository.save(shootout_entity)
     await db_session.commit()
 
+    # Capture IDs before expire_all() to avoid lazy-load in async context
+    shootout_id = shootout_entity.id
+    owner_user_id = test_user.id
+
     # Expire all objects to force fresh queries
     db_session.expire_all()
 
-    # Execute get_by_id
+    # Execute get_by_id with owner's user_id
     with QueryCounter(db_engine) as counter:
-        result = await shootout_repository.get_by_id(shootout_entity.id)
+        result = await shootout_repository.get_by_id(shootout_id, owner_user_id)
 
     # Acceptance Criteria: query count = 1
     assert counter.count == 1, f"Expected 1 query (single SELECT with JOIN), got {counter.count}"
 
     # Acceptance Criteria: verify correct entity returned
     assert result is not None, "Expected shootout to be found"
-    assert result.id == shootout_entity.id, "Expected correct shootout ID"
+    assert result.id == shootout_id, "Expected correct shootout ID"
     assert result.name == "Test Shootout", "Expected correct shootout name"
 
     # Acceptance Criteria: verify relationships loaded correctly

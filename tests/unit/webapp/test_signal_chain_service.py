@@ -129,7 +129,7 @@ class TestSignalChainServiceCreate:
         session.expire_all()
 
         # Assert - verify persisted by re-querying
-        result = await service.get_by_id(created.id)
+        result = await service.get_by_id(created.id, created.user_id)
         assert result is not None
         assert result.id == created.id
 
@@ -162,7 +162,7 @@ class TestSignalChainServiceGetById:
         created = await service.create(chain)
 
         # Act
-        result = await service.get_by_id(created.id)
+        result = await service.get_by_id(created.id, created.user_id)
 
         # Assert
         assert result is not None
@@ -175,7 +175,7 @@ class TestSignalChainServiceGetById:
     ) -> None:
         """Test getting a nonexistent chain returns None."""
         # Act
-        result = await service.get_by_id(uuid4())
+        result = await service.get_by_id(uuid4(), uuid4())
 
         # Assert
         assert result is None
@@ -334,7 +334,7 @@ class TestSignalChainServiceDelete:
         await service.delete(created.id)
 
         # Assert - chain should be gone
-        result = await service.get_by_id(created.id)
+        result = await service.get_by_id(created.id, created.user_id)
         assert result is None
 
     async def test_delete_nonexistent_chain_does_not_raise(

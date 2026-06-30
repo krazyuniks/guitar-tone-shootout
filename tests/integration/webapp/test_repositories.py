@@ -102,7 +102,7 @@ async def test_di_track_save_and_get_by_id(
     await db_session.commit()
 
     # Retrieve track
-    retrieved = await repo.get_by_id(track.id)
+    retrieved = await repo.get_by_id(track.id, track.user_id)
 
     # Verify
     assert retrieved is not None
@@ -248,7 +248,7 @@ async def test_shootout_save_and_get_by_id(
     await db_session.commit()
 
     # Retrieve shootout
-    retrieved = await repo.get_by_id(shootout.id)
+    retrieved = await repo.get_by_id(shootout.id, shootout.user_id)
 
     # Verify
     assert retrieved is not None
@@ -340,7 +340,7 @@ async def test_job_save_and_get_by_id(
     await db_session.commit()
 
     # Retrieve job
-    retrieved = await repo.get_by_id(job.id)
+    retrieved = await repo.get_by_id(job.id, job.user_id)
 
     # Verify
     assert retrieved is not None
@@ -531,7 +531,7 @@ async def test_signal_chain_group_save_and_get_by_id(
     await db_session.commit()
 
     # Retrieve group
-    retrieved = await repo.get_by_id(group.id)
+    retrieved = await repo.get_by_id(group.id, group.user_id)
 
     # Verify
     assert retrieved is not None

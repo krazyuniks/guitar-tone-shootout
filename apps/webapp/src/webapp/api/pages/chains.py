@@ -114,9 +114,9 @@ async def chain_detail_page(
 ) -> HTMLResponse:
     """Render signal chain detail page."""
     repo = SQLAlchemySignalChainRepository(db)
-    chain = await repo.get_by_id(UUID(chain_id))
+    chain = await repo.get_by_id(UUID(chain_id), current_user.id)
 
-    if not chain or chain.user_id != current_user.id:
+    if chain is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chain not found",
@@ -200,8 +200,8 @@ async def chain_delete_fragment(
     """Delete a signal chain via HTMX."""
     repo = SQLAlchemySignalChainRepository(db)
 
-    chain = await repo.get_by_id(UUID(chain_id))
-    if not chain or chain.user_id != current_user.id:
+    chain = await repo.get_by_id(UUID(chain_id), current_user.id)
+    if chain is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chain not found",
@@ -228,8 +228,8 @@ async def chain_duplicate_fragment(
 
     repo = SQLAlchemySignalChainRepository(db)
 
-    chain = await repo.get_by_id(UUID(chain_id))
-    if not chain or chain.user_id != current_user.id:
+    chain = await repo.get_by_id(UUID(chain_id), current_user.id)
+    if chain is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Chain not found",

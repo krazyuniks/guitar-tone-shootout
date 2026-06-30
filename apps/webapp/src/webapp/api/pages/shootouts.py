@@ -173,7 +173,7 @@ async def shootout_detail_page(
     """Render shootout detail page with full SSR."""
     stmt = (
         select(Shootout)
-        .where(Shootout.id == UUID(shootout_id))
+        .where(Shootout.id == UUID(shootout_id), Shootout.user_id == current_user.id)
         .options(
             joinedload(Shootout.user),
             joinedload(Shootout.di_track),
@@ -183,7 +183,7 @@ async def shootout_detail_page(
     result = await db.execute(stmt)
     shootout_model = result.unique().scalar_one_or_none()
 
-    if not shootout_model or shootout_model.user_id != current_user.id:
+    if shootout_model is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",
@@ -242,8 +242,8 @@ async def shootout_delete_fragment(
     """Delete a shootout via HTMX."""
     service = ShootoutService(db)
 
-    shootout = await service.get_by_id(UUID(shootout_id))
-    if not shootout or shootout.user_id != current_user.id:
+    shootout = await service.get_by_id(UUID(shootout_id), current_user.id)
+    if shootout is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",

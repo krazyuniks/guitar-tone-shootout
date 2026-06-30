@@ -132,10 +132,12 @@ async def library_track_toggle_public(
     current_user: Annotated[User, Depends(get_current_user_required)],
 ) -> HTMLResponse:
     """Toggle a DI track's public visibility. Returns updated track_item."""
-    result = await db.execute(select(DITrack).where(DITrack.id == UUID(track_id)))
+    result = await db.execute(
+        select(DITrack).where(DITrack.id == UUID(track_id), DITrack.user_id == current_user.id)
+    )
     track = result.scalar_one_or_none()
 
-    if not track or track.user_id != current_user.id:
+    if track is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Track not found",

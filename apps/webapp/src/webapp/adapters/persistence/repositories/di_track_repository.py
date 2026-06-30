@@ -30,16 +30,17 @@ class SQLAlchemyDITrackRepository:
         """
         self.session = session
 
-    async def get_by_id(self, track_id: UUID) -> DITrackEntity | None:
-        """Get a DI track by its ID.
+    async def get_by_id(self, track_id: UUID, user_id: UUID) -> DITrackEntity | None:
+        """Get a DI track by ID, scoped to the owning user.
 
         Args:
             track_id: The track's UUID
+            user_id: The requesting user's UUID — included in the WHERE clause
 
         Returns:
-            The DITrack entity if found, None otherwise
+            The DITrack entity if found and owned, None otherwise
         """
-        stmt = select(DITrack).where(DITrack.id == track_id)
+        stmt = select(DITrack).where(DITrack.id == track_id, DITrack.user_id == user_id)
         result = await self.session.execute(stmt)
         track = result.scalar_one_or_none()
 
