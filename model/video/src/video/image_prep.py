@@ -114,13 +114,10 @@ def normalize_gear_image(
                 ext = "jpg"
             output_path = output_dir_p / f"{input_p.stem}.{ext}"
 
-            # Save with format-specific options
-            save_kwargs = {"format": target_format}
             if target_format in ("JPEG", "WEBP"):
-                save_kwargs["quality"] = quality
-                save_kwargs["optimize"] = True
-
-            converted.save(output_path, **save_kwargs)
+                converted.save(output_path, format=target_format, quality=quality, optimize=True)
+            else:
+                converted.save(output_path, format=target_format)
             return str(output_path)
 
     except Exception as e:
@@ -164,14 +161,11 @@ def normalise_image(
             if img.width > max_width or img.height > max_height:
                 img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
 
-            # Save with format-specific options
-            save_kwargs = {"format": format}
-            if format in ("JPEG", "WEBP"):
-                save_kwargs["quality"] = quality
-                save_kwargs["optimize"] = True
-
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            img.save(output_path, **save_kwargs)
+            if format in ("JPEG", "WEBP"):
+                img.save(output_path, format=format, quality=quality, optimize=True)
+            else:
+                img.save(output_path, format=format)
 
     except Exception as e:
         raise ValueError(f"Failed to process image {input_path}: {e}") from e
@@ -213,12 +207,10 @@ def normalise_image_bytes(
 
             # Save to BytesIO
             output = BytesIO()
-            save_kwargs = {"format": format}
             if format in ("JPEG", "WEBP"):
-                save_kwargs["quality"] = quality
-                save_kwargs["optimize"] = True
-
-            img.save(output, **save_kwargs)
+                img.save(output, format=format, quality=quality, optimize=True)
+            else:
+                img.save(output, format=format)
             return output.getvalue()
 
     except Exception as e:

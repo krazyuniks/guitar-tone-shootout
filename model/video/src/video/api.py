@@ -2,6 +2,7 @@
 
 import uuid
 from dataclasses import dataclass
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 
@@ -13,10 +14,10 @@ from video.schemas import (
 )
 
 
-@dataclass
+@dataclass(frozen=True)
 class RenderJob:
     job_id: str
-    status: str
+    status: Literal["pending", "rendering", "complete", "failed"]
     composition_type: str
     data: dict[str, object]
     output_path: str | None = None
@@ -69,6 +70,7 @@ def create_app() -> FastAPI:
             status=job.status,
             output_path=job.output_path,
             error_message=job.error_message,
+            progress=None,
         )
 
     @app.get("/health", response_model=HealthResponse)

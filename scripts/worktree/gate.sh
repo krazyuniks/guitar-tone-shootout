@@ -14,12 +14,13 @@ echo "[gate] project=$COMPOSE_PROJECT_NAME slot=$SLOT"
 # --- In-container checks (run inside the provisioned webapp) ---
 wt_dc exec -T webapp ruff check model/ infra/ sources/ apps/ tests/
 wt_dc exec -T webapp ruff format --check model/ infra/ sources/ apps/ tests/
-wt_dc exec -T webapp mypy model/gts/ --strict
+wt_dc exec -T webapp mypy model/gts/ model/video/ --strict
 wt_dc exec -T webapp pytest tests/unit/ -v
 wt_dc exec -T webapp lint-imports
 
-# --- Astro TypeScript check (enforces noImplicitAny + no-explicit-any for .ts/.tsx/.astro) ---
+# --- Astro checks (noImplicitAny via astro check; no-explicit-any via eslint-plugin-astro) ---
 wt_dc exec -T astro pnpm check
+wt_dc exec -T astro pnpm lint
 
 # --- Host-side checks (no container) ---
 # A fresh feature worktree has no model/video/node_modules (gitignored); install
