@@ -16,6 +16,12 @@ from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.di_track_repository import (
     SQLAlchemyDITrackRepository,
 )
+from webapp.adapters.persistence.repositories.job_repository import (
+    SQLAlchemyJobRepository,
+)
+from webapp.adapters.persistence.repositories.shootout_comment_repository import (
+    ShootoutCommentRepository,
+)
 from webapp.adapters.persistence.repositories.shootout_repository import (
     SQLAlchemyShootoutRepository,
 )
@@ -180,4 +186,82 @@ async def test_di_track_get_by_id_rejects_wrong_user(db_session: AsyncSession) -
     assert found.id == entity.id
 
     not_found = await repo.get_by_id(entity.id, other.id)
+    assert not_found is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_job_get_by_id_rejects_wrong_user(db_session: AsyncSession) -> None:
+    """get_by_id returns None when user_id does not match the record owner."""
+    from gts.domain.entities.job import Job as JobEntity
+    from gts.domain.value_objects.job_status import JobType
+
+    suffix = uuid4().hex[:8]
+    owner = await _create_user(db_session, f"owner_{suffix}")
+    other = await _create_user(db_session, f"other_{suffix}")
+
+    entity = JobEntity(
+        id=uuid4(),
+        user_id=owner.id,
+        job_type=JobType.AUDIO_PROCESSING,
+    )
+    repo = SQLAlchemyJobRepository(db_session)
+    await repo.save(entity)
+    await db_session.flush()
+
+    found = await repo.get_by_id(entity.id, owner.id)
+    assert found is not None
+    assert found.id == entity.id
+
+    not_found = await repo.get_by_id(entity.id, other.id)
+    assert not_found is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_shootout_comment_get_by_id_rejects_wrong_user(db_session: AsyncSession) -> None:
+    """get_by_id returns None when user_id does not match the comment author."""
+    from webapp.adapters.persistence.models.shootout import DITrack, Shootout
+    from webapp.adapters.persistence.models.shootout_comment import ShootoutComment
+
+    suffix = uuid4().hex[:8]
+    owner = await _create_user(db_session, f"owner_{suffix}")
+    other = await _create_user(db_session, f"other_{suffix}")
+
+    di_track = DITrack(
+        id=uuid4(),
+        user_id=owner.id,
+        name="DI",
+        file_path="/audio/di.wav",
+        original_filename="di.wav",
+        duration_seconds=30.0,
+        sample_rate=44100,
+    )
+    db_session.add(di_track)
+    shootout = Shootout(
+        id=uuid4(),
+        user_id=owner.id,
+        name="Shootout",
+        di_track_id=di_track.id,
+    )
+    db_session.add(shootout)
+    await db_session.flush()
+
+    comment = ShootoutComment(
+        id=uuid4(),
+        shootout_id=shootout.id,
+        user_id=owner.id,
+        content="Owner's comment",
+    )
+    db_session.add(comment)
+    await db_session.flush()
+    comment_id = comment.id
+
+    repo = ShootoutCommentRepository(db_session)
+
+    found = await repo.get_by_id(comment_id, owner.id)
+    assert found is not None
+    assert found.id == comment_id
+
+    not_found = await repo.get_by_id(comment_id, other.id)
     assert not_found is None

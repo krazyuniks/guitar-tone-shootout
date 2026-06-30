@@ -101,14 +101,19 @@ class TestJobRoundTrip:
     @pytest.mark.asyncio
     async def test_create_and_retrieve(self, db_session: AsyncSession) -> None:
         """Create job via repository, retrieve it - validates Job stack."""
-        job = JobEntity(job_type=JobType.AUDIO_PROCESSING, message="Test job")
+        user = User(username="regression_job_user", email="job@regression.dev")
+        db_session.add(user)
+        await db_session.flush()
+        user_id = user.id
+
+        job = JobEntity(user_id=user_id, job_type=JobType.AUDIO_PROCESSING, message="Test job")
         original_id = job.id
 
         repo = SQLAlchemyJobRepository(db_session)
         await repo.save(job)
         await db_session.commit()
 
-        retrieved = await repo.get_by_id(original_id)
+        retrieved = await repo.get_by_id(original_id, user_id)
 
         assert retrieved is not None, "Job should be retrievable"
         assert retrieved.id == original_id
@@ -119,7 +124,12 @@ class TestJobRoundTrip:
     @pytest.mark.asyncio
     async def test_job_state_transitions(self, db_session: AsyncSession) -> None:
         """Job state machine works correctly."""
-        job = JobEntity(job_type=JobType.AUDIO_PROCESSING)
+        user = User(username="regression_state_user", email="state@regression.dev")
+        db_session.add(user)
+        await db_session.flush()
+        user_id = user.id
+
+        job = JobEntity(user_id=user_id, job_type=JobType.AUDIO_PROCESSING)
 
         # Queue the job
         job.queue(task_id="test-task-123")
@@ -146,7 +156,7 @@ class TestJobRoundTrip:
         await repo.save(job)
         await db_session.commit()
 
-        retrieved = await repo.get_by_id(job.id)
+        retrieved = await repo.get_by_id(job.id, user_id)
         assert retrieved is not None
         assert retrieved.status == JobStatus.COMPLETED
         assert retrieved.result_path == "/results/test.wav"
