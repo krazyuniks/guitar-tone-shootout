@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -34,6 +35,8 @@ _FALLBACK_REFRESH_SECONDS = 1800
 _BACKUPS_DIR = Path("/app/backups")
 _DISPATCH_MAX_FAILURES = 3
 _DISPATCH_COOLDOWN = timedelta(minutes=30)
+# pgmq archive table names are a_ + alphanumeric/underscore (from system catalog, not user input).
+_PGMQ_ARCHIVE_TABLE_RE = re.compile(r"^a_[a-z][a-z0-9_]*$")
 
 # Test hook: set by tests to inject the test session into DB tasks.
 # Allows task functions to share the test's SAVEPOINT-isolated session.
@@ -379,6 +382,77 @@ async def dispatch_pending_jobs() -> None:
 
     if dispatched > 0:
         logger.info("Dispatched %d stuck pending jobs", dispatched)
+
+
+# ---------------------------------------------------------------------------
+# Retention / purge
+# ---------------------------------------------------------------------------
+
+
+async def purge_pgmq_archives() -> None:
+    """Delete pgmq archive rows older than PGMQ_ARCHIVE_RETENTION_DAYS (default: 30)."""
+    retention_days = int(os.getenv("PGMQ_ARCHIVE_RETENTION_DAYS", "30"))
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+
+    discover_stmt = text(
+        "SELECT table_name FROM information_schema.tables"
+        " WHERE table_schema = 'pgmq' AND table_name LIKE 'a_%' AND table_type = 'BASE TABLE'"
+    )
+
+    async def _purge(session: AsyncSession) -> int:
+        result = await session.execute(discover_stmt)
+        table_names = [row[0] for row in result.fetchall()]
+        total = 0
+        for table_name in table_names:
+            if not _PGMQ_ARCHIVE_TABLE_RE.match(table_name):
+                logger.warning("Skipping unexpected pgmq archive table: %r", table_name)
+                continue
+            del_result = await session.execute(
+                text(f"DELETE FROM pgmq.{table_name} WHERE archived_at < :cutoff"),
+                {"cutoff": cutoff},
+            )
+            total += del_result.rowcount
+        return total
+
+    if _test_session is not None:
+        deleted = await _purge(_test_session)
+    else:
+        async with get_core_session() as session:
+            deleted = await _purge(session)
+            await session.commit()
+
+    if deleted:
+        logger.info("Purged %d rows from pgmq archives (cutoff: %s)", deleted, cutoff.date())
+
+
+async def purge_old_jobs() -> None:
+    """Delete terminal core_jobs older than JOB_RETENTION_DAYS (default: 90)."""
+    retention_days = int(os.getenv("JOB_RETENTION_DAYS", "90"))
+    cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+    terminal = [
+        JobStatus.COMPLETED.value,
+        JobStatus.FAILED.value,
+        JobStatus.DEAD_LETTERED.value,
+    ]
+    stmt = text(
+        "DELETE FROM core_jobs"
+        " WHERE status = ANY(:statuses)"
+        " AND completed_at IS NOT NULL"
+        " AND completed_at < :cutoff"
+    )
+    params: dict[str, object] = {"statuses": terminal, "cutoff": cutoff}
+
+    if _test_session is not None:
+        result = await _test_session.execute(stmt, params)
+        deleted = result.rowcount
+    else:
+        async with get_core_session() as session:
+            result = await session.execute(stmt, params)
+            await session.commit()
+            deleted = result.rowcount
+
+    if deleted:
+        logger.info("Purged %d terminal jobs (cutoff: %s)", deleted, cutoff.date())
 
 
 # ---------------------------------------------------------------------------
