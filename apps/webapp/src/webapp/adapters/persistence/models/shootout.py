@@ -6,7 +6,18 @@ import uuid
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from .base import (
@@ -137,6 +148,10 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = synonym("name")  # Alias for backwards compatibility
+    # ADR-0004 versioned substrate: the run generation this shootout is on.
+    # Incremented in the rerun run-request transaction (DOM-rerun-versioning);
+    # the first run renders as version 1.
+    render_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[ShootoutStatus] = mapped_column(
         EnumByValue(ShootoutStatus),
@@ -264,6 +279,9 @@ class AudioSegment(UUIDMixin, Base):
     integrated_lufs: Mapped[float] = mapped_column(Float, nullable=False)
     peak_dbfs: Mapped[float] = mapped_column(Float, nullable=False)
     waveform: Mapped[Any] = mapped_column(WaveformDataType(), nullable=True)
+    # ADR-0004 versioned substrate: the render generation this segment belongs
+    # to. (shootout_chain_id, version) is the segment idempotency key.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     # Relationship
     shootout_chain: Mapped[ShootoutChain] = relationship(
@@ -272,5 +290,39 @@ class AudioSegment(UUIDMixin, Base):
         lazy="raise",
     )
 
-    # Index
-    __table_args__ = (Index("ix_audio_segments_chain_id", "shootout_chain_id"),)
+    __table_args__ = (
+        Index("ix_audio_segments_chain_id", "shootout_chain_id"),
+        UniqueConstraint("shootout_chain_id", "version", name="uq_audio_segments_chain_version"),
+    )
+
+
+class ShootoutManifest(UUIDMixin, Base):
+    """Immutable, versioned render-time snapshot of a shootout (ADR-0004).
+
+    Insert-only: there is no application UPDATE or targeted-DELETE path; the
+    only deletion is the FK cascade when an owner deletes the whole shootout.
+    The payload is a self-contained JSONB snapshot with no foreign keys into
+    chains, segments, signal chains, or gear, which is what makes a published
+    manifest immune to the signal-chain CASCADE. The field-level payload
+    schema is owned by docs/design/shootout-artefact-contract.md.
+    """
+
+    __tablename__ = "core_shootout_manifests"
+
+    shootout_id: Mapped[uuid.UUID] = mapped_column(
+        UuidType(),
+        ForeignKey("core_shootouts.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    payload: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[Any] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    shootout: Mapped[Shootout] = relationship("Shootout", lazy="raise")
+
+    __table_args__ = (
+        UniqueConstraint("shootout_id", "version", name="uq_shootout_manifests_shootout_version"),
+    )
