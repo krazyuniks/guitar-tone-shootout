@@ -95,14 +95,15 @@ class TestMessageLease:
 
     async def test_terminal_job_stops_the_beats(self, db_session: AsyncSession) -> None:
         job, msg_id = await _running_job_with_message(db_session)
+        job_id = job.id
         await db_session.execute(
             text("UPDATE core_jobs SET status = 'completed' WHERE id = :id"),
-            {"id": str(job.id)},
+            {"id": str(job_id)},
         )
         db_session.expire(job)
 
         async with MessageLease(
-            "unused-patched", "audio_commands", msg_id, job.id, interval_seconds=0.05
+            "unused-patched", "audio_commands", msg_id, job_id, interval_seconds=0.05
         ):
             await asyncio.sleep(0.2)
 
