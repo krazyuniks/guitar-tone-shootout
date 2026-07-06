@@ -228,10 +228,22 @@ async def monitor_stale_jobs() -> None:
         )
         try:
             if _test_session is not None:
-                await transition_job(_test_session, job_id, JobStatus.FAILED, error=error)
+                await transition_job(
+                    _test_session,
+                    job_id,
+                    JobStatus.FAILED,
+                    error=error,
+                    require_stale_lease=True,
+                )
             else:
                 async with get_core_session_no_tx() as session:
-                    await transition_job(session, job_id, JobStatus.FAILED, error=error)
+                    await transition_job(
+                        session,
+                        job_id,
+                        JobStatus.FAILED,
+                        error=error,
+                        require_stale_lease=True,
+                    )
         except TransitionError as exc:
             # A live re-claim or a terminal write won the race: not ours to reap.
             logger.info("Reap skipped for job %s: %s", job_id, exc)
@@ -263,6 +275,7 @@ async def monitor_stale_jobs() -> None:
                             job_id,
                             JobStatus.FAILED,
                             error="Stale lease: sync advisory lock free, worker died",
+                            require_stale_lease=True,
                         )
                 except TransitionError as exc:
                     logger.info("Reap skipped for sync job %s: %s", job_id, exc)

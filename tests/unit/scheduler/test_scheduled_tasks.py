@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select, text
 
 from gts.domain.entities.job import Job
@@ -468,3 +469,39 @@ class TestPurgeOldJobs:
 
         await session.refresh(model)
         assert model.status == JobStatus.COMPLETED.value
+
+
+class TestReaperLoseToLiveRenewal:
+    """The reap re-checks the lease under the row lock and loses to a renewal."""
+
+    async def test_renewed_lease_between_select_and_reap_survives(
+        self, session: AsyncSession
+    ) -> None:
+        from webapp.adapters.persistence.models.job import Job as JobModel
+        from webapp.services.job_transitions import (
+            LiveLeaseError,
+            transition_job,
+        )
+
+        job_entity = Job(
+            id=uuid4(),
+            user_id=None,
+            job_type=JobType.AUDIO_PROCESSING,
+            status=JobStatus.RUNNING,
+            last_heartbeat=datetime.now(UTC),  # renewed just before the reap
+        )
+        job_model = JobModel.from_entity(job_entity)
+        session.add(job_model)
+        await session.commit()
+
+        with pytest.raises(LiveLeaseError):
+            await transition_job(
+                session,
+                job_entity.id,
+                JobStatus.FAILED,
+                error="Stale lease",
+                require_stale_lease=True,
+            )
+
+        await session.refresh(job_model)
+        assert job_model.status == JobStatus.RUNNING.value
