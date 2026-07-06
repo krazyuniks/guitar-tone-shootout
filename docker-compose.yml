@@ -73,7 +73,6 @@ services:
       - ./infrastructure/docker:/app/infrastructure/docker
       - ./infrastructure/nginx:/app/infrastructure/nginx
       - ./.claude:/app/.claude
-      - ./worktree:/app/worktree
       - ./docker-compose.yml:/app/docker-compose.yml
       - ./docker-compose.traefik.yml:/app/docker-compose.traefik.yml
       - ./justfile:/app/justfile
