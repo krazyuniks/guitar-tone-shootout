@@ -60,7 +60,7 @@ services:
     environment:
       ENV: production
 
-  video-worker:
+  shootout-orchestrator:
     environment:
       ENV: production
 

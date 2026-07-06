@@ -44,7 +44,7 @@ worktree down gts <branch>   # Tear it down
 | **Video Processing** | Remotion (React-based video composition) |
 | **Testing** | pytest, Playwright |
 | **Quality** | ruff, mypy, import-linter |
-| **Infrastructure** | Docker (postgres, webapp, nginx, t3k-sync, audio-worker, video-worker) |
+| **Infrastructure** | Docker (postgres, webapp, nginx, t3k-sync, audio-worker, shootout-orchestrator) |
 
 ---
 
@@ -99,8 +99,8 @@ gts/
 │   ├── audio-worker/          # Audio BC worker (pgmq consumer)
 │   │   └── src/audio_worker/
 │   │       └── consumers/     # Audio command handlers
-│   └── video-worker/          # Video BC worker (pgmq consumer)
-│       └── src/video_worker/
+│   └── shootout_orchestrator/ # Shootout orchestration worker (pgmq consumer)
+│       └── src/shootout_orchestrator/
 │           └── consumers/     # Video command handlers
 ├── frontend/
 │   ├── astro/                  # Public/SEO surface (Astro + React islands)
@@ -154,7 +154,7 @@ Onion Architecture with the domain at the centre. Dependencies point inward: ada
 | `webapp` | gts, audio, video, messaging | sources |
 | `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
 | `audio-worker` | gts, audio, messaging | video, sources, webapp |
-| `video-worker` | gts, video, messaging | audio, sources, webapp |
+| `shootout-orchestrator` | gts, messaging, webapp | audio, video, sources |
 
 **Enforcement:** import-linter contracts in root `pyproject.toml`.
 
@@ -173,7 +173,7 @@ Onion Architecture with the domain at the centre. Dependencies point inward: ada
 ### Runtime Stack
 
 ```
-postgres, webapp, nginx, t3k-sync, audio-worker, video-worker
+postgres, webapp, nginx, t3k-sync, audio-worker, shootout-orchestrator
 ```
 
 ### Build-Only Services

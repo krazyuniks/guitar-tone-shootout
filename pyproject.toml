@@ -52,7 +52,7 @@ members = [
     "apps/webapp",
     "apps/t3k_sync",
     "apps/audio_worker",
-    "apps/video_worker",
+    "apps/shootout_orchestrator",
 ]
 
 # =============================================================================
@@ -69,7 +69,7 @@ root_packages = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 include_external_packages = true
 
@@ -86,7 +86,7 @@ forbidden_modules = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 
 # messaging has zero dependencies on other project packages
@@ -102,7 +102,7 @@ forbidden_modules = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 
 # gts domain models must remain framework-agnostic.
@@ -181,7 +181,7 @@ forbidden_modules = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 
 # Video can only depend on gts domain
@@ -195,7 +195,7 @@ forbidden_modules = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 
 # Source adapters can only depend on gts domain
@@ -208,7 +208,7 @@ forbidden_modules = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 
 # Webapp cannot depend on sources
@@ -260,7 +260,7 @@ known-first-party = [
     "webapp",
     "t3k_sync",
     "audio_worker",
-    "video_worker",
+    "shootout_orchestrator",
 ]
 
 [tool.ruff.lint.per-file-ignores]

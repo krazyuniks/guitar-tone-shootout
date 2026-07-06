@@ -1,62 +1,27 @@
 # syntax=docker/dockerfile:1
-# GTS Development - Unified dev container with hot reload
+# GTS Shootout Orchestrator - start_shootout pgmq consumer container.
+# Slim Python base: the orchestrator fans out audio jobs and reconciles state;
+# it renders nothing and needs no audio or browser runtime.
 
 FROM python:3.14.3-slim
 
-# Build args for user mapping (avoids root-owned files on bind mounts)
 ARG USER_UID=1000
 ARG USER_GID=1000
 
-# Install system dependencies for development
-# PostgreSQL 18 client from official repo (Debian trixie only ships 17.x)
-RUN apt-get update && apt-get install -y --no-install-recommends curl gnupg \
-    && echo "deb http://apt.postgresql.org/pub/repos/apt trixie-pgdg main" \
-       > /etc/apt/sources.list.d/pgdg.list \
-    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-       | gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libsndfile1 \
-    ffmpeg \
-    git \
-    postgresql-client-18 \
-    # Chrome dependencies for Remotion headless rendering
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 20 (for video integration tests with Remotion/TypeScript)
-# Available natively in Debian 13 (trixie) repos
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user with host UID/GID
 RUN groupadd -g $USER_GID appgroup || true \
     && useradd -u $USER_UID -g $USER_GID -m -s /bin/bash appuser || true
 
-# Install uv (latest for development)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Create workdir owned by appuser — no chown -R needed later
 RUN mkdir -p /app && chown appuser:appgroup /app
 WORKDIR /app
-
-# Switch to non-root user BEFORE copy/install — everything created as appuser
 USER appuser
 
-# Copy workspace configuration (including README.md for hatchling)
 COPY --chown=appuser:appgroup pyproject.toml uv.lock README.md ./
 COPY --chown=appuser:appgroup model/gts/pyproject.toml model/gts/README.md model/gts/
 COPY --chown=appuser:appgroup model/audio/pyproject.toml model/audio/README.md model/audio/
@@ -68,13 +33,12 @@ COPY --chown=appuser:appgroup apps/t3k_sync/pyproject.toml apps/t3k_sync/README.
 COPY --chown=appuser:appgroup apps/audio_worker/pyproject.toml apps/audio_worker/README.md apps/audio_worker/
 COPY --chown=appuser:appgroup apps/shootout_orchestrator/pyproject.toml apps/shootout_orchestrator/README.md apps/shootout_orchestrator/
 
-# Create src directory structure for workspace resolution
-# Each package needs an __init__.py for hatchling to recognize it
 RUN mkdir -p model/gts/src/gts model/audio/src/audio model/video/src/video \
     infra/messaging/src/messaging \
     sources/t3k/src/source_t3k \
     apps/webapp/src/webapp \
-    apps/t3k_sync/src/t3k_sync apps/audio_worker/src/audio_worker apps/shootout_orchestrator/src/shootout_orchestrator \
+    apps/t3k_sync/src/t3k_sync apps/audio_worker/src/audio_worker \
+    apps/shootout_orchestrator/src/shootout_orchestrator \
     && touch model/gts/src/gts/__init__.py \
     && touch model/audio/src/audio/__init__.py \
     && touch model/video/src/video/__init__.py \
@@ -85,19 +49,13 @@ RUN mkdir -p model/gts/src/gts model/audio/src/audio model/video/src/video \
     && touch apps/audio_worker/src/audio_worker/__init__.py \
     && touch apps/shootout_orchestrator/src/shootout_orchestrator/__init__.py
 
-# Install all dependencies including dev (workspace members included)
-# Cache owned by appuser (uid/gid on mount) — runs as appuser, no chown needed
 RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=${USER_UID},gid=${USER_GID} \
     uv sync --frozen --all-packages
 
-# Source code will be volume mounted at runtime
-
-# Environment
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PATH="/app/.venv/bin:$PATH"
 
-EXPOSE 8000
+EXPOSE 8002
 
-# Default to running backend with hot reload
-CMD ["uvicorn", "webapp.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "shootout_orchestrator.main:app", "--host", "0.0.0.0", "--port", "8002"]
