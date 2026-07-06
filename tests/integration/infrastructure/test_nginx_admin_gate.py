@@ -32,6 +32,18 @@ def test_api_admin_prefix_is_blocked() -> None:
     assert "proxy_pass" not in body, "the admin prefix must never be proxied"
 
 
+def test_api_admin_exact_uri_is_blocked() -> None:
+    """A trailing-slash prefix location misses the slashless /api/admin URI."""
+    blocks = _location_blocks(TEMPLATE.read_text())
+    assert "= /api/admin" in blocks, (
+        "nginx must define location = /api/admin - the /api/admin/ prefix "
+        "block does not match the exact slashless URI"
+    )
+    body = blocks["= /api/admin"]
+    assert "return 404" in body
+    assert "proxy_pass" not in body
+
+
 def test_no_stale_admin_block() -> None:
     """The old /admin/ block matched nothing the webapp serves; it must be gone."""
     blocks = _location_blocks(TEMPLATE.read_text())

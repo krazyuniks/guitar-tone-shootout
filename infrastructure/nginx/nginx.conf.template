@@ -59,8 +59,14 @@ server {
     }
 
     # Admin API is internal-only: reachable in-network at webapp:8000 (gts_admin,
-    # scheduled sweeps), never through the public proxy. This longest-prefix
-    # match beats the general /api/ proxy below; uniform 404, no existence leak.
+    # scheduled sweeps), never through the public proxy. The prefix block beats
+    # the general /api/ proxy below on longest-prefix match; the exact-match
+    # block covers the slashless /api/admin URI, which a prefix location with a
+    # trailing slash does not. Uniform 404, no existence leak.
+    location = /api/admin {
+        return 404;
+    }
+
     location /api/admin/ {
         return 404;
     }
