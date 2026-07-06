@@ -101,7 +101,7 @@ gts/
 │   │       └── consumers/     # Audio command handlers
 │   └── shootout_orchestrator/ # Shootout orchestration worker (pgmq consumer)
 │       └── src/shootout_orchestrator/
-│           └── consumers/     # Video command handlers
+│           └── consumers/     # Shootout command handlers
 ├── frontend/
 │   ├── astro/                  # Public/SEO surface (Astro + React islands)
 │   │   ├── src/
