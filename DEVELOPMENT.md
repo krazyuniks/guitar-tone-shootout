@@ -152,11 +152,13 @@ Onion Architecture with the domain at the centre. Dependencies point inward: ada
 | `video` | gts | audio, sources, apps |
 | `source_*` | gts | audio, video, other sources, apps |
 | `webapp` | gts, audio, video, messaging | sources |
-| `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
-| `audio-worker` | gts, audio, messaging | video, sources, webapp |
+| `t3k-sync` | gts, source_t3k, messaging, webapp | audio, video |
+| `audio-worker` | gts, audio, messaging, webapp | video, sources |
 | `shootout-orchestrator` | gts, messaging, webapp | audio, video, sources |
 
-**Enforcement:** import-linter contracts in root `pyproject.toml`.
+**Enforcement:** import-linter contracts in root `pyproject.toml` (the model/infra
+packages are contract-enforced; the worker apps' webapp dependency is the accepted
+shared-ORM/services seam, revisited by the deferred composition-root unit).
 
 ### Single Database Architecture
 

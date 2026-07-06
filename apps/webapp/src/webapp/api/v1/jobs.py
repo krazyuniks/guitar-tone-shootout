@@ -11,8 +11,8 @@ from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.job import JobResponse
+from webapp.services.job_dispatch import enqueue_job
 from webapp.services.job_service import JobService
-from webapp.services.processing_service import enqueue_to_worker
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -204,14 +204,15 @@ async def retry_job(
             detail="Only failed jobs can be retried",
         )
 
+    # Transactional outbox: the PENDING reset and the pgmq send commit together
+    # inside enqueue_job.
     job_model.status = JobStatus.PENDING
     job_model.progress = 0
     job_model.error = None
-    job_model.message = "Queued for retry"
-    await db.commit()
-    await db.refresh(job_model)
+    await db.flush()
 
-    await enqueue_to_worker(job_model.id)
+    await enqueue_job(db, job_model.id, message="Queued for retry")
+    await db.refresh(job_model)
 
     return JobResponse(
         id=job_model.id,

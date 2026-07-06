@@ -26,7 +26,7 @@ from webapp.api.v1.schemas.shootout_comment import (
     CommentCreateRequest,
     CommentResponse,
 )
-from webapp.services.processing_service import enqueue_to_worker
+from webapp.services.job_dispatch import enqueue_job
 from webapp.services.shootout_comment_service import ShootoutCommentService
 from webapp.services.shootout_service import ShootoutService
 
@@ -283,6 +283,9 @@ async def process_shootout(
         )
 
     # Create Job record
+    # Transactional outbox: the job-row insert, the shootout status flip, and
+    # the pgmq send commit together inside enqueue_job, so processing starts
+    # without waiting on the fallback dispatch sweep.
     job = JobModel(
         id=uuid4(),
         user_id=current_user.id,
@@ -291,15 +294,10 @@ async def process_shootout(
         status=JobStatus.PENDING,
     )
     db.add(job)
-
-    # Update shootout status to PENDING
     shootout.status = ShootoutStatus.PENDING
+    await db.flush()
 
-    # Commit the transaction
-    await db.commit()
-
-    # Call worker admin API to enqueue the job
-    await enqueue_to_worker(job.id)
+    await enqueue_job(db, job.id, message="Queued for shootout processing")
 
     return {"job_id": str(job.id)}
 

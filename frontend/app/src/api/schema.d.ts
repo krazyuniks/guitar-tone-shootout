@@ -1184,10 +1184,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Enqueue Job
-         * @description Enqueue a job to the appropriate pgmq queue.
+         * Enqueue Pending Job
+         * @description Enqueue a PENDING job through the transactional outbox (send + QUEUED + commit).
          */
-        post: operations["enqueue_job_api_admin_enqueue_post"];
+        post: operations["enqueue_pending_job_api_admin_enqueue_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4364,7 +4364,7 @@ export interface operations {
             };
         };
     };
-    enqueue_job_api_admin_enqueue_post: {
+    enqueue_pending_job_api_admin_enqueue_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4385,6 +4385,27 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EnqueueResponse"];
                 };
+            };
+            /** @description Job type has no queue route */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Job not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Job is not PENDING */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
