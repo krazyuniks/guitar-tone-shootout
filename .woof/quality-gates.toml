@@ -1,7 +1,6 @@
 # GTS consumer quality-gates configuration for external Woof.
 #
 # Woof source: git@github.com:krazyuniks/woof.git
-# Local checkout: /home/ryan/Work/woof
 #
 # Stage 5 Check 1 runs each gate's command in declaration order. GTS code
 # changes should use the repo's own quality surface; no Woof source or Woof

@@ -442,7 +442,7 @@ Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore
 1. Create + provision a feature worktree: `worktree up gts <branch>`
 2. Implement changes
 3. Run quality gates: `just check`
-4. Push and create a reviewed PR, or let VF publish a `vf-ready` PR for a drain slice
+4. Push and create a reviewed PR (an external SDLC runner may publish the PR for a drain slice)
 5. After merge: `worktree down gts <branch>`
 
 ### Code Style

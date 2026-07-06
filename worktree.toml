@@ -7,8 +7,8 @@
 # secrets - every one of those concerns lives inside the three hooks, driven by
 # WORKTREE_SLOT and the WORKTREE_PORT_* values the engine injects. The full
 # derivation (compose project, container names, postgres volume, subnet, storage
-# binds, migrations, secrets) is specified in the vault planning doc
-# records/radianit/projects/guitar-tone-shootout/planning/worktree-engine-consumption.md.
+# binds, migrations, secrets) is implemented and documented by the three hooks
+# under scripts/worktree/; DEVELOPMENT.md covers the up/gate/down workflow.
 #
 # Services declare only what the engine allocates a host port for: the FastAPI
 # webapp (WORKTREE_PORT_WEBAPP) and its Postgres (WORKTREE_PORT_DB). nginx, astro,

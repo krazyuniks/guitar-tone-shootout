@@ -125,16 +125,14 @@ Two surfaces, one design system (ADR-0001):
 
 ## Workflow
 
-Woof is an external workflow tool, not GTS source. The source of truth for
-Woof is `krazyuniks/woof`; Ryan's local checkout is `/home/ryan/Work/woof`.
+Development tooling (workflow runners, orchestrators, review drivers) is
+external to GTS. This repository keeps only thin consumer configuration for
+such tools (`.woof/*.toml` for the woof runner); it never vendors tool source,
+schemas, playbooks, tests, runtime state, audit logs, locks, or generated
+codebase maps.
 
-GTS only keeps consumer configuration under `.woof/*.toml`. Do not vendor-copy
-Woof source, schemas, playbooks, tests, runtime epics, audit logs, locks, or
-generated codebase maps into this repository. Dogfooding happens by running the
-external Woof checkout/tool against GTS as a consumer repo.
-
-GTS work still starts from GitHub issues. If Woof is unavailable, work manually
-from the issue; do not recreate an in-repo workflow implementation.
+GTS work starts from GitHub issues. If no external runner is available, work
+manually from the issue; do not recreate an in-repo workflow implementation.
 
 ## Infrastructure
 
@@ -142,10 +140,10 @@ from the issue; do not recreate an in-repo workflow implementation.
 - NEVER edit `.worktree-run/docker-compose.override.yml` — it is provision-generated.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
 - For ANY infrastructure problem: `worktree up gts <branch>` (feature) or `just up-d` (main).
-- Inside a driver-provisioned slice (VaultForeman/Woof) you are already in a feature worktree the driver provisioned, with its stack up and the webapp serving `/openapi.json`. Use that running stack (codegen runs in-container against `http://webapp:8000/openapi.json`), commit your change, and stop — the driver runs the gate and the review. The driver owns the worktree lifecycle and the stack: do NOT run `worktree up/down/recover` or `just up-d`/`just down`/`just rebuild` from inside a slice. `worktree recover` deletes a dirty checkout (your uncommitted work goes with it), and the plain stack recipes boot with a blank `OAUTH_ENCRYPTION_KEY` (they read the human-only `env.local.sh` a fresh worktree lacks, whereas the gate mints an ephemeral key) so a hand-started stack fails the auth-encryption tests.
+- Inside a driver-provisioned slice (an external SDLC runner) you are already in a feature worktree the driver provisioned, with its stack up and the webapp serving `/openapi.json`. Use that running stack (codegen runs in-container against `http://webapp:8000/openapi.json`), commit your change, and stop — the driver runs the gate and the review. The driver owns the worktree lifecycle and the stack: do NOT run `worktree up/down/recover` or `just up-d`/`just down`/`just rebuild` from inside a slice. `worktree recover` deletes a dirty checkout (your uncommitted work goes with it), and the plain stack recipes boot with a blank `OAUTH_ENCRYPTION_KEY` (they read the human-only `env.local.sh` a fresh worktree lacks, whereas the gate mints an ephemeral key) so a hand-started stack fails the auth-encryption tests.
 - **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx.
 - **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main stack only.
-- **Messaging:** pgmq queues in PostgreSQL. Command queues (point-to-point) and event queues (multi-consumer via offset tracking). See wiki for queue topology.
+- **Messaging:** pgmq queues in PostgreSQL. Four queues today: `audio_commands` (audio-worker), `shootout_commands` (shootout orchestration), `source_events` (t3k-sync), `dead_letter` (DLQ, no consumer yet).
 
 ### Env model
 

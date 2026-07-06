@@ -1,7 +1,6 @@
 # GTS consumer agent role configuration for external Woof.
 #
 # Woof source: git@github.com:krazyuniks/woof.git
-# Local checkout: /home/ryan/Work/woof
 #
 # Defaults supplied by woof when a role is missing — declare here only
 # when the project needs a non-default model, MCP set, or extra flags.

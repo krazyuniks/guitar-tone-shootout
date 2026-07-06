@@ -1,7 +1,6 @@
 # GTS consumer prerequisites for external Woof.
 #
 # Woof source: git@github.com:krazyuniks/woof.git
-# Local checkout: /home/ryan/Work/woof
 #
 # Version specifications: "any" = presence-only check.
 # Explicit floors ("X", "X.Y", "X.Y.Z") accepted as equal-or-greater.
