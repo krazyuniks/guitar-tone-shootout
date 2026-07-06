@@ -99,7 +99,11 @@ async def enqueue_job(
         raise JobNotPendingError(job.status)
 
     queue, command = _route(job, source_bc)
-    await PgmqClient(session).send(queue, command)
+    pgmq = PgmqClient(session)
+    # The producer is self-sufficient: consumers create queues at startup, but
+    # an enqueue must not depend on a consumer ever having run (idempotent).
+    await pgmq.create_queue(queue)
+    await pgmq.send(queue, command)
     job.status = JobStatus.QUEUED
     if message is not None:
         job.message = message
