@@ -129,7 +129,7 @@ class TestProcessPendingRetries:
     """Test process_pending_retries scheduled task."""
 
     async def test_resets_failed_job_with_retry_time_reached(self, session: AsyncSession) -> None:
-        """FAILED job with next_retry_at <= now is reset to PENDING."""
+        """FAILED job with next_retry_at <= now is reclaimed and enqueued (QUEUED)."""
         from t3k_sync.tasks import process_pending_retries
         from webapp.adapters.persistence.models.job import Job as JobModel
 
@@ -151,7 +151,8 @@ class TestProcessPendingRetries:
         await process_pending_retries()
 
         await session.refresh(job_model)
-        assert job_model.status == JobStatus.PENDING.value
+        assert job_model.status == JobStatus.QUEUED.value
+        assert job_model.attempt == 2
 
     async def test_does_not_retry_job_before_retry_time(self, session: AsyncSession) -> None:
         """FAILED job with next_retry_at in future is not retried yet."""
@@ -202,7 +203,7 @@ class TestProcessPendingRetries:
         assert job_model.status == JobStatus.FAILED.value
 
     async def test_processes_multiple_eligible_retries(self, session: AsyncSession) -> None:
-        """All eligible FAILED jobs are reset to PENDING."""
+        """All eligible FAILED jobs are reclaimed and enqueued."""
         from t3k_sync.tasks import process_pending_retries
         from webapp.adapters.persistence.models.job import Job as JobModel
 
@@ -228,7 +229,7 @@ class TestProcessPendingRetries:
 
         result = await session.execute(
             select(JobModel).where(
-                JobModel.status == JobStatus.PENDING.value,
+                JobModel.status == JobStatus.QUEUED.value,
                 JobModel.id.in_(job_ids),
             )
         )

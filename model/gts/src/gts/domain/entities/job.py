@@ -71,7 +71,7 @@ class Job(Entity):
     completed_at: datetime | None = None
     last_heartbeat: datetime | None = None
     attempt: int = 1
-    max_attempts: int = 3
+    max_attempts: int = 2
     next_retry_at: datetime | None = None
     result_path: str | None = None
     error: str | None = None

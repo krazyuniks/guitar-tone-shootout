@@ -17,6 +17,7 @@ from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+from webapp.services.job_transitions import mark_job_dead_lettered
 from webapp.services.shootout_reconciliation import reconcile_parent_after_audio
 
 if TYPE_CHECKING:
@@ -133,6 +134,10 @@ class StartShootoutConsumer(BaseConsumer):
         command = StartShootoutCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
         await process_shootout_job(job_id)
+
+    async def on_dead_letter(self, message: dict[str, object], reason: str) -> None:
+        """Couple the job row to the queue-level DLQ in the same commit."""
+        await mark_job_dead_lettered(self._session, message, reason)
 
     async def commit_message(self) -> None:
         """Commit queue archive in the session used by the pgmq client."""

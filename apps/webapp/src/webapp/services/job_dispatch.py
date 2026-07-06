@@ -30,6 +30,11 @@ _AUDIO_JOB_TYPES = frozenset(
 )
 
 
+def is_queue_routable(job_type: JobType) -> bool:
+    """Whether the type rides a pgmq queue (and so participates in auto-retry)."""
+    return job_type == JobType.SHOOTOUT or job_type in _AUDIO_JOB_TYPES
+
+
 class JobDispatchError(Exception):
     """Base for enqueue failures the caller maps to a response."""
 

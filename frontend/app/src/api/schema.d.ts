@@ -1145,7 +1145,7 @@ export interface paths {
         put?: never;
         /**
          * Cancel Job
-         * @description Cancel a job by setting its status to CANCELLED.
+         * @description Cancel a job through the transition service (reconciles the parent).
          */
         post: operations["cancel_job_api_admin_jobs__job_id__cancel_post"];
         delete?: never;
@@ -1165,7 +1165,7 @@ export interface paths {
         put?: never;
         /**
          * Retry Job
-         * @description Retry a failed or dead-lettered job by resetting it to PENDING.
+         * @description Retry a failed or dead-lettered job through the transition service.
          */
         post: operations["retry_job_api_admin_jobs__job_id__retry_post"];
         delete?: never;

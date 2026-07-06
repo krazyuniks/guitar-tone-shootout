@@ -37,6 +37,7 @@ from webapp.adapters.persistence.models.shootout import (
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user_gear import UserGear
+from webapp.services.job_transitions import mark_job_dead_lettered
 from webapp.services.shootout_reconciliation import reconcile_parent_after_audio
 
 logger = logging.getLogger(__name__)
@@ -386,6 +387,10 @@ class ProcessAudioConsumer(BaseConsumer):
         command = ProcessAudioCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
         await process_audio_job(job_id)
+
+    async def on_dead_letter(self, message: dict[str, object], reason: str) -> None:
+        """Couple the job row to the queue-level DLQ in the same commit."""
+        await mark_job_dead_lettered(self._session, message, reason)
 
     async def commit_message(self) -> None:
         """Commit domain writes and queue archive in one transaction."""
