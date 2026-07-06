@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -11,18 +12,23 @@ from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from messaging.commands import ProcessAudioCommand, StartShootoutCommand
-from messaging.consumer_base import BaseConsumer
+from messaging.consumer_base import BaseConsumer, SkipMessage
 from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout
 from webapp.services.job_transitions import (
+    ClaimOutcome,
+    claim_job,
+    job_lease_is_live,
     mark_job_dead_lettered,
 )
 from webapp.services.shootout_reconciliation import reconcile_parent_after_audio
 
 if TYPE_CHECKING:
     from messaging.envelope import MessageEnvelope
+
+logger = logging.getLogger(__name__)
 
 
 async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: str) -> None:
@@ -129,10 +135,29 @@ class StartShootoutConsumer(BaseConsumer):
         self._session = session
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
-        """Handle one shootout command envelope."""
+        """Claim, then fan out the shootout (idempotent consumption)."""
         command = StartShootoutCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
+        database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+
+        async with get_session(database_url) as session:
+            outcome = await claim_job(session, job_id, message="Spawning chain jobs")
+        if outcome == ClaimOutcome.ALREADY_TERMINAL:
+            logger.info("Job %s already terminal; archiving redelivered message", job_id)
+            return
+        if outcome == ClaimOutcome.LIVE_LEASE:
+            raise SkipMessage(str(job_id))
+
         await process_shootout_job(job_id)
+
+    async def should_dead_letter(self, queued_message) -> bool:
+        """Never dead-letter a job whose lease is live (skips grew read_ct)."""
+        raw_job_id = (queued_message.message.get("payload") or {}).get("job_id")
+        if not raw_job_id:
+            return True
+        database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+        async with get_session(database_url) as session:
+            return not await job_lease_is_live(session, UUID(str(raw_job_id)))
 
     async def on_dead_letter(self, message: dict[str, object], reason: str) -> None:
         """Couple the job row to the queue-level DLQ in the same commit."""

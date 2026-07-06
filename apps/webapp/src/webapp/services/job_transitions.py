@@ -174,6 +174,20 @@ async def transition_job(
     return job
 
 
+async def job_lease_is_live(session: AsyncSession, job_id: UUID) -> bool:
+    """Whether the job is RUNNING under a fresh lease (heartbeat within threshold).
+
+    Used by consumers to veto queue-level dead-lettering of healthy work whose
+    redeliveries were skipped (SkipMessage does not consume attempts, but pgmq
+    still counts reads).
+    """
+    result = await session.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    if job is None or job.status != JobStatus.RUNNING or job.last_heartbeat is None:
+        return False
+    return job.last_heartbeat > datetime.now(UTC) - LEASE_THRESHOLD
+
+
 class ClaimOutcome:
     """Consumer claim results (docs/design/job-system-contract.md, Consumer contract)."""
 
