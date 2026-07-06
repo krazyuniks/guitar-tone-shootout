@@ -1,0 +1,38 @@
+# ADR-0008: DI Library bounded context
+
+- Status: accepted
+- Date: 2026-07-06
+- Related: ADR-0006 (public media security contract, which removes the DITrack `file_path` leak and defines the allow-list wire payload this ADR extends)
+- Depends on: none
+
+## Context
+
+DI tracks are the raw guitar performances that every shootout reamps. Their handling today is split and lossy. The user-upload path is finished and clean (`POST /api/di-tracks` validates, checksum-dedupes, extracts a waveform, stores, streams, attaches to a shootout). Everything else is ad hoc: `di_tracks/` holds an Omega Station crawler plus crawled wavs with per-song `contents.md` provenance manifests; `DI_RAW/di_looper` is a standalone riff-slicing tool (librosa beat tracking, self-similarity segmentation, loop extraction, chroma/MFCC clustering, its own Typer CLI) authored outside the project; `scripts/seed_di_tracks.py` imports name and filename only, so all `contents.md` provenance dies at seed time; `gts-storage/uploads/di_tracks` carries three coexisting naming schemes; and public sharing is a stub with no backing column (`is_public` mutates nothing; the browse page hardcodes visible-to-all).
+
+`core_di_tracks` today has performance metadata only (`guitar`, `pickup`, `tuning`), a waveform, and a checksum. It has no provenance columns and no visibility column. `DITrackResponse` also emits `file_path` and `user_id` directly - the leak ADR-0006 remediates.
+
+This ADR settles the DI Library as its own bounded context and fixes its outbound contract, ownership, provenance schema, ingest shape, and riff-decomposition roadmap, so the build units have a stable target.
+
+## Decision
+
+**A single in-repo bounded context.** The DI Library is a uv workspace member at `sources/di_library`, mirroring the existing `sources/t3k` context split. It owns acquisition, riff analysis, provenance, and cataloguing, under hexagonal/onion layering (domain types, ports, adapters, service layer) enforced by an import-linter contract. It is not a separate repository.
+
+**One metadata-only outbound contract; raw DI audio is never a client artefact.** The context's single outbound contract is an allow-listed published-track projection carrying id, name, provenance/attribution, musical metadata, and the waveform (a display envelope that cannot reconstruct the audio). It carries **no audio URL and no storage path**. This is stricter than the general public-media allow-list of ADR-0006: a raw DI track is never served to any client - not user uploads, not operator imports - because the DI is a private input, not a published work. The audio artefacts a shootout serves publicly (and permits downloading) are the *reamped* outputs, which live in the shootout-artefact context (ADR-0003) under their own contract, not here. The audio worker still needs the DI bytes to reamp; it reads them over an internal-only storage handle inside the context, never over any public wire schema. Internal audio access and the public projection are two distinct surfaces, and only the internal one touches audio.
+
+**Real-owner ownership with an explicit visibility column.** `core_di_tracks.user_id` stays NOT NULL; there is no synthetic system/library user. Operator bulk imports are owned by the operator's real user id. Visibility is a real column, `is_shared` (boolean, `NOT NULL DEFAULT false`, indexed), governing only whether a track's *metadata* appears in the shared library listing - it never gates audio, which is never served regardless. The name `is_shared` is deliberate (Gear's `is_public` means usable-by-all; a DI track's flag means listed-in-the-shared-pool). The default is false, the inverse of Gear's default-true, so a DI track is private input until sharing is a deliberate act: operator bulk imports set `is_shared=true`; user uploads stay private.
+
+**Provenance and metadata schema.** `core_di_tracks` gains provenance and musical-metadata columns: `source_url`, `source_site`, `artist`, `title`, `album`, `licence`, `riff_label`, `bar_count`, `bpm`, plus `*_detected` boolean flags separating detected-from-asserted values (`tuning` already exists). `licence` is an internal provenance record, not a redistribution gate, because the raw DI audio is never redistributed. The published projection carries attribution and musical metadata; it never carries the storage columns.
+
+**Plural ingest, one contract.** There is no single ingest pipeline. Three producers feed the one published contract: (1) user upload (the existing clean path, made a first-class producer, capturing provenance, `is_shared=false`); (2) operator bulk import (reads the `contents.md` provenance currently discarded, owner is the operator, `is_shared=true`); (3) external acquisition (crawl/download to staging with provenance, riff-slice, filesystem-convention curation, catalogue). The external path handles full-song-versus-already-a-riff.
+
+**Rebuild the riff engine; do not adopt it as-is.** `di_looper` is rebuilt into the context as a proper hexagonal module - domain types, an analysis port, a librosa adapter, a service layer - not a vendored script. The 4/4 assumption is kept as an explicit, documented alpha behind the analysis port. Time-signature detection (odd meters common in rock and metal - 7/8, 5/4) is a deferred, separate feature that replaces the alpha assumption later; no time-signature detection exists anywhere today.
+
+**Slicing is offline batch work, not a job.** Riff slicing runs as a CLI batch verb, not a pgmq job: it is operator-triggered curation, not a user-facing render, so putting it on the job system adds a worker and queue coupling for no benefit. pgmq stays reserved for the real-time reamp pipeline. The operator surface is thin `just di-*` recipes (`di-acquire`, `di-slice`, `di-review`, `di-catalogue`) over the context's Typer CLI - one of three drivers (CLI, the webapp API, cron), with no business logic in the recipes.
+
+## Consequences
+
+- The DITrack public schema becomes the allow-listed, audio-free projection; this converges with the `SEC-payload-hygiene` remediation from ADR-0006 (the two must not fork - one allow-list, enforced by absence, with an invariant test).
+- `is_shared` is a schema migration on `core_di_tracks` alongside the provenance columns; the three storage naming schemes are normalised in the same migration.
+- Ubiquitous-language terms introduced here (DI track, riff, published-track projection, `is_shared`, shared library, ingest producer, detected-versus-asserted provenance) promote to `CONTEXT.md` when it is authored (`DOC-context`).
+- The context's place in the technical architecture, and whether that architecture lives in-repo or on the wiki, is deferred to `DOC-arch-inrepo`; a public wiki systems page for the DI Library follows.
+- Internal layout of the riff-engine module, the exact ingest CLI verbs, the migration's column types and backfill, and the field-by-field projection schema are implementation detail owned by the `EPIC-di-library` sub-units; only the boundary, the metadata-only no-audio contract, the ownership/visibility model, the provenance schema, plural ingest, the rebuild-not-adopt engine, and the batch-not-job execution are contract here.
