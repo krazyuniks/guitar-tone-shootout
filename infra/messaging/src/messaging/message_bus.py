@@ -54,6 +54,10 @@ class MessageBus(Protocol):
         """Archive a processed queue message."""
         ...
 
+    async def set_vt(self, queue_name: str, msg_id: int, visibility_timeout: int) -> None:
+        """Extend an in-flight message's visibility timeout (lease renewal)."""
+        ...
+
     async def create_queue(self, queue_name: str) -> None:
         """Create a pgmq queue if it does not exist."""
         ...

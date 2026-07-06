@@ -13,6 +13,15 @@ from pydantic import ValidationError
 
 from messaging.envelope import MessageEnvelope
 
+#: Lease renewal cadence while a handler works a message. Contract invariant:
+#: HEARTBEAT_INTERVAL_SECONDS * 2 < VT_EXTENSION_SECONDS < the transition
+#: service's LEASE_THRESHOLD, so one missed beat never causes redelivery and a
+#: crashed worker's message redelivers before the reaper declares it dead.
+HEARTBEAT_INTERVAL_SECONDS = 20.0
+
+#: Visibility window granted by each heartbeat's set_vt.
+VT_EXTENSION_SECONDS = 90
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -51,6 +60,9 @@ class BaseConsumer(ABC):
         self._sleep = sleep_func
         self._shutdown_event = asyncio.Event()
         self.logger = logging.getLogger(self.__class__.__name__)
+        #: The message currently being processed; handlers may read msg_id for
+        #: lease renewal (set_vt) while their work runs.
+        self.current_message: QueueMessage | None = None
 
     def request_shutdown(self) -> None:
         """Signal the consumer to stop after the current iteration."""
@@ -99,6 +111,13 @@ class BaseConsumer(ABC):
 
     async def process_message(self, queued_message: QueueMessage) -> None:
         """Process one queue message with retry and DLQ semantics."""
+        self.current_message = queued_message
+        try:
+            await self._process_message_inner(queued_message)
+        finally:
+            self.current_message = None
+
+    async def _process_message_inner(self, queued_message: QueueMessage) -> None:
         max_attempts = self.max_retries + 1
         current_attempt = queued_message.read_ct
 

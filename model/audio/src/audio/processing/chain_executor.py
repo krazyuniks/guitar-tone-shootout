@@ -3,6 +3,10 @@
 This module provides functionality to execute a complete signal chain by
 processing audio through each block in position order, enforcing grammar
 constraints for FULL_RIG vs HEAD configurations.
+
+Execution is synchronous CPU-bound DSP (NAM inference, IR convolution) and
+holds no async work; async callers must run it off the event loop
+(asyncio.to_thread) so health endpoints and lease heartbeats stay responsive.
 """
 
 from collections.abc import Callable
@@ -31,7 +35,7 @@ class ChainExecutionError(Exception):
     pass
 
 
-async def execute_signal_chain(
+def execute_signal_chain(
     chain: SignalChain,
     di_audio: np.ndarray,
     sample_rate: int,
@@ -59,7 +63,7 @@ async def execute_signal_chain(
     Examples:
         >>> def resolver(user_gear_id, gear_type):
         ...     return Path(f"/gear/{user_gear_id}.nam")
-        >>> result = await execute_signal_chain(
+        >>> result = execute_signal_chain(
         ...     chain=my_chain,
         ...     di_audio=audio,
         ...     sample_rate=48000,
@@ -91,14 +95,14 @@ async def execute_signal_chain(
             GearType.POST_EFFECT,
         ):
             # NAM model processing
-            current_audio = await _process_nam_block(
+            current_audio = _process_nam_block(
                 audio=current_audio,
                 sample_rate=sample_rate,
                 model_path=gear_path,
             )
         elif block.gear_type == GearType.IR:
             # IR convolution processing
-            current_audio = await _process_ir_block(
+            current_audio = _process_ir_block(
                 audio=current_audio,
                 sample_rate=sample_rate,
                 ir_path=gear_path,
@@ -140,7 +144,7 @@ def _validate_chain_constraints(blocks: list["SignalChainBlock"]) -> None:
         )
 
 
-async def _process_nam_block(
+def _process_nam_block(
     audio: np.ndarray,
     sample_rate: int,
     model_path: Path,
@@ -167,7 +171,7 @@ async def _process_nam_block(
         raise ChainExecutionError(f"NAM processing failed: {e}") from e
 
 
-async def _process_ir_block(
+def _process_ir_block(
     audio: np.ndarray,
     sample_rate: int,
     ir_path: Path,
