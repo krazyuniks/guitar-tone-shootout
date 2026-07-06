@@ -28,6 +28,14 @@ if TYPE_CHECKING:
     from messaging.message_bus import MessageBus, QueueMessage
 
 
+class SkipMessage(Exception):
+    """Raised by a handler to release a message without acknowledging it.
+
+    The message stays invisible until its visibility timeout lapses, then
+    redelivers. Used when another consumer holds a live lease on the job.
+    """
+
+
 class BaseConsumer(ABC):
     """Common polling loop and failure handling for pgmq consumers.
 
@@ -124,6 +132,15 @@ class BaseConsumer(ABC):
         if current_attempt > max_attempts:
             await self.rollback_message()
             await self.reset_message_context()
+            if not await self.should_dead_letter(queued_message):
+                # Healthy work whose redeliveries were skipped (live lease):
+                # push visibility out instead of dead-lettering it.
+                await self.message_bus.set_vt(
+                    self.queue_name, queued_message.msg_id, VT_EXTENSION_SECONDS
+                )
+                await self.commit_message()
+                await self.reset_message_context()
+                return
             await self._move_to_dead_letter(
                 queued_message,
                 "max retries exceeded before processing",
@@ -146,6 +163,22 @@ class BaseConsumer(ABC):
             await self.message_bus.archive(self.queue_name, queued_message.msg_id)
             await self.commit_message()
             await self.reset_message_context()
+            return
+        except SkipMessage:
+            # Release without acknowledging. Push visibility out a full lease
+            # window so skip cycles stay rare and read_ct barely grows.
+            await self.rollback_message()
+            await self.reset_message_context()
+            await self.message_bus.set_vt(
+                self.queue_name, queued_message.msg_id, VT_EXTENSION_SECONDS
+            )
+            await self.commit_message()
+            await self.reset_message_context()
+            self.logger.warning(
+                "Released message %s from %s without ack (live lease elsewhere)",
+                queued_message.msg_id,
+                self.queue_name,
+            )
             return
         except Exception as error:
             await self.rollback_message()
@@ -205,6 +238,17 @@ class BaseConsumer(ABC):
         await self.message_bus.send(self.dead_letter_queue, dlq_message)
         await self.message_bus.archive(self.queue_name, queued_message.msg_id)
         await self.on_dead_letter(queued_message.message, reason)
+
+    async def should_dead_letter(
+        self,
+        queued_message: QueueMessage,  # noqa: ARG002 - hook signature for overrides
+    ) -> bool:
+        """Veto hook before max-redelivery dead-lettering; default allows it.
+
+        Job-backed consumers override to protect RUNNING jobs under a live
+        lease, whose read counts grew only through no-ack skips.
+        """
+        return True
 
     async def on_dead_letter(
         self,

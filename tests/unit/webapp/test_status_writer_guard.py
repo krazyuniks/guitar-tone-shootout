@@ -34,12 +34,13 @@ ALLOWED: dict[str, int] = {
     "apps/webapp/src/webapp/services/job_dispatch.py": 1,
     # The run-request edge: shootout DRAFT -> PENDING at the process trigger.
     "apps/webapp/src/webapp/api/v1/shootouts.py": 1,
+    # The orchestrator's fan-out dispatch: an outbox site (send + QUEUED flip
+    # in one transaction), kept beside its thick-payload command construction.
+    "apps/shootout_orchestrator/src/shootout_orchestrator/consumer.py": 1,
     # --- Legacy writers, shrink only ---
-    # JOB-idempotent-consume + DOM-shootout-finalise: claim, complete, fail,
-    # and the master path's rogue parent/shootout projection.
-    "apps/audio_worker/src/audio_worker/consumer.py": 8,
-    # JOB-idempotent-consume: orchestrator claim + fan-out dispatch flips.
-    "apps/shootout_orchestrator/src/shootout_orchestrator/consumer.py": 3,
+    # DOM-shootout-finalise: the master path's shootout/parent COMPLETED
+    # projection - the legacy publish gate the finalise job replaces.
+    "apps/audio_worker/src/audio_worker/consumer.py": 2,
     # DOM-reaper-render-race: the raw-SQL stale-job reaper (both paths).
     "apps/t3k_sync/src/t3k_sync/tasks.py": 2,
     # Domain->ORM mapping in the shootout repository save path.

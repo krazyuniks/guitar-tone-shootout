@@ -14,6 +14,7 @@ from uuid import UUID
 import numpy as np
 import soundfile as sf
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import joinedload
 
 from audio.analysis.waveform import extract_waveform
@@ -27,7 +28,7 @@ from audio.processing import (
 from audio_worker.lease import MessageLease
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from messaging.commands import ProcessAudioCommand
-from messaging.consumer_base import BaseConsumer
+from messaging.consumer_base import BaseConsumer, SkipMessage
 from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
@@ -39,8 +40,13 @@ from webapp.adapters.persistence.models.shootout import (
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user_gear import UserGear
-from webapp.services.job_transitions import mark_job_dead_lettered
-from webapp.services.shootout_reconciliation import reconcile_parent_after_audio
+from webapp.services.job_transitions import (
+    ClaimOutcome,
+    claim_job,
+    job_lease_is_live,
+    mark_job_dead_lettered,
+    transition_job,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,25 +63,12 @@ _render_gate = asyncio.Semaphore(1)
 
 
 async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
-    """Process a single SHOOTOUT_AUDIO job (one signal chain against the DI track)."""
-    parent_job_id: UUID | None = None
+    """Process a single SHOOTOUT_AUDIO job (one signal chain against the DI track).
 
-    async with get_session(database_url) as session:
-        # Load job
-        job_stmt = select(Job).where(Job.id == job_id)
-        job_result = await session.execute(job_stmt)
-        job = job_result.scalar_one_or_none()
-        if job is None:
-            raise ValueError(f"Job {job_id} not found")
-
-        parent_job_id = job.parent_job_id
-
-        # Mark running
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.now(UTC)
-        job.last_heartbeat = datetime.now(UTC)
-        await session.commit()
-
+    The consumer claimed the job (RUNNING) before dispatching here; this
+    function only does the work and reports the terminal state through the
+    transition service.
+    """
     try:
         async with get_session(database_url) as session:
             # Load job again for entity_id
@@ -180,30 +173,41 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
         info = sf.info(str(output_path))
         duration_seconds = info.duration
 
-        # Create AudioSegment and update job
+        # Upsert the segment on its idempotency key and complete the job in
+        # ONE transaction: a redelivered message that re-renders can never
+        # duplicate a segment row, and the segment write commits with the
+        # COMPLETED transition (which also reconciles the parent).
         async with get_session(database_url) as session:
-            segment = AudioSegment(
-                shootout_chain_id=shootout_chain_id,
-                file_path=str(output_path),
-                duration_seconds=duration_seconds,
-                integrated_lufs=result_lufs,
-                peak_dbfs=result_peak,
-                waveform=waveform,
-                version=render_version,
+            upsert = (
+                pg_insert(AudioSegment)
+                .values(
+                    shootout_chain_id=shootout_chain_id,
+                    file_path=str(output_path),
+                    duration_seconds=duration_seconds,
+                    integrated_lufs=result_lufs,
+                    peak_dbfs=result_peak,
+                    waveform=waveform,
+                    version=render_version,
+                )
+                .on_conflict_do_update(
+                    constraint="uq_audio_segments_chain_version",
+                    set_={
+                        "file_path": str(output_path),
+                        "duration_seconds": duration_seconds,
+                        "integrated_lufs": result_lufs,
+                        "peak_dbfs": result_peak,
+                        "waveform": waveform,
+                    },
+                )
             )
-            session.add(segment)
-
-            job_stmt = select(Job).where(Job.id == job_id)
-            job_result = await session.execute(job_stmt)
-            job = job_result.scalar_one_or_none()
-            if job is not None:
-                job.status = JobStatus.COMPLETED
-                job.progress = 100
-                job.result_path = str(output_path)
-                job.completed_at = datetime.now(UTC)
-                job.last_heartbeat = datetime.now(UTC)
-
-            await session.commit()
+            await session.execute(upsert)
+            await transition_job(
+                session,
+                job_id,
+                JobStatus.COMPLETED,
+                progress=100,
+                result_path=str(output_path),
+            )
 
         logger.info(
             "Completed chain %s: lufs=%.1f peak=%.1f duration=%.1fs",
@@ -216,35 +220,18 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
     except (ChainExecutionError, ProcessingError, LoudnessError) as exc:
         logger.error("Chain processing failed for job %s: %s", job_id, exc)
         async with get_session(database_url) as session:
-            job_stmt = select(Job).where(Job.id == job_id)
-            job_result = await session.execute(job_stmt)
-            job = job_result.scalar_one_or_none()
-            if job is not None:
-                job.status = JobStatus.FAILED
-                job.error = str(exc)
-                job.completed_at = datetime.now(UTC)
-            await session.commit()
-
-    # Reconcile parent regardless of success/failure
-    if parent_job_id is not None:
-        await reconcile_parent_after_audio(parent_job_id, database_url)
+            # FAILED applies retry bookkeeping and reconciles the parent.
+            await transition_job(session, job_id, JobStatus.FAILED, error=str(exc))
 
 
 async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
-    """Process a SHOOTOUT_MASTER job (concatenate all chain segments into master)."""
-    async with get_session(database_url) as session:
-        # Load job
-        job_stmt = select(Job).where(Job.id == job_id)
-        job_result = await session.execute(job_stmt)
-        job = job_result.scalar_one_or_none()
-        if job is None:
-            raise ValueError(f"Job {job_id} not found")
+    """Process a SHOOTOUT_MASTER job (concatenate all chain segments into master).
 
-        job.status = JobStatus.RUNNING
-        job.started_at = datetime.now(UTC)
-        job.last_heartbeat = datetime.now(UTC)
-        await session.commit()
-
+    Claimed by the consumer before dispatch; terminal states route through the
+    transition service. The direct shootout/parent COMPLETED projection below
+    is the legacy publish path DOM-shootout-finalise replaces with the
+    SHOOTOUT_FINALISE manifest write.
+    """
     try:
         async with get_session(database_url) as session:
             job_stmt = select(Job).where(Job.id == job_id)
@@ -316,51 +303,49 @@ async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
         finally:
             tmp_path.unlink(missing_ok=True)
 
-        # Update shootout and job
+        # Update shootout and jobs in the service lock order (own job ->
+        # parent job -> shootout) so this cannot deadlock against a concurrent
+        # reconcile. The shootout/parent COMPLETED projection is the legacy
+        # publish gate, replaced by DOM-shootout-finalise; the master job's
+        # own terminal write goes through the service.
         async with get_session(database_url) as session:
-            s_stmt = select(Shootout).where(Shootout.id == shootout_id)
+            job_stmt = select(Job).where(Job.id == job_id).with_for_update()
+            job_result = await session.execute(job_stmt)
+            job = job_result.scalar_one_or_none()
+
+            parent_job = None
+            if job is not None and job.parent_job_id is not None:
+                parent_stmt = select(Job).where(Job.id == job.parent_job_id).with_for_update()
+                parent_result = await session.execute(parent_stmt)
+                parent_job = parent_result.scalar_one_or_none()
+
+            s_stmt = select(Shootout).where(Shootout.id == shootout_id).with_for_update()
             s_result = await session.execute(s_stmt)
             shootout = s_result.scalar_one_or_none()
             if shootout is not None:
                 shootout.output_path = str(master_path)
                 shootout.status = ShootoutStatus.COMPLETED
 
-            job_stmt = select(Job).where(Job.id == job_id)
-            job_result = await session.execute(job_stmt)
-            job = job_result.scalar_one_or_none()
-            if job is not None:
-                job.status = JobStatus.COMPLETED
-                job.progress = 100
-                job.result_path = str(master_path)
-                job.completed_at = datetime.now(UTC)
-                job.last_heartbeat = datetime.now(UTC)
+            if parent_job is not None:
+                parent_job.status = JobStatus.COMPLETED
+                parent_job.progress = 100
+                parent_job.completed_at = datetime.now(UTC)
+                parent_job.result_path = str(master_path)
 
-            # Also complete the parent SHOOTOUT job
-            if job is not None and job.parent_job_id is not None:
-                parent_stmt = select(Job).where(Job.id == job.parent_job_id)
-                parent_result = await session.execute(parent_stmt)
-                parent_job = parent_result.scalar_one_or_none()
-                if parent_job is not None:
-                    parent_job.status = JobStatus.COMPLETED
-                    parent_job.progress = 100
-                    parent_job.completed_at = datetime.now(UTC)
-                    parent_job.result_path = str(master_path)
-
-            await session.commit()
+            await transition_job(
+                session,
+                job_id,
+                JobStatus.COMPLETED,
+                progress=100,
+                result_path=str(master_path),
+            )
 
         logger.info("Master audio created for shootout %s: %s", shootout_id, master_path)
 
     except (ProcessingError, LoudnessError) as exc:
         logger.error("Master processing failed for job %s: %s", job_id, exc)
         async with get_session(database_url) as session:
-            job_stmt = select(Job).where(Job.id == job_id)
-            job_result = await session.execute(job_stmt)
-            job = job_result.scalar_one_or_none()
-            if job is not None:
-                job.status = JobStatus.FAILED
-                job.error = str(exc)
-                job.completed_at = datetime.now(UTC)
-            await session.commit()
+            await transition_job(session, job_id, JobStatus.FAILED, error=str(exc))
 
 
 async def process_audio_job(job_id: UUID) -> None:
@@ -400,16 +385,36 @@ class ProcessAudioConsumer(BaseConsumer):
         self._session = session
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
-        """Handle one process_audio command envelope under a renewed lease."""
+        """Claim, then work the job under a renewed lease (idempotent consumption)."""
         command = ProcessAudioCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
         database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+
+        async with get_session(database_url) as session:
+            outcome = await claim_job(session, job_id, message="Processing")
+        if outcome == ClaimOutcome.ALREADY_TERMINAL:
+            # Redelivered message for finished work: archive as a no-op.
+            logger.info("Job %s already terminal; archiving redelivered message", job_id)
+            return
+        if outcome == ClaimOutcome.LIVE_LEASE:
+            # Another consumer is live on this job: release without ack.
+            raise SkipMessage(str(job_id))
+
         message = self.current_message
         if message is None:
             await process_audio_job(job_id)
             return
         async with MessageLease(database_url, self.queue_name, message.msg_id, job_id):
             await process_audio_job(job_id)
+
+    async def should_dead_letter(self, queued_message) -> bool:
+        """Never dead-letter a job whose lease is live (skips grew read_ct)."""
+        raw_job_id = (queued_message.message.get("payload") or {}).get("job_id")
+        if not raw_job_id:
+            return True
+        database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+        async with get_session(database_url) as session:
+            return not await job_lease_is_live(session, UUID(str(raw_job_id)))
 
     async def on_dead_letter(self, message: dict[str, object], reason: str) -> None:
         """Couple the job row to the queue-level DLQ in the same commit."""

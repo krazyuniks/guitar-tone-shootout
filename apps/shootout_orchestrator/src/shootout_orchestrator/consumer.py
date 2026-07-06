@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import logging
 import os
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -12,16 +12,23 @@ from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from messaging.commands import ProcessAudioCommand, StartShootoutCommand
-from messaging.consumer_base import BaseConsumer
+from messaging.consumer_base import BaseConsumer, SkipMessage
 from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
-from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
-from webapp.services.job_transitions import mark_job_dead_lettered
+from webapp.adapters.persistence.models.shootout import Shootout
+from webapp.services.job_transitions import (
+    ClaimOutcome,
+    claim_job,
+    job_lease_is_live,
+    mark_job_dead_lettered,
+)
 from webapp.services.shootout_reconciliation import reconcile_parent_after_audio
 
 if TYPE_CHECKING:
     from messaging.envelope import MessageEnvelope
+
+logger = logging.getLogger(__name__)
 
 
 async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: str) -> None:
@@ -42,6 +49,7 @@ async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: st
         pending_children = result.scalars().all()
 
         pgmq = PgmqClient(session)
+        await pgmq.create_queue("audio_commands")
         for child in pending_children:
             cmd = ProcessAudioCommand(
                 source_bc="shootout-orchestrator",
@@ -83,13 +91,10 @@ async def process_shootout_job(job_id: UUID) -> None:
         if not shootout.chains:
             raise ValueError(f"Shootout {shootout.id} has no chains")
 
-        parent_job.status = JobStatus.RUNNING
-        if parent_job.started_at is None:
-            parent_job.started_at = datetime.now(UTC)
-        parent_job.last_heartbeat = datetime.now(UTC)
+        # The consumer claimed the parent (RUNNING) before dispatching here;
+        # the shootout's PROCESSING projection is reconcile_parent's, called
+        # below - no direct status writes in the orchestrator.
         parent_job.message = "Spawning chain jobs"
-
-        shootout.status = ShootoutStatus.PROCESSING
 
         child_stmt = select(Job).where(
             Job.parent_job_id == parent_job.id,
@@ -130,10 +135,29 @@ class StartShootoutConsumer(BaseConsumer):
         self._session = session
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
-        """Handle one shootout command envelope."""
+        """Claim, then fan out the shootout (idempotent consumption)."""
         command = StartShootoutCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
+        database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+
+        async with get_session(database_url) as session:
+            outcome = await claim_job(session, job_id, message="Spawning chain jobs")
+        if outcome == ClaimOutcome.ALREADY_TERMINAL:
+            logger.info("Job %s already terminal; archiving redelivered message", job_id)
+            return
+        if outcome == ClaimOutcome.LIVE_LEASE:
+            raise SkipMessage(str(job_id))
+
         await process_shootout_job(job_id)
+
+    async def should_dead_letter(self, queued_message) -> bool:
+        """Never dead-letter a job whose lease is live (skips grew read_ct)."""
+        raw_job_id = (queued_message.message.get("payload") or {}).get("job_id")
+        if not raw_job_id:
+            return True
+        database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+        async with get_session(database_url) as session:
+            return not await job_lease_is_live(session, UUID(str(raw_job_id)))
 
     async def on_dead_letter(self, message: dict[str, object], reason: str) -> None:
         """Couple the job row to the queue-level DLQ in the same commit."""
