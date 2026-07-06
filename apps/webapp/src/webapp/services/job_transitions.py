@@ -76,6 +76,7 @@ async def transition_job(
     progress: int | None = None,
     result_path: str | None = None,
     renewal: bool = False,
+    require_stale_lease: bool = False,
 ) -> Job:
     """Move a job to `to_status`, reconcile its parent if needed, and commit.
 
@@ -103,6 +104,17 @@ async def transition_job(
         to_status == JobStatus.RUNNING
         and job.status == JobStatus.RUNNING
         and not renewal
+        and job.last_heartbeat is not None
+        and job.last_heartbeat > now - LEASE_THRESHOLD
+    ):
+        raise LiveLeaseError()
+
+    # Reaper precondition, re-checked under the row lock: a lease renewal
+    # committed between the reaper's SELECT and this transaction must win -
+    # the reaper never fails a now-live job.
+    if (
+        require_stale_lease
+        and job.status == JobStatus.RUNNING
         and job.last_heartbeat is not None
         and job.last_heartbeat > now - LEASE_THRESHOLD
     ):

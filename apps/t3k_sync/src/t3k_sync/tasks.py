@@ -24,7 +24,11 @@ from webapp.services.job_dispatch import (
     JobNotPendingError,
     enqueue_job,
 )
-from webapp.services.job_transitions import TransitionError, transition_job
+from webapp.services.job_transitions import (
+    LEASE_THRESHOLD,
+    TransitionError,
+    transition_job,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -174,104 +178,118 @@ async def refresh_t3k_token(
 
 
 async def monitor_stale_jobs() -> None:
-    """Mark RUNNING jobs with stale heartbeats as DEAD_LETTERED.
+    """Reap RUNNING jobs whose lease went stale, through the transition service.
 
-    For SOURCE_SYNC jobs, checks the advisory lock before marking dead.
-    If the lock is held, the sync is still alive regardless of heartbeat.
+    The reaper reaps stale leases, not old jobs: a live render heartbeats
+    every HEARTBEAT_INTERVAL_SECONDS, so only work whose worker died (and
+    whose message nothing re-claimed) trips the threshold. The reap is an
+    ordinary RUNNING -> FAILED failure - it participates in bounded retry and
+    reconciles the parent - never a raw write. The reaper does not touch
+    pgmq: a redelivered message for a reaped job archives at the consumer's
+    terminal guard, and a reap racing a live re-claim loses at the row lock.
+
+    SOURCE_SYNC keeps its advisory-lock variant: the lock being held proves
+    the sync is alive regardless of heartbeat.
     """
-    stale_threshold = datetime.now(UTC) - timedelta(minutes=2)
     now = datetime.now(UTC)
+    stale_threshold = now - LEASE_THRESHOLD
 
-    # Non-SOURCE_SYNC jobs: heartbeat-only check (unchanged behaviour)
-    non_sync_stmt = text("""
-        UPDATE core_jobs SET status = :dead_status, error = :error, completed_at = :now
+    select_stmt = text("""
+        SELECT id, job_type FROM core_jobs
         WHERE status = :running_status
-          AND job_type != 'source_sync'
           AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
           AND (started_at IS NULL OR started_at < :threshold)
+        LIMIT 100
     """)
-    non_sync_params = {
-        "dead_status": JobStatus.DEAD_LETTERED.value,
-        "error": "Stale heartbeat detected: worker failed to update heartbeat within 2 minutes",
-        "running_status": JobStatus.RUNNING.value,
-        "threshold": stale_threshold,
-        "now": now,
-    }
-
-    # SOURCE_SYNC jobs: check advisory lock before killing
-    sync_check_stmt = text("""
-        SELECT id FROM core_jobs
-        WHERE status = :running_status
-          AND job_type = 'source_sync'
-          AND (last_heartbeat IS NULL OR last_heartbeat < :threshold)
-          AND (started_at IS NULL OR started_at < :threshold)
-    """)
-    sync_check_params = {
+    params = {
         "running_status": JobStatus.RUNNING.value,
         "threshold": stale_threshold,
     }
 
     if _test_session is not None:
-        await _test_session.execute(non_sync_stmt, non_sync_params)
-        # In tests we can't probe advisory locks across sessions,
-        # so skip SOURCE_SYNC lock check — tests use non-sync job types.
+        result = await _test_session.execute(select_stmt, params)
+        rows = result.fetchall()
+    else:
+        async with get_core_session_no_tx() as session:
+            result = await session.execute(select_stmt, params)
+            rows = result.fetchall()
+
+    stale_jobs = [(row[0], row[1]) for row in rows]
+    if not stale_jobs:
         return
 
-    async with get_core_session() as session:
-        await session.execute(non_sync_stmt, non_sync_params)
+    stale_sync_ids = [jid for jid, jtype in stale_jobs if jtype == "source_sync"]
+    stale_other_ids = [jid for jid, jtype in stale_jobs if jtype != "source_sync"]
 
-        # Check if any SOURCE_SYNC jobs look stale
-        result = await session.execute(sync_check_stmt, sync_check_params)
-        stale_sync_ids = [row[0] for row in result.fetchall()]
-        if not stale_sync_ids:
-            return
+    for job_id in stale_other_ids:
+        error = (
+            "Stale lease: no heartbeat within "
+            f"{int(LEASE_THRESHOLD.total_seconds())}s; worker presumed dead"
+        )
+        try:
+            if _test_session is not None:
+                await transition_job(
+                    _test_session,
+                    job_id,
+                    JobStatus.FAILED,
+                    error=error,
+                    require_stale_lease=True,
+                )
+            else:
+                async with get_core_session_no_tx() as session:
+                    await transition_job(
+                        session,
+                        job_id,
+                        JobStatus.FAILED,
+                        error=error,
+                        require_stale_lease=True,
+                    )
+        except TransitionError as exc:
+            # A live re-claim or a terminal write won the race: not ours to reap.
+            logger.info("Reap skipped for job %s: %s", job_id, exc)
+        except Exception:
+            logger.exception("Error reaping job %s", job_id)
+
+    if not stale_sync_ids or _test_session is not None:
+        # In tests we can't probe advisory locks across sessions,
+        # so skip SOURCE_SYNC lock check - tests use non-sync job types.
+        return
 
     # Probe the advisory lock in a separate session (non-transactional).
-    # pg_try_advisory_lock acquires if free — we must release immediately.
-    from messaging.db import get_core_session_no_tx
-
+    # pg_try_advisory_lock acquires if free - we must release immediately.
     async with get_core_session_no_tx() as lock_session:
         lock_result = await lock_session.execute(
             text("SELECT pg_try_advisory_lock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
         )
         lock_free = lock_result.scalar()
         if lock_free:
-            # Lock was free — sync truly died. Release our test lock.
+            # Lock was free - sync truly died. Release our test lock.
             await lock_session.execute(
                 text("SELECT pg_advisory_unlock(:key)"), {"key": _PG_ADVISORY_LOCK_KEY}
             )
-            # Mark the stale SOURCE_SYNC jobs as dead
-            async with get_core_session() as session:
-                kill_stmt = text("""
-                    UPDATE core_jobs SET status = :dead_status, error = :error, completed_at = :now
-                    WHERE id = ANY(:ids) AND status = :running_status
-                """)
-                await session.execute(
-                    kill_stmt,
-                    {
-                        "dead_status": JobStatus.DEAD_LETTERED.value,
-                        "error": "Stale heartbeat detected: sync lock free, worker died",
-                        "running_status": JobStatus.RUNNING.value,
-                        "now": now,
-                        "ids": stale_sync_ids,
-                    },
-                )
+            for job_id in stale_sync_ids:
+                try:
+                    async with get_core_session_no_tx() as session:
+                        await transition_job(
+                            session,
+                            job_id,
+                            JobStatus.FAILED,
+                            error="Stale lease: sync advisory lock free, worker died",
+                            require_stale_lease=True,
+                        )
+                except TransitionError as exc:
+                    logger.info("Reap skipped for sync job %s: %s", job_id, exc)
+                except Exception:
+                    logger.exception("Error reaping sync job %s", job_id)
         else:
-            # Lock held — sync is alive, just slow. Update heartbeat to prevent
-            # re-checking every cycle.
-            async with get_core_session() as session:
-                touch_stmt = text("""
-                    UPDATE core_jobs SET last_heartbeat = :now
-                    WHERE id = ANY(:ids) AND status = :running_status
-                """)
-                await session.execute(
-                    touch_stmt,
-                    {
-                        "now": now,
-                        "running_status": JobStatus.RUNNING.value,
-                        "ids": stale_sync_ids,
-                    },
-                )
+            # Lock held - sync is alive, just slow. Renew its lease through
+            # the service so it is not re-checked every cycle.
+            for job_id in stale_sync_ids:
+                try:
+                    async with get_core_session_no_tx() as session:
+                        await transition_job(session, job_id, JobStatus.RUNNING, renewal=True)
+                except TransitionError as exc:
+                    logger.info("Lease renewal skipped for sync job %s: %s", job_id, exc)
 
 
 async def process_pending_retries() -> None:

@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select, text
 
 from gts.domain.entities.job import Job
@@ -19,10 +20,10 @@ if TYPE_CHECKING:
 class TestMonitorStaleJobs:
     """Test monitor_stale_jobs scheduled task."""
 
-    async def test_marks_running_job_with_stale_heartbeat_as_dead_lettered(
+    async def test_reaps_running_job_with_stale_lease_as_failed(
         self, session: AsyncSession
     ) -> None:
-        """RUNNING job with heartbeat older than 2 minutes is marked DEAD_LETTERED."""
+        """A stale lease reaps as an ordinary FAILED (retryable), never a raw dead-letter."""
         from t3k_sync.tasks import monitor_stale_jobs
         from webapp.adapters.persistence.models.job import Job as JobModel
 
@@ -41,9 +42,11 @@ class TestMonitorStaleJobs:
         await monitor_stale_jobs()
 
         await session.refresh(job_model)
-        assert job_model.status == JobStatus.DEAD_LETTERED.value
+        assert job_model.status == JobStatus.FAILED.value
         assert job_model.error is not None
-        assert "stale heartbeat" in job_model.error.lower()
+        assert "stale lease" in job_model.error.lower()
+        # A first-attempt reap participates in bounded auto-retry.
+        assert job_model.next_retry_at is not None
 
     async def test_does_not_mark_running_job_with_recent_heartbeat(
         self, session: AsyncSession
@@ -94,7 +97,7 @@ class TestMonitorStaleJobs:
         assert job_model.status == JobStatus.PENDING.value
 
     async def test_marks_multiple_stale_jobs(self, session: AsyncSession) -> None:
-        """All RUNNING jobs with stale heartbeats are marked DEAD_LETTERED."""
+        """All RUNNING jobs with stale leases are reaped to FAILED."""
         from t3k_sync.tasks import monitor_stale_jobs
         from webapp.adapters.persistence.models.job import Job as JobModel
 
@@ -118,7 +121,7 @@ class TestMonitorStaleJobs:
 
         result = await session.execute(
             select(JobModel).where(
-                JobModel.status == JobStatus.DEAD_LETTERED.value,
+                JobModel.status == JobStatus.FAILED.value,
                 JobModel.id.in_(job_ids),
             )
         )
@@ -466,3 +469,39 @@ class TestPurgeOldJobs:
 
         await session.refresh(model)
         assert model.status == JobStatus.COMPLETED.value
+
+
+class TestReaperLoseToLiveRenewal:
+    """The reap re-checks the lease under the row lock and loses to a renewal."""
+
+    async def test_renewed_lease_between_select_and_reap_survives(
+        self, session: AsyncSession
+    ) -> None:
+        from webapp.adapters.persistence.models.job import Job as JobModel
+        from webapp.services.job_transitions import (
+            LiveLeaseError,
+            transition_job,
+        )
+
+        job_entity = Job(
+            id=uuid4(),
+            user_id=None,
+            job_type=JobType.AUDIO_PROCESSING,
+            status=JobStatus.RUNNING,
+            last_heartbeat=datetime.now(UTC),  # renewed just before the reap
+        )
+        job_model = JobModel.from_entity(job_entity)
+        session.add(job_model)
+        await session.commit()
+
+        with pytest.raises(LiveLeaseError):
+            await transition_job(
+                session,
+                job_entity.id,
+                JobStatus.FAILED,
+                error="Stale lease",
+                require_stale_lease=True,
+            )
+
+        await session.refresh(job_model)
+        assert job_model.status == JobStatus.RUNNING.value
