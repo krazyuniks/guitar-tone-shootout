@@ -14,7 +14,9 @@ import re
 from collections import Counter
 from pathlib import Path
 
-REPO = Path("/app")
+# Repo root resolved relative to this file: /app in the compose container,
+# the checkout root on a bare CI runner. Never hardcode the container mount.
+REPO = Path(__file__).resolve().parents[3]
 
 # Any assignment to a .status attribute (enum literal or dynamic), excluding
 # comparisons and the gts domain entities' own self.status transitions (the
