@@ -16,9 +16,10 @@ from pathlib import Path
 
 REPO = Path("/app")
 
-# ORM assignments to a .status attribute: enum literals plus the transition
-# service's dynamic target write (job.status = to_status).
-ORM_WRITE = re.compile(r"\.status\s*=\s*(?:(?:JobStatus|ShootoutStatus)\.|to_status\b)")
+# Any assignment to a .status attribute (enum literal or dynamic), excluding
+# comparisons and the gts domain entities' own self.status transitions (the
+# domain state machine is not an ORM write path).
+ORM_WRITE = re.compile(r"(?<!self)\.status\s*=(?!=)")
 # Raw-SQL writes that bypass the ORM entirely.
 RAW_WRITE = re.compile(r"UPDATE\s+(?:core_jobs|core_shootouts)\s+SET\s+status", re.IGNORECASE)
 
@@ -43,6 +44,12 @@ ALLOWED: dict[str, int] = {
     # DOM-reaper-render-race + DOM-terminal-writer-routing: raw-SQL reaper and
     # retry sweep writes.
     "apps/t3k_sync/src/t3k_sync/tasks.py": 3,
+    # DOM-terminal-writer-routing: the SOURCE_SYNC lifecycle writer.
+    "apps/t3k_sync/src/t3k_sync/source_sync.py": 1,
+    # Domain->ORM mapping in the shootout repository save path.
+    "apps/webapp/src/webapp/adapters/persistence/repositories/shootout_repository.py": 1,
+    # DEBT-backend-dead-modules: the unused job repository write path.
+    "apps/webapp/src/webapp/adapters/persistence/repositories/job_repository.py": 1,
 }
 
 SCAN_ROOTS = ("apps", "model", "infra", "sources")

@@ -604,7 +604,7 @@ async def test_reconcile_creates_master_after_all_complete(
     master_result = await db_session.execute(master_stmt)
     master_job = master_result.scalar_one_or_none()
     assert master_job is not None
-    assert master_job.status in {JobStatus.PENDING, JobStatus.QUEUED}
+    assert master_job.status == JobStatus.QUEUED
     assert master_job.entity_id == shootout_id
 
     # Verify parent progress = 100%

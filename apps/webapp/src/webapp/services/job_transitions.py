@@ -18,7 +18,7 @@ from sqlalchemy import select
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
-from webapp.services.job_dispatch import enqueue_job
+from webapp.services.job_dispatch import send_and_mark_queued
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -159,9 +159,13 @@ async def reconcile_parent(session: AsyncSession, parent_job_id: UUID) -> None:
         shootout.status = ShootoutStatus.PROCESSING
 
     if completed_children == total_children:
-        master_stmt = select(Job).where(
-            Job.parent_job_id == parent_job_id,
-            Job.job_type == JobType.SHOOTOUT_MASTER,
+        master_stmt = (
+            select(Job)
+            .where(
+                Job.parent_job_id == parent_job_id,
+                Job.job_type == JobType.SHOOTOUT_MASTER,
+            )
+            .with_for_update()
         )
         master_result = await session.execute(master_stmt)
         master_job = master_result.scalar_one_or_none()
@@ -176,7 +180,10 @@ async def reconcile_parent(session: AsyncSession, parent_job_id: UUID) -> None:
             )
             session.add(master_job)
             await session.flush()
-            # Enqueue through the outbox in the same transaction: the master
-            # job's creation, its QUEUED flip, and the pgmq send commit
-            # together with the reconcile that decided them.
-            await enqueue_job(session, master_job.id, message="Queued for master audio creation")
+        if master_job.status == JobStatus.PENDING:
+            # Outbox core, no commit: the master job's creation/recovery, its
+            # QUEUED flip, and the pgmq send stay in the reconcile transaction,
+            # committed by the transition service or the session wrapper.
+            await send_and_mark_queued(
+                session, master_job, message="Queued for master audio creation"
+            )

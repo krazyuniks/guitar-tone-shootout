@@ -98,6 +98,25 @@ async def enqueue_job(
     if job.status != JobStatus.PENDING:
         raise JobNotPendingError(job.status)
 
+    await send_and_mark_queued(session, job, source_bc=source_bc, message=message)
+    await session.commit()
+    return job
+
+
+async def send_and_mark_queued(
+    session: AsyncSession,
+    job: Job,
+    *,
+    source_bc: str = "webapp",
+    message: str | None = None,
+) -> None:
+    """Outbox core: route, ensure the queue, send, flip to QUEUED. No commit.
+
+    For callers already inside a locked transaction (the reconcile projection);
+    the caller owns the commit that makes the send and the flip atomic with its
+    other writes. Everyone else uses enqueue_job, which locks, guards, and
+    commits.
+    """
     queue, command = _route(job, source_bc)
     pgmq = PgmqClient(session)
     # The producer is self-sufficient: consumers create queues at startup, but
@@ -107,5 +126,3 @@ async def enqueue_job(
     job.status = JobStatus.QUEUED
     if message is not None:
         job.message = message
-    await session.commit()
-    return job
