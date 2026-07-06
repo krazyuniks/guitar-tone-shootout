@@ -196,7 +196,15 @@ async def retry_job(
 
     job.status = JobStatus.PENDING
     job.error = None
-    await session.commit()
+    await session.flush()
+
+    # Enqueue atomically with the PENDING reset (transactional outbox).
+    # Self-managed types (SOURCE_SYNC) have no queue route and stay PENDING
+    # for their own scheduler; everything else must not wait on the sweep.
+    try:
+        await enqueue_job(session, job.id, message="Queued for retry")
+    except UnroutableJobTypeError:
+        await session.commit()
     await session.refresh(job)
 
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
@@ -207,7 +215,16 @@ async def retry_job(
     return job_detail
 
 
-@router.post("/enqueue", response_model=EnqueueResponse, status_code=202)
+@router.post(
+    "/enqueue",
+    response_model=EnqueueResponse,
+    status_code=202,
+    responses={
+        400: {"description": "Job type has no queue route"},
+        404: {"description": "Job not found"},
+        409: {"description": "Job is not PENDING"},
+    },
+)
 async def enqueue_pending_job(
     request: EnqueueRequest,
     session: AsyncSession = Depends(_get_db),
