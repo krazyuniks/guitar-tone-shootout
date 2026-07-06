@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-07-06
-- Related: ADR-0001 (app surface is a Vite + React SPA); field-level schemas live in the GTS design doc `design/shootout-artefact-contract.md`
+- Related: ADR-0001 (app surface is a Vite + React SPA); field-level schemas live in `docs/design/shootout-artefact-contract.md`
 
 ## Context
 
@@ -25,7 +25,7 @@ Per-chain `AudioSegment`s are the A/B comparison substrate, and the durable publ
 ## Consequences
 
 - This ADR is the artefact frame that the sibling ADRs index: ADR-0004 (manifest storage and rerun), ADR-0005 (event-state authority), ADR-0006 (public media security), ADR-0007 (video deferral).
-- The detailed field-level schemas the manifest, provenance block, and public read payload rely on are not duplicated here. They live as sections of the GTS design doc `design/shootout-artefact-contract.md`, and the sibling ADRs delegate their field-level content to the same doc.
+- The detailed field-level schemas the manifest, provenance block, and public read payload rely on are not duplicated here. They live as sections of `docs/design/shootout-artefact-contract.md`, and the sibling ADRs delegate their field-level content to the same doc.
 - The public read payload and the media handler never carry `Shootout.output_path`, `file_path`, or any container path; media is served by opaque id-based URLs.
 - The 16-chain cap bounds render fan-out, manifest size, and player UX for every downstream slice.
 - The comparison-player and public-shootouts slices of the frontend-reshape epic consume the manifest read payload, never `master.wav`.

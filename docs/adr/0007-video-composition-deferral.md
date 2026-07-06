@@ -24,7 +24,7 @@ Video composition is wholly out of the v1 ship gate.
 
 What v1 fixes now, so reopening is purely additive (shape, not execution):
 
-- The public read payload MAY carry an optional projected `video: {url, state}` enrichment object. `state` is a closed in-code enum (`absent | processing | ready | failed`); `url` is opaque-id-based and present only when `state` = `ready`. The Astro island and the app route project it identically. The field-level object shape is delegated to the design doc `design/shootout-artefact-contract.md`.
+- The public read payload MAY carry an optional projected `video: {url, state}` enrichment object. `state` is a closed in-code enum (`absent | processing | ready | failed`); `url` is opaque-id-based and present only when `state` = `ready`. The Astro island and the app route project it identically. The field-level object shape is delegated to `docs/design/shootout-artefact-contract.md`.
 - Video media is version-scoped storage, keyed to `(shootout_id, render_version)` under `STORAGE_BASE/<shootout_id>/v<N>/`. A `VIDEO_COMPOSE` job may write only inside its own version directory and may never touch a file any existing manifest references.
 - A non-gating `VIDEO_COMPOSE` job-tree slot is reserved, dispatched after `SHOOTOUT_FINALISE` as a sibling of the demoted montage, reporting terminal state through the reconciliation choke-point and never counted by the COMPLETED barrier.
 - When video lands, its media resolves through the same opaque-id, visibility-plus-lifecycle-checked handler as audio (ADR-0006); the public gate predicate is unchanged.

@@ -51,4 +51,4 @@ Terminal is terminal per render generation: a published shootout never re-enters
 - Reconciliation counting closes over CANCELLED and DEAD_LETTERED, and the master/finalise path can no longer strand PROCESSING.
 - Render jobs heartbeat during rendering (or are exempt from the reaper threshold), so long renders are no longer dead-lettered mid-flight.
 - The public surface is safe by construction even against a projection bug: the joint gate makes a stranded shootout invisible rather than leaky.
-- Field-level schemas - the column definitions, value-object shapes, reconciliation transition table, and read-payload projection - are specified in the GTS artefact-contract design doc (`design/shootout-artefact-contract.md`); this ADR records the decision, not the schema.
+- Field-level schemas - the column definitions, value-object shapes, reconciliation transition table, and read-payload projection - are specified in the GTS artefact-contract design doc (`docs/design/shootout-artefact-contract.md`); this ADR records the decision, not the schema.
