@@ -73,6 +73,8 @@ async def transition_job(
     *,
     error: str | None = None,
     message: str | None = None,
+    progress: int | None = None,
+    result_path: str | None = None,
     renewal: bool = False,
 ) -> Job:
     """Move a job to `to_status`, reconcile its parent if needed, and commit.
@@ -112,6 +114,10 @@ async def transition_job(
         job.message = message
     if error is not None:
         job.error = error
+    if progress is not None:
+        job.progress = progress
+    if result_path is not None:
+        job.result_path = result_path
     if to_status == JobStatus.RUNNING:
         if job.started_at is None:
             job.started_at = now
@@ -166,6 +172,34 @@ async def transition_job(
 
     await session.commit()
     return job
+
+
+class ClaimOutcome:
+    """Consumer claim results (docs/design/job-system-contract.md, Consumer contract)."""
+
+    CLAIMED = "claimed"
+    ALREADY_TERMINAL = "already_terminal"
+    LIVE_LEASE = "live_lease"
+
+
+async def claim_job(session: AsyncSession, job_id: UUID, *, message: str | None = None) -> str:
+    """Run the consumer claim algorithm and return the outcome.
+
+    CLAIMED: QUEUED -> RUNNING (or a stale RUNNING re-claim, or the
+    self-managed PENDING -> RUNNING edge). ALREADY_TERMINAL: redelivered
+    message for finished work - the caller archives it as a no-op.
+    LIVE_LEASE: another consumer's lease is fresh - the caller must release
+    the message without acknowledging it.
+    """
+    try:
+        await transition_job(session, job_id, JobStatus.RUNNING, message=message)
+    except LiveLeaseError:
+        return ClaimOutcome.LIVE_LEASE
+    except InvalidTransitionError as exc:
+        if exc.current.is_terminal():
+            return ClaimOutcome.ALREADY_TERMINAL
+        raise
+    return ClaimOutcome.CLAIMED
 
 
 async def mark_job_dead_lettered(

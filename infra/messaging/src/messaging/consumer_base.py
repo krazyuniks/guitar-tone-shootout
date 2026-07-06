@@ -28,6 +28,14 @@ if TYPE_CHECKING:
     from messaging.message_bus import MessageBus, QueueMessage
 
 
+class SkipMessage(Exception):
+    """Raised by a handler to release a message without acknowledging it.
+
+    The message stays invisible until its visibility timeout lapses, then
+    redelivers. Used when another consumer holds a live lease on the job.
+    """
+
+
 class BaseConsumer(ABC):
     """Common polling loop and failure handling for pgmq consumers.
 
@@ -146,6 +154,16 @@ class BaseConsumer(ABC):
             await self.message_bus.archive(self.queue_name, queued_message.msg_id)
             await self.commit_message()
             await self.reset_message_context()
+            return
+        except SkipMessage:
+            # Release without acknowledging: no archive, no retry accounting.
+            await self.rollback_message()
+            await self.reset_message_context()
+            self.logger.warning(
+                "Released message %s from %s without ack (live lease elsewhere)",
+                queued_message.msg_id,
+                self.queue_name,
+            )
             return
         except Exception as error:
             await self.rollback_message()
