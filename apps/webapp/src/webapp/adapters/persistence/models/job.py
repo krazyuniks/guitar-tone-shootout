@@ -98,7 +98,7 @@ class Job(UUIDMixin, TimestampMixin, Base):
 
     # Retry tracking
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Result and error tracking

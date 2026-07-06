@@ -53,10 +53,22 @@ class JobStatus(str, Enum):
             True if the transition is valid, False otherwise
         """
         valid_transitions: dict[JobStatus, frozenset[JobStatus]] = {
-            JobStatus.PENDING: frozenset({JobStatus.QUEUED, JobStatus.CANCELLED}),
-            JobStatus.QUEUED: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED}),
+            # QUEUED: outbox enqueue. RUNNING: self-managed direct claim
+            # (SOURCE_SYNC never rides a queue). FAILED: pre-claim failure
+            # (e.g. the auth gate rejects a sync before it starts).
+            JobStatus.PENDING: frozenset(
+                {JobStatus.QUEUED, JobStatus.RUNNING, JobStatus.CANCELLED, JobStatus.FAILED}
+            ),
+            # DEAD_LETTERED: a poison message can exhaust redelivery before
+            # any consumer claims the job.
+            JobStatus.QUEUED: frozenset(
+                {JobStatus.RUNNING, JobStatus.CANCELLED, JobStatus.DEAD_LETTERED}
+            ),
+            # RUNNING self-loop: lease heartbeat renewal and the stale-lease
+            # re-claim after redelivery.
             JobStatus.RUNNING: frozenset(
                 {
+                    JobStatus.RUNNING,
                     JobStatus.COMPLETED,
                     JobStatus.FAILED,
                     JobStatus.CANCELLED,
@@ -67,7 +79,7 @@ class JobStatus(str, Enum):
             JobStatus.FAILED: frozenset({JobStatus.PENDING, JobStatus.DEAD_LETTERED}),
             JobStatus.COMPLETED: frozenset(),
             JobStatus.CANCELLED: frozenset(),
-            # Admin can retry dead-lettered jobs
+            # Admin redrive returns dead-lettered jobs to PENDING
             JobStatus.DEAD_LETTERED: frozenset({JobStatus.PENDING}),
         }
         return target in valid_transitions.get(self, frozenset())

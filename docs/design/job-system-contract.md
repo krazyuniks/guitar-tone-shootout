@@ -42,15 +42,20 @@ Allowed transitions and their sole triggers:
 | From | To | Trigger |
 |---|---|---|
 | PENDING | QUEUED | outbox enqueue |
-| PENDING, QUEUED | CANCELLED | admin cancel |
+| PENDING | RUNNING | self-managed direct claim (SOURCE_SYNC rides no queue) |
+| PENDING | FAILED | pre-claim failure (e.g. the sync auth gate rejects the run) |
+| PENDING, QUEUED | CANCELLED | admin cancel; superseded self-managed run |
 | QUEUED | RUNNING | consumer claim |
-| RUNNING | RUNNING | re-claim after redelivery, only when `last_heartbeat` is stale |
+| RUNNING | RUNNING | lease heartbeat renewal; stale-lease re-claim after redelivery |
 | RUNNING | COMPLETED | handler success |
 | RUNNING | FAILED | handler error; stale-heartbeat reap |
 | RUNNING | CANCELLED | admin cancel |
 | QUEUED, RUNNING | DEAD_LETTERED | consumer base at max redelivery (`read_ct` > max_retries) |
 | FAILED | PENDING | bounded auto-retry (attempt < max_attempts, `next_retry_at` due); admin retry |
 | DEAD_LETTERED | PENDING | admin redrive |
+
+Automatic retry applies to queue-routable types only; self-managed types never
+gain `next_retry_at` (their scheduler owns re-runs).
 
 COMPLETED and CANCELLED have no exits. A rerun is a new shootout (ADR-0004 G2), never a
 transition out of COMPLETED.

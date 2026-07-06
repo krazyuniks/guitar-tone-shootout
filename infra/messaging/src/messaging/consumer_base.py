@@ -185,6 +185,21 @@ class BaseConsumer(ABC):
         }
         await self.message_bus.send(self.dead_letter_queue, dlq_message)
         await self.message_bus.archive(self.queue_name, queued_message.msg_id)
+        await self.on_dead_letter(queued_message.message, reason)
+
+    async def on_dead_letter(
+        self,
+        message: dict[str, object],  # noqa: ARG002 - hook signature for overrides
+        reason: str,  # noqa: ARG002
+    ) -> None:
+        """Hook after a message is dead-lettered; runs in the same session.
+
+        Job-backed consumers override this to mark their job row
+        DEAD_LETTERED in the same commit as the DLQ write, so the queue-level
+        and job-row views of "dead-lettered" can never diverge. Default no-op
+        (messages without a job row, e.g. gear-sync events).
+        """
+        return None
 
     def _backoff_seconds(self, attempt: int) -> float:
         """Exponential backoff capped by max_backoff_seconds."""

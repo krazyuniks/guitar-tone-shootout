@@ -24,6 +24,7 @@ from webapp.services.job_dispatch import (
     JobNotPendingError,
     enqueue_job,
 )
+from webapp.services.job_transitions import TransitionError, transition_job
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -274,25 +275,49 @@ async def monitor_stale_jobs() -> None:
 
 
 async def process_pending_retries() -> None:
-    """Reset FAILED jobs whose retry time has passed back to PENDING."""
+    """Claim FAILED jobs whose retry time has passed and re-enqueue them.
+
+    Each claim routes FAILED -> PENDING through the transition service
+    (attempt bookkeeping, parent re-projection) and re-enqueues through the
+    outbox. next_retry_at is only ever set under the attempt cap (ADR-0005),
+    so the due-time predicate is the whole eligibility test.
+    """
     now = datetime.now(UTC)
     stmt = text("""
-        UPDATE core_jobs SET status = :pending_status
+        SELECT id FROM core_jobs
         WHERE status = :failed_status
           AND next_retry_at IS NOT NULL
           AND next_retry_at <= :now
           AND attempt < max_attempts
+        LIMIT 50
     """)
-    params = {
-        "pending_status": JobStatus.PENDING.value,
-        "failed_status": JobStatus.FAILED.value,
-        "now": now,
-    }
+    params = {"failed_status": JobStatus.FAILED.value, "now": now}
+
     if _test_session is not None:
-        await _test_session.execute(stmt, params)
-        return
-    async with get_core_session() as session:
-        await session.execute(stmt, params)
+        result = await _test_session.execute(stmt, params)
+        job_ids = [row[0] for row in result.fetchall()]
+    else:
+        async with get_core_session_no_tx() as session:
+            result = await session.execute(stmt, params)
+            job_ids = [row[0] for row in result.fetchall()]
+
+    for job_id in job_ids:
+        try:
+            if _test_session is not None:
+                await transition_job(
+                    _test_session, job_id, JobStatus.PENDING, message="Automatic retry"
+                )
+                await enqueue_job(_test_session, job_id, source_bc="t3k-sync")
+            else:
+                async with get_core_session_no_tx() as session:
+                    await transition_job(
+                        session, job_id, JobStatus.PENDING, message="Automatic retry"
+                    )
+                    await enqueue_job(session, job_id, source_bc="t3k-sync")
+        except (TransitionError, JobDispatchError) as exc:
+            logger.warning("Cannot auto-retry job %s: %s", job_id, exc)
+        except Exception:
+            logger.exception("Error auto-retrying job %s", job_id)
 
 
 async def dispatch_pending_jobs() -> None:

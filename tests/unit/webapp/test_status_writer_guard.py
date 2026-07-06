@@ -27,27 +27,21 @@ RAW_WRITE = re.compile(r"UPDATE\s+(?:core_jobs|core_shootouts)\s+SET\s+status", 
 
 # file (repo-relative) -> exact number of status writes sanctioned there.
 ALLOWED: dict[str, int] = {
-    # The transition service itself: transition_job + reconcile_parent projection.
-    "apps/webapp/src/webapp/services/job_transitions.py": 5,
+    # The transition service itself: transition_job, the parent-cancel
+    # projection, and the reconcile_parent projection writes.
+    "apps/webapp/src/webapp/services/job_transitions.py": 7,
     # The outbox: exactly the PENDING -> QUEUED enqueue edge.
     "apps/webapp/src/webapp/services/job_dispatch.py": 1,
     # The run-request edge: shootout DRAFT -> PENDING at the process trigger.
     "apps/webapp/src/webapp/api/v1/shootouts.py": 1,
     # --- Legacy writers, shrink only ---
-    # DOM-terminal-writer-routing: admin cancel + admin retry.
-    "apps/webapp/src/webapp/api/admin.py": 2,
-    # DOM-terminal-writer-routing: user retry.
-    "apps/webapp/src/webapp/api/v1/jobs.py": 1,
     # JOB-idempotent-consume + DOM-shootout-finalise: claim, complete, fail,
     # and the master path's rogue parent/shootout projection.
     "apps/audio_worker/src/audio_worker/consumer.py": 8,
     # JOB-idempotent-consume: orchestrator claim + fan-out dispatch flips.
     "apps/shootout_orchestrator/src/shootout_orchestrator/consumer.py": 3,
-    # DOM-reaper-render-race + DOM-terminal-writer-routing: raw-SQL reaper and
-    # retry sweep writes.
-    "apps/t3k_sync/src/t3k_sync/tasks.py": 3,
-    # DOM-terminal-writer-routing: the SOURCE_SYNC lifecycle writer.
-    "apps/t3k_sync/src/t3k_sync/source_sync.py": 1,
+    # DOM-reaper-render-race: the raw-SQL stale-job reaper (both paths).
+    "apps/t3k_sync/src/t3k_sync/tasks.py": 2,
     # Domain->ORM mapping in the shootout repository save path.
     "apps/webapp/src/webapp/adapters/persistence/repositories/shootout_repository.py": 1,
     # DEBT-backend-dead-modules: the unused job repository write path.

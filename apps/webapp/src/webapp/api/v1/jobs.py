@@ -13,6 +13,7 @@ from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.job import JobResponse
 from webapp.services.job_dispatch import enqueue_job
 from webapp.services.job_service import JobService
+from webapp.services.job_transitions import InvalidTransitionError, transition_job
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -204,13 +205,16 @@ async def retry_job(
             detail="Only failed jobs can be retried",
         )
 
-    # Transactional outbox: the PENDING reset and the pgmq send commit together
-    # inside enqueue_job.
-    job_model.status = JobStatus.PENDING
-    job_model.progress = 0
-    job_model.error = None
-    await db.flush()
-
+    # Route the retry claim through the transition service (attempt
+    # bookkeeping, parent re-projection), then re-enqueue through the outbox;
+    # a crash between the two leaves a PENDING job the dispatch sweep recovers.
+    try:
+        await transition_job(db, job_model.id, JobStatus.PENDING)
+    except InvalidTransitionError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only failed jobs can be retried",
+        )
     await enqueue_job(db, job_model.id, message="Queued for retry")
     await db.refresh(job_model)
 

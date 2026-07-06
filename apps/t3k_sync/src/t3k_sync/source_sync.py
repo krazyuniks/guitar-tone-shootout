@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus, JobType
@@ -90,22 +89,32 @@ async def _create_source_sync_job() -> UUID:
             status=JobStatus.PENDING,
             progress=0,
             attempt=1,
-            max_attempts=3,
+            max_attempts=2,
         )
         session.add(job)
         await session.flush()
         return job.id
 
 
-async def _update_job_status(job_id: UUID, status: JobStatus, **fields: object) -> None:
-    """Update job status in gts_core."""
-    async with get_core_session() as session:
-        result = await session.execute(select(Job).where(Job.id == job_id))
-        job = result.scalar_one_or_none()
-        if job is not None:
-            job.status = status
-            for key, value in fields.items():
-                setattr(job, key, value)
+async def _update_job_status(
+    job_id: UUID,
+    status: JobStatus,
+    *,
+    message: str | None = None,
+    error: str | None = None,
+) -> None:
+    """Route the SOURCE_SYNC job lifecycle through the transition service.
+
+    Timestamps (started_at, last_heartbeat, completed_at) are the service's
+    bookkeeping; RUNNING -> RUNNING renewals are the lease heartbeat.
+    """
+    from webapp.services.job_transitions import TransitionError, transition_job
+
+    async with get_core_session_no_tx() as session:
+        try:
+            await transition_job(session, job_id, status, message=message, error=error)
+        except TransitionError as exc:
+            logger.warning("Sync job %s transition rejected: %s", job_id, exc)
 
 
 async def run_source_sync(
@@ -120,12 +129,7 @@ async def run_source_sync(
     try:
         _check_auth_gate()
     except RuntimeError as error:
-        await _update_job_status(
-            tracked_job_id,
-            JobStatus.FAILED,
-            error=str(error),
-            completed_at=datetime.now(UTC),
-        )
+        await _update_job_status(tracked_job_id, JobStatus.FAILED, error=str(error))
         raise
 
     _owns_tm = token_manager is None
@@ -137,18 +141,16 @@ async def run_source_sync(
         acquired = result.scalar()
         if not acquired:
             logger.info("Sync lock already held, skipping run")
+            # A superseded run never did any work: CANCELLED, not COMPLETED
+            # (PENDING -> COMPLETED is not a transition-table edge).
             await _update_job_status(
                 tracked_job_id,
-                JobStatus.COMPLETED,
+                JobStatus.CANCELLED,
                 message="Superseded by an active sync run",
-                completed_at=datetime.now(UTC),
             )
             return tracked_job_id
 
-        now = datetime.now(UTC)
-        await _update_job_status(
-            tracked_job_id, JobStatus.RUNNING, started_at=now, last_heartbeat=now
-        )
+        await _update_job_status(tracked_job_id, JobStatus.RUNNING)
 
         try:
             async with get_core_session_no_tx() as session:
@@ -164,11 +166,8 @@ async def run_source_sync(
                 )
 
                 async def renew_lock() -> None:
-                    await _update_job_status(
-                        tracked_job_id,
-                        JobStatus.RUNNING,
-                        last_heartbeat=datetime.now(UTC),
-                    )
+                    # RUNNING -> RUNNING lease heartbeat renewal.
+                    await _update_job_status(tracked_job_id, JobStatus.RUNNING)
 
                 mode = _get_sync_mode()
                 result = await sync_service.run_sync_batch(
@@ -186,21 +185,12 @@ async def run_source_sync(
                     result.hit_known_tone,
                 )
 
-            await _update_job_status(
-                tracked_job_id,
-                JobStatus.COMPLETED,
-                completed_at=datetime.now(UTC),
-            )
+            await _update_job_status(tracked_job_id, JobStatus.COMPLETED)
             if tracker is not None:
                 tracker.record_sync_success()
         except Exception:
             logger.exception("Sync batch failed")
-            await _update_job_status(
-                tracked_job_id,
-                JobStatus.FAILED,
-                error="Sync batch failed",
-                completed_at=datetime.now(UTC),
-            )
+            await _update_job_status(tracked_job_id, JobStatus.FAILED, error="Sync batch failed")
             if tracker is not None:
                 tracker.record_sync_failure("Sync batch failed")
         finally:

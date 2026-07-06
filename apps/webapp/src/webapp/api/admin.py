@@ -6,6 +6,7 @@ No authentication required. Access is controlled at the network level
 
 from __future__ import annotations
 
+import contextlib
 import time
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -36,6 +37,11 @@ from webapp.services.job_dispatch import (
     JobNotPendingError,
     UnroutableJobTypeError,
     enqueue_job,
+)
+from webapp.services.job_transitions import (
+    InvalidTransitionError,
+    JobNotFoundForTransitionError,
+    transition_job,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -146,26 +152,16 @@ async def cancel_job(
     job_id: UUID,
     session: AsyncSession = Depends(_get_db),
 ) -> JobDetail:
-    """Cancel a job by setting its status to CANCELLED."""
-    result = await session.execute(select(Job).where(Job.id == job_id))
-    job = result.scalar_one_or_none()
-    if job is None:
+    """Cancel a job through the transition service (reconciles the parent)."""
+    try:
+        job = await transition_job(session, job_id, JobStatus.CANCELLED)
+    except JobNotFoundForTransitionError:
         raise HTTPException(status_code=404, detail="Job not found")
-
-    terminal_states = {
-        JobStatus.COMPLETED,
-        JobStatus.FAILED,
-        JobStatus.CANCELLED,
-        JobStatus.DEAD_LETTERED,
-    }
-    if job.status in terminal_states:
+    except InvalidTransitionError as exc:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot cancel job in {job.status.value} state",
+            detail=f"Cannot cancel job in {exc.current.value} state",
         )
-
-    job.status = JobStatus.CANCELLED
-    await session.commit()
     await session.refresh(job)
 
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
@@ -181,30 +177,23 @@ async def retry_job(
     job_id: UUID,
     session: AsyncSession = Depends(_get_db),
 ) -> JobDetail:
-    """Retry a failed or dead-lettered job by resetting it to PENDING."""
-    result = await session.execute(select(Job).where(Job.id == job_id))
-    job = result.scalar_one_or_none()
-    if job is None:
+    """Retry a failed or dead-lettered job through the transition service."""
+    try:
+        job = await transition_job(session, job_id, JobStatus.PENDING)
+    except JobNotFoundForTransitionError:
         raise HTTPException(status_code=404, detail="Job not found")
-
-    retryable_states = {JobStatus.FAILED, JobStatus.DEAD_LETTERED}
-    if job.status not in retryable_states:
+    except InvalidTransitionError as exc:
         raise HTTPException(
             status_code=409,
-            detail=f"Cannot retry job in {job.status.value} state",
+            detail=f"Cannot retry job in {exc.current.value} state",
         )
 
-    job.status = JobStatus.PENDING
-    job.error = None
-    await session.flush()
-
-    # Enqueue atomically with the PENDING reset (transactional outbox).
-    # Self-managed types (SOURCE_SYNC) have no queue route and stay PENDING
-    # for their own scheduler; everything else must not wait on the sweep.
-    try:
+    # Re-enqueue through the outbox. Two service transactions (transition,
+    # then enqueue); a crash between them leaves a consistent PENDING job the
+    # dispatch sweep recovers. Self-managed types (SOURCE_SYNC) have no queue
+    # route and stay PENDING for their own scheduler.
+    with contextlib.suppress(UnroutableJobTypeError):
         await enqueue_job(session, job.id, message="Queued for retry")
-    except UnroutableJobTypeError:
-        await session.commit()
     await session.refresh(job)
 
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
@@ -262,7 +251,7 @@ async def trigger_sync(
         status=JobStatus.PENDING,
         progress=0,
         attempt=1,
-        max_attempts=3,
+        max_attempts=2,
     )
     session.add(job)
     await session.commit()

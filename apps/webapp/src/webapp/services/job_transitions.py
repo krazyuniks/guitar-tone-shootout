@@ -4,30 +4,39 @@ This module is the sole writer of Job.status and, via projection, of
 Shootout.status; a structural guard test pins the shrinking allowlist of
 not-yet-migrated legacy writers. Every move is validated against the
 transition table (JobStatus.can_transition_to); a terminal move on a
-SHOOTOUT_AUDIO child reconciles the parent shootout in the same transaction.
+SHOOTOUT_AUDIO child - and a retry claim back to PENDING - reconciles the
+parent shootout in the same transaction.
 Lock order, always: own job row -> parent job row -> shootout row.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import logging
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from sqlalchemy import select
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
-from webapp.services.job_dispatch import send_and_mark_queued
+from webapp.services.job_dispatch import is_queue_routable, send_and_mark_queued
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 #: Terminal states that project the parent shootout to FAILED. CANCELLED maps
 #: publicly to FAILED; the public lifecycle has five states, never more.
 FAILED_CLASS = frozenset({JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD_LETTERED})
+
+#: Delay before the retry sweep picks up an automatically retryable failure.
+RETRY_BACKOFF = timedelta(seconds=120)
+
+#: Job states a retry claim (-> PENDING) can come from.
+_RETRY_SOURCES = frozenset({JobStatus.FAILED, JobStatus.DEAD_LETTERED})
 
 
 class TransitionError(Exception):
@@ -55,13 +64,13 @@ async def transition_job(
     error: str | None = None,
     message: str | None = None,
 ) -> Job:
-    """Move a job to `to_status`, reconcile its parent if terminal, and commit.
+    """Move a job to `to_status`, reconcile its parent if needed, and commit.
 
     Locks the job row, validates the move against the transition table (an
     invalid move raises before anything is written - a rejected no-op, never a
-    half-write), applies bookkeeping, and for a terminal SHOOTOUT_AUDIO child
-    re-projects the parent shootout inside the same transaction. The service
-    owns its commit; callers never commit around it.
+    half-write), applies bookkeeping, and for a SHOOTOUT_AUDIO child re-projects
+    the parent shootout inside the same transaction on terminal moves and on
+    retry claims. The service owns its commit; callers never commit around it.
     """
     stmt = select(Job).where(Job.id == job_id).with_for_update()
     result = await session.execute(stmt)
@@ -72,6 +81,7 @@ async def transition_job(
         raise InvalidTransitionError(job.status, to_status)
 
     now = datetime.now(UTC)
+    from_status = job.status
     job.status = to_status
     if message is not None:
         job.message = message
@@ -84,15 +94,82 @@ async def transition_job(
     if to_status.is_terminal():
         job.completed_at = now
 
+    # Retry bookkeeping (ADR-0005: bounded to max_attempts total, one automatic
+    # retry). A failure under the cap schedules the sweep pickup; at the cap it
+    # stays FAILED for admin action. Only queue-routable types auto-retry:
+    # self-managed types (SOURCE_SYNC) have their own scheduler and no route
+    # for the sweep to re-enqueue. A retry claim consumes an attempt and
+    # clears the failure state.
+    if to_status == JobStatus.FAILED:
+        job.next_retry_at = (
+            now + RETRY_BACKOFF
+            if job.attempt < job.max_attempts and is_queue_routable(job.job_type)
+            else None
+        )
+    if to_status == JobStatus.PENDING and from_status in _RETRY_SOURCES:
+        job.attempt += 1
+        job.error = None
+        job.next_retry_at = None
+        job.progress = 0
+        job.completed_at = None
+
     if (
-        to_status.is_terminal()
-        and job.job_type == JobType.SHOOTOUT_AUDIO
+        job.job_type == JobType.SHOOTOUT_AUDIO
         and job.parent_job_id is not None
+        and (
+            to_status.is_terminal()
+            or (to_status == JobStatus.PENDING and from_status in _RETRY_SOURCES)
+        )
     ):
         await reconcile_parent(session, job.parent_job_id)
 
+    # Parent cancel blocks completion only (ADR-0005): a terminal move on the
+    # parent SHOOTOUT job itself projects the shootout to FAILED unless it is
+    # already published; in-flight children finish but are never published.
+    if (
+        to_status.is_terminal()
+        and to_status != JobStatus.COMPLETED
+        and job.job_type == JobType.SHOOTOUT
+        and job.entity_id is not None
+    ):
+        shootout_stmt = select(Shootout).where(Shootout.id == job.entity_id).with_for_update()
+        shootout_result = await session.execute(shootout_stmt)
+        shootout = shootout_result.scalar_one_or_none()
+        if shootout is not None and shootout.status != ShootoutStatus.COMPLETED:
+            shootout.status = ShootoutStatus.FAILED
+
     await session.commit()
     return job
+
+
+async def mark_job_dead_lettered(
+    session: AsyncSession,
+    message: dict[str, object],
+    reason: str,
+) -> None:
+    """Couple a dead-lettered queue message to its job row, same transaction.
+
+    Parses the job id from the message payload and transitions the job to
+    DEAD_LETTERED in the caller's session, so the queue-level DLQ write and
+    the job-row state commit together and can never diverge. Messages without
+    a resolvable job row, and jobs already terminal, are logged and skipped -
+    the DLQ envelope remains the redrive source either way.
+    """
+    payload = message.get("payload") if isinstance(message, dict) else None
+    raw_job_id = payload.get("job_id") if isinstance(payload, dict) else None
+    if raw_job_id is None:
+        return
+    try:
+        job_id = UUID(str(raw_job_id))
+    except ValueError:
+        logger.warning("Dead-lettered message carries unparseable job_id %r", raw_job_id)
+        return
+    try:
+        await transition_job(
+            session, job_id, JobStatus.DEAD_LETTERED, error=f"dead-lettered: {reason}"
+        )
+    except TransitionError as exc:
+        logger.warning("Dead-letter job coupling skipped for %s: %s", job_id, exc)
 
 
 async def reconcile_parent(session: AsyncSession, parent_job_id: UUID) -> None:
@@ -147,15 +224,27 @@ async def reconcile_parent(session: AsyncSession, parent_job_id: UUID) -> None:
             shootout.status = ShootoutStatus.FAILED
         return
 
+    # Retry re-projection: a FAILED, unpublished run whose failed-class
+    # children have all been reclaimed comes back to life. Terminal per
+    # generation: a published (COMPLETED) shootout never re-enters.
+    if parent_job.status == JobStatus.FAILED:
+        parent_job.status = JobStatus.RUNNING
+        parent_job.error = None
+        parent_job.completed_at = None
+
     if parent_job.status in {JobStatus.PENDING, JobStatus.QUEUED}:
         parent_job.status = JobStatus.RUNNING
         if parent_job.started_at is None:
             parent_job.started_at = now
 
-    if shootout is not None and shootout.status not in {
-        ShootoutStatus.COMPLETED,
-        ShootoutStatus.FAILED,
-    }:
+    # A terminal parent (cancelled/dead-lettered) blocks completion: children
+    # finish but nothing is published and no master is spawned.
+    if parent_job.status.is_terminal():
+        return
+
+    # No failed-class child exists here, so a FAILED projection is stale by
+    # construction (a reclaimed prior failure) - revive it alongside the parent.
+    if shootout is not None and shootout.status != ShootoutStatus.COMPLETED:
         shootout.status = ShootoutStatus.PROCESSING
 
     if completed_children == total_children:
