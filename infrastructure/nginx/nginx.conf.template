@@ -58,8 +58,10 @@ server {
         try_files /login.html /login/index.html =404;
     }
 
-    # Block all other admin routes externally (only accessible via direct backend port)
-    location /admin/ {
+    # Admin API is internal-only: reachable in-network at webapp:8000 (gts_admin,
+    # scheduled sweeps), never through the public proxy. This longest-prefix
+    # match beats the general /api/ proxy below; uniform 404, no existence leak.
+    location /api/admin/ {
         return 404;
     }
 
