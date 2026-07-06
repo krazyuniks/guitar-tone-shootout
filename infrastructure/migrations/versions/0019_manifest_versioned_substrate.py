@@ -74,19 +74,26 @@ def upgrade() -> None:
         WHERE s.id = n.id AND n.rn > 1
         """
     )
-    # Align each shootout's render_version with its highest segment version so
-    # the next run's version is monotonic.
+    # Align each shootout's render_version with its highest COMPLETE version:
+    # the largest v every chain has a segment for. Per-chain versions are
+    # contiguous 1..n (row_number above), so that is min over chains of the
+    # per-chain max - never the global max, which a single chain's duplicates
+    # would push past versions other chains do not have.
     op.execute(
         """
         UPDATE core_shootouts sh
-        SET render_version = sub.maxv
+        SET render_version = sub.complete_version
         FROM (
-            SELECT sc.shootout_id, max(a.version) AS maxv
-            FROM core_audio_segments a
-            JOIN core_shootout_chains sc ON sc.id = a.shootout_chain_id
+            SELECT sc.shootout_id, min(cmax.maxv) AS complete_version
+            FROM (
+                SELECT shootout_chain_id, max(version) AS maxv
+                FROM core_audio_segments
+                GROUP BY shootout_chain_id
+            ) cmax
+            JOIN core_shootout_chains sc ON sc.id = cmax.shootout_chain_id
             GROUP BY sc.shootout_id
         ) sub
-        WHERE sh.id = sub.shootout_id AND sub.maxv > 1
+        WHERE sh.id = sub.shootout_id AND sub.complete_version > 1
         """
     )
 
