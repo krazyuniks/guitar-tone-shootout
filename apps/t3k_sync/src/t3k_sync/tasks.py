@@ -12,18 +12,20 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-import httpx
 from sqlalchemy import column, delete, table, text
 
 from gts.domain.auth_gate import check_auth_status
 from gts.domain.value_objects.job_status import JobStatus
 from gts.domain.value_objects.source_auth_status import SourceAuthStatus
-from messaging.db import get_core_session
+from messaging.db import get_core_session, get_core_session_no_tx
 from t3k_sync.source_sync import _PG_ADVISORY_LOCK_KEY
+from webapp.services.job_dispatch import (
+    JobDispatchError,
+    JobNotPendingError,
+    enqueue_job,
+)
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from source_t3k.adapters.inbound.token_manager import T3KTokenManager
@@ -33,19 +35,12 @@ logger = logging.getLogger(__name__)
 _REFRESH_WINDOW_SECONDS = 600
 _FALLBACK_REFRESH_SECONDS = 1800
 _BACKUPS_DIR = Path("/app/backups")
-_DISPATCH_MAX_FAILURES = 3
-_DISPATCH_COOLDOWN = timedelta(minutes=30)
 # pgmq archive table names are a_ + alphanumeric/underscore (from system catalog, not user input).
 _PGMQ_ARCHIVE_TABLE_RE = re.compile(r"^a_[a-z][a-z0-9_]*$")
 
 # Test hook: set by tests to inject the test session into DB tasks.
 # Allows task functions to share the test's SAVEPOINT-isolated session.
 _test_session: AsyncSession | None = None
-
-# In-memory cooldown tracker for dispatch_pending_jobs.
-# Maps job_id -> (failure_count, last_failure_time).
-_dispatch_failures: dict[UUID, tuple[int, datetime]] = {}
-
 
 # ---------------------------------------------------------------------------
 # Token refresh
@@ -301,22 +296,18 @@ async def process_pending_retries() -> None:
 
 
 async def dispatch_pending_jobs() -> None:
-    """Dispatch jobs stuck in PENDING status to the worker.
+    """Re-dispatch jobs stuck in PENDING through the transactional outbox.
 
-    Tracks consecutive failures per job ID. After 3 consecutive 400s,
-    the job is skipped for 30 minutes to avoid log spam.
+    Crash fallback only (job-system contract): every enqueue path flips
+    PENDING -> QUEUED in the same transaction as its pgmq send, so a PENDING
+    job older than the cutoff means a request died between the job-row write
+    and its outbox transaction. Enqueue directly via the shared service; the
+    row lock inside enqueue_job serialises against any concurrent dispatcher,
+    and the loser's JobNotPendingError is a clean skip, not a failure.
     """
-    # Expire old cooldowns
-    now = datetime.now(UTC)
-    expired = [
-        jid for jid, (count, ts) in _dispatch_failures.items() if now - ts > _DISPATCH_COOLDOWN
-    ]
-    for jid in expired:
-        del _dispatch_failures[jid]
-
-    cutoff = now - timedelta(minutes=5)
-    # Only dispatch job types that the enqueue endpoint can handle.
-    # source_sync is self-managed; notification has no handler.
+    cutoff = datetime.now(UTC) - timedelta(minutes=5)
+    # Only job types with a queue route. source_sync is self-managed;
+    # notification has no handler.
     dispatchable = ("shootout", "shootout_audio", "shootout_master", "audio_processing")
     placeholders = ", ".join(f":jt{i}" for i in range(len(dispatchable)))
     stmt = text(f"""
@@ -336,49 +327,32 @@ async def dispatch_pending_jobs() -> None:
         result = await _test_session.execute(stmt, params)
         job_ids = [row[0] for row in result.fetchall()]
     else:
-        async with get_core_session() as session:
+        async with get_core_session_no_tx() as session:
             result = await session.execute(stmt, params)
             job_ids = [row[0] for row in result.fetchall()]
 
     if not job_ids:
         return
 
-    # Filter out jobs in cooldown
-    eligible = [
-        jid
-        for jid in job_ids
-        if jid not in _dispatch_failures or _dispatch_failures[jid][0] < _DISPATCH_MAX_FAILURES
-    ]
-    if not eligible:
-        return
-
-    worker_url = os.getenv("WORKER_ADMIN_URL", "http://webapp:8000")
     dispatched = 0
-    async with httpx.AsyncClient() as client:
-        for job_id in eligible:
-            try:
-                response = await client.post(
-                    f"{worker_url}/api/admin/enqueue",
-                    json={"job_id": str(job_id)},
-                    timeout=10.0,
+    for job_id in job_ids:
+        try:
+            if _test_session is not None:
+                await enqueue_job(
+                    _test_session, job_id, source_bc="t3k-sync", message="Queued by dispatch sweep"
                 )
-                if response.status_code < 300:
-                    dispatched += 1
-                    _dispatch_failures.pop(job_id, None)
-                else:
-                    prev_count, _ = _dispatch_failures.get(job_id, (0, now))
-                    _dispatch_failures[job_id] = (prev_count + 1, now)
-                    if prev_count + 1 >= _DISPATCH_MAX_FAILURES:
-                        logger.warning(
-                            "Job %s failed dispatch %d times, cooling down for %d min",
-                            job_id,
-                            prev_count + 1,
-                            int(_DISPATCH_COOLDOWN.total_seconds() / 60),
-                        )
-                    else:
-                        logger.warning("Failed to enqueue job %s: %d", job_id, response.status_code)
-            except Exception:
-                logger.exception("Error enqueuing job %s", job_id)
+            else:
+                async with get_core_session_no_tx() as session:
+                    await enqueue_job(
+                        session, job_id, source_bc="t3k-sync", message="Queued by dispatch sweep"
+                    )
+            dispatched += 1
+        except JobNotPendingError:
+            continue  # another dispatcher won the race
+        except JobDispatchError as exc:
+            logger.warning("Cannot dispatch job %s: %s", job_id, exc)
+        except Exception:
+            logger.exception("Error enqueuing job %s", job_id)
 
     if dispatched > 0:
         logger.info("Dispatched %d stuck pending jobs", dispatched)

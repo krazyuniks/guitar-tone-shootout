@@ -1184,10 +1184,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Enqueue Job
-         * @description Enqueue a job to the appropriate pgmq queue.
+         * Enqueue Pending Job
+         * @description Enqueue a PENDING job through the transactional outbox (send + QUEUED + commit).
          */
-        post: operations["enqueue_job_api_admin_enqueue_post"];
+        post: operations["enqueue_pending_job_api_admin_enqueue_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4364,7 +4364,7 @@ export interface operations {
             };
         };
     };
-    enqueue_job_api_admin_enqueue_post: {
+    enqueue_pending_job_api_admin_enqueue_post: {
         parameters: {
             query?: never;
             header?: never;

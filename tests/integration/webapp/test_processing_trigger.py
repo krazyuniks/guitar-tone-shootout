@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from gts.domain.entities.shootout import Shootout, ShootoutChain
 from gts.domain.value_objects.job_status import JobStatus, JobType
@@ -39,6 +39,14 @@ def app() -> FastAPI:
     app = FastAPI()
     app.include_router(router)
     return app
+
+
+@pytest.fixture(autouse=True)
+async def _shootout_queue(db_session: AsyncSession) -> None:
+    """The outbox sends for real; ensure the target queue exists in this transaction."""
+    from messaging.pgmq_client import PgmqClient
+
+    await PgmqClient(db_session).create_queue("shootout_commands")
 
 
 @pytest.fixture
@@ -169,15 +177,10 @@ class TestProcessingTriggerEndpoint:
     async def test_returns_404_for_nonexistent_shootout(
         self,
         authenticated_client: AsyncClient,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint returns 404 when shootout does not exist."""
         nonexistent_id = uuid4()
 
-        async def fake_enqueue(_job_id):
-            pass
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
         response = await authenticated_client.post(f"/api/shootouts/{nonexistent_id}/process")
 
         assert response.status_code == 404
@@ -189,15 +192,9 @@ class TestProcessingTriggerEndpoint:
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
         other_user: User,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint returns 404 when shootout is owned by different user."""
         from webapp.api.v1.shootouts import set_session_override, set_user_override
-
-        async def fake_enqueue(_job_id):
-            pass
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
 
         # Set up client authenticated as other_user
         set_session_override(db_session)
@@ -289,22 +286,14 @@ class TestProcessingTriggerEndpoint:
         assert response.status_code == 400
         assert "already" in response.json()["detail"].lower()
 
-    async def test_creates_job_record(
+    async def test_creates_job_record_queued(
         self,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
         test_user: User,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Test endpoint creates a Job record in the database."""
-        enqueue_calls: list[UUID] = []
-
-        async def fake_enqueue(job_id):
-            enqueue_calls.append(job_id)
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-
+        """The endpoint creates the Job and the outbox flips it to QUEUED."""
         response = await authenticated_client.post(
             f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -312,7 +301,7 @@ class TestProcessingTriggerEndpoint:
         # Verify response
         assert response.status_code == 202
 
-        # Verify Job was created
+        # Verify Job was created and enqueued in the same transaction
         stmt = select(JobModel).where(JobModel.user_id == test_user.id)
         result = await db_session.execute(stmt)
         jobs = result.scalars().all()
@@ -322,22 +311,15 @@ class TestProcessingTriggerEndpoint:
         assert job.job_type == JobType.SHOOTOUT.value
         assert job.entity_id == draft_shootout_with_chains.id
         assert job.user_id == test_user.id
-        assert job.status == JobStatus.PENDING.value
+        assert job.status == JobStatus.QUEUED.value
 
     async def test_updates_shootout_status_to_pending(
         self,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint updates shootout status to PENDING."""
-
-        async def fake_enqueue(_job_id):
-            pass
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-
         response = await authenticated_client.post(
             f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -348,44 +330,13 @@ class TestProcessingTriggerEndpoint:
         await db_session.refresh(draft_shootout_with_chains)
         assert draft_shootout_with_chains.status == ShootoutStatus.PENDING
 
-    async def test_calls_worker_admin_api(
-        self,
-        authenticated_client: AsyncClient,
-        draft_shootout_with_chains: ShootoutModel,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Test endpoint sends HTTP POST to worker admin API."""
-        enqueue_calls: list[UUID] = []
-
-        async def fake_enqueue(job_id):
-            enqueue_calls.append(job_id)
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-
-        response = await authenticated_client.post(
-            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
-        )
-
-        assert response.status_code == 202
-
-        # Verify enqueue_to_worker was called with a UUID
-        assert len(enqueue_calls) == 1
-        assert isinstance(enqueue_calls[0], UUID)
-
     async def test_returns_202_with_job_id(
         self,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test endpoint returns 202 with job_id in response body."""
-
-        async def fake_enqueue(_job_id):
-            pass
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-
         response = await authenticated_client.post(
             f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -403,15 +354,8 @@ class TestProcessingTriggerEndpoint:
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
         test_user: User,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test job_id returned in response matches the Job created in DB."""
-
-        async def fake_enqueue(_job_id):
-            pass
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-
         response = await authenticated_client.post(
             f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
@@ -429,28 +373,26 @@ class TestProcessingTriggerEndpoint:
         assert db_job.user_id == test_user.id
         assert db_job.entity_id == draft_shootout_with_chains.id
 
-    async def test_worker_api_receives_correct_job_id(
+    async def test_sends_start_shootout_command_without_sweep(
         self,
         authenticated_client: AsyncClient,
         db_session: AsyncSession,
         draft_shootout_with_chains: ShootoutModel,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Test worker admin API receives the correct job_id in payload."""
-        enqueue_calls: list[UUID] = []
+        """The start_shootout message is on shootout_commands immediately.
 
-        async def fake_enqueue(job_id):
-            enqueue_calls.append(job_id)
-
-        monkeypatch.setattr("webapp.api.v1.shootouts.enqueue_to_worker", fake_enqueue)
-
+        Processing starts without waiting on the fallback dispatch sweep:
+        the pgmq send commits with the job-row write (transactional outbox).
+        """
         response = await authenticated_client.post(
             f"/api/shootouts/{draft_shootout_with_chains.id}/process"
         )
 
         assert response.status_code == 202
-        body = response.json()
-        returned_job_id = UUID(body["job_id"])
+        returned_job_id = response.json()["job_id"]
 
-        # Verify enqueue_to_worker was called with the same job_id
-        assert enqueue_calls[0] == returned_job_id
+        result = await db_session.execute(text("SELECT message FROM pgmq.q_shootout_commands"))
+        messages = [row[0] for row in result.fetchall()]
+        assert len(messages) == 1
+        assert messages[0]["message_type"] == "start_shootout"
+        assert messages[0]["payload"]["job_id"] == returned_job_id

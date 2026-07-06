@@ -19,8 +19,6 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import ProcessAudioCommand, StartShootoutCommand
-from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.api.v1.schemas.admin import (
     EnqueueRequest,
@@ -33,6 +31,12 @@ from webapp.api.v1.schemas.admin import (
     UnlockResponse,
 )
 from webapp.dependencies import get_db
+from webapp.services.job_dispatch import (
+    JobNotFoundError,
+    JobNotPendingError,
+    UnroutableJobTypeError,
+    enqueue_job,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -161,7 +165,7 @@ async def cancel_job(
         )
 
     job.status = JobStatus.CANCELLED
-    await session.flush()
+    await session.commit()
     await session.refresh(job)
 
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
@@ -192,7 +196,7 @@ async def retry_job(
 
     job.status = JobStatus.PENDING
     job.error = None
-    await session.flush()
+    await session.commit()
     await session.refresh(job)
 
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
@@ -204,46 +208,25 @@ async def retry_job(
 
 
 @router.post("/enqueue", response_model=EnqueueResponse, status_code=202)
-async def enqueue_job(
+async def enqueue_pending_job(
     request: EnqueueRequest,
     session: AsyncSession = Depends(_get_db),
 ) -> EnqueueResponse:
-    """Enqueue a job to the appropriate pgmq queue."""
-    result = await session.execute(select(Job).where(Job.id == request.job_id))
-    job = result.scalar_one_or_none()
-    if job is None:
+    """Enqueue a PENDING job through the transactional outbox (send + QUEUED + commit)."""
+    try:
+        await enqueue_job(session, request.job_id)
+    except JobNotFoundError:
         raise HTTPException(status_code=404, detail="Job not found")
-
-    pgmq = PgmqClient(session)
-
-    if job.job_type == JobType.SOURCE_SYNC:
-        raise HTTPException(
-            status_code=400,
-            detail="SOURCE_SYNC is self-managed by t3k-sync",
+    except JobNotPendingError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except UnroutableJobTypeError as exc:
+        detail = (
+            "SOURCE_SYNC is self-managed by t3k-sync"
+            if exc.job_type == JobType.SOURCE_SYNC
+            else f"No handler registered for job type: {exc.job_type.value}"
         )
-    elif job.job_type == JobType.SHOOTOUT:
-        cmd = StartShootoutCommand(source_bc="webapp", payload={"job_id": str(job.id)})
-        await pgmq.send("shootout_commands", cmd)
-    elif (
-        job.job_type in (JobType.SHOOTOUT_AUDIO, JobType.SHOOTOUT_MASTER)
-        or job.job_type == JobType.AUDIO_PROCESSING
-    ):
-        cmd_audio = ProcessAudioCommand(
-            source_bc="webapp",
-            payload={
-                "job_id": str(job.id),
-                "shootout_id": str(job.entity_id),
-                "user_id": str(job.user_id),
-            },
-        )
-        await pgmq.send("audio_commands", cmd_audio)
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No handler registered for job type: {job.job_type.value}",
-        )
+        raise HTTPException(status_code=400, detail=detail)
 
-    await session.flush()
     return EnqueueResponse(id=request.job_id)
 
 
@@ -265,7 +248,7 @@ async def trigger_sync(
         max_attempts=3,
     )
     session.add(job)
-    await session.flush()
+    await session.commit()
 
     return SyncTriggerResponse(message=f"Sync triggered for {source}")
 
