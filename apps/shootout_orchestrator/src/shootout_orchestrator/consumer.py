@@ -1,4 +1,4 @@
-"""Video command consumer and shootout orchestration logic."""
+"""Shootout orchestration consumer: fan-out and reconciliation for shootout runs."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import ProcessAudioCommand, RenderVideoCommand
+from messaging.commands import ProcessAudioCommand, StartShootoutCommand
 from messaging.consumer_base import BaseConsumer
 from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
@@ -43,7 +43,7 @@ async def _dispatch_pending_audio_children(parent_job_id: UUID, database_url: st
         pgmq = PgmqClient(session)
         for child in pending_children:
             cmd = ProcessAudioCommand(
-                source_bc="video-worker",
+                source_bc="shootout-orchestrator",
                 payload={
                     "job_id": str(child.id),
                     "shootout_id": str(parent_job.entity_id),
@@ -117,8 +117,8 @@ async def process_shootout_job(job_id: UUID) -> None:
     await reconcile_parent_after_audio(job_id, database_url)
 
 
-class RenderVideoConsumer(BaseConsumer):
-    """Consume render-video commands from the shootout orchestration queue."""
+class StartShootoutConsumer(BaseConsumer):
+    """Consume start_shootout commands from the shootout orchestration queue."""
 
     def __init__(self, session) -> None:
         super().__init__(
@@ -130,7 +130,7 @@ class RenderVideoConsumer(BaseConsumer):
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
         """Handle one shootout command envelope."""
-        command = RenderVideoCommand.model_validate(envelope.model_dump(mode="python"))
+        command = StartShootoutCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
         await process_shootout_job(job_id)
 

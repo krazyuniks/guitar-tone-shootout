@@ -1,4 +1,4 @@
-"""FastAPI app entrypoint for the video-worker container."""
+"""FastAPI app entrypoint for the shootout-orchestrator container."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from messaging.db import get_core_session_no_tx
-from video_worker.consumer import RenderVideoConsumer
+from shootout_orchestrator.consumer import StartShootoutConsumer
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """Start the render_video consumer for container lifetime."""
+    """Start the start_shootout consumer for container lifetime."""
     async with get_core_session_no_tx() as session:
-        consumer = RenderVideoConsumer(session)
+        consumer = StartShootoutConsumer(session)
 
         await consumer.message_bus.create_queue(consumer.queue_name)
         await consumer.message_bus.create_queue(consumer.dead_letter_queue)
@@ -31,7 +31,7 @@ async def lifespan(_: FastAPI):
             await asyncio.gather(consumer_task, return_exceptions=True)
 
 
-app = FastAPI(title="GTS Video Worker", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="GTS Shootout Orchestrator", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")

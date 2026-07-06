@@ -4,7 +4,7 @@ Provides pgmq client, consumer base class, and message envelope contracts
 for cross-BC command and event transport.
 """
 
-from messaging.commands import ProcessAudioCommand, RenderVideoCommand, SyncGearCommand
+from messaging.commands import ProcessAudioCommand, StartShootoutCommand, SyncGearCommand
 from messaging.consumer_base import BaseConsumer
 from messaging.envelope import MessageEnvelope
 from messaging.events import AudioProcessedEvent, GearSyncedEvent, VideoRenderedEvent
@@ -21,7 +21,7 @@ __all__ = [
     "PgmqClient",
     "ProcessAudioCommand",
     "QueueMessage",
-    "RenderVideoCommand",
+    "StartShootoutCommand",
     "SyncGearCommand",
     "VideoRenderedEvent",
 ]

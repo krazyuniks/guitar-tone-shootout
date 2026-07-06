@@ -26,11 +26,19 @@ class ProcessAudioCommand(MessageEnvelope):
         return value
 
 
-class RenderVideoCommand(MessageEnvelope):
-    """Command to trigger video rendering."""
+class StartShootoutCommand(MessageEnvelope):
+    """Command to start a shootout run: fan out per-chain audio jobs."""
 
-    message_type: Literal["render_video"] = "render_video"
+    message_type: Literal["start_shootout"] = "start_shootout"
     payload: dict[str, Any]
+
+    @field_validator("payload")
+    @classmethod
+    def _validate_payload_shape(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Require the parent SHOOTOUT job id the orchestrator loads."""
+        if "job_id" not in value:
+            raise ValueError("payload missing required keys: job_id")
+        return value
 
 
 class SyncGearCommand(MessageEnvelope):

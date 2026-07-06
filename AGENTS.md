@@ -53,7 +53,7 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR 
 | `webapp` | gts, audio, video, messaging | sources |
 | `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
 | `audio-worker` | gts, audio, messaging | video, sources, webapp |
-| `video-worker` | gts, video, messaging | audio, sources, webapp |
+| `shootout-orchestrator` | gts, messaging, webapp | audio, video, sources |
 
 **Core bounded context = `gts`.** The domain BC is conceptually "Core" (the DDD core domain) and is realised as the `gts` package (import root `gts`). Prose that says "Core" - the `model/gts/CLAUDE.md` title `# Core Bounded Context`, context-map references like "Sources -> Core", "Core owns the record schemas" - is intentional and correct. Only the package, path, and import root were renamed from `core` to `gts`. Do not flag "Core" references as stale. (`gts_core` is the database name; `core_*` are table names; `core_engine` is a pytest fixture - all unrelated and also correct.)
 
@@ -141,8 +141,8 @@ manually from the issue; do not recreate an in-repo workflow implementation.
 - Hook-blocked commands: `docker volume rm`, `docker volume prune`, `down -v`, `docker system prune`, `DROP DATABASE`, `TRUNCATE CASCADE`, `dropdb`.
 - For ANY infrastructure problem: `worktree up gts <branch>` (feature) or `just up-d` (main).
 - Inside a driver-provisioned slice (an external SDLC runner) you are already in a feature worktree the driver provisioned, with its stack up and the webapp serving `/openapi.json`. Use that running stack (codegen runs in-container against `http://webapp:8000/openapi.json`), commit your change, and stop — the driver runs the gate and the review. The driver owns the worktree lifecycle and the stack: do NOT run `worktree up/down/recover` or `just up-d`/`just down`/`just rebuild` from inside a slice. `worktree recover` deletes a dirty checkout (your uncommitted work goes with it), and the plain stack recipes boot with a blank `OAUTH_ENCRYPTION_KEY` (they read the human-only `env.local.sh` a fresh worktree lacks, whereas the gate mints an ephemeral key) so a hand-started stack fails the auth-encryption tests.
-- **Container topology:** webapp, t3k-sync, audio-worker, video-worker, postgres, nginx.
-- **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, video-worker). Main stack only.
+- **Container topology:** webapp, t3k-sync, audio-worker, shootout-orchestrator, postgres, nginx.
+- **`--profile jobs`:** Activates BC worker containers (t3k-sync, audio-worker, shootout-orchestrator). Main stack only.
 - **Messaging:** pgmq queues in PostgreSQL. Four queues today: `audio_commands` (audio-worker), `shootout_commands` (shootout orchestration), `source_events` (t3k-sync), `dead_letter` (DLQ, no consumer yet).
 
 ### Env model

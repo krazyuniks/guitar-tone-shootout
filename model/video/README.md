@@ -24,4 +24,4 @@ Video rendering runs as a standalone Bounded Context (BC) service:
 
 ## Development
 
-See `infrastructure/docker/Dockerfile.video` for container configuration.
+No container builds this package: video composition is deferred (ADR-0007) and the render scaffolding is retired.

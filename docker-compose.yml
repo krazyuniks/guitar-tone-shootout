@@ -63,7 +63,7 @@ services:
       - ./apps/webapp:/app/apps/webapp
       - ./apps/t3k_sync:/app/apps/t3k_sync
       - ./apps/audio_worker:/app/apps/audio_worker
-      - ./apps/video_worker:/app/apps/video_worker
+      - ./apps/shootout_orchestrator:/app/apps/shootout_orchestrator
       - ./frontend/astro/dist:/app/static
       - ./frontend/astro:/app/frontend/astro
       - ../gts-storage:/app/storage
@@ -212,14 +212,14 @@ services:
     restart: unless-stopped
 
   # ==========================================================================
-  # Video Worker - shootout orchestration consumer (Remotion runtime base)
+  # Shootout Orchestrator - start_shootout consumer (slim Python base)
   # ==========================================================================
-  video-worker:
+  shootout-orchestrator:
     profiles:
       - jobs
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.video
+      dockerfile: infrastructure/docker/Dockerfile.shootout-orchestrator
       args:
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
@@ -227,8 +227,8 @@ services:
       [
         "uvicorn",
         "--app-dir",
-        "apps/video_worker/src",
-        "video_worker.main:app",
+        "apps/shootout_orchestrator/src",
+        "shootout_orchestrator.main:app",
         "--host",
         "0.0.0.0",
         "--port",
@@ -241,9 +241,8 @@ services:
       PYTHONPATH: /app/apps/webapp/src:/app/sources/t3k/src
     volumes:
       - ./model/gts:/app/model/gts
-      - ./model/video:/app/model/video
       - ./infra/messaging:/app/infra/messaging
-      - ./apps/video_worker:/app/apps/video_worker
+      - ./apps/shootout_orchestrator:/app/apps/shootout_orchestrator
       - ./apps/webapp:/app/apps/webapp
       - ./sources:/app/sources
       - ../gts-storage:/app/storage

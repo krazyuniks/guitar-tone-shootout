@@ -1,4 +1,4 @@
-"""Shootout reconciliation logic shared between audio-worker and video-worker."""
+"""Shootout reconciliation logic shared between the audio worker and the shootout orchestrator."""
 
 from __future__ import annotations
 

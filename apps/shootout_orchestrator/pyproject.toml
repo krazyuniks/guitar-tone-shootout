@@ -1,7 +1,7 @@
 [project]
-name = "gts-video-worker"
+name = "gts-shootout-orchestrator"
 version = "0.1.0"
-description = "GTS Video Worker - render_video pgmq consumer"
+description = "GTS Shootout Orchestrator - start_shootout pgmq consumer"
 requires-python = ">=3.14"
 dependencies = [
     "gts-domain",
@@ -24,4 +24,4 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/video_worker"]
+packages = ["src/shootout_orchestrator"]
