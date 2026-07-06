@@ -35,6 +35,9 @@ FAILED_CLASS = frozenset({JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.DEAD_
 #: Delay before the retry sweep picks up an automatically retryable failure.
 RETRY_BACKOFF = timedelta(seconds=120)
 
+#: A RUNNING job whose heartbeat is younger than this holds a live lease.
+LEASE_THRESHOLD = timedelta(seconds=120)
+
 #: Job states a retry claim (-> PENDING) can come from.
 _RETRY_SOURCES = frozenset({JobStatus.FAILED, JobStatus.DEAD_LETTERED})
 
@@ -56,6 +59,13 @@ class InvalidTransitionError(TransitionError):
         super().__init__(f"Invalid transition {current.value} -> {target.value}")
 
 
+class LiveLeaseError(TransitionError):
+    """A RUNNING re-claim was attempted while another consumer's lease is live."""
+
+    def __init__(self) -> None:
+        super().__init__("Job holds a live lease; re-claim requires a stale heartbeat")
+
+
 async def transition_job(
     session: AsyncSession,
     job_id: UUID,
@@ -63,6 +73,7 @@ async def transition_job(
     *,
     error: str | None = None,
     message: str | None = None,
+    renewal: bool = False,
 ) -> Job:
     """Move a job to `to_status`, reconcile its parent if needed, and commit.
 
@@ -71,6 +82,11 @@ async def transition_job(
     half-write), applies bookkeeping, and for a SHOOTOUT_AUDIO child re-projects
     the parent shootout inside the same transaction on terminal moves and on
     retry claims. The service owns its commit; callers never commit around it.
+
+    A RUNNING -> RUNNING move is either a lease heartbeat renewal by the
+    holder (`renewal=True`) or a re-claim after redelivery, which requires the
+    previous lease to be stale - a fresh heartbeat raises LiveLeaseError so a
+    duplicate consumer can never steal live work.
     """
     stmt = select(Job).where(Job.id == job_id).with_for_update()
     result = await session.execute(stmt)
@@ -81,6 +97,15 @@ async def transition_job(
         raise InvalidTransitionError(job.status, to_status)
 
     now = datetime.now(UTC)
+    if (
+        to_status == JobStatus.RUNNING
+        and job.status == JobStatus.RUNNING
+        and not renewal
+        and job.last_heartbeat is not None
+        and job.last_heartbeat > now - LEASE_THRESHOLD
+    ):
+        raise LiveLeaseError()
+
     from_status = job.status
     job.status = to_status
     if message is not None:
@@ -112,6 +137,7 @@ async def transition_job(
         job.next_retry_at = None
         job.progress = 0
         job.completed_at = None
+        job.result_path = None
 
     if (
         job.job_type == JobType.SHOOTOUT_AUDIO

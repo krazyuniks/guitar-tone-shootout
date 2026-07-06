@@ -102,6 +102,7 @@ async def _update_job_status(
     *,
     message: str | None = None,
     error: str | None = None,
+    renewal: bool = False,
 ) -> None:
     """Route the SOURCE_SYNC job lifecycle through the transition service.
 
@@ -112,7 +113,9 @@ async def _update_job_status(
 
     async with get_core_session_no_tx() as session:
         try:
-            await transition_job(session, job_id, status, message=message, error=error)
+            await transition_job(
+                session, job_id, status, message=message, error=error, renewal=renewal
+            )
         except TransitionError as exc:
             logger.warning("Sync job %s transition rejected: %s", job_id, exc)
 
@@ -166,8 +169,8 @@ async def run_source_sync(
                 )
 
                 async def renew_lock() -> None:
-                    # RUNNING -> RUNNING lease heartbeat renewal.
-                    await _update_job_status(tracked_job_id, JobStatus.RUNNING)
+                    # RUNNING -> RUNNING lease heartbeat renewal by the holder.
+                    await _update_job_status(tracked_job_id, JobStatus.RUNNING, renewal=True)
 
                 mode = _get_sync_mode()
                 result = await sync_service.run_sync_batch(

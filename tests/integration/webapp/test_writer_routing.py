@@ -249,3 +249,57 @@ class TestRetrySweep:
             {"jid": str(job.id)},
         )
         assert len(result.fetchall()) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+class TestLeaseGuard:
+    async def test_live_lease_blocks_reclaim(self, db_session: AsyncSession) -> None:
+        from webapp.services.job_transitions import LiveLeaseError
+
+        job = _job(status=JobStatus.QUEUED)
+        db_session.add(job)
+        await db_session.flush()
+        await transition_job(db_session, job.id, JobStatus.RUNNING)
+
+        with pytest.raises(LiveLeaseError):
+            await transition_job(db_session, job.id, JobStatus.RUNNING)
+
+    async def test_holder_renewal_refreshes_heartbeat(self, db_session: AsyncSession) -> None:
+        job = _job(status=JobStatus.QUEUED)
+        db_session.add(job)
+        await db_session.flush()
+        await transition_job(db_session, job.id, JobStatus.RUNNING)
+        first_beat = job.last_heartbeat
+
+        await transition_job(db_session, job.id, JobStatus.RUNNING, renewal=True)
+
+        assert job.last_heartbeat is not None
+        assert job.last_heartbeat >= first_beat
+
+    async def test_stale_lease_can_be_reclaimed(self, db_session: AsyncSession) -> None:
+        job = _job(status=JobStatus.QUEUED)
+        db_session.add(job)
+        await db_session.flush()
+        await transition_job(db_session, job.id, JobStatus.RUNNING)
+        await db_session.execute(
+            text(
+                "UPDATE core_jobs SET last_heartbeat = now() - interval '10 minutes' WHERE id = :id"
+            ),
+            {"id": str(job.id)},
+        )
+
+        reclaimed = await transition_job(db_session, job.id, JobStatus.RUNNING)
+
+        assert reclaimed.status == JobStatus.RUNNING
+
+    async def test_retry_claim_clears_result_path(self, db_session: AsyncSession) -> None:
+        job = _job(status=JobStatus.RUNNING)
+        job.result_path = "/app/storage/audio/stale.wav"
+        db_session.add(job)
+        await db_session.flush()
+        await transition_job(db_session, job.id, JobStatus.FAILED, error="boom")
+
+        await transition_job(db_session, job.id, JobStatus.PENDING)
+
+        assert job.result_path is None
