@@ -41,8 +41,6 @@ ALLOWED: dict[str, int] = {
     # DOM-shootout-finalise: the master path's shootout/parent COMPLETED
     # projection - the legacy publish gate the finalise job replaces.
     "apps/audio_worker/src/audio_worker/consumer.py": 2,
-    # DOM-reaper-render-race: the raw-SQL stale-job reaper (both paths).
-    "apps/t3k_sync/src/t3k_sync/tasks.py": 2,
     # Domain->ORM mapping in the shootout repository save path.
     "apps/webapp/src/webapp/adapters/persistence/repositories/shootout_repository.py": 1,
     # DEBT-backend-dead-modules: the unused job repository write path.
