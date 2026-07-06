@@ -110,6 +110,7 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
                 raise ValueError(f"Shootout {shootout.id} has no DI track")
 
             shootout_id = shootout.id
+            render_version = shootout.render_version
 
             # Pre-load gear paths for chain blocks
             user_gear_ids = [
@@ -156,8 +157,10 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
                 execute_signal_chain, signal_chain, di_audio, sample_rate, gear_path_resolver
             )
 
-        # Write processed audio to temp file, then normalise to FLAC output
-        output_dir = STORAGE_BASE / str(shootout_id)
+        # Write processed audio to temp file, then normalise into the
+        # per-version directory (ADR-0004): a render only ever writes inside
+        # its own version and never touches files an existing manifest pins.
+        output_dir = STORAGE_BASE / str(shootout_id) / f"v{render_version}"
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"{shootout_chain_id}.wav"
 
@@ -186,6 +189,7 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
                 integrated_lufs=result_lufs,
                 peak_dbfs=result_peak,
                 waveform=waveform,
+                version=render_version,
             )
             session.add(segment)
 
@@ -266,15 +270,21 @@ async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
             if shootout is None:
                 raise ValueError(f"Shootout {shootout_id} not found")
 
-        # Collect and concatenate audio from all chain segments (ordered by chain position)
+        # Collect and concatenate audio from all chain segments (ordered by
+        # chain position). Segments are pinned to this run's render version -
+        # never segments[0], which is undefined after a redelivery or rerun.
+        render_version = shootout.render_version
         sorted_chains = sorted(shootout.chains, key=lambda c: c.position)
         all_audio: list[np.ndarray] = []
         sample_rate: int | None = None
 
         for chain in sorted_chains:
-            if not chain.segments:
-                raise ProcessingError(f"Chain {chain.id} has no audio segments")
-            segment = chain.segments[0]  # One segment per chain
+            versioned = [seg for seg in chain.segments if seg.version == render_version]
+            if not versioned:
+                raise ProcessingError(
+                    f"Chain {chain.id} has no audio segment for version {render_version}"
+                )
+            segment = versioned[0]
             seg_path = Path(segment.file_path)
             if not seg_path.exists():
                 raise ProcessingError(f"Segment file not found: {seg_path}")
@@ -292,8 +302,8 @@ async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
         # Concatenate all chain audio
         master_audio = np.concatenate(all_audio)
 
-        # Write to temp, normalise to master FLAC
-        output_dir = STORAGE_BASE / str(shootout_id)
+        # Write to temp, normalise to master FLAC in this run's version dir
+        output_dir = STORAGE_BASE / str(shootout_id) / f"v{render_version}"
         output_dir.mkdir(parents=True, exist_ok=True)
         master_path = output_dir / "master.wav"
 
