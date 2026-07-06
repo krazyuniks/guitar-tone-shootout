@@ -50,6 +50,22 @@ class PgmqClient(MessageBus):
         )
         return int(result.scalar_one())
 
+    async def set_vt(self, queue_name: str, msg_id: int, visibility_timeout: int) -> None:
+        """Extend an in-flight message's visibility timeout (lease renewal).
+
+        Sets the message's vt to now + visibility_timeout seconds, so a live
+        worker keeps its lease exactly as long as it keeps heartbeating.
+        """
+        stmt = text(
+            "SELECT msg_id FROM pgmq.set_vt("
+            "CAST(:queue AS text), CAST(:msg_id AS bigint), CAST(:vt AS integer)"
+            ")"
+        )
+        await self._session.execute(
+            stmt,
+            {"queue": queue_name, "msg_id": msg_id, "vt": visibility_timeout},
+        )
+
     async def read(
         self,
         queue_name: str,

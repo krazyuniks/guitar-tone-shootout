@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -23,6 +24,7 @@ from audio.processing import (
     execute_signal_chain,
     normalize_loudness,
 )
+from audio_worker.lease import MessageLease
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from messaging.commands import ProcessAudioCommand
 from messaging.consumer_base import BaseConsumer
@@ -48,6 +50,10 @@ if TYPE_CHECKING:
 
 STORAGE_BASE = Path("/app/storage/audio")
 TARGET_LUFS = -14.0
+
+# One CPU-bound render at a time per worker; the event loop stays free for
+# /health and the lease heartbeat throughout.
+_render_gate = asyncio.Semaphore(1)
 
 
 async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
@@ -145,9 +151,10 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
             shootout_id,
             len(signal_chain.blocks),
         )
-        processed_audio = await execute_signal_chain(
-            signal_chain, di_audio, sample_rate, gear_path_resolver
-        )
+        async with _render_gate:
+            processed_audio = await asyncio.to_thread(
+                execute_signal_chain, signal_chain, di_audio, sample_rate, gear_path_resolver
+            )
 
         # Write processed audio to temp file, then normalise to FLAC output
         output_dir = STORAGE_BASE / str(shootout_id)
@@ -383,10 +390,16 @@ class ProcessAudioConsumer(BaseConsumer):
         self._session = session
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
-        """Handle one process_audio command envelope."""
+        """Handle one process_audio command envelope under a renewed lease."""
         command = ProcessAudioCommand.model_validate(envelope.model_dump(mode="python"))
         job_id = UUID(command.payload["job_id"])
-        await process_audio_job(job_id)
+        database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
+        message = self.current_message
+        if message is None:
+            await process_audio_job(job_id)
+            return
+        async with MessageLease(database_url, self.queue_name, message.msg_id, job_id):
+            await process_audio_job(job_id)
 
     async def on_dead_letter(self, message: dict[str, object], reason: str) -> None:
         """Couple the job row to the queue-level DLQ in the same commit."""

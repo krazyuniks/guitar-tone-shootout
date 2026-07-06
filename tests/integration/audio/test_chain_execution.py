@@ -267,7 +267,7 @@ async def test_execute_head_configuration(
     chain = signal_chain_with_amp_and_ir
 
     # Execute chain
-    result_audio = await execute_signal_chain(
+    result_audio = execute_signal_chain(
         chain=chain,
         di_audio=audio,
         sample_rate=sample_rate,
@@ -292,7 +292,7 @@ async def test_execute_full_rig_configuration(
     chain = signal_chain_with_full_rig
 
     # Execute chain
-    result_audio = await execute_signal_chain(
+    result_audio = execute_signal_chain(
         chain=chain,
         di_audio=audio,
         sample_rate=sample_rate,
@@ -316,7 +316,7 @@ async def test_execute_complete_chain(
     chain = signal_chain_with_pre_and_post_effects
 
     # Execute chain
-    result_audio = await execute_signal_chain(
+    result_audio = execute_signal_chain(
         chain=chain,
         di_audio=audio,
         sample_rate=sample_rate,
@@ -366,7 +366,7 @@ async def test_full_rig_with_ir_raises_error(
 
     # Should raise error
     with pytest.raises(ChainExecutionError, match=r"FULL_RIG.*cannot.*IR"):
-        await execute_signal_chain(
+        execute_signal_chain(
             chain=chain,
             di_audio=audio,
             sample_rate=sample_rate,
@@ -401,7 +401,7 @@ async def test_amp_without_ir_raises_error(
 
     # Should raise error
     with pytest.raises(ChainExecutionError, match=r"AMP.*requires.*IR"):
-        await execute_signal_chain(
+        execute_signal_chain(
             chain=chain,
             di_audio=audio,
             sample_rate=sample_rate,
@@ -454,7 +454,7 @@ async def test_blocks_execute_in_position_order(
         chain.blocks.append(block)
 
     # Execute - should process in position order regardless of list order
-    result_audio = await execute_signal_chain(
+    result_audio = execute_signal_chain(
         chain=chain,
         di_audio=audio,
         sample_rate=sample_rate,
@@ -481,7 +481,7 @@ async def test_empty_chain_raises_error(
 
     # Should raise error
     with pytest.raises(ChainExecutionError, match=r"empty|no blocks"):
-        await execute_signal_chain(
+        execute_signal_chain(
             chain=chain,
             di_audio=audio,
             sample_rate=sample_rate,
