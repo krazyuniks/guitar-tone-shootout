@@ -177,6 +177,16 @@ server {
         proxy_set_header Host $host;
     }
 
+    # Storage must never be reachable through the public SPA/static surface.
+    # Media is served only by gated webapp handlers that resolve opaque ids.
+    location = /app/storage {
+        return 404;
+    }
+
+    location /app/storage/ {
+        return 404;
+    }
+
     # App SPA — Vite dev server (dev) / static build (prod, slice A4).
     # All /app/* paths are forwarded to the Vite dev service including HMR
     # websocket upgrades and Vite internal paths (/@vite/*, /@react-refresh).
