@@ -22,11 +22,11 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add tuning column to di_tracks table."""
     op.add_column(
-        "di_tracks",
+        "core_di_tracks",
         sa.Column("tuning", sa.String(100), nullable=True),
     )
 
 
 def downgrade() -> None:
     """Remove tuning column from di_tracks table."""
-    op.drop_column("di_tracks", "tuning")
+    op.drop_column("core_di_tracks", "tuning")

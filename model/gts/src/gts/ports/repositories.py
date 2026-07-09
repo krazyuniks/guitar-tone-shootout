@@ -473,17 +473,6 @@ class JobRepository(Protocol):
         """
         ...
 
-    async def get_by_task_id(self, task_id: str) -> Job | None:
-        """Get a job by its TaskIQ task ID.
-
-        Args:
-            task_id: The TaskIQ task ID
-
-        Returns:
-            The Job if found, None otherwise
-        """
-        ...
-
     async def get_by_user_id(
         self,
         user_id: UUID,

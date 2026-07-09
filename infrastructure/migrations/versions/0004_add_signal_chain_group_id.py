@@ -20,21 +20,21 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column(
-        "signal_chains",
+        "core_signal_chains",
         sa.Column("group_id", sa.Uuid(), nullable=True),
     )
     op.create_foreign_key(
         "fk_signal_chains_group_id",
-        "signal_chains",
-        "signal_chain_groups",
+        "core_signal_chains",
+        "core_signal_chain_groups",
         ["group_id"],
         ["id"],
         ondelete="SET NULL",
     )
-    op.create_index("ix_signal_chains_group_id", "signal_chains", ["group_id"])
+    op.create_index("ix_signal_chains_group_id", "core_signal_chains", ["group_id"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_signal_chains_group_id", table_name="signal_chains")
-    op.drop_constraint("fk_signal_chains_group_id", "signal_chains", type_="foreignkey")
-    op.drop_column("signal_chains", "group_id")
+    op.drop_index("ix_signal_chains_group_id", table_name="core_signal_chains")
+    op.drop_constraint("fk_signal_chains_group_id", "core_signal_chains", type_="foreignkey")
+    op.drop_column("core_signal_chains", "group_id")

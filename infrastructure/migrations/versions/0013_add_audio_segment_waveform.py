@@ -19,11 +19,11 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add nullable waveform JSON column to audio_segments."""
     op.add_column(
-        "audio_segments",
+        "core_audio_segments",
         sa.Column("waveform", sa.JSON(), nullable=True),
     )
 
 
 def downgrade() -> None:
     """Remove waveform column from audio_segments."""
-    op.drop_column("audio_segments", "waveform")
+    op.drop_column("core_audio_segments", "waveform")

@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Create shootout_comments table."""
     op.create_table(
-        "shootout_comments",
+        "core_shootout_comments",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("shootout_id", sa.Uuid(), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
@@ -30,13 +30,13 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["shootout_id"],
-            ["shootouts.id"],
+            ["core_shootouts.id"],
             name=op.f("fk_shootout_comments_shootout_id_shootouts"),
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["user_id"],
-            ["users.id"],
+            ["core_users.id"],
             name=op.f("fk_shootout_comments_user_id_users"),
             ondelete="CASCADE",
         ),
@@ -44,13 +44,13 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_shootout_comments_shootout_id"),
-        "shootout_comments",
+        "core_shootout_comments",
         ["shootout_id"],
         unique=False,
     )
     op.create_index(
         op.f("ix_shootout_comments_user_id"),
-        "shootout_comments",
+        "core_shootout_comments",
         ["user_id"],
         unique=False,
     )
@@ -58,6 +58,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop shootout_comments table."""
-    op.drop_index(op.f("ix_shootout_comments_user_id"), table_name="shootout_comments")
-    op.drop_index(op.f("ix_shootout_comments_shootout_id"), table_name="shootout_comments")
-    op.drop_table("shootout_comments")
+    op.drop_index(op.f("ix_shootout_comments_user_id"), table_name="core_shootout_comments")
+    op.drop_index(op.f("ix_shootout_comments_shootout_id"), table_name="core_shootout_comments")
+    op.drop_table("core_shootout_comments")

@@ -24,15 +24,15 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add source_created_at, downloads_count, favorites_count columns."""
     op.add_column(
-        "gear",
+        "core_gear",
         sa.Column("source_created_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.add_column(
-        "gear",
+        "core_gear",
         sa.Column("downloads_count", sa.Integer(), nullable=False, server_default="0"),
     )
     op.add_column(
-        "gear",
+        "core_gear",
         sa.Column("favorites_count", sa.Integer(), nullable=False, server_default="0"),
     )
 
@@ -43,15 +43,15 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF to_regclass('public.t3k_packs') IS NOT NULL THEN
-                UPDATE gear g
+                UPDATE core_gear g
                 SET source_created_at = t.created_at
-                FROM gear_sources gs, t3k_packs t
+                FROM core_gear_sources gs, t3k_packs t
                 WHERE g.source_id = gs.id
                   AND gs.source_record_id = t.id::text;
             ELSIF to_regclass('public.t3k_tones_staging') IS NOT NULL THEN
-                UPDATE gear g
+                UPDATE core_gear g
                 SET source_created_at = t.created_at
-                FROM gear_sources gs, t3k_tones_staging t
+                FROM core_gear_sources gs, t3k_tones_staging t
                 WHERE g.source_id = gs.id
                   AND gs.source_record_id = t.id::text;
             END IF;
@@ -65,17 +65,17 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF to_regclass('public.t3k_packs') IS NOT NULL THEN
-                UPDATE gear g
+                UPDATE core_gear g
                 SET downloads_count = t.downloads_count,
                     favorites_count = t.favorites_count
-                FROM gear_sources gs, t3k_packs t
+                FROM core_gear_sources gs, t3k_packs t
                 WHERE g.source_id = gs.id
                   AND gs.source_record_id = t.id::text;
             ELSIF to_regclass('public.t3k_tones_staging') IS NOT NULL THEN
-                UPDATE gear g
+                UPDATE core_gear g
                 SET downloads_count = t.downloads_count,
                     favorites_count = t.favorites_count
-                FROM gear_sources gs, t3k_tones_staging t
+                FROM core_gear_sources gs, t3k_tones_staging t
                 WHERE g.source_id = gs.id
                   AND gs.source_record_id = t.id::text;
             END IF;
@@ -87,6 +87,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove source_created_at, downloads_count, favorites_count columns."""
-    op.drop_column("gear", "favorites_count")
-    op.drop_column("gear", "downloads_count")
-    op.drop_column("gear", "source_created_at")
+    op.drop_column("core_gear", "favorites_count")
+    op.drop_column("core_gear", "downloads_count")
+    op.drop_column("core_gear", "source_created_at")

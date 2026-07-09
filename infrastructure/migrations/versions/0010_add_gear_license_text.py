@@ -21,11 +21,11 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add license_text column to gear table."""
     op.add_column(
-        "gear",
+        "core_gear",
         sa.Column("license_text", sa.Text(), nullable=True),
     )
 
 
 def downgrade() -> None:
     """Remove license_text column from gear table."""
-    op.drop_column("gear", "license_text")
+    op.drop_column("core_gear", "license_text")

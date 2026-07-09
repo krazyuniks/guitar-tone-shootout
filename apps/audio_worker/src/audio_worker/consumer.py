@@ -184,6 +184,7 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
                     shootout_chain_id=shootout_chain_id,
                     file_path=str(output_path),
                     duration_seconds=duration_seconds,
+                    sample_rate=sample_rate,
                     integrated_lufs=result_lufs,
                     peak_dbfs=result_peak,
                     waveform=waveform,
@@ -194,6 +195,7 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
                     set_={
                         "file_path": str(output_path),
                         "duration_seconds": duration_seconds,
+                        "sample_rate": sample_rate,
                         "integrated_lufs": result_lufs,
                         "peak_dbfs": result_peak,
                         "waveform": waveform,
@@ -289,7 +291,7 @@ async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
         # Concatenate all chain audio
         master_audio = np.concatenate(all_audio)
 
-        # Write to temp, normalise to master FLAC in this run's version dir
+        # Write to temp, normalise to master WAV in this run's version dir
         output_dir = STORAGE_BASE / str(shootout_id) / f"v{render_version}"
         output_dir.mkdir(parents=True, exist_ok=True)
         master_path = output_dir / "master.wav"
