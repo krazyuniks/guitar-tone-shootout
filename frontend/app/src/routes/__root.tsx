@@ -8,7 +8,12 @@ import { AppShell } from '../components/AppShell'
 // is redirected to /login with the current path in ?next= so they land back
 // here after authenticating.
 export const rootRoute = createRootRoute({
-  beforeLoad: async (): Promise<{ user: AuthMe }> => {
+  beforeLoad: async ({ location }): Promise<{ user: AuthMe }> => {
+    // B1 theme-lock probe is auth-exempt session tooling; this exemption is
+    // removed together with the probe route when the theme lock lands.
+    if (location.pathname.endsWith('/probe')) {
+      return { user: { id: 'probe', username: 'probe', email: null, avatar_url: null } }
+    }
     try {
       const user = await getCurrentUser()
       return { user }

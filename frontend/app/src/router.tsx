@@ -4,12 +4,14 @@ import { indexRoute } from './routes/index'
 import { buildRoute } from './routes/build'
 import { shootoutsRoute } from './routes/shootouts'
 import { libraryRoute } from './routes/library'
+import { probeRoute } from './routes/probe'
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   buildRoute,
   shootoutsRoute,
   libraryRoute,
+  probeRoute,
 ])
 
 export const router = createRouter({

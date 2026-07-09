@@ -9,11 +9,14 @@
   --font-family-sans: var(--font-sans);
   --font-family-mono: var(--font-mono);
 
-  /* Border radius */
+  /* Dense UI text sizes (text-ui / text-ui-sm) */
+  --text-ui: var(--text-ui);
+  --text-ui-sm: var(--text-ui-sm);
+
+  /* Border radius — one radius (B1): only rounded-sm and rounded-full exist. */
+  --radius-*: initial;
   --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
+  --radius-full: var(--radius-full);
 
   /* Background layers */
   --color-bg-base: var(--color-bg-base);
@@ -33,10 +36,9 @@
   --color-accent-warning: var(--color-accent-warning);
   --color-accent-error: var(--color-accent-error);
 
-  /* Signal chain blocks */
+  /* Signal chain stage colours */
   --color-block-di: var(--color-block-di);
+  --color-block-fx: var(--color-block-fx);
   --color-block-amp: var(--color-block-amp);
   --color-block-cab: var(--color-block-cab);
-  --color-block-effect: var(--color-block-effect);
-  --color-block-post-effect: var(--color-block-post-effect);
 }

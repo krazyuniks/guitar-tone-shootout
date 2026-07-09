@@ -1,6 +1,12 @@
-/* GTS theme — dark amp-inspired colour palette, vendored for app surface.
- * Applied on top of Dense foundation. Mirrors the public Astro surface token set
- * so both surfaces share the same visual language. */
+/* GTS theme — locked in the B1 dense theme session (2026-07-09): neutral
+ * near-black surfaces, blue accent, Inter. Dark-only; the app has no light
+ * mode. Vendored from the design-system gts theme; the signal-chain stage
+ * colours at the foot are GTS-only and live here, not in the design system.
+ *
+ * State treatments (B1): hover row = 10% accent tint (color-mix); selected =
+ * 1px accent border + 10% accent tint + 2px accent edge-bar where a list has
+ * one; focus ring = --ring. Stage colours appear only as thin accents (edge
+ * bars, labels, thumbnail tints), never as filled surfaces. */
 
 :root {
   /* Background layers — three-tier depth system */
@@ -10,24 +16,23 @@
   --color-bg-secondary: #1a1a1a;
 
   /* Text */
-  --color-text-primary: #ffffff;
+  --color-text-primary: #f5f5f5;
   --color-text-secondary: #a1a1a1;
   --color-text-muted: #666666;
 
   /* Accent */
   --color-accent-primary: #3b82f6;
   --color-accent-primary-hover: #2563eb;
-  --color-accent-secondary: #60a5fa;
+  --color-accent-secondary: #93b8f8;
   --color-accent-success: #22c55e;
   --color-accent-warning: #f59e0b;
   --color-accent-error: #ef4444;
 
-  /* Signal chain block types */
+  /* Signal chain stage colours (GTS-only, v1 template: DI -> FX -> AMP -> CAB) */
   --color-block-di: #3b82f6;
+  --color-block-fx: #a855f7;
   --color-block-amp: #f59e0b;
   --color-block-cab: #22c55e;
-  --color-block-effect: #a855f7;
-  --color-block-post-effect: #06b6d4;
 
   /* shadcn/ui compatibility layer */
   --background: oklch(0.145 0 0);
@@ -50,5 +55,5 @@
   --border-hover: #444444;
   --input: oklch(0.269 0 0);
   --ring: oklch(0.556 0 0);
-  --radius: var(--radius-md);
+  --radius: var(--radius-sm);
 }
