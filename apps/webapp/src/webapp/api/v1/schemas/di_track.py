@@ -13,7 +13,6 @@ class DITrackResponse(BaseModel):
     id: UUID
     user_id: UUID
     name: str
-    file_path: str
     original_filename: str
     duration_seconds: float
     sample_rate: int
@@ -26,4 +25,4 @@ class DITrackResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "extra": "ignore"}

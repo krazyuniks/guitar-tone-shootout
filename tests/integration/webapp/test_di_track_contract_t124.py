@@ -8,6 +8,8 @@ includes all fields needed by the frontend form.
 from __future__ import annotations
 
 import io
+from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -67,6 +69,54 @@ class TestDITrackTuningField:
         assert "tuning" in field_names, (
             "DITrackResponse must include 'tuning' field to match frontend form"
         )
+
+    def test_response_schema_is_public_field_allow_list(self) -> None:
+        """DITrackResponse must expose only public DI-track fields."""
+        from webapp.api.v1.schemas.di_track import DITrackResponse
+
+        assert set(DITrackResponse.model_fields) == {
+            "id",
+            "user_id",
+            "name",
+            "original_filename",
+            "duration_seconds",
+            "sample_rate",
+            "channels",
+            "waveform",
+            "description",
+            "guitar",
+            "pickup",
+            "tuning",
+            "created_at",
+            "updated_at",
+        }
+
+    def test_response_serialisation_excludes_internal_file_path(self) -> None:
+        """DITrackResponse must not serialise the model's internal storage path."""
+        from webapp.api.v1.schemas.di_track import DITrackResponse
+
+        now = datetime.now(UTC)
+        track = SimpleNamespace(
+            id=uuid4(),
+            user_id=uuid4(),
+            name="Public Track",
+            file_path="/srv/gts/storage/uploads/di_tracks/user/private.wav",
+            original_filename="private.wav",
+            duration_seconds=10.0,
+            sample_rate=44100,
+            channels=2,
+            waveform=None,
+            description=None,
+            guitar=None,
+            pickup=None,
+            tuning=None,
+            created_at=now,
+            updated_at=now,
+        )
+
+        payload = DITrackResponse.model_validate(track).model_dump()
+
+        assert "file_path" not in payload
 
     async def test_upload_endpoint_accepts_tuning_parameter(
         self,
