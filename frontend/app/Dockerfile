@@ -20,6 +20,6 @@ RUN pnpm install --frozen-lockfile
 COPY --chown=$USER_UID:$USER_GID . .
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=5 \
-  CMD wget -qO /dev/null http://localhost:5173/app/ || exit 1
+  CMD wget -qO /dev/null http://127.0.0.1:5173/app/ || exit 1
 
 CMD ["pnpm", "dev"]

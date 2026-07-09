@@ -11,6 +11,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    // Traefik preview hostnames (just preview) reach vite through nginx with
+    // the public Host header; .tone-shootout.com covers every worktree subdomain.
+    allowedHosts: ['.tone-shootout.com'],
     hmr: {
       // When nginx is the public entry point, HMR websocket must connect on
       // the nginx port (not the internal vite port). Set VITE_HMR_CLIENT_PORT
