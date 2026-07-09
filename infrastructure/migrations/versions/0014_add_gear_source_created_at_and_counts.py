@@ -42,13 +42,13 @@ def upgrade() -> None:
         """
         DO $$
         BEGIN
-            IF to_regclass('public.t3k_packs') IS NOT NULL THEN
+            IF to_regclass('t3k_packs') IS NOT NULL THEN
                 UPDATE core_gear g
                 SET source_created_at = t.created_at
                 FROM core_gear_sources gs, t3k_packs t
                 WHERE g.source_id = gs.id
                   AND gs.source_record_id = t.id::text;
-            ELSIF to_regclass('public.t3k_tones_staging') IS NOT NULL THEN
+            ELSIF to_regclass('t3k_tones_staging') IS NOT NULL THEN
                 UPDATE core_gear g
                 SET source_created_at = t.created_at
                 FROM core_gear_sources gs, t3k_tones_staging t
@@ -64,14 +64,14 @@ def upgrade() -> None:
         """
         DO $$
         BEGIN
-            IF to_regclass('public.t3k_packs') IS NOT NULL THEN
+            IF to_regclass('t3k_packs') IS NOT NULL THEN
                 UPDATE core_gear g
                 SET downloads_count = t.downloads_count,
                     favorites_count = t.favorites_count
                 FROM core_gear_sources gs, t3k_packs t
                 WHERE g.source_id = gs.id
                   AND gs.source_record_id = t.id::text;
-            ELSIF to_regclass('public.t3k_tones_staging') IS NOT NULL THEN
+            ELSIF to_regclass('t3k_tones_staging') IS NOT NULL THEN
                 UPDATE core_gear g
                 SET downloads_count = t.downloads_count,
                     favorites_count = t.favorites_count

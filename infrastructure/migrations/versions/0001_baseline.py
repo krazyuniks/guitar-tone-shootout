@@ -408,7 +408,7 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_heartbeat", sa.DateTime(timezone=True), nullable=True),
         sa.Column("attempt", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("max_attempts", sa.Integer(), nullable=False, server_default="3"),
+        sa.Column("max_attempts", sa.Integer(), nullable=False),
         sa.Column("next_retry_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("result_path", sa.Text(), nullable=True),
         sa.Column("error", sa.Text(), nullable=True),
