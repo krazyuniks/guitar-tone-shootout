@@ -2189,8 +2189,6 @@ export interface components {
             user_id: string;
             /** Name */
             name: string;
-            /** File Path */
-            file_path: string;
             /** Original Filename */
             original_filename: string;
             /** Duration Seconds */
