@@ -348,6 +348,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shootouts/{shootout_id}/artefact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shootout Artefact
+         * @description Return the latest manifested artefact when the caller may read it.
+         */
+        get: operations["get_shootout_artefact_api_shootouts__shootout_id__artefact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/shootouts/{shootout_id}/process": {
         parameters: {
             query?: never;
@@ -2663,6 +2683,119 @@ export interface components {
             metrics: components["schemas"]["SegmentMetrics"];
         };
         /**
+         * ShootoutArtefactChain
+         * @description Allow-listed player data for one rendered chain.
+         */
+        ShootoutArtefactChain: {
+            /** Label */
+            label: string;
+            /** Media Url */
+            media_url: string;
+            /** Duration Seconds */
+            duration_seconds: number;
+            waveform: components["schemas"]["ShootoutArtefactWaveform"];
+            /** Integrated Lufs */
+            integrated_lufs: number;
+            /** Peak Dbfs */
+            peak_dbfs: number;
+            /** Provenance */
+            provenance: components["schemas"]["ShootoutArtefactProvenanceBlock"][];
+        };
+        /**
+         * ShootoutArtefactCreator
+         * @description Public creator attribution captured in the manifest.
+         */
+        ShootoutArtefactCreator: {
+            /** Username */
+            username: string;
+            /** Avatar Url */
+            avatar_url: string | null;
+        };
+        /**
+         * ShootoutArtefactDI
+         * @description Public DI descriptors captured in the manifest.
+         */
+        ShootoutArtefactDI: {
+            /** Name */
+            name: string;
+            /** Guitar */
+            guitar: string | null;
+            /** Pickup */
+            pickup: string | null;
+            /** Tuning */
+            tuning: string | null;
+            /** Duration Seconds */
+            duration_seconds: number;
+        };
+        /**
+         * ShootoutArtefactProvenanceBlock
+         * @description Public gear attribution for one block in a rendered chain.
+         */
+        ShootoutArtefactProvenanceBlock: {
+            /** Position */
+            position: number;
+            /** Gear Type */
+            gear_type: string;
+            /** Display Name */
+            display_name: string;
+            /** Platform */
+            platform: string;
+            /**
+             * Icon Asset Id
+             * Format: uuid
+             */
+            icon_asset_id: string;
+        };
+        /**
+         * ShootoutArtefactResponse
+         * @description Allow-list projection of an immutable shootout manifest.
+         */
+        ShootoutArtefactResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string | null;
+            creator: components["schemas"]["ShootoutArtefactCreator"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            di: components["schemas"]["ShootoutArtefactDI"];
+            timeline: components["schemas"]["ShootoutArtefactTimeline"];
+            /** Chains */
+            chains: components["schemas"]["ShootoutArtefactChain"][];
+        };
+        /**
+         * ShootoutArtefactTimeline
+         * @description Shared, start-aligned comparison timeline.
+         */
+        ShootoutArtefactTimeline: {
+            /** Aligned */
+            aligned: string;
+            /** Duration Seconds */
+            duration_seconds: number;
+        };
+        /**
+         * ShootoutArtefactWaveform
+         * @description Display waveform envelope for one rendered chain.
+         */
+        ShootoutArtefactWaveform: {
+            /** Peaks */
+            peaks: number[];
+            /** Sample Rate */
+            sample_rate: number;
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            /** Samples Per Peak */
+            samples_per_peak?: number | null;
+        };
+        /**
          * ShootoutCreateRequest
          * @description Request schema for creating a shootout.
          */
@@ -3373,6 +3506,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shootout_artefact_api_shootouts__shootout_id__artefact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shootout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShootoutArtefactResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
