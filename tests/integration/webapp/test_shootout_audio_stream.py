@@ -70,6 +70,7 @@ async def completed_shootout(
         name="Test Shootout",
         status=ShootoutStatus.COMPLETED,
         output_path=str(master_file),
+        render_version=2,
     )
     db_session.add(shootout)
     await db_session.flush()
@@ -98,7 +99,21 @@ async def completed_shootout(
     db_session.add_all([chain1, chain2])
     await db_session.flush()
 
-    # Audio segments (one per chain)
+    # Audio segments (one per chain), plus an older render for chain 1.
+    old_seg_file = tmp_path / "seg1-v1.flac"
+    old_seg_file.write_bytes(b"fLaC-old-render")
+    old_seg = AudioSegment(
+        id=uuid4(),
+        shootout_chain_id=chain1.id,
+        file_path=str(old_seg_file),
+        duration_seconds=9.0,
+        integrated_lufs=-13.0,
+        peak_dbfs=-1.0,
+        version=1,
+    )
+    db_session.add(old_seg)
+    await db_session.flush()
+
     seg1_file = tmp_path / "seg1.flac"
     seg1_file.write_bytes(b"fLaC" + b"\x01" * 50)
     seg1 = AudioSegment(
@@ -108,6 +123,7 @@ async def completed_shootout(
         duration_seconds=10.0,
         integrated_lufs=-14.0,
         peak_dbfs=-1.0,
+        version=2,
     )
     seg2_file = tmp_path / "seg2.flac"
     seg2_file.write_bytes(b"fLaC" + b"\x02" * 50)
@@ -118,6 +134,7 @@ async def completed_shootout(
         duration_seconds=10.0,
         integrated_lufs=-16.0,
         peak_dbfs=-2.0,
+        version=2,
     )
     db_session.add_all([seg1, seg2])
     await db_session.commit()
@@ -154,6 +171,7 @@ class TestMasterAudioStream:
             )
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/flac"
+        assert "sequential-montage.flac" in response.headers["content-disposition"]
         assert response.content.startswith(b"fLaC")
 
     async def test_stream_master_returns_404_for_other_user(
@@ -211,6 +229,7 @@ class TestChainAudioStream:
             response = await client.get(f"/api/shootouts/{sid}/chains/{cid}/audio")
         assert response.status_code == 200
         assert response.headers["content-type"] == "audio/flac"
+        assert response.content == completed_shootout["seg1_file"].read_bytes()
 
     async def test_stream_chain_audio_returns_404_for_wrong_chain(
         self,

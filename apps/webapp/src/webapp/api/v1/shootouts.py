@@ -14,6 +14,9 @@ from gts.domain.entities.shootout import Shootout
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.shootout import (
+    AudioSegment as AudioSegmentModel,
+)
+from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
 )
 from webapp.adapters.persistence.models.shootout import (
@@ -336,7 +339,7 @@ async def stream_master_audio(
     db: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> FileResponse:
-    """Stream the master FLAC audio file for a completed shootout."""
+    """Download the sequential montage enrichment for a completed shootout."""
     stmt = select(ShootoutModel).where(
         ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id
     )
@@ -363,8 +366,12 @@ async def stream_master_audio(
     return FileResponse(
         path=str(file_path),
         media_type=media_type,
-        filename=f"{shootout.name}-master{ext}",
-        headers={"Content-Disposition": f'attachment; filename="{shootout.name}-master{ext}"'},
+        filename=f"{shootout.name}-sequential-montage{ext}",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{shootout.name}-sequential-montage{ext}"'
+            )
+        },
     )
 
 
@@ -381,29 +388,28 @@ async def stream_chain_audio(
     )
 
     stmt = (
-        select(ShootoutChainModel)
+        select(ShootoutChainModel, AudioSegmentModel)
+        .join(ShootoutModel, ShootoutModel.id == ShootoutChainModel.shootout_id)
+        .join(
+            AudioSegmentModel,
+            and_(
+                AudioSegmentModel.shootout_chain_id == ShootoutChainModel.id,
+                AudioSegmentModel.version == ShootoutModel.render_version,
+            ),
+        )
         .where(
             ShootoutChainModel.id == chain_id,
             ShootoutChainModel.shootout_id == shootout_id,
-            select(ShootoutModel.id)
-            .where(ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id)
-            .exists(),
-        )
-        .options(
-            joinedload(ShootoutChainModel.shootout),
-            joinedload(ShootoutChainModel.segments),
+            ShootoutModel.user_id == current_user.id,
         )
     )
     result = await db.execute(stmt)
-    chain = result.unique().scalar_one_or_none()
+    row = result.one_or_none()
 
-    if chain is None:
+    if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chain not found")
 
-    if not chain.segments:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No audio segments")
-
-    segment = chain.segments[0]
+    chain, segment = row
     file_path = Path(segment.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio file not found")
