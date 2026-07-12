@@ -332,7 +332,6 @@ async def test_job_save_and_get_by_id(
         attempt=1,
         max_attempts=3,
         entity_id=uuid.uuid4(),
-        task_id="task123",
     )
 
     # Save job
@@ -347,34 +346,6 @@ async def test_job_save_and_get_by_id(
     assert retrieved.id == job.id
     assert retrieved.job_type == JobType.AUDIO_PROCESSING
     assert retrieved.status == JobStatus.PENDING
-
-
-@pytest.mark.asyncio
-async def test_job_get_by_task_id(
-    db_session: AsyncSession,
-    user: UserEntity,
-) -> None:
-    """Test getting a job by task ID."""
-    repo = SQLAlchemyJobRepository(db_session)
-
-    # Create job
-    job = JobEntity(
-        id=uuid.uuid4(),
-        user_id=user.id,
-        job_type=JobType.AUDIO_PROCESSING,
-        status=JobStatus.PENDING,
-        task_id="task456",
-    )
-    await repo.save(job)
-    await db_session.commit()
-
-    # Get by task ID
-    retrieved = await repo.get_by_task_id("task456")
-
-    # Verify
-    assert retrieved is not None
-    assert retrieved.id == job.id
-    assert retrieved.task_id == "task456"
 
 
 @pytest.mark.asyncio

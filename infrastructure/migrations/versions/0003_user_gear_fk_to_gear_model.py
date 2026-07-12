@@ -27,17 +27,17 @@ def upgrade() -> None:
     """Rename gear_id to gear_model_id and update FK to point to gear_models."""
     # Drop old constraints and indexes (if they exist)
     # Note: uq_user_gear_user_gear doesn't exist in baseline schema
-    op.drop_index("ix_user_gear_gear_id", table_name="user_gear")
-    op.drop_constraint("fk_user_gear_gear_id_gear", "user_gear", type_="foreignkey")
+    op.drop_index("ix_user_gear_gear_id", table_name="core_user_gear")
+    op.drop_constraint("fk_user_gear_gear_id_gear", "core_user_gear", type_="foreignkey")
 
     # Rename column
-    op.alter_column("user_gear", "gear_id", new_column_name="gear_model_id")
+    op.alter_column("core_user_gear", "gear_id", new_column_name="gear_model_id")
 
     # Create new FK constraint pointing to gear_models
     op.create_foreign_key(
         "user_gear_gear_model_id_fkey",
-        "user_gear",
-        "gear_models",
+        "core_user_gear",
+        "core_gear_models",
         ["gear_model_id"],
         ["id"],
         ondelete="CASCADE",
@@ -46,33 +46,33 @@ def upgrade() -> None:
     # Create new unique constraint
     op.create_unique_constraint(
         "uq_user_gear_user_gear_model",
-        "user_gear",
+        "core_user_gear",
         ["user_id", "gear_model_id"],
     )
 
     # Create new index
-    op.create_index("ix_user_gear_gear_model_id", "user_gear", ["gear_model_id"])
+    op.create_index("ix_user_gear_gear_model_id", "core_user_gear", ["gear_model_id"])
 
 
 def downgrade() -> None:
     """Reverse changes: rename gear_model_id back to gear_id and restore FK to gear."""
     # Drop new constraints and indexes
-    op.drop_constraint("uq_user_gear_user_gear_model", "user_gear", type_="unique")
-    op.drop_index("ix_user_gear_gear_model_id", table_name="user_gear")
-    op.drop_constraint("user_gear_gear_model_id_fkey", "user_gear", type_="foreignkey")
+    op.drop_constraint("uq_user_gear_user_gear_model", "core_user_gear", type_="unique")
+    op.drop_index("ix_user_gear_gear_model_id", table_name="core_user_gear")
+    op.drop_constraint("user_gear_gear_model_id_fkey", "core_user_gear", type_="foreignkey")
 
     # Rename column back
-    op.alter_column("user_gear", "gear_model_id", new_column_name="gear_id")
+    op.alter_column("core_user_gear", "gear_model_id", new_column_name="gear_id")
 
     # Create old FK constraint pointing to gear
     op.create_foreign_key(
         "fk_user_gear_gear_id_gear",
-        "user_gear",
-        "gear",
+        "core_user_gear",
+        "core_gear",
         ["gear_id"],
         ["id"],
         ondelete="CASCADE",
     )
 
     # Create old index
-    op.create_index("ix_user_gear_gear_id", "user_gear", ["gear_id"])
+    op.create_index("ix_user_gear_gear_id", "core_user_gear", ["gear_id"])

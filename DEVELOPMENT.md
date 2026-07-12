@@ -168,6 +168,17 @@ shared-ORM/services seam, revisited by the deferred composition-root unit).
 
 **BC separation:** Enforced via `import-linter` contracts and table naming conventions (`core_*`, `t3k_*`). Each BC's ORM models only reference their own BC's tables. Cross-BC communication via pgmq messaging.
 
+### pgmq Queues
+
+GTS currently uses four pgmq queues:
+
+| Queue | Producer | Consumer |
+|-------|----------|----------|
+| `audio_commands` | webapp, shootout-orchestrator | audio-worker |
+| `shootout_commands` | webapp | shootout-orchestrator |
+| `source_events` | t3k-sync | t3k-sync |
+| `dead_letter` | worker dead-letter handlers | none |
+
 ---
 
 ## Infrastructure

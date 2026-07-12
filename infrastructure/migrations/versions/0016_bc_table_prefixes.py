@@ -61,6 +61,12 @@ def _table_exists(name: str) -> bool:
 
 def upgrade() -> None:
     for old_name, new_name in CORE_RENAMES:
+        if not _table_exists(old_name):
+            continue
+        if _table_exists(new_name):
+            raise RuntimeError(
+                f"Cannot rename {old_name} -> {new_name}: target table already exists"
+            )
         op.rename_table(old_name, new_name)
     for old_name, new_name in T3K_RENAMES:
         if _table_exists(new_name):
@@ -82,4 +88,10 @@ def downgrade() -> None:
     for old_name, new_name in reversed(T3K_RENAMES):
         op.rename_table(new_name, old_name)
     for old_name, new_name in reversed(CORE_RENAMES):
+        if not _table_exists(new_name):
+            continue
+        if _table_exists(old_name):
+            raise RuntimeError(
+                f"Cannot rename {new_name} -> {old_name}: target table already exists"
+            )
         op.rename_table(new_name, old_name)

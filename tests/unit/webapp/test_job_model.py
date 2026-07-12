@@ -90,7 +90,6 @@ async def test_job_all_fields(db_session: AsyncSession) -> None:
         last_heartbeat=datetime.now(UTC),
         attempt=1,
         max_attempts=3,
-        task_id="task-123",
         result_path="/results/output.json",
     )
     db_session.add(job)
@@ -103,7 +102,6 @@ async def test_job_all_fields(db_session: AsyncSession) -> None:
     assert job.last_heartbeat is not None
     assert job.attempt == 1
     assert job.max_attempts == 3
-    assert job.task_id == "task-123"
     assert job.result_path == "/results/output.json"
 
 

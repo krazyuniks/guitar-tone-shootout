@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Create tags table."""
     op.create_table(
-        "user_tags",
+        "core_user_tags",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["user_id"],
-            ["users.id"],
+            ["core_users.id"],
             name=op.f("fk_user_tags_user_id_users"),
             ondelete="CASCADE",
         ),
@@ -38,7 +38,7 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_user_tags_user_id"),
-        "user_tags",
+        "core_user_tags",
         ["user_id"],
         unique=False,
     )
@@ -46,5 +46,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop tags table."""
-    op.drop_index(op.f("ix_user_tags_user_id"), table_name="user_tags")
-    op.drop_table("user_tags")
+    op.drop_index(op.f("ix_user_tags_user_id"), table_name="core_user_tags")
+    op.drop_table("core_user_tags")

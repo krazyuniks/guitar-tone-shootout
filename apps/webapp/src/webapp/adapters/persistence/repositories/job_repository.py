@@ -50,24 +50,6 @@ class SQLAlchemyJobRepository:
 
         return self._to_entity(job)
 
-    async def get_by_task_id(self, task_id: str) -> JobEntity | None:
-        """Get a job by its TaskIQ task ID.
-
-        Args:
-            task_id: The TaskIQ task ID
-
-        Returns:
-            The Job entity if found, None otherwise
-        """
-        stmt = select(Job).where(Job.task_id == task_id)
-        result = await self.session.execute(stmt)
-        job = result.scalar_one_or_none()
-
-        if job is None:
-            return None
-
-        return self._to_entity(job)
-
     async def get_by_user_id(
         self,
         user_id: UUID,
@@ -228,7 +210,6 @@ class SQLAlchemyJobRepository:
                 user_id=job.user_id,
                 job_type=job.job_type,
                 parent_job_id=job.parent_job_id,
-                depends_on=[str(dep) for dep in job.depends_on],
                 status=job.status,
                 progress=job.progress,
                 message=job.message,
@@ -240,7 +221,6 @@ class SQLAlchemyJobRepository:
                 next_retry_at=job.next_retry_at,
                 result_path=job.result_path,
                 error=job.error,
-                task_id=job.task_id,
                 entity_id=job.entity_id,
                 created_at=job.created_at,
                 updated_at=job.updated_at,
@@ -251,7 +231,6 @@ class SQLAlchemyJobRepository:
             existing.user_id = job.user_id
             existing.job_type = job.job_type
             existing.parent_job_id = job.parent_job_id
-            existing.depends_on = [str(dep) for dep in job.depends_on]
             existing.status = job.status
             existing.progress = job.progress
             existing.message = job.message
@@ -263,7 +242,6 @@ class SQLAlchemyJobRepository:
             existing.next_retry_at = job.next_retry_at
             existing.result_path = job.result_path
             existing.error = job.error
-            existing.task_id = job.task_id
             existing.entity_id = job.entity_id
             existing.updated_at = job.updated_at
 
@@ -292,14 +270,11 @@ class SQLAlchemyJobRepository:
         Returns:
             Domain Job entity
         """
-        from uuid import UUID as PyUUID
-
         return JobEntity(
             id=orm_job.id,
             user_id=orm_job.user_id,
             job_type=orm_job.job_type,
             parent_job_id=orm_job.parent_job_id,
-            depends_on=[PyUUID(dep) for dep in (orm_job.depends_on or [])],
             status=orm_job.status,
             progress=orm_job.progress,
             message=orm_job.message,
@@ -311,7 +286,6 @@ class SQLAlchemyJobRepository:
             next_retry_at=orm_job.next_retry_at,
             result_path=orm_job.result_path,
             error=orm_job.error,
-            task_id=orm_job.task_id,
             entity_id=orm_job.entity_id,
             created_at=orm_job.created_at,
             updated_at=orm_job.updated_at,

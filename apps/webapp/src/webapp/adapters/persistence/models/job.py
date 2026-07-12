@@ -42,7 +42,6 @@ class Job(UUIDMixin, TimestampMixin, Base):
         next_retry_at: When the next retry should be attempted
         result_path: Path to result file (after completion)
         error: Error message (if failed)
-        task_id: TaskIQ task ID for tracking
         entity_id: ID of the entity this job processes (shootout, gear, etc.)
         created_at: When the job was created
         updated_at: When the job was last updated
@@ -70,16 +69,6 @@ class Job(UUIDMixin, TimestampMixin, Base):
         nullable=True,
     )
 
-    # Dependencies (stored as JSON array of UUIDs)
-    # Note: depends_on is a list of job IDs this job depends on.
-    # We store this as JSON since SQLAlchemy doesn't have native array support for SQLite.
-    # PostgreSQL would use ARRAY(Uuid) but this works across both.
-    depends_on: Mapped[list[str]] = mapped_column(
-        JSON,
-        nullable=False,
-        default=list,
-    )
-
     # Job status
     status: Mapped[JobStatus] = mapped_column(
         EnumByValue(JobStatus),
@@ -105,9 +94,6 @@ class Job(UUIDMixin, TimestampMixin, Base):
     result_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Task tracking (for background workers)
-    task_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-
     # Entity reference (what this job is processing)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UuidType(), nullable=True)
 
@@ -123,7 +109,6 @@ class Job(UUIDMixin, TimestampMixin, Base):
         Index("ix_jobs_user_id", "user_id"),
         Index("ix_jobs_status", "status"),
         Index("ix_jobs_entity_id", "entity_id"),
-        Index("ix_jobs_task_id", "task_id"),
     )
 
     @classmethod
@@ -141,7 +126,6 @@ class Job(UUIDMixin, TimestampMixin, Base):
             user_id=entity.user_id,
             job_type=entity.job_type,
             parent_job_id=entity.parent_job_id,
-            depends_on=[str(dep) for dep in entity.depends_on],
             status=entity.status,
             progress=entity.progress,
             message=entity.message,
@@ -153,7 +137,6 @@ class Job(UUIDMixin, TimestampMixin, Base):
             next_retry_at=entity.next_retry_at,
             result_path=entity.result_path,
             error=entity.error,
-            task_id=entity.task_id,
             entity_id=entity.entity_id,
             created_at=entity.created_at,
             updated_at=entity.updated_at,

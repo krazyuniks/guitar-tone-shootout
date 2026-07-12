@@ -43,7 +43,6 @@ class JobDetail(BaseModel):
     next_retry_at: datetime | None
     result_path: str | None
     error: str | None
-    task_id: str | None
     entity_id: UUID | None
     created_at: datetime
     updated_at: datetime

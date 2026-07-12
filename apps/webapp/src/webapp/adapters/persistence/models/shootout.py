@@ -124,8 +124,6 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         description: Optional description
         status: Processing status (pending, processing, completed, failed)
         video_path: Path to output video (after processing)
-        video_status: Video rendering status (nullable)
-        video_job_id: Job ID for video rendering (nullable)
         output_path: Path to master audio file (after processing)
         created_at: When created
         updated_at: When last updated
@@ -159,8 +157,6 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         default=ShootoutStatus.DRAFT,
     )
     video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    video_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    video_job_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     output_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Relationships
@@ -262,6 +258,7 @@ class AudioSegment(UUIDMixin, Base):
         shootout_chain_id: Foreign key to shootout_chains table
         file_path: Path to the processed audio file
         duration_seconds: Segment duration in seconds
+        sample_rate: Segment sample rate in Hz
         integrated_lufs: Integrated loudness (LUFS)
         peak_dbfs: Peak level (dBFS)
         shootout_chain: Reference to the ShootoutChain
@@ -276,6 +273,7 @@ class AudioSegment(UUIDMixin, Base):
     )
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    sample_rate: Mapped[int] = mapped_column(Integer, nullable=False, default=44100)
     integrated_lufs: Mapped[float] = mapped_column(Float, nullable=False)
     peak_dbfs: Mapped[float] = mapped_column(Float, nullable=False)
     waveform: Mapped[Any] = mapped_column(WaveformDataType(), nullable=True)

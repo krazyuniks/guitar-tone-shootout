@@ -21,7 +21,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Create user_notifications table."""
     op.create_table(
-        "user_notifications",
+        "core_user_notifications",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("type", sa.String(50), nullable=False),
@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["user_id"],
-            ["users.id"],
+            ["core_users.id"],
             name=op.f("fk_user_notifications_user_id_users"),
             ondelete="CASCADE",
         ),
@@ -40,7 +40,7 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_user_notifications_user_id"),
-        "user_notifications",
+        "core_user_notifications",
         ["user_id"],
         unique=False,
     )
@@ -48,5 +48,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop user_notifications table."""
-    op.drop_index(op.f("ix_user_notifications_user_id"), table_name="user_notifications")
-    op.drop_table("user_notifications")
+    op.drop_index(op.f("ix_user_notifications_user_id"), table_name="core_user_notifications")
+    op.drop_table("core_user_notifications")

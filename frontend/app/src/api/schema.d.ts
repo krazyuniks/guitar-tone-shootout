@@ -2359,8 +2359,6 @@ export interface components {
             result_path: string | null;
             /** Error */
             error: string | null;
-            /** Task Id */
-            task_id: string | null;
             /** Entity Id */
             entity_id: string | null;
             /**

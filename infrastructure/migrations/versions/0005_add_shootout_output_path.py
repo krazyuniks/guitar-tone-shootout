@@ -22,11 +22,11 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add output_path column to shootouts table."""
     op.add_column(
-        "shootouts",
+        "core_shootouts",
         sa.Column("output_path", sa.String(500), nullable=True),
     )
 
 
 def downgrade() -> None:
     """Remove output_path column from shootouts table."""
-    op.drop_column("shootouts", "output_path")
+    op.drop_column("core_shootouts", "output_path")
