@@ -41,6 +41,21 @@ class StartShootoutCommand(MessageEnvelope):
         return value
 
 
+class FinaliseShootoutCommand(MessageEnvelope):
+    """Command to publish a completed shootout render as a manifest."""
+
+    message_type: Literal["finalise_shootout"] = "finalise_shootout"
+    payload: dict[str, Any]
+
+    @field_validator("payload")
+    @classmethod
+    def _validate_payload_shape(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Require the SHOOTOUT_FINALISE job id the orchestrator loads."""
+        if "job_id" not in value:
+            raise ValueError("payload missing required keys: job_id")
+        return value
+
+
 class SyncGearCommand(MessageEnvelope):
     """Command to trigger source synchronization."""
 

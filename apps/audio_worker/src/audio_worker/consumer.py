@@ -6,7 +6,6 @@ import asyncio
 import logging
 import os
 import tempfile
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -36,7 +35,6 @@ from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
     Shootout,
     ShootoutChain,
-    ShootoutStatus,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user_gear import UserGear
@@ -229,10 +227,8 @@ async def _process_shootout_audio(job_id: UUID, database_url: str) -> None:
 async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
     """Process a SHOOTOUT_MASTER job (concatenate all chain segments into master).
 
-    Claimed by the consumer before dispatch; terminal states route through the
-    transition service. The direct shootout/parent COMPLETED projection below
-    is the legacy publish path DOM-shootout-finalise replaces with the
-    SHOOTOUT_FINALISE manifest write.
+    Claimed by the consumer after finalisation; terminal state routes through
+    the transition service and affects only this non-gating enrichment job.
     """
     try:
         async with get_session(database_url) as session:
@@ -305,34 +301,14 @@ async def _process_shootout_master(job_id: UUID, database_url: str) -> None:
         finally:
             tmp_path.unlink(missing_ok=True)
 
-        # Update shootout and jobs in the service lock order (own job ->
-        # parent job -> shootout) so this cannot deadlock against a concurrent
-        # reconcile. The shootout/parent COMPLETED projection is the legacy
-        # publish gate, replaced by DOM-shootout-finalise; the master job's
-        # own terminal write goes through the service.
+        # The manifest is already published. Store only the enrichment pointer
+        # on the shootout, then complete this non-gating job through the service.
         async with get_session(database_url) as session:
-            job_stmt = select(Job).where(Job.id == job_id).with_for_update()
-            job_result = await session.execute(job_stmt)
-            job = job_result.scalar_one_or_none()
-
-            parent_job = None
-            if job is not None and job.parent_job_id is not None:
-                parent_stmt = select(Job).where(Job.id == job.parent_job_id).with_for_update()
-                parent_result = await session.execute(parent_stmt)
-                parent_job = parent_result.scalar_one_or_none()
-
             s_stmt = select(Shootout).where(Shootout.id == shootout_id).with_for_update()
             s_result = await session.execute(s_stmt)
             shootout = s_result.scalar_one_or_none()
             if shootout is not None:
                 shootout.output_path = str(master_path)
-                shootout.status = ShootoutStatus.COMPLETED
-
-            if parent_job is not None:
-                parent_job.status = JobStatus.COMPLETED
-                parent_job.progress = 100
-                parent_job.completed_at = datetime.now(UTC)
-                parent_job.result_path = str(master_path)
 
             await transition_job(
                 session,

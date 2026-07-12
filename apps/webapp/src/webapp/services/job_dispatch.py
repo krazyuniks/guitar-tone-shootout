@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import ProcessAudioCommand, StartShootoutCommand
+from messaging.commands import FinaliseShootoutCommand, ProcessAudioCommand, StartShootoutCommand
 from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 
@@ -32,7 +32,7 @@ _AUDIO_JOB_TYPES = frozenset(
 
 def is_queue_routable(job_type: JobType) -> bool:
     """Whether the type rides a pgmq queue (and so participates in auto-retry)."""
-    return job_type == JobType.SHOOTOUT or job_type in _AUDIO_JOB_TYPES
+    return job_type in {JobType.SHOOTOUT, JobType.SHOOTOUT_FINALISE} or job_type in _AUDIO_JOB_TYPES
 
 
 class JobDispatchError(Exception):
@@ -65,6 +65,11 @@ def _route(job: Job, source_bc: str) -> tuple[str, MessageEnvelope]:
         return (
             "shootout_commands",
             StartShootoutCommand(source_bc=source_bc, payload={"job_id": str(job.id)}),
+        )
+    if job.job_type == JobType.SHOOTOUT_FINALISE:
+        return (
+            "shootout_commands",
+            FinaliseShootoutCommand(source_bc=source_bc, payload={"job_id": str(job.id)}),
         )
     if job.job_type in _AUDIO_JOB_TYPES:
         return (

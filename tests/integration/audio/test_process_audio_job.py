@@ -20,7 +20,7 @@ from uuid import uuid4
 import numpy as np
 import pytest
 import soundfile as sf
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from audio.processing.nam_loader import clear_model_cache
 from gts.domain.value_objects.download_status import DownloadStatus
@@ -308,7 +308,7 @@ async def shootout_audio_setup(
         job_type=JobType.SHOOTOUT_AUDIO,
         parent_job_id=parent_job.id,
         entity_id=shootout_chain.id,
-        status=JobStatus.QUEUED,
+        status=JobStatus.RUNNING,
     )
     db_session.add(audio_job)
     await db_session.flush()
@@ -396,9 +396,13 @@ async def test_process_shootout_master_job(
         job_type=JobType.SHOOTOUT_MASTER,
         parent_job_id=setup["parent_job_id"],
         entity_id=setup["shootout_id"],
-        status=JobStatus.QUEUED,
+        status=JobStatus.RUNNING,
     )
     db_session.add(master_job)
+    await db_session.execute(
+        text("UPDATE core_shootouts SET status = 'completed' WHERE id = :id"),
+        {"id": str(setup["shootout_id"])},
+    )
     await db_session.flush()
     master_job_id = master_job.id
     await db_session.commit()
@@ -419,6 +423,9 @@ async def test_process_shootout_master_job(
     shootout = s_result.scalar_one()
     assert shootout.status == ShootoutStatus.COMPLETED
     assert shootout.output_path is not None
+
+    parent_result = await db_session.execute(select(Job).where(Job.id == setup["parent_job_id"]))
+    assert parent_result.scalar_one().status == JobStatus.RUNNING
 
     # Verify master FLAC exists
     assert Path(job.result_path).exists()
@@ -526,7 +533,7 @@ async def test_process_audio_job_missing_gear_file(
         job_type=JobType.SHOOTOUT_AUDIO,
         parent_job_id=parent_job.id,
         entity_id=shootout_chain.id,
-        status=JobStatus.QUEUED,
+        status=JobStatus.RUNNING,
     )
     db_session.add(audio_job)
     await db_session.flush()
@@ -546,12 +553,12 @@ async def test_process_audio_job_missing_gear_file(
 
 
 @pytest.mark.asyncio
-async def test_reconcile_creates_master_after_all_complete(
+async def test_reconcile_creates_finalise_after_all_complete(
     db_session: AsyncSession,
     test_user: User,
     patch_sessions: None,
 ) -> None:
-    """When all SHOOTOUT_AUDIO children complete, reconciliation creates a SHOOTOUT_MASTER job."""
+    """When all audio children complete, reconciliation creates a finalise job."""
     from webapp.services.shootout_reconciliation import reconcile_parent_after_audio
 
     shootout = Shootout(
@@ -595,17 +602,17 @@ async def test_reconcile_creates_master_after_all_complete(
 
     await reconcile_parent_after_audio(parent_job_id, "unused-patched")
 
-    # Verify SHOOTOUT_MASTER job was created
+    # Verify SHOOTOUT_FINALISE job was created
     db_session.expire_all()
-    master_stmt = select(Job).where(
+    finalise_stmt = select(Job).where(
         Job.parent_job_id == parent_job_id,
-        Job.job_type == JobType.SHOOTOUT_MASTER,
+        Job.job_type == JobType.SHOOTOUT_FINALISE,
     )
-    master_result = await db_session.execute(master_stmt)
-    master_job = master_result.scalar_one_or_none()
-    assert master_job is not None
-    assert master_job.status == JobStatus.QUEUED
-    assert master_job.entity_id == shootout_id
+    finalise_result = await db_session.execute(finalise_stmt)
+    finalise_job = finalise_result.scalar_one_or_none()
+    assert finalise_job is not None
+    assert finalise_job.status == JobStatus.QUEUED
+    assert finalise_job.entity_id == shootout_id
 
     # Verify parent progress = 100%
     parent_stmt = select(Job).where(Job.id == parent_job_id)
