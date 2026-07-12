@@ -6,9 +6,9 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import aliased, joinedload
 
 from gts.domain.entities.shootout import Shootout
 from gts.domain.value_objects.job_status import JobStatus, JobType
@@ -20,13 +20,22 @@ from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
 )
 from webapp.adapters.persistence.models.shootout import (
+    ShootoutManifest,
     ShootoutStatus,
 )
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.shootout_repository import (
     published_shootout_gate,
+    readable_shootout_gate,
 )
 from webapp.api.v1.schemas.shootout import (
+    ShootoutArtefactChain,
+    ShootoutArtefactCreator,
+    ShootoutArtefactDI,
+    ShootoutArtefactProvenanceBlock,
+    ShootoutArtefactResponse,
+    ShootoutArtefactTimeline,
+    ShootoutArtefactWaveform,
     ShootoutCreateRequest,
     ShootoutResponse,
 )
@@ -34,6 +43,7 @@ from webapp.api.v1.schemas.shootout_comment import (
     CommentCreateRequest,
     CommentResponse,
 )
+from webapp.auth.dependencies import CurrentUserOptional
 from webapp.services.job_dispatch import enqueue_job
 from webapp.services.shootout_comment_service import ShootoutCommentService
 from webapp.services.shootout_service import ShootoutService
@@ -216,6 +226,99 @@ async def get_shootout(
         created_at=shootout.created_at,
         updated_at=shootout.updated_at,
     )
+
+
+def _project_artefact(
+    shootout: ShootoutModel,
+    manifest: ShootoutManifest,
+) -> ShootoutArtefactResponse:
+    """Build the public allow-list without serialising the raw manifest."""
+    payload = manifest.payload
+    shootout_payload = payload["shootout"]
+    creator = shootout_payload["creator"]
+    di = payload["di"]
+    timeline = payload["timeline"]
+    chains = [
+        ShootoutArtefactChain(
+            label=chain["label"],
+            media_url=f"/api/shootouts/{shootout.id}/media/{UUID(chain['segment_id'])}",
+            duration_seconds=chain["duration_seconds"],
+            waveform=ShootoutArtefactWaveform(
+                peaks=chain["waveform"]["peaks"],
+                sample_rate=chain["waveform"]["sample_rate"],
+                duration_seconds=chain["waveform"].get("duration_seconds"),
+                samples_per_peak=chain["waveform"].get("samples_per_peak"),
+            ),
+            integrated_lufs=chain["integrated_lufs"],
+            peak_dbfs=chain["peak_dbfs"],
+            provenance=[
+                ShootoutArtefactProvenanceBlock(
+                    position=block["position"],
+                    gear_type=block["gear_type"],
+                    display_name=block["display_name"],
+                    platform=block["platform"],
+                    icon_asset_id=block["icon_asset_id"],
+                )
+                for block in chain["provenance"]
+            ],
+        )
+        for chain in payload["chains"]
+    ]
+    return ShootoutArtefactResponse(
+        id=shootout_payload["id"],
+        title=shootout_payload["title"],
+        description=shootout_payload["description"],
+        creator=ShootoutArtefactCreator(
+            username=creator["username"],
+            avatar_url=creator["avatar_url"],
+        ),
+        created_at=shootout_payload["created_at"],
+        di=ShootoutArtefactDI(
+            name=di["name"],
+            guitar=di["guitar"],
+            pickup=di["pickup"],
+            tuning=di["tuning"],
+            duration_seconds=di["duration_seconds"],
+        ),
+        timeline=ShootoutArtefactTimeline(
+            aligned=timeline["aligned"],
+            duration_seconds=timeline["duration_seconds"],
+        ),
+        chains=chains,
+    )
+
+
+@router.get("/{shootout_id}/artefact", response_model=ShootoutArtefactResponse)
+async def get_shootout_artefact(
+    shootout_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: CurrentUserOptional,
+) -> ShootoutArtefactResponse:
+    """Return the latest manifested artefact when the caller may read it."""
+    latest_version = (
+        select(func.max(ShootoutManifest.version))
+        .where(ShootoutManifest.shootout_id == shootout_id)
+        .scalar_subquery()
+    )
+    latest_manifest = aliased(ShootoutManifest)
+    stmt = (
+        select(ShootoutModel, latest_manifest)
+        .join(latest_manifest, latest_manifest.shootout_id == ShootoutModel.id)
+        .where(
+            ShootoutModel.id == shootout_id,
+            latest_manifest.version == latest_version,
+            readable_shootout_gate(current_user.id if current_user is not None else None),
+        )
+    )
+    row = (await db.execute(stmt)).one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shootout not found",
+        )
+
+    shootout, manifest = row
+    return _project_artefact(shootout, manifest)
 
 
 @router.delete("/{shootout_id}", status_code=status.HTTP_204_NO_CONTENT)
