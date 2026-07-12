@@ -88,6 +88,23 @@ class QueueDepthResponse(BaseModel):
     depth: int
 
 
+class RenderDurationSignal(BaseModel):
+    """Duration summary for finished video composition jobs."""
+
+    count: int
+    average: float | None
+    maximum: float | None
+
+
+class JobOperationalSignalsResponse(BaseModel):
+    """Minimal job-system signals for the operator admin surface."""
+
+    failed_jobs_by_type: dict[JobType, int]
+    dead_lettered_jobs_by_type: dict[JobType, int]
+    dead_letter_queue_depth: int
+    render_duration_seconds: RenderDurationSignal
+
+
 class UnlockResponse(BaseModel):
     """Response for unlock endpoints."""
 

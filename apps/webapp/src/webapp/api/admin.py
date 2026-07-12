@@ -26,9 +26,11 @@ from webapp.api.v1.schemas.admin import (
     EnqueueResponse,
     ErrorsSummaryResponse,
     JobDetail,
+    JobOperationalSignalsResponse,
     JobSummary,
     PendingRetriesCountResponse,
     QueueDepthResponse,
+    RenderDurationSignal,
     SyncTriggerResponse,
     UnlockResponse,
 )
@@ -146,6 +148,68 @@ async def get_pending_retries_count(
     result = await session.execute(stmt)
     jobs = result.scalars().all()
     return PendingRetriesCountResponse(count=len(jobs))
+
+
+@router.get("/jobs/operational-signals", response_model=JobOperationalSignalsResponse)
+async def get_job_operational_signals(
+    session: AsyncSession = Depends(_get_db),
+) -> JobOperationalSignalsResponse:
+    """Return failure counts, queue depth, and render timing signals."""
+    result = await session.execute(
+        text(
+            """
+            WITH failed_counts AS (
+                SELECT job_type, count(*) AS count
+                FROM core_jobs
+                WHERE status = 'failed'
+                GROUP BY job_type
+            ),
+            dead_lettered_counts AS (
+                SELECT job_type, count(*) AS count
+                FROM core_jobs
+                WHERE status = 'dead_lettered'
+                GROUP BY job_type
+            )
+            SELECT
+                COALESCE(
+                    (SELECT jsonb_object_agg(job_type, count) FROM failed_counts),
+                    '{}'::jsonb
+                ) AS failed_jobs_by_type,
+                COALESCE(
+                    (SELECT jsonb_object_agg(job_type, count) FROM dead_lettered_counts),
+                    '{}'::jsonb
+                ) AS dead_lettered_jobs_by_type,
+                (SELECT count(*) FROM pgmq.q_dead_letter) AS dead_letter_queue_depth,
+                count(*) FILTER (
+                    WHERE job_type = 'video_compose'
+                    AND started_at IS NOT NULL
+                    AND completed_at IS NOT NULL
+                ) AS render_count,
+                avg(EXTRACT(EPOCH FROM (completed_at - started_at))) FILTER (
+                    WHERE job_type = 'video_compose'
+                    AND started_at IS NOT NULL
+                    AND completed_at IS NOT NULL
+                ) AS render_average,
+                max(EXTRACT(EPOCH FROM (completed_at - started_at))) FILTER (
+                    WHERE job_type = 'video_compose'
+                    AND started_at IS NOT NULL
+                    AND completed_at IS NOT NULL
+                ) AS render_maximum
+            FROM core_jobs
+            """
+        )
+    )
+    row = result.one()
+    return JobOperationalSignalsResponse(
+        failed_jobs_by_type=row.failed_jobs_by_type,
+        dead_lettered_jobs_by_type=row.dead_lettered_jobs_by_type,
+        dead_letter_queue_depth=row.dead_letter_queue_depth,
+        render_duration_seconds=RenderDurationSignal(
+            count=row.render_count,
+            average=row.render_average,
+            maximum=row.render_maximum,
+        ),
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobDetail)
