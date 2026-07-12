@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, joinedload
@@ -45,6 +45,7 @@ from webapp.api.v1.schemas.shootout_comment import (
 )
 from webapp.auth.dependencies import CurrentUserOptional
 from webapp.services.job_dispatch import enqueue_job
+from webapp.services.media_service import media_response, shootout_audio_root
 from webapp.services.shootout_comment_service import ShootoutCommentService
 from webapp.services.shootout_service import ShootoutService
 
@@ -285,6 +286,11 @@ def _project_artefact(
             duration_seconds=timeline["duration_seconds"],
         ),
         chains=chains,
+        montage_url=(
+            f"/api/shootouts/{shootout.id}/media/montage/{manifest.id}"
+            if shootout.output_path is not None
+            else None
+        ),
     )
 
 
@@ -426,14 +432,92 @@ async def process_shootout(
     return {"job_id": str(job.id)}
 
 
-# --- Audio Streaming Endpoints ---
+# --- Media Streaming Endpoints ---
 
-_AUDIO_CONTENT_TYPES: dict[str, str] = {
-    ".wav": "audio/wav",
-    ".flac": "audio/flac",
-    ".ogg": "audio/ogg",
-    ".mp3": "audio/mpeg",
-}
+
+@router.get("/{shootout_id}/media/{media_id}")
+async def stream_public_media(
+    shootout_id: UUID,
+    media_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Response:
+    """Stream one manifest-pinned segment after rechecking the public gate."""
+    current_manifest = aliased(ShootoutManifest)
+    stmt = (
+        select(ShootoutModel, current_manifest)
+        .join(
+            current_manifest,
+            and_(
+                current_manifest.shootout_id == ShootoutModel.id,
+                current_manifest.version == ShootoutModel.render_version,
+            ),
+        )
+        .where(
+            ShootoutModel.id == shootout_id,
+            *published_shootout_gate(include_unlisted=True),
+        )
+    )
+    row = (await db.execute(stmt)).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    shootout, manifest = row
+    matching = [
+        chain for chain in manifest.payload["chains"] if chain["segment_id"] == str(media_id)
+    ]
+    if not matching:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    root = shootout_audio_root(shootout.id)
+    relative_path = Path(matching[0]["media_path"])
+    if relative_path.is_absolute():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    return media_response(
+        root / relative_path,
+        containment_root=root,
+        not_found_detail="Media not found",
+    )
+
+
+@router.get("/{shootout_id}/media/montage/{media_id}")
+async def stream_public_montage(
+    shootout_id: UUID,
+    media_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Response:
+    """Stream a montage pointer bound to the published manifest version."""
+    current_manifest = aliased(ShootoutManifest)
+    stmt = (
+        select(ShootoutModel, current_manifest)
+        .join(
+            current_manifest,
+            and_(
+                current_manifest.shootout_id == ShootoutModel.id,
+                current_manifest.version == ShootoutModel.render_version,
+            ),
+        )
+        .where(
+            ShootoutModel.id == shootout_id,
+            current_manifest.id == media_id,
+            *published_shootout_gate(include_unlisted=True),
+        )
+    )
+    row = (await db.execute(stmt)).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    shootout, manifest = row
+    if shootout.output_path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    version_root = shootout_audio_root(shootout.id) / f"v{manifest.version}"
+    return media_response(
+        shootout.output_path,
+        filename=f"{shootout.name}-sequential-montage{Path(shootout.output_path).suffix.lower()}",
+        attachment=True,
+        containment_root=version_root,
+        not_found_detail="Media not found",
+    )
 
 
 @router.get("/{shootout_id}/audio/master")
@@ -441,7 +525,7 @@ async def stream_master_audio(
     shootout_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
-) -> FileResponse:
+) -> Response:
     """Download the sequential montage enrichment for a completed shootout."""
     stmt = select(ShootoutModel).where(
         ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id
@@ -457,24 +541,12 @@ async def stream_master_audio(
             status_code=status.HTTP_404_NOT_FOUND, detail="Master audio not available"
         )
 
-    file_path = Path(shootout.output_path)
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Master audio file not found"
-        )
-
-    ext = file_path.suffix.lower()
-    media_type = _AUDIO_CONTENT_TYPES.get(ext, "application/octet-stream")
-
-    return FileResponse(
-        path=str(file_path),
-        media_type=media_type,
+    ext = Path(shootout.output_path).suffix.lower()
+    return media_response(
+        shootout.output_path,
         filename=f"{shootout.name}-sequential-montage{ext}",
-        headers={
-            "Content-Disposition": (
-                f'attachment; filename="{shootout.name}-sequential-montage{ext}"'
-            )
-        },
+        attachment=True,
+        not_found_detail="Master audio file not found",
     )
 
 
@@ -484,7 +556,7 @@ async def stream_chain_audio(
     chain_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
-) -> FileResponse:
+) -> Response:
     """Stream processed audio for a specific chain in a shootout."""
     from webapp.adapters.persistence.models.shootout import (
         ShootoutChain as ShootoutChainModel,
@@ -513,17 +585,11 @@ async def stream_chain_audio(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chain not found")
 
     chain, segment = row
-    file_path = Path(segment.file_path)
-    if not file_path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio file not found")
-
-    ext = file_path.suffix.lower()
-    media_type = _AUDIO_CONTENT_TYPES.get(ext, "application/octet-stream")
-
-    return FileResponse(
-        path=str(file_path),
-        media_type=media_type,
+    ext = Path(segment.file_path).suffix.lower()
+    return media_response(
+        segment.file_path,
         filename=f"{chain.label}{ext}",
+        not_found_detail="Audio file not found",
     )
 
 
