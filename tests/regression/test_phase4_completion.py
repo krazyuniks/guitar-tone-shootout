@@ -1,6 +1,6 @@
 """Regression test: validates Phase 4 ORM models round-trip correctly.
 
-Tests Phase 4 entities: ShootoutComment, Tag, Preset, UserNotification, AuditLog
+Tests Phase 4 entities: ShootoutComment, Tag, UserNotification, AuditLog
 
 Run with: just test-regression
 Pass = Phase 4 entities work | Fail = ORM or migration issue
@@ -18,10 +18,8 @@ from gts.domain.entities.user import User as UserEntity
 from gts.domain.entities.user import UserIdentity
 from webapp.adapters.persistence.models.job import AuditLog
 from webapp.adapters.persistence.models.notification import UserNotification
-from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.shootout import Shootout
 from webapp.adapters.persistence.models.shootout_comment import ShootoutComment
-from webapp.adapters.persistence.models.signal_chain import SignalChain, SignalChainBlock
 from webapp.adapters.persistence.models.tag import Tag
 from webapp.adapters.persistence.repositories.audit_repository import (
     SQLAlchemyAuditRepository,
@@ -49,11 +47,6 @@ class TestPhase4ModelsImport:
         """Tag model can be imported."""
         assert Tag is not None
         assert Tag.__tablename__ == "core_user_tags"
-
-    def test_preset_import(self) -> None:
-        """Preset model can be imported."""
-        assert Preset is not None
-        assert Preset.__tablename__ == "core_presets"
 
     def test_notification_import(self) -> None:
         """UserNotification model can be imported."""
@@ -194,58 +187,6 @@ class TestTagRoundTrip:
 
         with pytest.raises(Exception):  # IntegrityError or similar
             await db_session.commit()
-
-
-class TestPresetRoundTrip:
-    """Verify Preset entity can be saved and retrieved."""
-
-    @pytest.mark.asyncio
-    async def test_create_and_retrieve(self, db_session: AsyncSession) -> None:
-        """Create preset, retrieve it - validates Preset ORM."""
-        # Create a user
-        identity = UserIdentity(provider="t3k", external_id="preset-user-001", username="presetter")
-        user = UserEntity.create_with_identity(identity=identity, email="presetter@gts.dev")
-        user_repo = SQLAlchemyUserRepository(db_session)
-        await user_repo.save(user)
-        await db_session.commit()
-
-        # Create a signal chain
-        chain = SignalChain(user_id=user.id, name="Test Chain")
-        db_session.add(chain)
-        await db_session.flush()
-
-        # Create a signal chain block
-        block = SignalChainBlock(
-            signal_chain_id=chain.id,
-            position=0,
-            params={"gain": 50, "tone": 70},
-        )
-        db_session.add(block)
-        await db_session.commit()
-
-        # Create a preset
-        preset = Preset(
-            signal_chain_block_id=block.id,
-            name="Heavy Tone",
-            description="High gain preset",
-            params={"gain": 80, "tone": 60, "presence": 70},
-        )
-        db_session.add(preset)
-        await db_session.commit()
-
-        # Retrieve and verify
-        from sqlalchemy import select
-
-        stmt = select(Preset).where(Preset.id == preset.id)
-        result = await db_session.execute(stmt)
-        retrieved = result.scalar_one_or_none()
-
-        assert retrieved is not None
-        assert retrieved.id == preset.id
-        assert retrieved.signal_chain_block_id == block.id
-        assert retrieved.name == "Heavy Tone"
-        assert retrieved.description == "High gain preset"
-        assert retrieved.params == {"gain": 80, "tone": 60, "presence": 70}
 
 
 class TestUserNotificationRoundTrip:

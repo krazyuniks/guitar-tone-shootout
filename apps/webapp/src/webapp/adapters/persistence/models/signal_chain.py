@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,8 +14,6 @@ from gts.domain.value_objects.signal_chain_enums import (
 )
 
 from .base import Base, EnumByValue, TimestampMixin, UUIDMixin, UuidType
-from .block_type import BlockType
-from .preset import Preset
 
 if TYPE_CHECKING:
     from .user import User
@@ -92,21 +90,15 @@ class SignalChainBlock(UUIDMixin, Base):
     Represents one component (pedal, amp, full-rig, IR, or post-effect)
     in the signal chain. Blocks are ordered by position.
 
-    Can reference either:
-    - UserGear (user's library item) via user_gear_id + gear_type
-    - BlockType (built-in processor) via block_type_id
+    References a capture in the user's library via user_gear_id + gear_type.
 
     Attributes:
         id: Primary key (UUIDv7)
         signal_chain_id: Foreign key to signal_chains table
         position: Order in the chain (0-indexed)
-        user_gear_id: Reference to UserGear item (nullable when using BlockType)
-        gear_type: Type of gear (nullable when using BlockType)
-        block_type_id: Foreign key to block_types table (nullable when using UserGear)
-        params: Parameter values as JSON (default empty dict)
+        user_gear_id: Reference to UserGear item
+        gear_type: Type of captured gear
         signal_chain: Reference to the SignalChain
-        block_type: Reference to the BlockType
-        presets: List of parameter presets for this block
     """
 
     __tablename__ = "core_signal_chain_blocks"
@@ -117,36 +109,19 @@ class SignalChainBlock(UUIDMixin, Base):
         nullable=False,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    user_gear_id: Mapped[uuid.UUID | None] = mapped_column(
+    user_gear_id: Mapped[uuid.UUID] = mapped_column(
         UuidType(),
-        nullable=True,
+        nullable=False,
     )
-    gear_type: Mapped[GearType | None] = mapped_column(
+    gear_type: Mapped[GearType] = mapped_column(
         EnumByValue(GearType),
-        nullable=True,
+        nullable=False,
     )
-    block_type_id: Mapped[uuid.UUID | None] = mapped_column(
-        UuidType(),
-        ForeignKey("core_block_types.id", ondelete="CASCADE"),
-        nullable=True,
-    )
-    params: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Relationships
     signal_chain: Mapped[SignalChain] = relationship(
         "SignalChain",
         back_populates="blocks",
-        lazy="raise",
-    )
-    block_type: Mapped[BlockType | None] = relationship(
-        "BlockType",
-        back_populates="blocks",
-        lazy="raise",
-    )
-    presets: Mapped[list[Preset]] = relationship(
-        "Preset",
-        back_populates="signal_chain_block",
-        cascade="all, delete-orphan",
         lazy="raise",
     )
 

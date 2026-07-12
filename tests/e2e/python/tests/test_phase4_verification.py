@@ -52,13 +52,6 @@ class TestAPIRoutersMounted:
         response = await guest_page.request.get(f"{frontend_url}/api/jobs/")
         assert response.status != 404, "jobs router not mounted"
 
-    async def test_block_types_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
-        """Block types API is mounted and returns data (public endpoint)."""
-        response = await guest_page.request.get(f"{frontend_url}/api/block-types/")
-        assert response.ok, f"block-types returned {response.status}"
-        data = await response.json()
-        assert isinstance(data, list), "block-types should return a list"
-
     async def test_di_tracks_router_mounted(self, guest_page: Page, frontend_url: str) -> None:
         """DI tracks API is mounted (401 for unauth, not 404)."""
         response = await guest_page.request.get(f"{frontend_url}/api/di-tracks")

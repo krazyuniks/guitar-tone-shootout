@@ -8,8 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
-from webapp.adapters.persistence.models.block_type import BlockType
-from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.signal_chain import (
     SignalChain,
     SignalChainBlock,
@@ -130,69 +128,6 @@ async def test_signal_chain_cascade_delete(session: AsyncSession) -> None:
     # Assert - Block should be deleted
     result = await session.get(SignalChainBlock, block.id)
     assert result is None
-
-
-async def test_block_type_creation(session: AsyncSession) -> None:
-    """Test creating built-in processor definitions."""
-    suffix = uuid.uuid4().hex[:8]
-    # Arrange & Act
-    block_type = BlockType(
-        name=f"Compressor_{suffix}",
-        category="dynamics",
-        description="Audio compressor",
-        default_params={"ratio": 4.0, "threshold": -20.0},
-    )
-    session.add(block_type)
-    await session.commit()
-
-    # Assert
-    assert block_type.id is not None
-    assert block_type.name == f"Compressor_{suffix}"
-    assert block_type.category == "dynamics"
-    assert block_type.default_params["ratio"] == 4.0
-
-
-async def test_preset_creation(session: AsyncSession) -> None:
-    """Test creating parameter presets for blocks."""
-    suffix = uuid.uuid4().hex[:8]
-    # Arrange - Create block type and chain
-    user = User(
-        username=f"testuser_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@example.com"
-    )
-    session.add(user)
-    await session.commit()
-
-    chain = SignalChain(
-        user_id=user.id,
-        name="Test Chain",
-        platform=Platform.NAM,
-    )
-    session.add(chain)
-    await session.commit()
-
-    block = SignalChainBlock(
-        signal_chain_id=chain.id,
-        position=0,
-        user_gear_id=UUID("00000000-0000-0000-0000-000000000001"),
-        gear_type=GearType.PEDAL,
-    )
-    session.add(block)
-    await session.commit()
-
-    # Act - Create preset
-    preset = Preset(
-        signal_chain_block_id=block.id,
-        name=f"Heavy Compression {suffix}",
-        params={"ratio": 8.0, "threshold": -30.0, "attack": 5.0},
-    )
-    session.add(preset)
-    await session.commit()
-
-    # Assert
-    assert preset.id is not None
-    assert preset.signal_chain_block_id == block.id
-    assert preset.name == f"Heavy Compression {suffix}"
-    assert preset.params["ratio"] == 8.0
 
 
 async def test_signal_chain_group_creation(session: AsyncSession) -> None:

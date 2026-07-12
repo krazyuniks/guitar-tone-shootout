@@ -1,7 +1,6 @@
 """Domain entities - aggregate roots and their components."""
 
 from gts.domain.entities.base import Entity
-from gts.domain.entities.block_type import BlockType
 from gts.domain.entities.di_track import DITrack
 from gts.domain.entities.gear import Gear, GearModel, GearSource, UserGear
 from gts.domain.entities.job import Job
@@ -12,7 +11,6 @@ from gts.domain.entities.signal_chain_group import SignalChainGroup
 from gts.domain.entities.user import User, UserIdentity
 
 __all__ = [
-    "BlockType",
     "DITrack",
     "Entity",
     "Gear",

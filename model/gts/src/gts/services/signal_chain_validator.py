@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
-from gts.domain.value_objects.block_position import BlockPosition
 from gts.domain.value_objects.signal_chain_enums import GearType
 
 
@@ -18,7 +17,6 @@ class ValidationRule(str, Enum):
     MULTIPLE_AMPS = "MULTIPLE_AMPS"
     IR_REQUIRED = "IR_REQUIRED"
     IR_FORBIDDEN = "IR_FORBIDDEN"
-    LOOP_FORBIDDEN = "LOOP_FORBIDDEN"
     MULTIPLE_IRS = "MULTIPLE_IRS"
     INVALID_ORDER = "INVALID_ORDER"
 
@@ -120,7 +118,7 @@ class SignalChainValidator:
 
         if cats.total_amps >= 1:
             if cats.total_amps == 1:
-                errors.extend(self._validate_single_amp_rules(chain, cats))
+                errors.extend(self._validate_single_amp_rules(cats))
             errors.extend(self._validate_ordering(cats))
 
         if errors:
@@ -193,9 +191,7 @@ class SignalChainValidator:
         ]
 
     @staticmethod
-    def _validate_single_amp_rules(
-        chain: SignalChain, cats: _CategorisedBlocks
-    ) -> list[ValidationError]:
+    def _validate_single_amp_rules(cats: _CategorisedBlocks) -> list[ValidationError]:
         """Rules that apply only when there is exactly one amp."""
         errors: list[ValidationError] = []
 
@@ -216,17 +212,6 @@ class SignalChainValidator:
                     position=pos,
                 )
                 for pos, _ in cats.ir_blocks
-            )
-
-        if cats.is_full_rig:
-            errors.extend(
-                ValidationError(
-                    code=ValidationRule.LOOP_FORBIDDEN,
-                    message="Loop position effects are incompatible with full-rig amps",
-                    position=i,
-                )
-                for i, block in enumerate(chain.blocks)
-                if block.block_position == BlockPosition.LOOP
             )
 
         return errors

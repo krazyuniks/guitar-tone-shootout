@@ -5,7 +5,7 @@ This is a comprehensive check that nothing was missed during Phase 4.
 
 T143 acceptance criterion:
 - All API routers mounted and reachable:
-  signal_chain_groups, block_types, files, test (dev only)
+  signal_chain_groups, files, test (dev only)
 """
 
 from __future__ import annotations
@@ -64,14 +64,6 @@ class TestAllRoutersMounted:
         assert response.status_code != 404, (
             f"signal-chain-groups router not mounted (got {response.status_code})"
         )
-
-    async def test_block_types_router(self, client: AsyncClient) -> None:
-        """Block types router is mounted at /api/block-types (no trailing slash)."""
-        response = await client.get("/api/block-types")
-        # Public endpoint — should return 200 with list
-        assert response.status_code == 200, f"block-types router returned {response.status_code}"
-        data = response.json()
-        assert isinstance(data, list), "block-types should return a JSON list"
 
     async def test_files_router(self, client: AsyncClient) -> None:
         """Files router is mounted at /api/files/."""

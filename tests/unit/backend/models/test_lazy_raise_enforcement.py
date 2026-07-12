@@ -13,7 +13,6 @@ from sqlalchemy.orm import RelationshipProperty
 
 from webapp.adapters.persistence.models import (
     AudioSegment,
-    BlockType,
     DITrack,
     Gear,
     GearMake,
@@ -22,7 +21,6 @@ from webapp.adapters.persistence.models import (
     GearTag,
     Job,
     OAuthProvider,
-    Preset,
     Shootout,
     ShootoutChain,
     ShootoutComment,
@@ -37,7 +35,6 @@ from webapp.adapters.persistence.models import (
 # All models that have relationships
 ALL_MODELS = [
     AudioSegment,
-    BlockType,
     DITrack,
     Gear,
     GearMake,
@@ -46,7 +43,6 @@ ALL_MODELS = [
     GearTag,
     Job,
     OAuthProvider,
-    Preset,
     Shootout,
     ShootoutChain,
     ShootoutComment,

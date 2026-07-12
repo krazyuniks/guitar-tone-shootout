@@ -7,7 +7,6 @@ from webapp.adapters.persistence.models.base import (
     UUIDMixin,
     get_async_session,
 )
-from webapp.adapters.persistence.models.block_type import BlockType
 from webapp.adapters.persistence.models.gear import (
     Gear,
     GearMake,
@@ -17,7 +16,6 @@ from webapp.adapters.persistence.models.gear_model import GearModel
 from webapp.adapters.persistence.models.gear_source import GearSource
 from webapp.adapters.persistence.models.job import AuditLog, Job
 from webapp.adapters.persistence.models.notification import UserNotification
-from webapp.adapters.persistence.models.preset import Preset
 from webapp.adapters.persistence.models.shootout import (
     AudioSegment,
     DITrack,
@@ -40,7 +38,6 @@ __all__ = [
     "AudioSegment",
     "AuditLog",
     "Base",
-    "BlockType",
     "DITrack",
     "EnumByValue",
     "Gear",
@@ -50,7 +47,6 @@ __all__ = [
     "GearTag",
     "Job",
     "OAuthProvider",
-    "Preset",
     "Shootout",
     "ShootoutChain",
     "ShootoutComment",

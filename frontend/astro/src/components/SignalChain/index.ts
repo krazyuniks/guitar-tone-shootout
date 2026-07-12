@@ -11,7 +11,6 @@
  * - DITrackBlock: DI/Input (blue accent)
  * - AmpBlock: Amplifier/NAM models (amber accent)
  * - CabinetBlock: Cabinet/IR models (green accent)
- * - EffectBlock: Effects/pedals (purple accent)
  *
  * State management:
  * - useBuilderState: Hook for managing builder state
@@ -35,18 +34,6 @@ export { BlockCard, type BlockType } from './BlockCard';
 export { DITrackBlock } from './DITrackBlock';
 export { AmpBlock } from './AmpBlock';
 export { CabinetBlock } from './CabinetBlock';
-export {
-  EffectBlock,
-  type EffectType,
-  type EffectParams,
-  type EQParams,
-  type DelayParams,
-  type ReverbParams,
-  type CompressionParams,
-  type NoiseGateParams,
-  type BoostParams,
-} from './EffectBlock';
-
 // State management
 export { useBuilderState, type BuilderActions } from './useBuilderState';
 export {

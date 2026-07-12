@@ -17,7 +17,7 @@ Cannot import: audio, video, sources, apps
 
 ## Key Files
 
-- `src/gts/domain/entities/` — User, Gear, Shootout, SignalChain, Job, DITrack, BlockType
+- `src/gts/domain/entities/` — User, Gear, Shootout, SignalChain, Job, DITrack
 - `src/gts/domain/value_objects/` — JobStatus, DownloadStatus, RenderStatus, ToneConfig, etc.
 - `src/gts/ports/repositories.py` — Abstract repository interfaces
 - `src/gts/services/signal_chain_validator.py` — Signal chain grammar validation

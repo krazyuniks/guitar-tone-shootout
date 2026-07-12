@@ -15,7 +15,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from webapp.api import admin, pages
 from webapp.api.v1 import (
     auth,
-    block_types,
     di_tracks,
     files,
     gear_items,
@@ -111,7 +110,6 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(health.router, tags=["health"])
     app.include_router(auth.router)
-    app.include_router(block_types.router)
     app.include_router(files.router)
     app.include_router(shootouts.router)
     app.include_router(metrics.router)

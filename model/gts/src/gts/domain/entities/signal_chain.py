@@ -19,7 +19,6 @@ from datetime import datetime
 from uuid import UUID
 
 from gts.domain.entities.base import Entity, new_id, utcnow
-from gts.domain.value_objects.block_position import BlockPosition
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 
@@ -37,7 +36,6 @@ class SignalChainBlock:
         position: Order in the chain (0-indexed)
         user_gear_id: Reference to UserGear item from user's library
         gear_type: Type of gear (pedal, amp, full_rig, ir, post_effect)
-        block_position: Position relative to amp (pre/loop/post)
     """
 
     id: UUID
@@ -45,7 +43,6 @@ class SignalChainBlock:
     position: int
     user_gear_id: UUID
     gear_type: GearType
-    block_position: BlockPosition = BlockPosition.PRE
 
     def with_position(self, position: int) -> "SignalChainBlock":
         """Return a new block with updated position.
@@ -62,7 +59,6 @@ class SignalChainBlock:
             position=position,
             user_gear_id=self.user_gear_id,
             gear_type=self.gear_type,
-            block_position=self.block_position,
         )
 
 

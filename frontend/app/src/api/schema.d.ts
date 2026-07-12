@@ -206,30 +206,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/block-types": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Block Types
-         * @description List all built-in block types.
-         *
-         *     Returns all registered block types with their parameter definitions.
-         *     This is a public endpoint (no authentication required) with caching enabled.
-         *     Block types are static reference data.
-         */
-        get: operations["list_block_types_api_block_types_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/files/{signature}": {
         parameters: {
             query?: never;
@@ -1990,18 +1966,6 @@ export interface components {
             avatar_url: string | null;
         };
         /**
-         * BlockCategory
-         * @description Standard block categories with ordering constraints.
-         *
-         *     Categories determine where blocks can be placed in the signal chain:
-         *     - PRE_AMP: UTILITY, EQ, DYNAMICS, DISTORTION (before amp)
-         *     - POST_AMP: EQ, DYNAMICS, DELAY, REVERB, MODULATION, SPATIAL, UTILITY
-         *     - AMP: Exactly one required (core of signal chain)
-         *     - IR: Required after AMP type, forbidden after FULL_RIG
-         * @enum {string}
-         */
-        BlockCategory: "utility" | "eq" | "dynamics" | "distortion" | "modulation" | "delay" | "reverb" | "spatial" | "amp" | "ir";
-        /**
          * BlockRequest
          * @description Request schema for a signal chain block.
          */
@@ -2033,26 +1997,6 @@ export interface components {
             gear_type: string;
             /** Position */
             position: number;
-        };
-        /**
-         * BlockTypeResponse
-         * @description Response schema for block type endpoints.
-         */
-        BlockTypeResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name */
-            name: string;
-            /** Description */
-            description: string | null;
-            category: components["schemas"]["BlockCategory"];
-            /** Default Params */
-            default_params: {
-                [key: string]: unknown;
-            };
         };
         /** Body_upload_di_track_api_di_tracks_post */
         Body_upload_di_track_api_di_tracks_post: {
@@ -3103,26 +3047,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    list_block_types_api_block_types_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BlockTypeResponse"][];
                 };
             };
         };

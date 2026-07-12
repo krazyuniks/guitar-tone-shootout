@@ -73,6 +73,39 @@ async def test_save_new_chain(
     assert retrieved.blocks[0].gear_type == GearType.AMP
 
 
+async def test_saved_chain_round_trips_captures_only_block_shape(
+    session: AsyncSession,
+    sample_chain: SignalChain,
+    sample_block: SignalChainBlock,
+) -> None:
+    """A saved block has one domain and persistence shape: a capture reference."""
+    expected_fields = {
+        "id",
+        "signal_chain_id",
+        "position",
+        "user_gear_id",
+        "gear_type",
+    }
+    assert set(SignalChainBlock.__dataclass_fields__) == expected_fields
+
+    from webapp.adapters.persistence.models.signal_chain import (
+        SignalChainBlock as SignalChainBlockModel,
+    )
+
+    assert set(SignalChainBlockModel.__table__.columns.keys()) == expected_fields
+
+    sample_chain.blocks.append(sample_block)
+    repo = SQLAlchemySignalChainRepository(session)
+    await repo.save(sample_chain)
+    await session.commit()
+    session.expire_all()
+
+    retrieved = await repo.get_by_id(sample_chain.id, sample_chain.user_id)
+
+    assert retrieved is not None
+    assert retrieved.blocks == [sample_block]
+
+
 async def test_save_update_chain(
     session: AsyncSession,
     sample_chain: SignalChain,

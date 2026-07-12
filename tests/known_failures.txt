@@ -256,7 +256,6 @@ tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMoun
 tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_notifications_router
 tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_tags_router
 tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_presets_router
-tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_block_types_router
 tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_irs_router
 tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_files_router
 tests/integration/webapp/test_phase4_router_mounting_t143.py::TestAllRoutersMounted::test_di_tracks_router

@@ -5,7 +5,6 @@ These enums define the valid values for signal chain composition:
 - GearType: Type of gear in the signal chain
 - EffectCategory: Category of effect for placement rules
 - ModelSize: NAM model size variants
-- BlockPosition: Position in signal chain (pre/post amp)
 """
 
 from enum import Enum
@@ -120,14 +119,3 @@ class ModelSize(str, Enum):
     LITE = "lite"
     FEATHER = "feather"
     NANO = "nano"
-
-
-class BlockPosition(str, Enum):
-    """Position of a block in the signal chain.
-
-    Used to track whether a block is in the pre-amp or post-amp section.
-    """
-
-    PRE_AMP = "pre_amp"
-    AMP = "amp"
-    POST_AMP = "post_amp"
