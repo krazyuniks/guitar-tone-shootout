@@ -1507,7 +1507,7 @@ export interface paths {
         };
         /**
          * Shootout Detail Page
-         * @description Render shootout detail page with full SSR.
+         * @description Render an owned or published shootout detail page with full SSR.
          */
         get: operations["shootout_detail_page_shootout__shootout_id__get"];
         put?: never;
@@ -2676,6 +2676,8 @@ export interface components {
             di_track_id: string;
             /** Description */
             description?: string | null;
+            /** @default public */
+            visibility: components["schemas"]["ShootoutVisibility"];
         };
         /**
          * ShootoutResponse
@@ -2701,6 +2703,8 @@ export interface components {
             di_track_id: string;
             /** Description */
             description?: string | null;
+            /** @default public */
+            visibility: components["schemas"]["ShootoutVisibility"];
             /** Is Processed */
             is_processed: boolean;
             /** Output Path */
@@ -2716,6 +2720,12 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * ShootoutVisibility
+         * @description Who may discover or open a shootout.
+         * @enum {string}
+         */
+        ShootoutVisibility: "public" | "unlisted" | "private";
         /**
          * SignalChainCreateRequest
          * @description Request schema for creating a signal chain.
