@@ -24,9 +24,10 @@ wt_dc exec -T astro pnpm lint
 
 # --- App SPA checks (Vite + React under /app/*) ---
 # frontend/app carries no host port and is not on the provisioned stack, so run a
-# one-off container off the app image (its deps were installed with
-# --frozen-lockfile at build time). Check generated OpenAPI drift, typecheck
-# (tsc --noEmit), then production build.
+# one-off container off an image rebuilt from the current worktree. Rebuilding is
+# required when a branch changes package.json or pnpm-lock.yaml after provision.
+# Check generated OpenAPI drift, typecheck (tsc --noEmit), then production build.
+wt_dc build app
 wt_dc run --rm --no-deps -T app sh -c "pnpm check:api && pnpm typecheck && pnpm build"
 
 # --- Host-side checks (no container) ---
