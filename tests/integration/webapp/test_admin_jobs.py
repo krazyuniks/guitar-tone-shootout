@@ -6,13 +6,14 @@ These endpoints allow listing jobs, viewing details with children, cancelling, a
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import uuid4, uuid7
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job
@@ -145,6 +146,36 @@ async def dead_lettered_job(db_session: AsyncSession) -> Job:
     await db_session.commit()
     await db_session.refresh(job)
     return job
+
+
+@pytest.fixture
+async def dead_letter_message(
+    db_session: AsyncSession, dead_lettered_job: Job
+) -> dict[str, object]:
+    """Put the dead-lettered job's original command in the queue-level DLQ."""
+    original_message = {
+        "message_id": str(uuid7()),
+        "message_type": "process_audio",
+        "source_bc": "shootout-orchestrator",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "correlation_id": None,
+        "payload": {"job_id": str(dead_lettered_job.id)},
+    }
+    dlq_message = {
+        "failed_queue": "audio_commands",
+        "failed_msg_id": 41,
+        "failed_read_count": 4,
+        "failed_at": datetime.now(UTC).isoformat(),
+        "reason": "processing failed: broken input",
+        "message": original_message,
+    }
+    await db_session.execute(text("SELECT pgmq.create('dead_letter')"))
+    await db_session.execute(
+        text("SELECT pgmq.send('dead_letter', CAST(:message AS jsonb))"),
+        {"message": json.dumps(dlq_message)},
+    )
+    await db_session.commit()
+    return dlq_message
 
 
 @pytest.fixture
@@ -492,10 +523,10 @@ class TestJobRetryEndpoint:
             assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_retry_job_resets_to_pending(
+    async def test_retry_job_requeues_routable_job(
         self, admin_app: FastAPI, failed_job: Job, db_session: AsyncSession
     ) -> None:
-        """POST /api/admin/jobs/{job_id}/retry resets job status to pending."""
+        """POST /api/admin/jobs/{job_id}/retry sends a routable job back to its queue."""
         job_id = failed_job.id
         async with AsyncClient(
             transport=ASGITransport(app=admin_app), base_url="http://test"
@@ -506,7 +537,7 @@ class TestJobRetryEndpoint:
             db_session.expire_all()
             result = await db_session.execute(select(Job).where(Job.id == job_id))
             job = result.scalar_one()
-            assert job.status == JobStatus.PENDING
+            assert job.status == JobStatus.QUEUED
 
     @pytest.mark.asyncio
     async def test_retry_job_clears_error(
@@ -583,3 +614,76 @@ class TestJobRetryEndpoint:
         ) as client:
             response = await client.post(f"/api/admin/jobs/{failed_job.id}/retry")
             assert response.status_code == 200
+
+
+class TestDeadLetterQueueLifecycle:
+    """Test queue-level visibility and redrive on the admin API."""
+
+    @pytest.mark.asyncio
+    async def test_dead_letter_depth_comes_from_queue(
+        self,
+        admin_app: FastAPI,
+        dead_letter_message: dict[str, object],
+    ) -> None:
+        async with AsyncClient(
+            transport=ASGITransport(app=admin_app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/admin/queues/dead-letter/depth")
+
+        assert response.status_code == 200
+        assert response.json()["depth"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_redrive_restores_original_envelope_and_queues_job(
+        self,
+        admin_app: FastAPI,
+        dead_lettered_job: Job,
+        dead_letter_message: dict[str, object],
+        db_session: AsyncSession,
+    ) -> None:
+        job_id = dead_lettered_job.id
+        await db_session.execute(text("SELECT pgmq.create('audio_commands')"))
+        await db_session.commit()
+
+        async with AsyncClient(
+            transport=ASGITransport(app=admin_app), base_url="http://test"
+        ) as client:
+            response = await client.post(f"/api/admin/jobs/{job_id}/redrive")
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "queued"
+
+        db_session.expire_all()
+        job_result = await db_session.execute(select(Job).where(Job.id == job_id))
+        assert job_result.scalar_one().status == JobStatus.QUEUED
+
+        source_result = await db_session.execute(
+            text(
+                "SELECT message FROM pgmq.q_audio_commands "
+                "WHERE message->'payload'->>'job_id' = :job_id"
+            ),
+            {"job_id": str(job_id)},
+        )
+        assert source_result.scalar_one() == dead_letter_message["message"]
+
+        dlq_result = await db_session.execute(
+            text(
+                "SELECT count(*) FROM pgmq.q_dead_letter "
+                "WHERE message->'message'->'payload'->>'job_id' = :job_id"
+            ),
+            {"job_id": str(job_id)},
+        )
+        assert dlq_result.scalar_one() == 0
+
+    @pytest.mark.asyncio
+    async def test_redrive_requires_matching_dlq_envelope(
+        self,
+        admin_app: FastAPI,
+        dead_lettered_job: Job,
+    ) -> None:
+        async with AsyncClient(
+            transport=ASGITransport(app=admin_app), base_url="http://test"
+        ) as client:
+            response = await client.post(f"/api/admin/jobs/{dead_lettered_job.id}/redrive")
+
+        assert response.status_code == 404

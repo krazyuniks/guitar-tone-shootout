@@ -82,6 +82,12 @@ class PendingRetriesCountResponse(BaseModel):
     count: int
 
 
+class QueueDepthResponse(BaseModel):
+    """Current number of visible and in-flight messages in a queue."""
+
+    depth: int
+
+
 class UnlockResponse(BaseModel):
     """Response for unlock endpoints."""
 

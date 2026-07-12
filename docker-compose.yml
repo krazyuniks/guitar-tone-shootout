@@ -157,6 +157,7 @@ services:
       # Defaults match the code; override per-deployment via the host env.
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
       PGMQ_ARCHIVE_RETENTION_DAYS: ${PGMQ_ARCHIVE_RETENTION_DAYS:-30}
+      DLQ_RETENTION_DAYS: ${DLQ_RETENTION_DAYS:-14}
       JOB_RETENTION_DAYS: ${JOB_RETENTION_DAYS:-90}
     volumes:
       - ./model:/app/model

@@ -16,9 +16,10 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
+from messaging.pgmq_client import PgmqClient
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
 from webapp.services.job_dispatch import is_queue_routable, send_and_mark_queued
@@ -68,6 +69,10 @@ class LiveLeaseError(TransitionError):
         super().__init__("Job holds a live lease; re-claim requires a stale heartbeat")
 
 
+class DeadLetterEnvelopeNotFoundError(TransitionError):
+    """No active queue-level DLQ envelope exists for the job."""
+
+
 async def transition_job(
     session: AsyncSession,
     job_id: UUID,
@@ -79,6 +84,7 @@ async def transition_job(
     result_path: str | None = None,
     renewal: bool = False,
     require_stale_lease: bool = False,
+    _commit: bool = True,
 ) -> Job:
     """Move a job to `to_status`, reconcile its parent if needed, and commit.
 
@@ -184,6 +190,43 @@ async def transition_job(
         if shootout is not None and shootout.status != ShootoutStatus.COMPLETED:
             shootout.status = ShootoutStatus.FAILED
 
+    if _commit:
+        await session.commit()
+    return job
+
+
+async def redrive_dead_lettered_job(session: AsyncSession, job_id: UUID) -> Job:
+    """Atomically return a poison envelope to its source queue and requeue its job.
+
+    The queue-level envelope is the source of truth for the original queue and
+    command. The job transition, pgmq publish, DLQ archive, and final QUEUED
+    state share one commit, so the queue and job row cannot diverge.
+    """
+    job = await transition_job(session, job_id, JobStatus.PENDING, _commit=False)
+
+    dlq_result = await session.execute(
+        text(
+            "SELECT msg_id, message FROM pgmq.q_dead_letter "
+            "WHERE message->'message'->'payload'->>'job_id' = :job_id "
+            "ORDER BY enqueued_at LIMIT 1 FOR UPDATE"
+        ),
+        {"job_id": str(job_id)},
+    )
+    dlq_row = dlq_result.mappings().one_or_none()
+    if dlq_row is None:
+        await session.rollback()
+        raise DeadLetterEnvelopeNotFoundError(f"No dead-letter envelope for job {job_id}")
+
+    dlq_envelope = dlq_row["message"]
+    source_queue = dlq_envelope["failed_queue"]
+    original_message = dlq_envelope["message"]
+
+    pgmq = PgmqClient(session)
+    await pgmq.create_queue(source_queue)
+    await pgmq.send(source_queue, original_message)
+    await pgmq.archive("dead_letter", int(dlq_row["msg_id"]))
+    job.status = JobStatus.QUEUED
+    job.message = "Redriven from dead-letter queue"
     await session.commit()
     return job
 

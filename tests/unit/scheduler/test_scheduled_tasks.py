@@ -343,6 +343,42 @@ class TestPurgePgmqArchives:
             else:
                 os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = prev_env
 
+    async def test_deletes_old_active_dead_letter_messages_with_own_window(
+        self, session: AsyncSession
+    ) -> None:
+        """The active DLQ uses DLQ_RETENTION_DAYS, independently of archives."""
+        from t3k_sync.tasks import purge_pgmq_archives
+
+        await session.execute(text("SELECT pgmq.create('dead_letter')"))
+        msg_result = await session.execute(text("SELECT pgmq.send('dead_letter', '{}'::jsonb)"))
+        msg_id = msg_result.scalar_one()
+        await session.execute(
+            text("UPDATE pgmq.q_dead_letter SET enqueued_at = :old_time WHERE msg_id = :msg_id"),
+            {"old_time": datetime.now(UTC) - timedelta(days=15), "msg_id": msg_id},
+        )
+
+        prev_archive = os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+        prev_dlq = os.environ.pop("DLQ_RETENTION_DAYS", None)
+        try:
+            os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = "36500"
+            os.environ["DLQ_RETENTION_DAYS"] = "14"
+            await purge_pgmq_archives()
+        finally:
+            if prev_archive is None:
+                os.environ.pop("PGMQ_ARCHIVE_RETENTION_DAYS", None)
+            else:
+                os.environ["PGMQ_ARCHIVE_RETENTION_DAYS"] = prev_archive
+            if prev_dlq is None:
+                os.environ.pop("DLQ_RETENTION_DAYS", None)
+            else:
+                os.environ["DLQ_RETENTION_DAYS"] = prev_dlq
+
+        count = await session.execute(
+            text("SELECT COUNT(*) FROM pgmq.q_dead_letter WHERE msg_id = :msg_id"),
+            {"msg_id": msg_id},
+        )
+        assert count.scalar_one() == 0
+
 
 class TestPurgeOldJobs:
     """Test purge_old_jobs scheduled task."""

@@ -28,6 +28,7 @@ from webapp.api.v1.schemas.admin import (
     JobDetail,
     JobSummary,
     PendingRetriesCountResponse,
+    QueueDepthResponse,
     SyncTriggerResponse,
     UnlockResponse,
 )
@@ -39,8 +40,10 @@ from webapp.services.job_dispatch import (
     enqueue_job,
 )
 from webapp.services.job_transitions import (
+    DeadLetterEnvelopeNotFoundError,
     InvalidTransitionError,
     JobNotFoundForTransitionError,
+    redrive_dead_lettered_job,
     transition_job,
 )
 
@@ -73,6 +76,14 @@ def validate_source(source: str) -> None:
     """Validate source name, raise 404 if unknown."""
     if source not in KNOWN_SOURCES:
         raise HTTPException(status_code=404, detail=f"Unknown source: {source}")
+
+
+def _job_detail(job: Job, children: list[Job]) -> JobDetail:
+    """Build a detail response without touching the lazy-raised relationship."""
+    return JobDetail(
+        **{field: getattr(job, field) for field in JobDetail.model_fields if field != "children"},
+        children=[JobSummary.model_validate(child) for child in children],
+    )
 
 
 @router.get("/health")
@@ -117,6 +128,15 @@ async def list_dead_lettered_jobs(
     return [JobSummary.model_validate(job) for job in jobs]
 
 
+@router.get("/queues/dead-letter/depth", response_model=QueueDepthResponse)
+async def get_dead_letter_queue_depth(
+    session: AsyncSession = Depends(_get_db),
+) -> QueueDepthResponse:
+    """Return queue-level DLQ depth, independently of job-row state."""
+    result = await session.execute(text("SELECT count(*) FROM pgmq.q_dead_letter"))
+    return QueueDepthResponse(depth=result.scalar_one())
+
+
 @router.get("/jobs/pending-retries/count", response_model=PendingRetriesCountResponse)
 async def get_pending_retries_count(
     session: AsyncSession = Depends(_get_db),
@@ -142,9 +162,7 @@ async def get_job(
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
     children = children_result.scalars().all()
 
-    job_detail = JobDetail.model_validate(job)
-    job_detail.children = [JobSummary.model_validate(child) for child in children]
-    return job_detail
+    return _job_detail(job, list(children))
 
 
 @router.post("/jobs/{job_id}/cancel", response_model=JobDetail)
@@ -167,9 +185,7 @@ async def cancel_job(
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
     children = children_result.scalars().all()
 
-    job_detail = JobDetail.model_validate(job)
-    job_detail.children = [JobSummary.model_validate(child) for child in children]
-    return job_detail
+    return _job_detail(job, list(children))
 
 
 @router.post("/jobs/{job_id}/retry", response_model=JobDetail)
@@ -199,9 +215,29 @@ async def retry_job(
     children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
     children = children_result.scalars().all()
 
-    job_detail = JobDetail.model_validate(job)
-    job_detail.children = [JobSummary.model_validate(child) for child in children]
-    return job_detail
+    return _job_detail(job, list(children))
+
+
+@router.post("/jobs/{job_id}/redrive", response_model=JobDetail)
+async def redrive_job(
+    job_id: UUID,
+    session: AsyncSession = Depends(_get_db),
+) -> JobDetail:
+    """Return a dead-letter envelope to its source queue and requeue its job."""
+    try:
+        job = await redrive_dead_lettered_job(session, job_id)
+    except (JobNotFoundForTransitionError, DeadLetterEnvelopeNotFoundError):
+        raise HTTPException(status_code=404, detail="Dead-lettered job or envelope not found")
+    except InvalidTransitionError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot redrive job in {exc.current.value} state",
+        )
+
+    await session.refresh(job)
+    children_result = await session.execute(select(Job).where(Job.parent_job_id == job_id))
+    children = children_result.scalars().all()
+    return _job_detail(job, list(children))
 
 
 @router.post(
