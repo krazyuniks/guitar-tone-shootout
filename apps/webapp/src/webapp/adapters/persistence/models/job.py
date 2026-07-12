@@ -68,6 +68,20 @@ class Job(UUIDMixin, TimestampMixin, Base):
         ForeignKey("core_jobs.id", ondelete="CASCADE"),
         nullable=True,
     )
+    parent: Mapped[Job | None] = relationship(
+        "Job",
+        back_populates="children",
+        foreign_keys=[parent_job_id],
+        remote_side="Job.id",
+        lazy="raise",
+    )
+    children: Mapped[list[Job]] = relationship(
+        "Job",
+        back_populates="parent",
+        foreign_keys=[parent_job_id],
+        order_by="Job.created_at",
+        lazy="raise",
+    )
 
     # Job status
     status: Mapped[JobStatus] = mapped_column(

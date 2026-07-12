@@ -44,6 +44,10 @@ class JobService:
         """
         return await self.repository.get_by_id(job_id, user_id)
 
+    async def get_tree_by_id(self, job_id: UUID, user_id: UUID) -> tuple[Job, list[Job]] | None:
+        """Get an owned job with one level of ordered children."""
+        return await self.repository.get_tree_by_id(job_id, user_id)
+
     async def get_by_user_id(
         self,
         user_id: UUID,

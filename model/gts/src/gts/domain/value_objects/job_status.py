@@ -100,4 +100,5 @@ class JobType(str, Enum):
     SHOOTOUT = "shootout"  # Parent orchestrator job for shootout
     SHOOTOUT_AUDIO = "shootout_audio"  # Per-chain audio processing for shootout
     SHOOTOUT_MASTER = "shootout_master"  # Create master audio after all chain jobs complete
+    SHOOTOUT_FINALISE = "shootout_finalise"  # Publish the completed shootout manifest
     SOURCE_SYNC = "source_sync"  # Sync catalog from T3K source

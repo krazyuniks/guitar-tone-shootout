@@ -6,6 +6,7 @@ from datetime import UTC
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import joinedload
 
 from gts.domain.entities.job import Job as JobEntity
 from gts.domain.value_objects.job_status import JobStatus, JobType
@@ -49,6 +50,23 @@ class SQLAlchemyJobRepository:
             return None
 
         return self._to_entity(job)
+
+    async def get_tree_by_id(
+        self, job_id: UUID, user_id: UUID
+    ) -> tuple[JobEntity, list[JobEntity]] | None:
+        """Get an owned job and its direct children in creation order."""
+        stmt = (
+            select(Job)
+            .options(joinedload(Job.children))
+            .where(Job.id == job_id, Job.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        job = result.unique().scalar_one_or_none()
+        if job is None:
+            return None
+
+        children = sorted(job.children, key=lambda child: child.created_at)
+        return self._to_entity(job), [self._to_entity(child) for child in children]
 
     async def get_by_user_id(
         self,

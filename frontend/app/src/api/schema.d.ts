@@ -2457,26 +2457,18 @@ export interface components {
             id: string;
             /** User Id */
             user_id: string | null;
-            /**
-             * Job Type
-             * @enum {string}
-             */
-            job_type: "audio_processing" | "video_compose" | "gear_sync" | "model_download" | "ir_download" | "notification";
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "pending" | "queued" | "running" | "completed" | "failed" | "cancelled" | "dead_lettered";
+            job_type: components["schemas"]["JobType"];
+            status: components["schemas"]["JobStatus"];
             /** Progress */
             progress: number;
             /** Message */
             message?: string | null;
             /** Error */
             error?: string | null;
-            /** Result Path */
-            result_path?: string | null;
             /** Entity Id */
             entity_id?: string | null;
+            /** Parent Job Id */
+            parent_job_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2487,6 +2479,8 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Children */
+            children?: components["schemas"]["JobResponse"][];
         };
         /**
          * JobStatus
@@ -2541,7 +2535,7 @@ export interface components {
          *     Categorises jobs by their purpose for routing and prioritisation.
          * @enum {string}
          */
-        JobType: "audio_processing" | "video_compose" | "gear_sync" | "model_download" | "ir_download" | "notification" | "shootout" | "shootout_audio" | "shootout_master" | "source_sync";
+        JobType: "audio_processing" | "video_compose" | "gear_sync" | "model_download" | "ir_download" | "notification" | "shootout" | "shootout_audio" | "shootout_master" | "shootout_finalise" | "source_sync";
         /**
          * MakeResponse
          * @description Response schema for tone makes.
@@ -3673,8 +3667,8 @@ export interface operations {
     list_jobs_api_jobs__get: {
         parameters: {
             query?: {
-                status?: string | null;
-                job_type?: string | null;
+                status?: components["schemas"]["JobStatus"] | null;
+                job_type?: components["schemas"]["JobType"] | null;
             };
             header?: never;
             path?: never;
