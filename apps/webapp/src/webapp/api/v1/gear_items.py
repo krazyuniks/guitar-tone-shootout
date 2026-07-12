@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.gear import Gear
@@ -18,6 +18,8 @@ from webapp.api.v1.schemas.gear_item import (
     GearItemListItem,
     GearItemListResponse,
     GearItemType,
+    ResolvedGearItemResponse,
+    ResolveGearItemRequest,
     TagListItem,
 )
 from webapp.auth.dependencies import CurrentUser, get_db_session
@@ -70,6 +72,30 @@ def _item_from_projection(row: UserGearListItemProjection) -> GearItemListItem:
         pack_models_count=len(gear.models),
         created_at=user_gear.created_at,
         tags=_tags_from_gear(gear),
+    )
+
+
+@router.post("/resolve-or-create", response_model=ResolvedGearItemResponse)
+async def resolve_or_create_gear_item(
+    request: ResolveGearItemRequest,
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: CurrentUser,
+) -> ResolvedGearItemResponse:
+    """Resolve a catalogue model to the caller's idempotent user gear row."""
+    repository = SQLAlchemyUserGearRepository(db)
+    resolved = await repository.resolve_or_create(current_user.id, request.gear_model_id)
+    if resolved is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gear model not found",
+        )
+    await db.commit()
+    return ResolvedGearItemResponse(
+        user_gear_id=resolved.user_gear_id,
+        gear_type=resolved.gear.gear_type,
+        display_name=resolved.nickname or resolved.gear.name,
+        platform=resolved.gear_model.platform,
+        gear_id=resolved.gear.id,
     )
 
 

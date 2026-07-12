@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel
+
+from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 
 GearItemType = Literal["pedal", "amp", "ir", "full_rig", "post_effect"]
 
@@ -43,3 +46,19 @@ class GearItemListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ResolveGearItemRequest(BaseModel):
+    """Catalogue model to resolve into the caller's gear library."""
+
+    gear_model_id: UUID
+
+
+class ResolvedGearItemResponse(BaseModel):
+    """User gear fields required to construct a builder slot option."""
+
+    user_gear_id: UUID
+    gear_type: GearType
+    display_name: str
+    platform: Platform
+    gear_id: UUID
