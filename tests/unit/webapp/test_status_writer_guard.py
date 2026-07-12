@@ -27,9 +27,9 @@ RAW_WRITE = re.compile(r"UPDATE\s+(?:core_jobs|core_shootouts)\s+SET\s+status", 
 
 # file (repo-relative) -> exact number of status writes sanctioned there.
 ALLOWED: dict[str, int] = {
-    # The transition service itself: transition_job, the parent-cancel
-    # projection, and the reconcile_parent projection writes.
-    "apps/webapp/src/webapp/services/job_transitions.py": 10,
+    # The transition service itself: transition_job, redrive's QUEUED edge,
+    # the parent-cancel projection, and the reconcile_parent projection writes.
+    "apps/webapp/src/webapp/services/job_transitions.py": 11,
     # The outbox: exactly the PENDING -> QUEUED enqueue edge.
     "apps/webapp/src/webapp/services/job_dispatch.py": 1,
     # The run-request edge: shootout DRAFT -> PENDING at the process trigger.
