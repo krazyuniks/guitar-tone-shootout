@@ -6,6 +6,7 @@ from uuid import UUID
 
 from gts.domain.entities.base import Entity, new_id, utcnow
 from gts.domain.value_objects.processing_metadata import ProcessingMetadata
+from gts.domain.value_objects.shootout_visibility import ShootoutVisibility
 
 
 class ShootoutError(Exception):
@@ -101,6 +102,7 @@ class Shootout(Entity):
         name: Display name for the shootout
         di_track_id: Reference to the DI track
         description: Optional description
+        visibility: Whether the shootout is listed, link-only, or owner-only
         output_format: Output video format (mp4, etc.)
         sample_rate: Audio sample rate
         is_processed: Whether processing is complete
@@ -117,6 +119,7 @@ class Shootout(Entity):
     name: str = ""
     di_track_id: UUID = field(default_factory=new_id)
     description: str | None = None
+    visibility: ShootoutVisibility = ShootoutVisibility.PUBLIC
     output_format: str = "mp4"
     sample_rate: int = 44100
     is_processed: bool = False

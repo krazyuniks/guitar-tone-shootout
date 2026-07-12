@@ -10,7 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+from webapp.adapters.persistence.models.shootout import Shootout
+from webapp.adapters.persistence.repositories.shootout_repository import published_shootout_gate
 from webapp.auth.dependencies import get_db_session
 
 router = APIRouter(tags=["pages"])
@@ -37,9 +38,7 @@ async def sitemap_xml(
     public_gear = gear_result.scalars().all()
 
     shootout_result = await db.execute(
-        select(Shootout)
-        .where(Shootout.status == ShootoutStatus.COMPLETED)
-        .order_by(Shootout.updated_at.desc())
+        select(Shootout).where(*published_shootout_gate()).order_by(Shootout.updated_at.desc())
     )
     completed_shootouts = shootout_result.scalars().all()
 

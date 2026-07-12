@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, exists, false, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from gts.domain.entities.shootout import Shootout as ShootoutEntity
@@ -12,13 +12,42 @@ from gts.domain.entities.shootout import ShootoutChain as ShootoutChainVO
 from webapp.adapters.persistence.models.shootout import (
     Shootout,
     ShootoutChain,
+    ShootoutManifest,
     ShootoutStatus,
+    ShootoutVisibility,
 )
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.sql.elements import ColumnElement
+
+
+def published_shootout_gate(*, include_unlisted: bool = False) -> tuple[ColumnElement[bool], ...]:
+    """Return the SQL predicates required for published shootout reads."""
+    visible_values = (
+        (ShootoutVisibility.PUBLIC, ShootoutVisibility.UNLISTED)
+        if include_unlisted
+        else (ShootoutVisibility.PUBLIC,)
+    )
+    manifest_exists = exists(
+        select(ShootoutManifest.id).where(
+            ShootoutManifest.shootout_id == Shootout.id,
+            ShootoutManifest.version == Shootout.render_version,
+        )
+    )
+    return (
+        Shootout.visibility.in_(visible_values),
+        Shootout.status == ShootoutStatus.COMPLETED,
+        manifest_exists,
+    )
+
+
+def readable_shootout_gate(viewer_id: UUID | None) -> ColumnElement[bool]:
+    """Allow owners or a completed, manifested public/unlisted direct link."""
+    owner_gate = Shootout.user_id == viewer_id if viewer_id is not None else false()
+    return or_(owner_gate, and_(*published_shootout_gate(include_unlisted=True)))
 
 
 class SQLAlchemyShootoutRepository:
@@ -140,7 +169,7 @@ class SQLAlchemyShootoutRepository:
         # Step 1: resolve the correct page of IDs
         id_stmt = (
             select(Shootout.id)
-            .where(Shootout.status == ShootoutStatus.COMPLETED)
+            .where(*published_shootout_gate())
             .order_by(Shootout.created_at.desc())
             .limit(limit)
             .offset(offset)
@@ -172,11 +201,7 @@ class SQLAlchemyShootoutRepository:
         Returns:
             The count of processed shootouts
         """
-        stmt = (
-            select(func.count())
-            .select_from(Shootout)
-            .where(Shootout.status == ShootoutStatus.COMPLETED)
-        )
+        stmt = select(func.count()).select_from(Shootout).where(*published_shootout_gate())
         result = await self.session.execute(stmt)
         count = result.scalar()
         return count or 0
@@ -210,6 +235,7 @@ class SQLAlchemyShootoutRepository:
                 di_track_id=shootout.di_track_id,
                 name=shootout.name,
                 description=shootout.description,
+                visibility=shootout.visibility,
                 status=status,
                 video_path=shootout.output_path,
                 created_at=shootout.created_at,
@@ -237,6 +263,7 @@ class SQLAlchemyShootoutRepository:
             existing.name = shootout.name
             existing.di_track_id = shootout.di_track_id
             existing.description = shootout.description
+            existing.visibility = shootout.visibility
             existing.status = status
             existing.video_path = shootout.output_path
             existing.updated_at = shootout.updated_at
@@ -318,6 +345,7 @@ class SQLAlchemyShootoutRepository:
             name=orm_shootout.name,
             di_track_id=orm_shootout.di_track_id,
             description=orm_shootout.description,
+            visibility=orm_shootout.visibility,
             output_format="mp4",  # Default format
             sample_rate=44100,  # Default sample rate
             is_processed=orm_shootout.status == ShootoutStatus.COMPLETED,

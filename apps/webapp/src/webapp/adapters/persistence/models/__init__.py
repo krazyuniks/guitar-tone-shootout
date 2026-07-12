@@ -24,6 +24,7 @@ from webapp.adapters.persistence.models.shootout import (
     Shootout,
     ShootoutChain,
     ShootoutStatus,
+    ShootoutVisibility,
 )
 from webapp.adapters.persistence.models.shootout_comment import ShootoutComment
 from webapp.adapters.persistence.models.signal_chain import (
@@ -55,6 +56,7 @@ __all__ = [
     "ShootoutChain",
     "ShootoutComment",
     "ShootoutStatus",
+    "ShootoutVisibility",
     "SignalChain",
     "SignalChainBlock",
     "SignalChainGroup",

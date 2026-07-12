@@ -18,7 +18,9 @@ from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
 )
 from webapp.adapters.persistence.models.shootout import (
+    ShootoutManifest,
     ShootoutStatus,
+    ShootoutVisibility,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
@@ -78,6 +80,7 @@ async def test_save_creates_new_shootout(
     assert db_shootout.user_id == test_user.id
     assert db_shootout.di_track_id == test_di_track.id
     assert db_shootout.status == ShootoutStatus.DRAFT
+    assert db_shootout.visibility == ShootoutVisibility.PUBLIC
 
 
 @pytest.mark.asyncio
@@ -357,6 +360,7 @@ async def test_get_public_filters_by_completed_status(
     )
     completed.mark_processed("/path/to/video.mp4")
     await repo.save(completed)
+    db_session.add(ShootoutManifest(shootout_id=completed.id, version=1, payload={"chains": []}))
 
     await db_session.commit()
 
@@ -395,6 +399,9 @@ async def test_count_public_counts_completed_only(
         )
         completed.mark_processed(f"/path/to/video{i}.mp4")
         await repo.save(completed)
+        db_session.add(
+            ShootoutManifest(shootout_id=completed.id, version=1, payload={"chains": []})
+        )
 
     await db_session.commit()
 
