@@ -1234,6 +1234,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/jobs/operational-signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Job Operational Signals
+         * @description Return failure counts, queue depth, and render timing signals.
+         */
+        get: operations["get_job_operational_signals_api_admin_jobs_operational_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -2546,6 +2566,23 @@ export interface components {
             children?: components["schemas"]["JobSummary"][];
         };
         /**
+         * JobOperationalSignalsResponse
+         * @description Minimal job-system signals for the operator admin surface.
+         */
+        JobOperationalSignalsResponse: {
+            /** Failed Jobs By Type */
+            failed_jobs_by_type: {
+                [key: string]: number;
+            };
+            /** Dead Lettered Jobs By Type */
+            dead_lettered_jobs_by_type: {
+                [key: string]: number;
+            };
+            /** Dead Letter Queue Depth */
+            dead_letter_queue_depth: number;
+            render_duration_seconds: components["schemas"]["RenderDurationSignal"];
+        };
+        /**
          * JobResponse
          * @description Response schema for a job.
          */
@@ -2699,6 +2736,18 @@ export interface components {
         QueueDepthResponse: {
             /** Depth */
             depth: number;
+        };
+        /**
+         * RenderDurationSignal
+         * @description Duration summary for finished video composition jobs.
+         */
+        RenderDurationSignal: {
+            /** Count */
+            count: number;
+            /** Average */
+            average: number | null;
+            /** Maximum */
+            maximum: number | null;
         };
         /**
          * ResolveGearItemRequest
@@ -4781,6 +4830,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PendingRetriesCountResponse"];
+                };
+            };
+        };
+    };
+    get_job_operational_signals_api_admin_jobs_operational_signals_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobOperationalSignalsResponse"];
                 };
             };
         };

@@ -687,3 +687,62 @@ class TestDeadLetterQueueLifecycle:
             response = await client.post(f"/api/admin/jobs/{dead_lettered_job.id}/redrive")
 
         assert response.status_code == 404
+
+
+class TestJobOperationalSignals:
+    """Test the minimal job-system signals exposed to operators."""
+
+    @pytest.mark.asyncio
+    async def test_signals_include_failures_dlq_depth_and_render_durations(
+        self,
+        admin_app: FastAPI,
+        failed_job: Job,
+        dead_lettered_job: Job,
+        dead_letter_message: dict[str, object],
+        db_session: AsyncSession,
+    ) -> None:
+        finished_at = datetime.now(UTC)
+        db_session.add_all(
+            [
+                Job(
+                    id=uuid4(),
+                    user_id=None,
+                    job_type=JobType.VIDEO_COMPOSE,
+                    status=JobStatus.COMPLETED,
+                    progress=100,
+                    started_at=finished_at - timedelta(seconds=12),
+                    completed_at=finished_at,
+                ),
+                Job(
+                    id=uuid4(),
+                    user_id=None,
+                    job_type=JobType.VIDEO_COMPOSE,
+                    status=JobStatus.FAILED,
+                    progress=0,
+                    started_at=finished_at - timedelta(seconds=8),
+                    completed_at=finished_at,
+                    error="render failed",
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        async with AsyncClient(
+            transport=ASGITransport(app=admin_app), base_url="http://test"
+        ) as client:
+            response = await client.get("/api/admin/jobs/operational-signals")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "failed_jobs_by_type": {
+                "audio_processing": 1,
+                "video_compose": 1,
+            },
+            "dead_lettered_jobs_by_type": {"notification": 1},
+            "dead_letter_queue_depth": 1,
+            "render_duration_seconds": {
+                "count": 2,
+                "average": 10.0,
+                "maximum": 12.0,
+            },
+        }
