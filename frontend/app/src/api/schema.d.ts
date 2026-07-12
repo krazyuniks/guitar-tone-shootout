@@ -392,7 +392,7 @@ export interface paths {
         };
         /**
          * Stream Master Audio
-         * @description Stream the master FLAC audio file for a completed shootout.
+         * @description Download the sequential montage enrichment for a completed shootout.
          */
         get: operations["stream_master_audio_api_shootouts__shootout_id__audio_master_get"];
         put?: never;
