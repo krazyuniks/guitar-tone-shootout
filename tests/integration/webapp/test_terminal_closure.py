@@ -31,8 +31,8 @@ if TYPE_CHECKING:
 
 @pytest.fixture(autouse=True)
 async def _queues(db_session: AsyncSession) -> None:
-    """Reconcile enqueues the master job through the real outbox."""
-    await PgmqClient(db_session).create_queue("audio_commands")
+    """Reconcile enqueues the finalise job through the real outbox."""
+    await PgmqClient(db_session).create_queue("shootout_commands")
 
 
 @pytest.fixture
@@ -112,7 +112,7 @@ class TestClosedReconciliation:
         assert shootout_tree["shootout"].status == ShootoutStatus.FAILED
         assert stranding_status.value in (parent.error or "")
 
-    async def test_all_completed_spawns_and_enqueues_master(
+    async def test_all_completed_spawns_and_enqueues_finalise(
         self,
         db_session: AsyncSession,
         shootout_tree: dict,
@@ -124,24 +124,26 @@ class TestClosedReconciliation:
         await reconcile_parent(db_session, parent.id)
         await db_session.commit()
 
-        master = (
+        finalise = (
             await db_session.execute(
                 select(Job).where(
                     Job.parent_job_id == parent.id,
-                    Job.job_type == JobType.SHOOTOUT_MASTER,
+                    Job.job_type == JobType.SHOOTOUT_FINALISE,
                 )
             )
         ).scalar_one()
-        assert master.status == JobStatus.QUEUED
+        assert finalise.status == JobStatus.QUEUED
 
         result = await db_session.execute(
             text(
-                "SELECT message FROM pgmq.q_audio_commands "
+                "SELECT message FROM pgmq.q_shootout_commands "
                 "WHERE message->'payload'->>'job_id' = :jid"
             ),
-            {"jid": str(master.id)},
+            {"jid": str(finalise.id)},
         )
-        assert len(result.fetchall()) == 1
+        messages = result.scalars().all()
+        assert len(messages) == 1
+        assert messages[0]["message_type"] == "finalise_shootout"
 
     async def test_incomplete_children_keep_processing(
         self,
@@ -193,10 +195,11 @@ class TestTransitionService:
         shootout_tree: dict,
     ) -> None:
         child = shootout_tree["children"][0]
+        child_id = child.id
         await _set_status(db_session, child, JobStatus.COMPLETED)
 
         with pytest.raises(InvalidTransitionError):
-            await transition_job(db_session, child.id, JobStatus.RUNNING)
+            await transition_job(db_session, child_id, JobStatus.RUNNING)
 
         await db_session.refresh(child)
         assert child.status == JobStatus.COMPLETED

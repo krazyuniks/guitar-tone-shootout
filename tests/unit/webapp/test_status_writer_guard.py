@@ -29,7 +29,7 @@ RAW_WRITE = re.compile(r"UPDATE\s+(?:core_jobs|core_shootouts)\s+SET\s+status", 
 ALLOWED: dict[str, int] = {
     # The transition service itself: transition_job, the parent-cancel
     # projection, and the reconcile_parent projection writes.
-    "apps/webapp/src/webapp/services/job_transitions.py": 7,
+    "apps/webapp/src/webapp/services/job_transitions.py": 10,
     # The outbox: exactly the PENDING -> QUEUED enqueue edge.
     "apps/webapp/src/webapp/services/job_dispatch.py": 1,
     # The run-request edge: shootout DRAFT -> PENDING at the process trigger.
@@ -38,9 +38,6 @@ ALLOWED: dict[str, int] = {
     # in one transaction), kept beside its thick-payload command construction.
     "apps/shootout_orchestrator/src/shootout_orchestrator/consumer.py": 1,
     # --- Legacy writers, shrink only ---
-    # DOM-shootout-finalise: the master path's shootout/parent COMPLETED
-    # projection - the legacy publish gate the finalise job replaces.
-    "apps/audio_worker/src/audio_worker/consumer.py": 2,
     # Domain->ORM mapping in the shootout repository save path.
     "apps/webapp/src/webapp/adapters/persistence/repositories/shootout_repository.py": 1,
     # DEBT-backend-dead-modules: the unused job repository write path.

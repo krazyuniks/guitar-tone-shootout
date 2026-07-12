@@ -30,8 +30,10 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture(autouse=True)
-async def _queues(db_session: AsyncSession) -> None:
+async def _queues(db_session: AsyncSession, request: pytest.FixtureRequest) -> None:
     """The outbox sends for real; ensure both command queues exist."""
+    if request.node.name == "test_admin_enqueue_persists_across_sessions":
+        return
     pgmq = PgmqClient(db_session)
     await pgmq.create_queue("shootout_commands")
     await pgmq.create_queue("audio_commands")
@@ -82,6 +84,19 @@ class TestEnqueueJobRouting:
         assert messages[0]["message_type"] == "process_audio"
         assert messages[0]["payload"]["job_id"] == str(job.id)
         assert messages[0]["payload"]["shootout_id"] == str(job.entity_id)
+
+    async def test_finalise_routes_to_shootout_commands(self, db_session: AsyncSession) -> None:
+        job = _job(JobType.SHOOTOUT_FINALISE)
+        db_session.add(job)
+        await db_session.flush()
+
+        await enqueue_job(db_session, job.id)
+
+        assert job.status == JobStatus.QUEUED
+        messages = await _messages(db_session, "shootout_commands")
+        assert len(messages) == 1
+        assert messages[0]["message_type"] == "finalise_shootout"
+        assert messages[0]["payload"]["job_id"] == str(job.id)
 
     async def test_non_pending_job_is_rejected_and_nothing_sent(
         self, db_session: AsyncSession

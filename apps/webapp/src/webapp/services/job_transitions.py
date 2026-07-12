@@ -26,6 +26,8 @@ from webapp.services.job_dispatch import is_queue_routable, send_and_mark_queued
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from webapp.adapters.persistence.models.shootout import ShootoutManifest
+
 logger = logging.getLogger(__name__)
 
 #: Terminal states that project the parent shootout to FAILED. CANCELLED maps
@@ -258,6 +260,43 @@ async def mark_job_dead_lettered(
         logger.warning("Dead-letter job coupling skipped for %s: %s", job_id, exc)
 
 
+def complete_shootout_finalise(
+    session: AsyncSession,
+    finalise_job: Job,
+    parent_job: Job,
+    shootout: Shootout,
+    manifest: ShootoutManifest | None,
+) -> None:
+    """Stage the manifest publication and both job completions atomically.
+
+    The caller holds the finalise, parent, and shootout row locks and owns the
+    commit. An existing manifest is the idempotent replay path.
+    """
+    if finalise_job.job_type != JobType.SHOOTOUT_FINALISE:
+        raise ValueError(f"Job {finalise_job.id} is not SHOOTOUT_FINALISE")
+    if parent_job.job_type != JobType.SHOOTOUT:
+        raise ValueError(f"Job {parent_job.id} is not the parent SHOOTOUT job")
+
+    now = datetime.now(UTC)
+    if manifest is not None:
+        session.add(manifest)
+    if finalise_job.status != JobStatus.COMPLETED:
+        if not finalise_job.status.can_transition_to(JobStatus.COMPLETED):
+            raise InvalidTransitionError(finalise_job.status, JobStatus.COMPLETED)
+        finalise_job.status = JobStatus.COMPLETED
+        finalise_job.progress = 100
+        finalise_job.message = "Shootout manifest published"
+        finalise_job.completed_at = now
+    if parent_job.status != JobStatus.COMPLETED:
+        if not parent_job.status.can_transition_to(JobStatus.COMPLETED):
+            raise InvalidTransitionError(parent_job.status, JobStatus.COMPLETED)
+        parent_job.status = JobStatus.COMPLETED
+        parent_job.progress = 100
+        parent_job.message = "Shootout published"
+        parent_job.completed_at = now
+    shootout.status = ShootoutStatus.COMPLETED
+
+
 async def reconcile_parent(session: AsyncSession, parent_job_id: UUID) -> None:
     """Project SHOOTOUT_AUDIO child states onto the parent job and shootout.
 
@@ -334,31 +373,31 @@ async def reconcile_parent(session: AsyncSession, parent_job_id: UUID) -> None:
         shootout.status = ShootoutStatus.PROCESSING
 
     if completed_children == total_children:
-        master_stmt = (
+        finalise_stmt = (
             select(Job)
             .where(
                 Job.parent_job_id == parent_job_id,
-                Job.job_type == JobType.SHOOTOUT_MASTER,
+                Job.job_type == JobType.SHOOTOUT_FINALISE,
             )
             .with_for_update()
         )
-        master_result = await session.execute(master_stmt)
-        master_job = master_result.scalar_one_or_none()
-        if master_job is None:
-            master_job = Job(
+        finalise_result = await session.execute(finalise_stmt)
+        finalise_job = finalise_result.scalar_one_or_none()
+        if finalise_job is None:
+            finalise_job = Job(
                 user_id=parent_job.user_id,
-                job_type=JobType.SHOOTOUT_MASTER,
+                job_type=JobType.SHOOTOUT_FINALISE,
                 parent_job_id=parent_job.id,
                 entity_id=parent_job.entity_id,
                 status=JobStatus.PENDING,
                 progress=0,
             )
-            session.add(master_job)
+            session.add(finalise_job)
             await session.flush()
-        if master_job.status == JobStatus.PENDING:
-            # Outbox core, no commit: the master job's creation/recovery, its
+        if finalise_job.status == JobStatus.PENDING:
+            # Outbox core, no commit: the finalise job's creation/recovery, its
             # QUEUED flip, and the pgmq send stay in the reconcile transaction,
             # committed by the transition service or the session wrapper.
             await send_and_mark_queued(
-                session, master_job, message="Queued for master audio creation"
+                session, finalise_job, message="Queued for shootout publication"
             )

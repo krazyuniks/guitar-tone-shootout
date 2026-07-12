@@ -11,10 +11,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from gts.domain.value_objects.job_status import JobStatus, JobType
-from messaging.commands import ProcessAudioCommand, StartShootoutCommand
+from messaging.commands import (
+    FinaliseShootoutCommand,
+    ProcessAudioCommand,
+    StartShootoutCommand,
+)
 from messaging.consumer_base import BaseConsumer, SkipMessage
 from messaging.db import get_session_no_tx as get_session
 from messaging.pgmq_client import PgmqClient
+from shootout_orchestrator.finalise import process_finalise_job
 from webapp.adapters.persistence.models.job import Job
 from webapp.adapters.persistence.models.shootout import Shootout
 from webapp.services.job_transitions import (
@@ -124,7 +129,7 @@ async def process_shootout_job(job_id: UUID) -> None:
 
 
 class StartShootoutConsumer(BaseConsumer):
-    """Consume start_shootout commands from the shootout orchestration queue."""
+    """Consume start and finalise commands from the shootout orchestration queue."""
 
     def __init__(self, session) -> None:
         super().__init__(
@@ -135,20 +140,34 @@ class StartShootoutConsumer(BaseConsumer):
         self._session = session
 
     async def handle_message(self, envelope: MessageEnvelope) -> None:
-        """Claim, then fan out the shootout (idempotent consumption)."""
-        command = StartShootoutCommand.model_validate(envelope.model_dump(mode="python"))
+        """Claim, then fan out or finalise the shootout idempotently."""
+        is_finalise = envelope.message_type == "finalise_shootout"
+        command = (
+            FinaliseShootoutCommand.model_validate(envelope.model_dump(mode="python"))
+            if is_finalise
+            else StartShootoutCommand.model_validate(envelope.model_dump(mode="python"))
+        )
         job_id = UUID(command.payload["job_id"])
         database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://gts:gts@db:5432/gts_core")
 
         async with get_session(database_url) as session:
-            outcome = await claim_job(session, job_id, message="Spawning chain jobs")
+            outcome = await claim_job(
+                session,
+                job_id,
+                message="Publishing shootout" if is_finalise else "Spawning chain jobs",
+            )
         if outcome == ClaimOutcome.ALREADY_TERMINAL:
+            if is_finalise:
+                await process_finalise_job(job_id, database_url)
             logger.info("Job %s already terminal; archiving redelivered message", job_id)
             return
         if outcome == ClaimOutcome.LIVE_LEASE:
             raise SkipMessage(str(job_id))
 
-        await process_shootout_job(job_id)
+        if is_finalise:
+            await process_finalise_job(job_id, database_url)
+        else:
+            await process_shootout_job(job_id)
 
     async def should_dead_letter(self, queued_message) -> bool:
         """Never dead-letter a job whose lease is live (skips grew read_ct)."""
