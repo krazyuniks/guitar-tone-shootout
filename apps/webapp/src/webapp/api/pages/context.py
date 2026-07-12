@@ -187,7 +187,7 @@ def shootout_detail_context(shootout: Shootout) -> dict[str, object]:
         "name": shootout.name,
         "description": shootout.description,
         "status": shootout.status.value,
-        "output_path": shootout.output_path,
+        "montage_available": shootout.output_path is not None,
         "video_path": shootout.video_path,
     }
 

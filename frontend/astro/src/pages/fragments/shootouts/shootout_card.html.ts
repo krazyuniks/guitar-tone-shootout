@@ -20,7 +20,7 @@ export const GET: APIRoute = () => {
 
   {# Thumbnail / Preview #}
   <div class="aspect-video bg-[var(--color-bg-elevated)] relative overflow-hidden">
-    {% if shootout.status == 'completed' and shootout.output_path %}
+    {% if shootout.status == 'completed' %}
       {# Processed - show play icon placeholder #}
       <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-900/20 to-amber-700/20">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"

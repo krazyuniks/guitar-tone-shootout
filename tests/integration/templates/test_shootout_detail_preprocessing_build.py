@@ -133,6 +133,23 @@ class TestShootoutDetailPreProcessingBuild:
         # Looking for template variable references
         assert "di_track" in content or "DI" in content, "No DI track reference in detail fragment"
 
+    def test_shootout_player_uses_segments_not_master_montage(self) -> None:
+        """The comparison player consumes a chain segment, never output_path."""
+        dist_path = Path("/app/frontend/astro/dist/fragments/shootouts/detail.html")
+        content = dist_path.read_text()
+
+        assert 'src="/api/shootouts/{{ shootout.id }}/chains/' in content
+        assert 'src="{{ shootout.output_path }}"' not in content
+        assert "shootout.status == 'completed' and shootout.output_path" not in content
+
+    def test_master_is_labelled_as_a_sequential_montage_download(self) -> None:
+        """master.wav remains an optional download rather than a player source."""
+        dist_path = Path("/app/frontend/astro/dist/fragments/shootouts/detail.html")
+        content = dist_path.read_text()
+
+        assert 'data-testid="download-montage-btn"' in content
+        assert "Download Sequential Montage" in content
+
     def test_all_required_testids_present(self) -> None:
         """All required data-testid attributes are present in build artifact."""
         dist_path = Path("/app/frontend/astro/dist/fragments/shootouts/detail.html")
