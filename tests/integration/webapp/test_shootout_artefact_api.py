@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from webapp.adapters.persistence.models.shootout import (
     Shootout,
@@ -194,6 +195,33 @@ async def test_artefact_returns_highest_manifest_allow_list_for_anonymous_reader
         }
     ]
     _assert_no_forbidden_fields(payload)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_artefact_exposes_only_an_opaque_montage_url(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    test_user: User,
+) -> None:
+    shootout = await _published_shootout(db_session, test_user)
+    shootout.output_path = f"/app/storage/audio/{shootout.id}/v2/master.wav"
+    await db_session.commit()
+    manifest_id = (
+        await db_session.execute(
+            select(ShootoutManifest.id).where(
+                ShootoutManifest.shootout_id == shootout.id,
+                ShootoutManifest.version == 2,
+            )
+        )
+    ).scalar_one()
+
+    response = await client.get(f"/api/shootouts/{shootout.id}/artefact")
+
+    assert response.status_code == 200
+    assert response.json()["montage_url"] == (
+        f"/api/shootouts/{shootout.id}/media/montage/{manifest_id}"
+    )
 
 
 @pytest.mark.asyncio

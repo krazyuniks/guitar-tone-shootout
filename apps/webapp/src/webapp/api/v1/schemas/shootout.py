@@ -110,3 +110,4 @@ class ShootoutArtefactResponse(BaseModel):
     di: ShootoutArtefactDI
     timeline: ShootoutArtefactTimeline
     chains: list[ShootoutArtefactChain]
+    montage_url: str | None = None

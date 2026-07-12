@@ -403,6 +403,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shootouts/{shootout_id}/media/{media_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Public Media
+         * @description Stream one manifest-pinned segment after rechecking the public gate.
+         */
+        get: operations["stream_public_media_api_shootouts__shootout_id__media__media_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shootouts/{shootout_id}/media/montage/{media_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Public Montage
+         * @description Stream a montage pointer bound to the published manifest version.
+         */
+        get: operations["stream_public_montage_api_shootouts__shootout_id__media_montage__media_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/shootouts/{shootout_id}/audio/master": {
         parameters: {
             query?: never;
@@ -2770,6 +2810,8 @@ export interface components {
             timeline: components["schemas"]["ShootoutArtefactTimeline"];
             /** Chains */
             chains: components["schemas"]["ShootoutArtefactChain"][];
+            /** Montage Url */
+            montage_url?: string | null;
         };
         /**
          * ShootoutArtefactTimeline
@@ -3569,6 +3611,70 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_public_media_api_shootouts__shootout_id__media__media_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shootout_id: string;
+                media_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stream_public_montage_api_shootouts__shootout_id__media_montage__media_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shootout_id: string;
+                media_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
