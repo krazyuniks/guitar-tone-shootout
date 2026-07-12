@@ -17,7 +17,9 @@ from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
 )
 from webapp.adapters.persistence.models.shootout import (
+    ShootoutManifest,
     ShootoutStatus,
+    ShootoutVisibility,
 )
 from webapp.adapters.persistence.models.signal_chain import SignalChain
 from webapp.adapters.persistence.models.user import User
@@ -285,6 +287,43 @@ class TestProcessingTriggerEndpoint:
 
         assert response.status_code == 400
         assert "already" in response.json()["detail"].lower()
+
+    @pytest.mark.parametrize(
+        "visibility",
+        [ShootoutVisibility.PUBLIC, ShootoutVisibility.UNLISTED],
+    )
+    async def test_published_shootout_cannot_be_run_again(
+        self,
+        authenticated_client: AsyncClient,
+        db_session: AsyncSession,
+        draft_shootout_with_chains: ShootoutModel,
+        visibility: ShootoutVisibility,
+    ) -> None:
+        """Public and unlisted manifests are immutable once published."""
+        payload = {"chains": [{"media_path": "v1/segment.wav"}]}
+        draft_shootout_with_chains.status = ShootoutStatus.COMPLETED
+        draft_shootout_with_chains.visibility = visibility
+        manifest = ShootoutManifest(
+            shootout_id=draft_shootout_with_chains.id,
+            version=draft_shootout_with_chains.render_version,
+            payload=payload,
+        )
+        db_session.add(manifest)
+        await db_session.commit()
+
+        response = await authenticated_client.post(
+            f"/api/shootouts/{draft_shootout_with_chains.id}/process"
+        )
+
+        assert response.status_code == 409
+        assert response.json() == {
+            "detail": "Published shootouts are immutable; create a new shootout for another run"
+        }
+        assert await db_session.scalar(select(JobModel.id)) is None
+        await db_session.refresh(draft_shootout_with_chains)
+        await db_session.refresh(manifest)
+        assert draft_shootout_with_chains.render_version == 1
+        assert manifest.payload == payload
 
     async def test_creates_job_record_queued(
         self,
