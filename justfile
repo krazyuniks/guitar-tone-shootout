@@ -291,6 +291,10 @@ verify-astro-build:
 build-app:
     {{dc}} exec -T app pnpm build
 
+# Run App SPA headless unit tests.
+test-app:
+    {{dc}} run --rm --no-deps -T app pnpm test:unit
+
 # Regenerate App SPA OpenAPI types from the running webapp schema.
 gen-app-api:
     {{dc}} run --rm --no-deps -T app pnpm gen:api
