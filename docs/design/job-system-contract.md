@@ -17,6 +17,11 @@ Four pgmq queues. Queues are created idempotently at consumer startup; none carr
 | `source_events` | `sync_gear` | t3k source publisher | t3k-sync worker |
 | `dead_letter` | poison-message envelopes | every consumer's max-redelivery path | admin redrive only |
 
+The admin API reports the live `dead_letter` queue depth. Redrive locks the matching envelope,
+returns its original message to the recorded source queue, moves its job through PENDING to QUEUED,
+and archives the DLQ entry in one transaction. Active DLQ envelopes expire after
+`DLQ_RETENTION_DAYS` (14 days by default), independently of the 30-day pgmq archive window.
+
 The wiki's six-queue event topology was never built and is not the target. `RenderVideoCommand`
 is renamed `StartShootoutCommand` (it starts a shootout; nothing renders video, per ADR-0007) and
 gains payload validation equivalent to `ProcessAudioCommand`.

@@ -1194,6 +1194,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/queues/dead-letter/depth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dead Letter Queue Depth
+         * @description Return queue-level DLQ depth, independently of job-row state.
+         */
+        get: operations["get_dead_letter_queue_depth_api_admin_queues_dead_letter_depth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/jobs/pending-retries/count": {
         parameters: {
             query?: never;
@@ -1268,6 +1288,26 @@ export interface paths {
          * @description Retry a failed or dead-lettered job through the transition service.
          */
         post: operations["retry_job_api_admin_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/jobs/{job_id}/redrive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redrive Job
+         * @description Return a dead-letter envelope to its source queue and requeue its job.
+         */
+        post: operations["redrive_job_api_admin_jobs__job_id__redrive_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2652,6 +2692,14 @@ export interface components {
          * @enum {string}
          */
         Platform: "nam" | "aida_x" | "ir" | "aa_snapshot" | "proteus";
+        /**
+         * QueueDepthResponse
+         * @description Current number of visible and in-flight messages in a queue.
+         */
+        QueueDepthResponse: {
+            /** Depth */
+            depth: number;
+        };
         /**
          * ResolveGearItemRequest
          * @description Catalogue model to resolve into the caller's gear library.
@@ -4697,6 +4745,26 @@ export interface operations {
             };
         };
     };
+    get_dead_letter_queue_depth_api_admin_queues_dead_letter_depth_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueDepthResponse"];
+                };
+            };
+        };
+    };
     get_pending_retries_count_api_admin_jobs_pending_retries_count_get: {
         parameters: {
             query?: never;
@@ -4780,6 +4848,37 @@ export interface operations {
         };
     };
     retry_job_api_admin_jobs__job_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    redrive_job_api_admin_jobs__job_id__redrive_post: {
         parameters: {
             query?: never;
             header?: never;

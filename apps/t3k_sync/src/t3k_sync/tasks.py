@@ -407,9 +407,11 @@ async def dispatch_pending_jobs() -> None:
 
 
 async def purge_pgmq_archives() -> None:
-    """Delete pgmq archive rows older than PGMQ_ARCHIVE_RETENTION_DAYS (default: 30)."""
+    """Delete expired pgmq archives and active dead-letter messages."""
     retention_days = int(os.getenv("PGMQ_ARCHIVE_RETENTION_DAYS", "30"))
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+    dlq_retention_days = int(os.getenv("DLQ_RETENTION_DAYS", "14"))
+    dlq_cutoff = datetime.now(UTC) - timedelta(days=dlq_retention_days)
 
     discover_stmt = text(
         "SELECT table_name FROM information_schema.tables"
@@ -431,6 +433,11 @@ async def purge_pgmq_archives() -> None:
                 delete(archive_tbl).where(archive_tbl.c.archived_at < cutoff)
             )
             total += del_result.rowcount
+        dead_letter_table = table("q_dead_letter", column("enqueued_at"), schema="pgmq")
+        dlq_result = await session.execute(
+            delete(dead_letter_table).where(dead_letter_table.c.enqueued_at < dlq_cutoff)
+        )
+        total += dlq_result.rowcount
         return total
 
     if _test_session is not None:
