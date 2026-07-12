@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear import Gear
-from webapp.adapters.persistence.models.shootout import Shootout, ShootoutStatus
+from webapp.adapters.persistence.models.shootout import Shootout, ShootoutManifest, ShootoutStatus
 from webapp.adapters.persistence.models.user import User
 from webapp.auth.dependencies import set_session_override
 from webapp.main import create_app
@@ -93,6 +93,8 @@ async def completed_shootout(db_session: AsyncSession, test_user: User) -> Shoot
         status=ShootoutStatus.COMPLETED,
     )
     db_session.add(shootout)
+    await db_session.flush()
+    db_session.add(ShootoutManifest(shootout_id=shootout.id, version=1, payload={"chains": []}))
     await db_session.flush()
     return shootout
 

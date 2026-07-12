@@ -20,6 +20,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
+from gts.domain.value_objects.shootout_visibility import ShootoutVisibility
+
 from .base import (
     AudioChecksumType,
     Base,
@@ -123,6 +125,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         name: Display name for the shootout
         description: Optional description
         status: Processing status (pending, processing, completed, failed)
+        visibility: Public listing and direct-link visibility
         video_path: Path to output video (after processing)
         output_path: Path to master audio file (after processing)
         created_at: When created
@@ -156,6 +159,12 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
         nullable=False,
         default=ShootoutStatus.DRAFT,
     )
+    visibility: Mapped[ShootoutVisibility] = mapped_column(
+        EnumByValue(ShootoutVisibility),
+        nullable=False,
+        default=ShootoutVisibility.PUBLIC,
+        server_default=ShootoutVisibility.PUBLIC.value,
+    )
     video_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     output_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
@@ -188,6 +197,7 @@ class Shootout(UUIDMixin, TimestampMixin, Base):
     __table_args__ = (
         Index("ix_shootouts_user_id", "user_id"),
         Index("ix_shootouts_status", "status"),
+        Index("ix_shootouts_visibility", "visibility"),
     )
 
 

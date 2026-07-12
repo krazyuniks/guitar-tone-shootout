@@ -109,6 +109,7 @@ async def list_shootouts(
             name=shootout.name,
             di_track_id=shootout.di_track_id,
             description=shootout.description,
+            visibility=shootout.visibility,
             is_processed=shootout.is_processed,
             output_path=shootout.output_path,
             created_at=shootout.created_at,
@@ -143,6 +144,7 @@ async def create_shootout(
         name=request.name,
         di_track_id=request.di_track_id,
         description=request.description,
+        visibility=request.visibility,
     )
 
     # Create via service
@@ -155,6 +157,7 @@ async def create_shootout(
         name=created.name,
         di_track_id=created.di_track_id,
         description=created.description,
+        visibility=created.visibility,
         is_processed=created.is_processed,
         output_path=created.output_path,
         created_at=created.created_at,
@@ -199,6 +202,7 @@ async def get_shootout(
         name=shootout.name,
         di_track_id=shootout.di_track_id,
         description=shootout.description,
+        visibility=shootout.visibility,
         is_processed=shootout.is_processed,
         output_path=shootout.output_path,
         created_at=shootout.created_at,

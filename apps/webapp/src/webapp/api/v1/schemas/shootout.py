@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from gts.domain.value_objects.shootout_visibility import ShootoutVisibility
+
 
 class ShootoutCreateRequest(BaseModel):
     """Request schema for creating a shootout."""
@@ -14,6 +16,7 @@ class ShootoutCreateRequest(BaseModel):
     name: str
     di_track_id: UUID
     description: str | None = None
+    visibility: ShootoutVisibility = ShootoutVisibility.PUBLIC
 
 
 class ShootoutUpdateRequest(BaseModel):
@@ -21,6 +24,7 @@ class ShootoutUpdateRequest(BaseModel):
 
     name: str | None = None
     description: str | None = None
+    visibility: ShootoutVisibility | None = None
 
 
 class ShootoutResponse(BaseModel):
@@ -33,6 +37,7 @@ class ShootoutResponse(BaseModel):
     name: str
     di_track_id: UUID
     description: str | None = None
+    visibility: ShootoutVisibility = ShootoutVisibility.PUBLIC
     is_processed: bool
     output_path: str | None = None
     created_at: datetime

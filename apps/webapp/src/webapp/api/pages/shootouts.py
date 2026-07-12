@@ -17,6 +17,7 @@ from webapp.adapters.persistence.repositories.shootout_comment_repository import
 )
 from webapp.adapters.persistence.repositories.shootout_repository import (
     SQLAlchemyShootoutRepository,
+    readable_shootout_gate,
 )
 from webapp.api.pages.context import (
     comment_to_context,
@@ -168,12 +169,15 @@ async def shootout_detail_page(
     request: Request,
     shootout_id: str,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user_page)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)],
 ) -> HTMLResponse:
-    """Render shootout detail page with full SSR."""
+    """Render an owned or published shootout detail page with full SSR."""
     stmt = (
         select(Shootout)
-        .where(Shootout.id == UUID(shootout_id), Shootout.user_id == current_user.id)
+        .where(
+            Shootout.id == UUID(shootout_id),
+            readable_shootout_gate(current_user.id if current_user is not None else None),
+        )
         .options(
             joinedload(Shootout.user),
             joinedload(Shootout.di_track),
@@ -192,6 +196,7 @@ async def shootout_detail_page(
     context = shootout_detail_context(shootout_model)
     context["user"] = current_user
     context["title"] = shootout_model.name
+    context["is_owner"] = current_user is not None and shootout_model.user_id == current_user.id
 
     return templates.TemplateResponse(
         request,

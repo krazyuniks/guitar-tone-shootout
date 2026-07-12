@@ -9,6 +9,7 @@ from gts.domain.value_objects.download_status import DownloadStatus
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from gts.domain.value_objects.processing_metadata import ProcessingMetadata
 from gts.domain.value_objects.render_status import RenderStatus, RenderStatusEnum
+from gts.domain.value_objects.shootout_visibility import ShootoutVisibility
 from gts.domain.value_objects.signal_chain_enums import (
     BlockPosition,
     EffectCategory,
@@ -37,6 +38,7 @@ __all__ = [
     "ProcessingMetadata",
     "RenderStatus",
     "RenderStatusEnum",
+    "ShootoutVisibility",
     "ToneConfig",
     "VideoResult",
     "WaveformData",
