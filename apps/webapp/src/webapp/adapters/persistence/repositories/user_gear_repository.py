@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import joinedload
 
+from gts.domain.entities.base import new_id
 from gts.domain.entities.gear import UserGear as UserGearEntity
 from webapp.adapters.persistence.models.gear import Gear
 from webapp.adapters.persistence.models.gear_model import GearModel
@@ -26,6 +28,16 @@ class UserGearListItemProjection:
     """Joined user-gear row for API list projections."""
 
     user_gear: UserGear
+    gear: Gear
+    gear_model: GearModel
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedUserGearProjection:
+    """Resolved library row and its catalogue metadata."""
+
+    user_gear_id: UUID
+    nickname: str | None
     gear: Gear
     gear_model: GearModel
 
@@ -123,6 +135,50 @@ class SQLAlchemyUserGearRepository:
         result = await self.session.execute(stmt)
         user_gear_items = result.scalars().all()
         return [self._to_entity(ug) for ug in user_gear_items]
+
+    async def resolve_or_create(
+        self,
+        user_id: UUID,
+        gear_model_id: UUID,
+    ) -> ResolvedUserGearProjection | None:
+        """Resolve a catalogue model to one idempotently-created user gear row."""
+        catalogue_stmt = (
+            select(GearModel, Gear)
+            .join(Gear, GearModel.gear_id == Gear.id)
+            .where(GearModel.id == gear_model_id)
+        )
+        catalogue_result = await self.session.execute(catalogue_stmt)
+        catalogue_row = catalogue_result.one_or_none()
+        if catalogue_row is None:
+            return None
+        gear_model, gear = catalogue_row
+
+        upsert_stmt = (
+            insert(UserGear)
+            .values(
+                id=new_id(),
+                user_id=user_id,
+                gear_model_id=gear_model_id,
+                nickname=None,
+                notes=None,
+                is_favourite=False,
+                created_at=func.now(),
+                updated_at=func.now(),
+            )
+            .on_conflict_do_update(
+                constraint="uq_user_gear_user_gear_model",
+                set_={"id": UserGear.id},
+            )
+            .returning(UserGear.id, UserGear.nickname)
+        )
+        upsert_result = await self.session.execute(upsert_stmt)
+        user_gear_id, nickname = upsert_result.one()
+        return ResolvedUserGearProjection(
+            user_gear_id=user_gear_id,
+            nickname=nickname,
+            gear=gear,
+            gear_model=gear_model,
+        )
 
     async def list_items_by_user(
         self,

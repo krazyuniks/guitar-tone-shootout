@@ -1034,6 +1034,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/gear-items/resolve-or-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Or Create Gear Item
+         * @description Resolve a catalogue model to the caller's idempotent user gear row.
+         */
+        post: operations["resolve_or_create_gear_item_api_gear_items_resolve_or_create_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/gear-items": {
         parameters: {
             query?: never;
@@ -2569,6 +2589,45 @@ export interface components {
         PendingRetriesCountResponse: {
             /** Count */
             count: number;
+        };
+        /**
+         * Platform
+         * @description Target platform for signal chain processing.
+         *
+         *     Supports multiple modelling platforms with different characteristics.
+         * @enum {string}
+         */
+        Platform: "nam" | "aida_x" | "ir" | "aa_snapshot" | "proteus";
+        /**
+         * ResolveGearItemRequest
+         * @description Catalogue model to resolve into the caller's gear library.
+         */
+        ResolveGearItemRequest: {
+            /**
+             * Gear Model Id
+             * Format: uuid
+             */
+            gear_model_id: string;
+        };
+        /**
+         * ResolvedGearItemResponse
+         * @description User gear fields required to construct a builder slot option.
+         */
+        ResolvedGearItemResponse: {
+            /**
+             * User Gear Id
+             * Format: uuid
+             */
+            user_gear_id: string;
+            gear_type: components["schemas"]["GearType"];
+            /** Display Name */
+            display_name: string;
+            platform: components["schemas"]["Platform"];
+            /**
+             * Gear Id
+             * Format: uuid
+             */
+            gear_id: string;
         };
         /**
          * SegmentMetrics
@@ -4212,6 +4271,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedTonesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_or_create_gear_item_api_gear_items_resolve_or_create_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveGearItemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedGearItemResponse"];
                 };
             };
             /** @description Validation Error */

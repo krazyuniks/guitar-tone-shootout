@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import func, select
 
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
 from webapp.adapters.persistence.models.gear_source import GearSource
@@ -152,6 +153,135 @@ async def _seed_library(
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestGearItemsApi:
+    async def test_resolve_or_create_adds_catalogue_model_and_returns_slot_option_fields(
+        self,
+        db_session: AsyncSession,
+        make_gear: Callable[..., Coroutine[Any, Any, Gear]],
+        test_user: User,
+    ) -> None:
+        gear = await make_gear(
+            GearType.AMP,
+            Platform.NAM,
+            name="Catalogue Amp",
+            slug=f"catalogue-amp-{uuid4().hex}",
+        )
+        await db_session.refresh(gear, ["models"])
+        gear_model = gear.models[0]
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/gear-items/resolve-or-create",
+                json={"gear_model_id": str(gear_model.id)},
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body == {
+            "user_gear_id": body["user_gear_id"],
+            "gear_type": "amp",
+            "display_name": "Catalogue Amp",
+            "platform": "nam",
+            "gear_id": str(gear.id),
+        }
+        saved = await db_session.scalar(
+            select(UserGear).where(
+                UserGear.id == body["user_gear_id"],
+                UserGear.user_id == test_user.id,
+                UserGear.gear_model_id == gear_model.id,
+            )
+        )
+        assert saved is not None
+
+    async def test_resolve_or_create_is_idempotent_per_user_and_model(
+        self,
+        db_session: AsyncSession,
+        make_gear: Callable[..., Coroutine[Any, Any, Gear]],
+        test_user: User,
+    ) -> None:
+        gear = await make_gear(GearType.PEDAL, Platform.NAM)
+        await db_session.refresh(gear, ["models"])
+        payload = {"gear_model_id": str(gear.models[0].id)}
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            first = await client.post("/api/gear-items/resolve-or-create", json=payload)
+            second = await client.post("/api/gear-items/resolve-or-create", json=payload)
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert second.json() == first.json()
+        row_count = await db_session.scalar(
+            select(func.count(UserGear.id)).where(
+                UserGear.user_id == test_user.id,
+                UserGear.gear_model_id == gear.models[0].id,
+            )
+        )
+        assert row_count == 1
+
+    async def test_resolve_or_create_scopes_rows_to_the_caller(
+        self,
+        db_session: AsyncSession,
+        make_gear: Callable[..., Coroutine[Any, Any, Gear]],
+        make_user: Callable[..., Coroutine[Any, Any, User]],
+        test_user: User,
+    ) -> None:
+        gear = await make_gear(GearType.IR, Platform.IR)
+        await db_session.refresh(gear, ["models"])
+        gear_model = gear.models[0]
+        other_user = await make_user()
+        existing = UserGear(
+            id=uuid4(),
+            user_id=other_user.id,
+            gear_model_id=gear_model.id,
+            nickname="Other user's cabinet",
+        )
+        db_session.add(existing)
+        await db_session.flush()
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/gear-items/resolve-or-create",
+                json={"gear_model_id": str(gear_model.id)},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["user_gear_id"] != str(existing.id)
+        assert response.json()["display_name"] == gear.name
+        row_count = await db_session.scalar(
+            select(func.count(UserGear.id)).where(UserGear.gear_model_id == gear_model.id)
+        )
+        assert row_count == 2
+
+    async def test_resolve_or_create_returns_404_for_unknown_model(
+        self,
+        test_user: User,
+    ) -> None:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/gear-items/resolve-or-create",
+                json={"gear_model_id": str(uuid4())},
+            )
+
+        assert response.status_code == 404
+        assert response.json()["message"] == "Gear model not found"
+
+    async def test_resolve_or_create_requires_authentication(self) -> None:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/api/gear-items/resolve-or-create",
+                json={"gear_model_id": str(uuid4())},
+            )
+
+        assert response.status_code == 401
+
+    async def test_resolve_or_create_is_typed_in_openapi(self) -> None:
+        operation = app.openapi()["paths"]["/api/gear-items/resolve-or-create"]["post"]
+
+        request_schema = operation["requestBody"]["content"]["application/json"]["schema"]
+        response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+
+        assert request_schema["$ref"].endswith("/ResolveGearItemRequest")
+        assert response_schema["$ref"].endswith("/ResolvedGearItemResponse")
+
     async def test_authenticated_request_returns_user_gear_projection(
         self,
         db_session: AsyncSession,
