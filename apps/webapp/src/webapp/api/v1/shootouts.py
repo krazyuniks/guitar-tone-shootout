@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -16,8 +16,13 @@ from webapp.adapters.persistence.models.job import Job as JobModel
 from webapp.adapters.persistence.models.shootout import (
     Shootout as ShootoutModel,
 )
-from webapp.adapters.persistence.models.shootout import ShootoutStatus
+from webapp.adapters.persistence.models.shootout import (
+    ShootoutStatus,
+)
 from webapp.adapters.persistence.models.user import User
+from webapp.adapters.persistence.repositories.shootout_repository import (
+    published_shootout_gate,
+)
 from webapp.api.v1.schemas.shootout import (
     ShootoutCreateRequest,
     ShootoutResponse,
@@ -258,18 +263,27 @@ async def process_shootout(
         HTTPException: 400 if shootout has no chains or is not in DRAFT status
     """
     # Query shootout with chains, scoped to the owning user
+    is_published = and_(*published_shootout_gate(include_unlisted=True)).label("is_published")
     stmt = (
-        select(ShootoutModel)
+        select(ShootoutModel, is_published)
         .where(ShootoutModel.id == shootout_id, ShootoutModel.user_id == current_user.id)
         .options(joinedload(ShootoutModel.chains))
+        .with_for_update(of=ShootoutModel)
     )
     result = await db.execute(stmt)
-    shootout = result.unique().scalar_one_or_none()
+    row = result.unique().one_or_none()
 
-    if shootout is None:
+    if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Shootout not found",
+        )
+    shootout, published = row
+
+    if published:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Published shootouts are immutable; create a new shootout for another run",
         )
 
     # Return 400 if shootout has no chains
@@ -283,7 +297,7 @@ async def process_shootout(
     if shootout.status != ShootoutStatus.DRAFT:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Shootout is already being processed or has been processed",
+            detail="Shootout has already been run; create a new shootout for another run",
         )
 
     # Create Job record
