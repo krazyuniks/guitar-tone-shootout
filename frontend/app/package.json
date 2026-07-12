@@ -13,9 +13,11 @@
     "gen:api": "openapi-typescript http://webapp:8000/openapi.json -o src/api/schema.d.ts",
     "check:api": "openapi-typescript http://webapp:8000/openapi.json -o /tmp/gts-app-schema.d.ts && cmp -s /tmp/gts-app-schema.d.ts src/api/schema.d.ts || (echo 'frontend/app/src/api/schema.d.ts is stale; run just gen-app-api' >&2 && exit 1)",
     "preview": "vite preview",
+    "test:unit": "node --test src/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.0",
     "@tanstack/react-router": "^1.0.0",
     "openapi-fetch": "^0.15.0",
     "react": "^19.2.0",
