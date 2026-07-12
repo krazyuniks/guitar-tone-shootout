@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from gts.domain.value_objects.job_status import JobStatus, JobType
 
 
 class JobResponse(BaseModel):
@@ -16,27 +17,13 @@ class JobResponse(BaseModel):
 
     id: UUID
     user_id: UUID | None
-    job_type: Literal[
-        "audio_processing",
-        "video_compose",
-        "gear_sync",
-        "model_download",
-        "ir_download",
-        "notification",
-    ]
-    status: Literal[
-        "pending",
-        "queued",
-        "running",
-        "completed",
-        "failed",
-        "cancelled",
-        "dead_lettered",
-    ]
+    job_type: JobType
+    status: JobStatus
     progress: int
     message: str | None = None
     error: str | None = None
-    result_path: str | None = None
     entity_id: UUID | None = None
+    parent_job_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
+    children: list[JobResponse] = Field(default_factory=list)

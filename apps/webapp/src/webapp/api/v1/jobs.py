@@ -7,72 +7,44 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gts.domain.entities.job import Job as JobEntity
 from gts.domain.value_objects.job_status import JobStatus, JobType
 from webapp.adapters.persistence.models.job import Job as JobModel
-from webapp.adapters.persistence.models.user import User
 from webapp.api.v1.schemas.job import JobResponse
+from webapp.auth.dependencies import CurrentUser, get_db_session
 from webapp.services.job_dispatch import enqueue_job
 from webapp.services.job_service import JobService
 from webapp.services.job_transitions import InvalidTransitionError, transition_job
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
-# Session and user overrides for testing
-_session_override: AsyncSession | None = None
-_user_override: User | None = None
 
-
-def set_session_override(session: AsyncSession | None) -> None:
-    """Override the database session for testing.
-
-    Args:
-        session: Test database session or None to clear
-    """
-    global _session_override
-    _session_override = session
-
-
-def set_user_override(user: User | None) -> None:
-    """Override the current user for testing.
-
-    Args:
-        user: Test user to use as CurrentUser or None to clear
-    """
-    global _user_override
-    _user_override = user
-
-
-async def get_db_session() -> AsyncSession:
-    """Get database session dependency.
-
-    Checks for test session override first, then falls back to the
-    global database session factory.
-    """
-    if _session_override:
-        return _session_override
-    raise NotImplementedError("Database session dependency not configured")
-
-
-async def get_current_user() -> User:
-    """Get current authenticated user dependency.
-
-    In production this would validate session/token.
-    For testing, uses override if set.
-    """
-    if _user_override:
-        return _user_override
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated",
+def _job_response(
+    job: JobEntity | JobModel, *, children: list[JobResponse] | None = None
+) -> JobResponse:
+    """Project a domain or persistence job into the authenticated API shape."""
+    return JobResponse(
+        id=job.id,
+        user_id=job.user_id,
+        job_type=job.job_type,
+        status=job.status,
+        progress=job.progress,
+        message=job.message,
+        error=job.error,
+        entity_id=job.entity_id,
+        parent_job_id=job.parent_job_id,
+        created_at=job.created_at,
+        updated_at=job.updated_at,
+        children=children or [],
     )
 
 
 @router.get("/", response_model=list[JobResponse])
 async def list_jobs(
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
-    status_filter: str | None = Query(None, alias="status"),
-    job_type: str | None = Query(None, alias="job_type"),
+    current_user: CurrentUser,
+    status_filter: Annotated[JobStatus | None, Query(alias="status")] = None,
+    job_type: Annotated[JobType | None, Query(alias="job_type")] = None,
 ) -> list[JobResponse]:
     """List current user's jobs.
 
@@ -90,39 +62,20 @@ async def list_jobs(
     """
     service = JobService(db)
 
-    # Parse filters
-    status_enum = JobStatus(status_filter) if status_filter else None
-    job_type_enum = JobType(job_type) if job_type else None
-
     jobs = await service.get_by_user_id(
         current_user.id,
-        status=status_enum,
-        job_type=job_type_enum,
+        status=status_filter,
+        job_type=job_type,
     )
 
-    return [
-        JobResponse(
-            id=job.id,
-            user_id=job.user_id,
-            job_type=job.job_type.value,
-            status=job.status.value,
-            progress=job.progress,
-            message=job.message,
-            error=job.error,
-            result_path=job.result_path,
-            entity_id=job.entity_id,
-            created_at=job.created_at,
-            updated_at=job.updated_at,
-        )
-        for job in jobs
-    ]
+    return [_job_response(job) for job in jobs]
 
 
 @router.get("/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: CurrentUser,
 ) -> JobResponse:
     """Get a job by ID.
 
@@ -142,34 +95,23 @@ async def get_job(
     """
     service = JobService(db)
 
-    job = await service.get_by_id(job_id, current_user.id)
+    tree = await service.get_tree_by_id(job_id, current_user.id)
 
-    if job is None:
+    if tree is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found",
         )
 
-    return JobResponse(
-        id=job.id,
-        user_id=job.user_id,
-        job_type=job.job_type.value,
-        status=job.status.value,
-        progress=job.progress,
-        message=job.message,
-        error=job.error,
-        result_path=job.result_path,
-        entity_id=job.entity_id,
-        created_at=job.created_at,
-        updated_at=job.updated_at,
-    )
+    job, children = tree
+    return _job_response(job, children=[_job_response(child) for child in children])
 
 
 @router.post("/{job_id}/retry", response_model=JobResponse)
 async def retry_job(
     job_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: CurrentUser,
 ) -> JobResponse:
     """Retry a failed job.
 
@@ -218,16 +160,4 @@ async def retry_job(
     await enqueue_job(db, job_model.id, message="Queued for retry")
     await db.refresh(job_model)
 
-    return JobResponse(
-        id=job_model.id,
-        user_id=job_model.user_id,
-        job_type=job_model.job_type.value,
-        status=job_model.status.value,
-        progress=job_model.progress,
-        message=job_model.message,
-        error=job_model.error,
-        result_path=job_model.result_path,
-        entity_id=job_model.entity_id,
-        created_at=job_model.created_at,
-        updated_at=job_model.updated_at,
-    )
+    return _job_response(job_model)

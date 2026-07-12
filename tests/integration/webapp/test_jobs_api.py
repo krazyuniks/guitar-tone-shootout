@@ -14,7 +14,8 @@ from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.job_repository import (
     SQLAlchemyJobRepository,
 )
-from webapp.api.v1.jobs import router, set_session_override, set_user_override
+from webapp.api.v1.jobs import router
+from webapp.auth.dependencies import set_session_override, set_user_override
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -82,6 +83,59 @@ async def test_get_job_by_id_returns_job_status(
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+async def test_get_job_by_id_returns_one_level_of_ordered_children(
+    authenticated_client: AsyncClient,
+    db_session: AsyncSession,
+    test_user: User,
+) -> None:
+    """The job detail projection embeds direct children in creation order."""
+    repo = SQLAlchemyJobRepository(db_session)
+    parent = Job(
+        user_id=test_user.id,
+        job_type=JobType.SHOOTOUT,
+        entity_id=uuid4(),
+    )
+    first_child = Job(
+        user_id=test_user.id,
+        job_type=JobType.SHOOTOUT_AUDIO,
+        parent_job_id=parent.id,
+        entity_id=uuid4(),
+    )
+    second_child = Job(
+        user_id=test_user.id,
+        job_type=JobType.SHOOTOUT_AUDIO,
+        parent_job_id=parent.id,
+        entity_id=uuid4(),
+    )
+    grandchild = Job(
+        user_id=test_user.id,
+        job_type=JobType.SHOOTOUT_MASTER,
+        parent_job_id=first_child.id,
+    )
+
+    async with db_session.begin():
+        await repo.save(parent)
+        await repo.save(first_child)
+        await repo.save(second_child)
+        await repo.save(grandchild)
+
+    response = await authenticated_client.get(f"/api/jobs/{parent.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["parent_job_id"] is None
+    assert [child["id"] for child in data["children"]] == [
+        str(first_child.id),
+        str(second_child.id),
+    ]
+    assert data["children"][0]["parent_job_id"] == str(parent.id)
+    assert data["children"][0]["children"] == []
+    assert "result_path" not in data
+    assert "task_id" not in data
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
 async def test_get_job_by_id_returns_404_for_missing(
     authenticated_client: AsyncClient,
 ) -> None:
@@ -140,6 +194,7 @@ async def test_get_job_by_id_requires_authentication(
 
     # Create client without auth override
     set_session_override(db_session)
+    set_user_override(None)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(f"/api/jobs/{job.id}")
@@ -273,6 +328,23 @@ async def test_list_user_jobs_filters_by_job_type(
     data = response.json()
     assert len(data) == 1
     assert data[0]["job_type"] == "audio_processing"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("query_name", "query_value"),
+    [("status", "unknown"), ("job_type", "unknown")],
+)
+async def test_list_user_jobs_rejects_invalid_filters(
+    authenticated_client: AsyncClient,
+    query_name: str,
+    query_value: str,
+) -> None:
+    """Invalid enum filters are request validation errors."""
+    response = await authenticated_client.get(f"/api/jobs/?{query_name}={query_value}")
+
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio

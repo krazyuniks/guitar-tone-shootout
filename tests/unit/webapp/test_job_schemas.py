@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from gts.domain.value_objects.job_status import JobType
 from webapp.api.v1.schemas.job import JobResponse
 
 
@@ -117,8 +118,8 @@ class TestJobResponse:
         assert response.created_at is not None
         assert response.updated_at is not None
 
-    def test_response_includes_optional_fields(self) -> None:
-        """Test that response includes optional fields like error and result_path."""
+    def test_response_includes_operational_fields_but_excludes_internal_paths(self) -> None:
+        """The owner can see errors and entity links, but not worker internals."""
         data = {
             "id": str(uuid4()),
             "user_id": str(uuid4()),
@@ -126,7 +127,7 @@ class TestJobResponse:
             "status": "failed",
             "progress": 75,
             "error": "Processing failed",
-            "result_path": None,
+            "parent_job_id": str(uuid4()),
             "entity_id": str(uuid4()),
             "created_at": "2024-01-01T00:00:00Z",
             "updated_at": "2024-01-01T00:00:00Z",
@@ -135,8 +136,40 @@ class TestJobResponse:
         response = JobResponse(**data)
 
         assert response.error == "Processing failed"
-        assert response.result_path is None
+        assert response.parent_job_id is not None
         assert response.entity_id is not None
+        assert "result_path" not in JobResponse.model_fields
+        assert "task_id" not in JobResponse.model_fields
+
+    @pytest.mark.parametrize(
+        "job_type",
+        [
+            "audio_processing",
+            "video_compose",
+            "gear_sync",
+            "model_download",
+            "ir_download",
+            "notification",
+            "shootout",
+            "shootout_audio",
+            "shootout_master",
+            "shootout_finalise",
+            "source_sync",
+        ],
+    )
+    def test_response_accepts_every_job_type(self, job_type: str) -> None:
+        """The response schema stays aligned with the domain job type set."""
+        response = JobResponse(
+            id=uuid4(),
+            user_id=uuid4(),
+            job_type=job_type,
+            status="pending",
+            progress=0,
+            created_at="2024-01-01T00:00:00Z",
+            updated_at="2024-01-01T00:00:00Z",
+        )
+
+        assert response.job_type == JobType(job_type)
 
     def test_response_progress_must_be_integer(self) -> None:
         """Test that progress must be an integer."""
