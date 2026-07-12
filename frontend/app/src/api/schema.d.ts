@@ -671,6 +671,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/signal-chains/guidance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Signal Chain Guidance
+         * @description Return grammar guidance for the builder's v1 template signature.
+         */
+        post: operations["get_signal_chain_guidance_api_signal_chains_guidance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/signal-chains/": {
         parameters: {
             query?: never;
@@ -2318,6 +2338,37 @@ export interface components {
          * @enum {string}
          */
         GearType: "pedal" | "amp" | "full_rig" | "ir" | "post_effect" | "outboard";
+        /**
+         * GuidanceBlockRequest
+         * @description A representative block from the builder's v1 template signature.
+         */
+        GuidanceBlockRequest: {
+            /**
+             * Gear Type
+             * @enum {string}
+             */
+            gear_type: "pedal" | "amp" | "ir";
+        };
+        /**
+         * GuidanceRequest
+         * @description Request schema for stateless signal-chain guidance.
+         */
+        GuidanceRequest: {
+            /** Blocks */
+            blocks: components["schemas"]["GuidanceBlockRequest"][];
+        };
+        /**
+         * GuidanceResponse
+         * @description Guidance derived from the signal-chain grammar.
+         */
+        GuidanceResponse: {
+            /** Next Valid Gear Types */
+            next_valid_gear_types: ("pedal" | "amp" | "ir")[];
+            /** Guidance Message */
+            guidance_message: string;
+            /** Is Complete */
+            is_complete: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3641,6 +3692,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signal_chain_guidance_api_signal_chains_guidance_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuidanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuidanceResponse"];
                 };
             };
             /** @description Validation Error */

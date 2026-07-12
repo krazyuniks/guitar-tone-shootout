@@ -156,6 +156,78 @@ class TestListSignalChains:
         assert response.json() == []  # Should not see other user's chains
 
 
+class TestSignalChainGuidance:
+    """Tests for POST /api/signal-chains/guidance."""
+
+    @pytest.mark.parametrize(
+        ("blocks", "next_valid_gear_types", "is_complete"),
+        [
+            ([], ["pedal", "amp"], False),
+            ([{"gear_type": "pedal"}], ["pedal", "amp"], False),
+            ([{"gear_type": "amp"}], ["ir"], False),
+            ([{"gear_type": "amp"}, {"gear_type": "ir"}], [], True),
+        ],
+    )
+    async def test_returns_domain_guidance_for_v1_builder_signature(
+        self,
+        client: AsyncClient,
+        blocks: list[dict[str, str]],
+        next_valid_gear_types: list[str],
+        is_complete: bool,
+    ) -> None:
+        response = await client.post(
+            "/api/signal-chains/guidance",
+            json={"blocks": blocks},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "next_valid_gear_types": next_valid_gear_types,
+            "guidance_message": response.json()["guidance_message"],
+            "is_complete": is_complete,
+        }
+        assert response.json()["guidance_message"]
+
+    @pytest.mark.parametrize("gear_type", ["full_rig", "post_effect"])
+    async def test_rejects_gear_types_outside_v1_vocabulary(
+        self,
+        client: AsyncClient,
+        gear_type: str,
+    ) -> None:
+        response = await client.post(
+            "/api/signal-chains/guidance",
+            json={"blocks": [{"gear_type": gear_type}]},
+        )
+
+        assert response.status_code == 422
+
+    async def test_openapi_types_request_and_response_vocabulary(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        schema = (await client.get("/openapi.json")).json()
+        operation = schema["paths"]["/api/signal-chains/guidance"]["post"]
+        request_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        response_ref = operation["responses"]["200"]["content"]["application/json"]["schema"][
+            "$ref"
+        ]
+        request_schema = schema["components"]["schemas"][request_ref.rsplit("/", 1)[-1]]
+        response_schema = schema["components"]["schemas"][response_ref.rsplit("/", 1)[-1]]
+        block_ref = request_schema["properties"]["blocks"]["items"]["$ref"]
+        block_schema = schema["components"]["schemas"][block_ref.rsplit("/", 1)[-1]]
+
+        assert block_schema["properties"]["gear_type"]["enum"] == [
+            "pedal",
+            "amp",
+            "ir",
+        ]
+        assert response_schema["properties"]["next_valid_gear_types"]["items"]["enum"] == [
+            "pedal",
+            "amp",
+            "ir",
+        ]
+
+
 class TestCreateSignalChain:
     """Tests for POST /api/signal-chains/."""
 

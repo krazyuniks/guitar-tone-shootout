@@ -10,12 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gts.domain.entities.signal_chain import SignalChain, SignalChainBlock
 from gts.domain.value_objects.signal_chain_enums import GearType, Platform
+from gts.services.signal_chain_validator import SignalChainValidator
 from webapp.adapters.persistence.models.user import User
 from webapp.adapters.persistence.repositories.user_gear_repository import (
     SQLAlchemyUserGearRepository,
 )
 from webapp.api.v1.schemas.signal_chain import (
     BlockRequest,
+    GuidanceRequest,
+    GuidanceResponse,
     SignalChainCreateRequest,
     SignalChainResponse,
     SignalChainUpdateRequest,
@@ -32,6 +35,8 @@ from webapp.services.signal_chain_service import (
 )
 
 router = APIRouter(prefix="/api/signal-chains", tags=["signal-chains"])
+
+V1_GUIDANCE_GEAR_TYPES = {GearType.PEDAL, GearType.AMP, GearType.IR}
 
 
 async def _gear_types_for_blocks(
@@ -67,6 +72,39 @@ def _blocks_from_request(
         )
         for block in request_blocks
     ]
+
+
+@router.post("/guidance", response_model=GuidanceResponse)
+async def get_signal_chain_guidance(
+    request: GuidanceRequest,
+    _current_user: Annotated[User, Depends(get_current_user)],
+) -> GuidanceResponse:
+    """Return grammar guidance for the builder's v1 template signature."""
+    chain_id = uuid4()
+    chain = SignalChain(
+        blocks=[
+            SignalChainBlock(
+                id=uuid4(),
+                signal_chain_id=chain_id,
+                position=position,
+                user_gear_id=uuid4(),
+                gear_type=GearType(block.gear_type),
+            )
+            for position, block in enumerate(request.blocks)
+        ],
+        id=chain_id,
+    )
+    validator = SignalChainValidator()
+
+    return GuidanceResponse(
+        next_valid_gear_types=[
+            gear_type.value
+            for gear_type in validator.get_next_valid_gear_types(chain)
+            if gear_type in V1_GUIDANCE_GEAR_TYPES
+        ],
+        guidance_message=validator.get_guidance_message(chain),
+        is_complete=chain.is_complete(),
+    )
 
 
 @router.get("/", response_model=list[SignalChainResponse])
