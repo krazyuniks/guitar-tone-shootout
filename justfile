@@ -114,7 +114,9 @@ check:
 # Run type checking (strict on gts, TypeScript on video)
 check-types:
     {{dc}} exec -T webapp mypy model/gts/ --strict
-    @cd model/video && npx tsc --noEmit
+    # The main checkout does not pass through the worktree gate's dependency install.
+    @if [ ! -x model/video/node_modules/.bin/tsc ]; then (cd model/video && npm ci); fi
+    @cd model/video && node_modules/.bin/tsc --noEmit
 
 # Run unit tests
 check-tests:

@@ -13,6 +13,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from chromium_executable import find_chromium_executable
+
 # Cache for cld wrapper check (checked once per run)
 _cld_available: bool | None = None
 
@@ -47,16 +49,14 @@ def check_chrome_installed() -> bool:
     """Check if Chrome or Chromium is installed on the system.
 
     Required for Chrome DevTools MCP to function. Checks for:
-    - Linux: google-chrome, chromium, chromium-browser in PATH
+    - Linux: Google Chrome or Chromium executables in PATH
     - macOS: Google Chrome.app or Chromium.app bundles, or CLI tools in PATH
     """
     import platform
 
     # Check CLI executables (works on both platforms)
-    chrome_executables = ["google-chrome", "chromium", "chromium-browser"]
-    for exe in chrome_executables:
-        if shutil.which(exe):
-            return True
+    if find_chromium_executable() is not None:
+        return True
 
     # On macOS, also check for .app bundles
     if platform.system() == "Darwin":

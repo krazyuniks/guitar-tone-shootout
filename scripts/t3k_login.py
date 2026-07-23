@@ -22,6 +22,8 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from chromium_executable import find_chromium_executable
+
 # Auth file at worktree root (parent of any worktree dir)
 WORKTREE_ROOT = Path(__file__).resolve().parent.parent.parent
 AUTH_FILE = WORKTREE_ROOT / ".gts-auth.json"
@@ -87,6 +89,11 @@ def main() -> None:
 
     # Import check only: token encryption happens in the webapp callback.
     _ = Fernet
+    browser_executable = find_chromium_executable()
+    if browser_executable is None:
+        print("Missing browser: install Google Chrome or Chromium")
+        sys.exit(1)
+
     started_at = datetime.now(UTC)
     public_url = get_public_url()
     print(f"T3K Login — {LOGIN_EMAIL}")
@@ -96,7 +103,7 @@ def main() -> None:
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            executable_path="/usr/bin/chromium",
+            executable_path=browser_executable,
             headless=True,
             args=["--no-sandbox", "--disable-gpu"],
         )

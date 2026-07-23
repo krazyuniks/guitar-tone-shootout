@@ -572,6 +572,7 @@ dev = [
 ]
 host = [
     { name = "cryptography" },
+    { name = "httpx" },
     { name = "playwright" },
 ]
 
@@ -589,6 +590,7 @@ dev = [
 ]
 host = [
     { name = "cryptography", specifier = ">=44.0.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
     { name = "playwright", specifier = ">=1.49.0" },
 ]
 
