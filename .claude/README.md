@@ -1,14 +1,9 @@
-# Claude Code Configuration
+# Claude Code configuration
 
-See [project README](../README.md) for configuration architecture.
+`AGENTS.md` owns project instructions. This directory contains only Claude-specific safety enforcement:
 
-## Structure
+- `hooks/` blocks destructive infrastructure, mocks and edits to generated Compose overrides;
+- `rules/` contains narrow command and test constraints;
+- `settings.json` enables those safety hooks.
 
-```
-.claude/
-├── hooks/           # Lifecycle hooks (deterministic enforcement)
-├── skills/          # GTS-specific domain knowledge (7 skills)
-├── rules/           # github.md (--repo flag reminder)
-├── commands/        # Slash commands (/epic, /check, /merge)
-└── settings.json    # Permissions & hook config
-```
+Workflow runners, prompts, merge automation, status snapshots, copied architecture and completed work do not live here.

@@ -1,4 +1,0 @@
-# External slash commands intentionally referenced in docs but not defined in
-# .claude/commands/*.md. Keep this list minimal.
-ralph-hybrid-plan
-ralph-hybrid-amend

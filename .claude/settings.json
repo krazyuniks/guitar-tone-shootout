@@ -23,21 +23,7 @@
     ],
     "deny": []
   },
-  "statusLine": {
-    "type": "command",
-    "command": ".claude/hooks/statusline.sh",
-    "refreshMs": 10000,
-    "enabled": true
-  },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {"type": "command", "command": ".claude/hooks/auth-check.sh"},
-          {"type": "command", "command": ".claude/hooks/log-monitor-start.sh"}
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -45,14 +31,6 @@
           {
             "type": "command",
             "command": ".claude/hooks/block-adhoc-infra.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/cli-helper.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/adherence-check.sh"
           }
         ]
       },
@@ -66,25 +44,6 @@
           {
             "type": "command",
             "command": ".claude/hooks/protect-config.sh"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/capture-test-logs.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/ci-monitor.sh"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/merge-teardown.sh"
           }
         ]
       }

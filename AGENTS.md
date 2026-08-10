@@ -23,6 +23,7 @@ Never guess at commands. Before constructing any ad-hoc Docker, uv, or pnpm comm
 - Astro runs as a persistent service (chokidar auto-rebuilds). Use `just build-astro` or `just watch-astro`.
 - Never restart containers for code changes. Uvicorn `--reload` with WatchFiles detects edits automatically.
 - Host `uv run` is limited to host-only tooling: `scripts/t3k_auth.py` and `tests/e2e/python/` for E2E tests.
+- In zsh scripts, do not use `path` as a scalar variable and do not use post-increment under `set -e`; `path` controls command lookup and a zero-valued post-increment returns failure.
 
 ## Stack
 
@@ -44,26 +45,9 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR 
 
 ## Architecture
 
-| Module | Can depend on | Cannot depend on |
-|--------|---------------|------------------|
-| `gts` | (none) | audio, video, sources, apps |
-| `audio` | gts | video, sources, apps |
-| `video` | gts | audio, sources, apps |
-| `source_*` | gts | audio, video, other sources, apps |
-| `webapp` | gts, audio, video, messaging | sources |
-| `t3k-sync` | gts, source_t3k, messaging | audio, video, webapp |
-| `audio-worker` | gts, audio, messaging | video, sources, webapp |
-| `shootout-orchestrator` | gts, messaging, webapp | audio, video, sources |
+The product and technical target are being reconciled. Treat current code as implementation evidence, not as proof of the intended boundary. Durable target state belongs in `docs/`, with reasoning in ADRs and terms in `CONTEXT.md`; do not add target architecture to this instruction file.
 
-**Core bounded context = `gts`.** The domain BC is conceptually "Core" (the DDD core domain) and is realised as the `gts` package (import root `gts`). Prose that says "Core" - the `model/gts/CLAUDE.md` title `# Core Bounded Context`, context-map references like "Sources -> Core", "Core owns the record schemas" - is intentional and correct. Only the package, path, and import root were renamed from `core` to `gts`. Do not flag "Core" references as stale. (`gts_core` is the database name; `core_*` are table names; `core_engine` is a pytest fixture - all unrelated and also correct.)
-
-**Single database:** All BCs share one PostgreSQL instance (`gts_core`). BC separation via `import-linter` + table naming (`core_*`, `t3k_*`).
-
-**BC table isolation:** Each BC's ORM models MUST only reference their own BC's tables.
-
-**Transactional outbox:** All pgmq publishes MUST happen within the same database transaction as the domain state change.
-
-**Enforcement**: `import-linter` contracts in root `pyproject.toml`.
+The executable current dependency constraints are the `import-linter` contracts in root `pyproject.toml`. Read them before changing package dependencies. Database changes must preserve table ownership and publish pgmq messages in the same transaction as the domain state change.
 
 ### Query Patterns
 
@@ -84,10 +68,10 @@ FastAPI + SQLAlchemy 2.0 + PostgreSQL | Public frontend: Astro SSG + Jinja2 SSR 
 
 ### Authentication
 
-- T3K = passwordless OAuth. No user credentials stored by GTS. Only OAuth access/refresh tokens.
-- Token-based auth (stateless). JWT validated per request. No server-side sessions.
-- Admin API (Webapp, port 8000, `/api/admin/*`): NO authentication. Network-level access control only.
-- User API (Webapp, port 8000): all `/api/*` routes require `CurrentUser` token authentication.
+- Tone3000 browser identity and the background catalogue synchroniser use separate credentials.
+- Do not extend the legacy shared browser OAuth file, public session-restoration route or saved-identity status route.
+- Every user API route requires validated current-user identity unless its public-read contract is explicit and tested.
+- Keep administrative operations off public ingress and test that boundary at nginx and application level.
 
 ## Testing
 
@@ -131,8 +115,10 @@ such tools (`.woof/*.toml` for the woof runner); it never vendors tool source,
 schemas, playbooks, tests, runtime state, audit logs, locks, or generated
 codebase maps.
 
-GTS work starts from GitHub issues. If no external runner is available, work
-manually from the issue; do not recreate an in-repo workflow implementation.
+The Radian IT project backlog owns scope and order. GitHub issues and pull
+requests are execution evidence only. If no external runner is available, work
+manually from the exact supplied backlog scope; do not recreate an in-repo
+workflow implementation.
 
 ## Infrastructure
 
@@ -160,7 +146,7 @@ All `just` recipes route through `scripts/dc`. The per-worktree project name, po
 
 ## Git & GitHub
 
-**GitHub issues are the source of truth.** All work traces back to a GitHub issue.
+The project backlog is the source of truth for remaining work. Link GitHub issues and pull requests where they provide execution evidence, but do not derive project order or residual scope from them.
 
 **No branches on the main checkout.** The `main` checkout commits directly to `main`. NEVER create feature branches in it. Each feature worktree IS a branch — create + provision it with `worktree up gts <branch>`. Creating branches within a worktree causes staging area race conditions when multiple sessions commit concurrently.
 
@@ -176,7 +162,7 @@ All `just` recipes route through `scripts/dc`. The per-worktree project name, po
 
 **Work is NOT complete until `git push` succeeds.**
 
-1. **File issues for remaining work**
+1. **Return remaining work to the canonical project backlog and link any GitHub evidence**
 2. **Run quality gates** (if code changed)
 3. **Update issue status**
 4. **PUSH TO REMOTE** — MANDATORY:
@@ -189,23 +175,3 @@ All `just` recipes route through `scripts/dc`. The per-worktree project name, po
 6. **Hand off** — provide context for next session
 
 **NEVER stop before pushing.** NEVER say "ready to push when you are" — YOU must push.
-
-## Architecture Reference
-
-| Topic | Skill Reference |
-|-------|----------------|
-| Domain model | `gts-architecture/references/domain-model.md` |
-| Architecture layers | `gts-architecture/references/architecture-layers.md` |
-| Design patterns | `gts-architecture/references/design-patterns.md` |
-| Database | `gts-architecture/references/database.md` |
-| Data pipeline | `gts-architecture/references/data-pipeline.md` |
-| Web application | `gts-architecture/references/web-application.md` |
-| Audio & video | `gts-architecture/references/audio-video.md` |
-| Job scheduling | `gts-architecture/references/job-scheduling.md` |
-| Infrastructure | `gts-architecture/references/infrastructure.md` |
-| Security | `gts-architecture/references/security.md` |
-| Testing | `gts-architecture/references/testing.md` |
-| Operations | `gts-architecture/references/operations.md` |
-| Configuration | `gts-architecture/references/configuration.md` |
-
-Wiki deep-dives: `../wiki/GTS-Technical-Architecture.md`, `../wiki/REFERENCE-ARCHITECTURE.md`

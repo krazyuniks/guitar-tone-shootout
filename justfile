@@ -148,10 +148,6 @@ lint:
 test-unit:
     {{dc}} exec -T webapp pytest tests/unit/ -v -m "not host_only"
 
-# Run documentation tests in Docker
-test-docs:
-    {{dc}} exec -T webapp pytest tests/unit/backend/docs/ -v
-
 # Run regression tests - validates stack connectivity
 # Tests both internal Docker stack and external URL (Traefik SSL if available)
 test-regression:
